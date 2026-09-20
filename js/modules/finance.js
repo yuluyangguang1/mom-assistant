@@ -51,7 +51,7 @@
         });
         html += '</ul><button class="btn-mini" id="fClear">清空</button>';
       } else {
-        html += '<div class="empty-illo">' + illo('empty') + '</div><p class="hint">暂无</p>';
+        html += '<p class="hint">暂无</p>';
       }
       html += '</div>';
 
