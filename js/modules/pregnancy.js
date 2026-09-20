@@ -57,7 +57,7 @@
         html += '</ul><div class="progress"><div class="progress-bar" style="width:' + cw.percent + '%"></div></div>';
         html += '<p class="hint">进度 ' + cw.percent + '%</p></div>';
       } else {
-        html += '<div class="card hint"><div class="empty-illo">' + illo('pregnancy') + '</div><p>设置末次月经或预产期后显示孕周进度。</p></div>';
+        html += '<div class="card"><p class="hint">设置末次月经或预产期后显示孕周进度。</p></div>';
       }
 
       // 产检日历
