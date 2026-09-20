@@ -57,7 +57,7 @@
       ensurePreset();
       var d = Storage.get();
       var html = '';
-      html += '<div class="card hint"><div class="empty-illo">' + illo('packing') + '</div><p>按场景勾选，防遗漏。标注"易闲置/非必需"的可酌情准备。</p></div>';
+      html += '<div class="card"><p class="hint">按场景勾选，防遗漏。标注“易闲置/非必需”的可酌情准备。</p></div>';
 
       var cats = [];
       d.packing.items.forEach(function (it) { if (cats.indexOf(it.cat) < 0) cats.push(it.cat); });
