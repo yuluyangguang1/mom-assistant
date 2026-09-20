@@ -138,13 +138,6 @@ body {
 /* 内容抬到折射层之上（.card > * 已有，这里补齐其余宿主） */
 .record-tile > *, .stat > *, .modal > *, .mod-item > * { position: relative; z-index: 1; }
 
-/* 折射表面光（.card::after）为静态层；真实折射已就位，故仅留极淡的环境反光，
-   避免与真折射争抢。尊重减少动效偏好时进一步减弱。 */
-.card::after { opacity: .3; }
-@media (prefers-reduced-motion: reduce) {
-  .card::after { opacity: .22; }
-}
-
 /* ---------- 设置：开关行 ---------- */
 .row-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
 .row-switch label { margin: 0; flex: 1 1 auto; font-size: var(--fs-body); color: var(--text); }
@@ -239,17 +232,7 @@ body {
   transition: box-shadow .18s, transform .18s;
   isolation: isolate;            /* 建立堆叠上下文，让折射光层稳定位于内容之下 */
 }
-/* 折射表面光：被 #liquidSheet 扭曲的柔光，模拟液体表面的环境折射反光。
-   静态（不动画 SVG 滤镜，避免重算开销）；screen 混合只提亮、不遮挡文字。
-   置于右上区域，避开左对齐的标题文字，保证可读性。 */
-.card::after {
-  content: ''; position: absolute; top: 4%; right: 6%; width: 46%; height: 40%;
-  border-radius: 999px;
-  background: radial-gradient(130% 150% at 70% 20%, rgba(255,255,255,.9), rgba(255,255,255,0) 62%);
-  filter: url(#liquidSheet);
-  mix-blend-mode: screen; opacity: .5; pointer-events: none; z-index: 0;
-}
-.card > * { position: relative; z-index: 1; }   /* 内容抬到折射光层之上 */
+.card > * { position: relative; z-index: 1; }   /* 内容抬到折射光层之上（兼容首页折射卡片） */
 .card:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(64,54,86,.06), 0 18px 42px -18px rgba(64,54,86,.28), var(--glass-highlight); }
 .card h2 {
   font-size: var(--fs-h2); font-weight: 700; margin: 0 0 14px;

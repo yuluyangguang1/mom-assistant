@@ -176,6 +176,11 @@
     var s = (global.Storage && global.Storage.get && global.Storage.get().settings) || {};
     enabled = (s.realRefraction !== false);
     if (!enabled) { clearAll(); return; }
+    /* 折射只服务于「首页程序化天空」：离开首页后背景只是纯色渐变，强行折射
+       只会摘取到色带并位移成难看的色块、压低对比、破坏可读性（真机暴露）。
+       因此非首页一律清除折射层，只保留磨砂玻璃 + rim 高光边。 */
+    var sky = doc.getElementById('skyCanvas');
+    if (!sky || !sky.isConnected) { clearAll(); return; }
     start();
     if (!scene) return;
     paintScene();

@@ -15,18 +15,13 @@
 </head>
 <body>
   <!-- 液态玻璃 SVG 滤镜定义（隐藏）：
-       #liquidRim 细波浪位移，用于把玻璃边缘高光弯折成液态反光；
-       #liquidSheet 低频大波浪+模糊，用于卡片折射表面光。 -->
+       #liquidRim 细波浪位移，用于把玻璃边缘高光弯折成液态反光（全浏览器可见、轻位移不碍阅读）。
+       #liquidRefract 用于首页玻璃折射天空（由 glass.js 注入，仅首页启用）。 -->
   <svg class="glass-defs" width="0" height="0" aria-hidden="true" focusable="false">
     <defs>
       <filter id="liquidRim" x="-25%" y="-25%" width="150%" height="150%" color-interpolation-filters="sRGB">
         <feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="1" seed="7" result="n"/>
         <feDisplacementMap in="SourceGraphic" in2="n" scale="2.5" xChannelSelector="R" yChannelSelector="G"/>
-      </filter>
-      <filter id="liquidSheet" x="-45%" y="-45%" width="190%" height="190%" color-interpolation-filters="sRGB">
-        <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="11" result="n"/>
-        <feDisplacementMap in="SourceGraphic" in2="n" scale="16" xChannelSelector="R" yChannelSelector="G" result="d"/>
-        <feGaussianBlur in="d" stdDeviation="2.2"/>
       </filter>
       <!-- 真·全平台折射：用于 .grefract 的「背景镜像 canvas」。
            注意是普通 filter（非 backdrop-filter），Chrome/Edge/Firefox/Safari 全部支持；
