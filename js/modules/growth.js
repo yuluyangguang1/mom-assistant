@@ -113,7 +113,7 @@
         html += growthChart(recs, baby);
         html += '<p class="warn">看趋势、看长期，单次数值不必焦虑。曲线为简化近似，非严格医学评估。</p></div>';
       } else {
-        html += '<div class="card hint"><div class="empty-illo">' + illo('growth') + '</div><p>还没有测量记录。记录后可显示百分位与趋势曲线。</p></div>';
+        html += '<div class="card"><p class="hint">还没有测量记录。记录后可显示百分位与趋势曲线。</p></div>';
       }
 
       view.innerHTML = html;
