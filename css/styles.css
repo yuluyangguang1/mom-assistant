@@ -518,8 +518,11 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
   position: relative; overflow: hidden;
   /* 向上突破 .view 内边距并继续上移到顶栏背后，透明顶栏浮在天空上。
      额外减去 --sat：刘海机型顶栏更高，天空要同步再上移，否则顶部露底色。 */
-  margin: calc(-18px - 64px - var(--sat)) -16px 18px;
-  height: 312px;
+  margin: calc(-18px - 64px - var(--sat)) -16px 14px;
+  /* 紧凑 hero：高度从 312px 收紧到 184px，避免问候语被钉在底部、上方留出大片空天空。
+     静态渐变作兜底，即使画布未加载也是一块有质感的色，而非空白。 */
+  height: 184px;
+  background: linear-gradient(180deg, #4a4f7a 0%, #6b6796 100%);
   border-radius: 0 0 28px 28px;
 }
 .sky-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
@@ -531,7 +534,7 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
    白昼天空偏浅，白字直接压在天空上对比度不足；加一层半透明暗底 + 模糊，
    保证任何时刻（清晨/正午/黄昏/夜）文字都清晰，同时契合玻璃暖房语言。 */
 .home-greet {
-  position: absolute; left: 18px; right: 18px; bottom: 18px; z-index: 2;
+  position: absolute; left: 18px; right: 18px; top: 50%; transform: translateY(-50%); z-index: 2;
   padding: 11px 15px; border-radius: 16px;
   background: rgba(38, 30, 52, .28);
   border: 1px solid rgba(255, 255, 255, .22);
@@ -681,7 +684,7 @@ body.dark [data-accent="finance"]     { --tile: #A898D2; --tile-weak: rgba(168,1
   .view, .app-header, .tabbar { max-width: 860px; }
   .record-grid { grid-template-columns: repeat(4, 1fr); }
   .home-greet h1 { font-size: 26px; }
-  .home-sky { height: 340px; }
+  .home-sky { height: 200px; }
 }
 
 /* ============================================================
