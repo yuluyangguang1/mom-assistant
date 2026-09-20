@@ -60,7 +60,7 @@
         html += '<li>易孕期：' + Util.fmtDate(p.fertileStart) + ' 至 ' + Util.fmtDate(p.fertileEnd) + '</li>';
         html += '</ul><p class="warn">预测仅供参考，个体差异大，请勿据此避孕或判断健康。</p></div>';
       } else {
-        html += '<div class="card hint"><div class="empty-illo">' + illo('empty') + '</div><p>还没有记录。记下第一次经期开始日期即可开始预测。</p></div>';
+        html += '<div class="card"><p class="hint">还没有记录。记下第一次经期开始日期即可开始预测。</p></div>';
       }
 
       html += '<div class="card"><h2>' + icon('period') + '历史记录</h2>';
@@ -75,7 +75,7 @@
           });
         html += '</ul>';
       } else {
-        html += '<div class="empty-illo">' + illo('empty') + '</div><p class="hint">暂无</p>';
+        html += '<p class="hint">暂无</p>';
       }
       html += '</div>';
 
