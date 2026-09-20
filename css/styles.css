@@ -748,23 +748,15 @@ body.dark [data-accent="finance"]     { --tile: #A898D2; --tile-weak: rgba(168,1
 /* 空状态：柔光环 + 轻浮插画 + 居中说明。
    统一各模块空状态观感——此前是 96px 裸图标紧接一行「暂无」，过于粗糙。
    光环用极淡主色的 radial-gradient 实现，不新增 DOM、不依赖 backdrop。 */
+/* 空状态：不再使用大插画 + 152px 光环（那是造成“空白块”的主源）。
+   改为纯文字提示（左对齐、克制），既消除大块空白，也契合“纯文本、无图标”偏好。
+   .empty-illo 仅作安全兜底：若仍有引用，折叠为左对齐的小提示、隐藏光环与插画。 */
 .empty-illo {
-  position: relative;
-  display: flex; flex-direction: column; align-items: center;
-  text-align: center; margin: 4px 0 12px;
+  display: flex; flex-direction: column; align-items: flex-start; text-align: left;
+  margin: 2px 0 8px;
 }
-.empty-illo::before {
-  content: ''; position: absolute; left: 50%; top: -10px; transform: translateX(-50%);
-  width: 152px; height: 152px; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle at 50% 45%, var(--primary-weak), rgba(100, 87, 181, 0) 68%);
-}
-.empty-illo .illo {
-  position: relative; width: 104px; height: 104px; margin: 0 auto 10px;
-  color: var(--primary); opacity: .62;
-  animation: float 6s ease-in-out infinite;
-}
-/* 空状态说明文字居中，与光环/插画同一视觉重心 */
-.empty-illo + .hint, .empty-illo + p { text-align: center; }
+.empty-illo::before, .empty-illo .illo { display: none; }
+.empty-illo + .hint, .empty-illo + p { text-align: left; }
 
 .hero {
   display: flex; flex-direction: column; align-items: center; text-align: center;
