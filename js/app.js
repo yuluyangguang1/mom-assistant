@@ -31,11 +31,15 @@
     });
   }
 
-  /* 顶栏滚动玻璃化：顶栏默认透明（为首页天空让路），
-     滚动超过 8px 后补一层磨砂玻璃底，避免各模块页内容从顶栏下方穿过造成文字重叠。 */
+  /* 顶栏玻璃化策略：
+     - 首页（天空 hero）：默认透明，滚动 >8px 后补实色底（为天空让路）
+     - 模块页：始终实色（无天空，透明顶栏会让「页头标题」上方露出 66px 空白带，
+       且内容滚动时会从透明顶栏下方穿过造成重叠）
+     奶油风下实色顶栏与卡片同源，视觉一体。 */
   function syncHeader() {
     var header = document.querySelector('.app-header');
     if (!header) return;
+    if (current !== 'home') { header.classList.add('is-scrolled'); return; }
     var y = window.pageYOffset || (document.documentElement && document.documentElement.scrollTop) || 0;
     if (y > 8) header.classList.add('is-scrolled');
     else header.classList.remove('is-scrolled');
@@ -55,6 +59,15 @@
       Modules[id].render(view);
     } catch (e) {
       view.innerHTML = '<div class="card"><p>加载出错：' + Util.escapeHtml(e && e.message ? e.message : e) + '</p></div>';
+    }
+    /* 模块页身份页头：记录类模块页（非首页/日历/设置）自动补一行「图标 + 标题」，
+       让进入模块第一眼就有身份感，消除「顶部无标题」的空白。设置页已有 .page-head，不重复。 */
+    if (id !== 'home' && id !== 'calendar' && id !== 'settings' && Modules[id] && Modules[id].title) {
+      var head = document.createElement('div');
+      head.className = 'mod-head';
+      head.setAttribute('data-accent', id);
+      head.innerHTML = '<span class="mod-head-ico">' + icon(id) + '</span><h1>' + Util.escapeHtml(Modules[id].title) + '</h1>';
+      view.insertBefore(head, view.firstChild);
     }
     // 进入动画：移除并重排后添加 .view-enter，触发卡片错落淡入（克制，<400ms）
     view.classList.remove('view-enter');

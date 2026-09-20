@@ -47,7 +47,7 @@
         });
         html += '</ul>';
       } else {
-        html += '<div class="empty-illo">' + illo('empty') + '</div><p class="hint">暂无</p>';
+        html += '<p class="hint">暂无</p>';
       }
       html += '</div>';
 
