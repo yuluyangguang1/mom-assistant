@@ -1,0 +1,20 @@
+{
+  "name": "宝妈助手",
+  "short_name": "宝妈助手",
+  "description": "本地优先的孕期与育儿记录助手：经期、孕期、喂养、睡眠、宫缩、生长、待产包、记账。",
+  "lang": "zh-CN",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f1ec",
+  "theme_color": "#f6f1ec",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

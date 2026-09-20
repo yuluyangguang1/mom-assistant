@@ -1,0 +1,815 @@
+/* ============================================================
+   宝妈助手 · 设计系统 v2「玻璃暖房」
+   设计概念：柔彩渐变底 + 磨砂玻璃卡片（通透、大圆角、顶部高光）
+   + 晨雾紫主色 + 柔彩模块分色 + 大字号关键数字（克制留白）。
+   - 玻璃：半透明白 + backdrop-filter 模糊 + 顶部 1px 高光边
+   - 关键数字 display 字号做主角（每页核心指标）
+   - 区块标题：小号字距标签 + 短强调竖线（无图标、纯文字）
+   - 单一晨雾紫主色；暗色为「暖炭紫」而非灰反色
+   无障碍：浅色正文/辅助文字全部达到 WCAG AA（≥4.5:1）；
+   玻璃在无 backdrop-filter 时自动降级为实色卡片。
+   ============================================================ */
+
+:root {
+  /* —— 玻璃质感 token —— */
+  --glass-bg: rgba(255, 255, 255, 0.62);
+  --glass-bg-strong: rgba(255, 255, 255, 0.80);
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-shadow: 0 1px 2px rgba(64, 54, 86, .05), 0 14px 34px -16px rgba(64, 54, 86, .20), 0 30px 64px -38px rgba(64, 54, 86, .30);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, .55);
+  --glass-blur: blur(18px) saturate(1.25);
+
+  /* 配色：暖调中性底 + 晨雾紫主色；低饱和、可信 */
+  --bg-grad: linear-gradient(165deg, #F4F1FB 0%, #FBF7F3 55%, #F7F3F8 100%);
+  --sky-fade: rgba(249, 246, 251, 0.92);
+
+  --surface: var(--glass-bg);
+  --surface-solid: #ffffff;
+  --surface-2: rgba(255, 255, 255, 0.46);
+  --text: #2C2833;
+  --muted: #79707E;
+  --border: rgba(120, 108, 140, 0.16);
+
+  --primary: #6457B5;        /* 主色：晨雾紫（白字对比 ≈5.0） */
+  --primary-strong: #534697;
+  --primary-weak: rgba(100, 87, 181, 0.12);
+  --primary-text: #574C9E;   /* 主色作文字（对弱色底 AA） */
+
+  --ok: #4E9C7A;
+  --danger: #C0492F;
+  --danger-weak: #F8E3DE;
+  --warn: #B5732F;
+  --warn-text: #9E5A1A;
+  --warn-bg: #FAF0E9;
+  --warn-border: #F0DBCF;
+
+  /* 字号档：display 为关键数字主角 */
+  --fs-display: 34px;
+  --fs-title: 19px;
+  --fs-h2: 16px;
+  --fs-body: 15px;
+  --fs-sm: 13px;
+
+  /* 圆角（更大、更柔） */
+  --radius-sm: 14px;
+  --radius: 18px;
+  --radius-lg: 22px;
+  --icon: 22px;
+
+  /* 安全区：刘海机型顶部状态栏高度。顶栏内边距与首页天空负 margin 共用，
+     二者必须同步，否则刘海机上天空顶不到顶栏背后会露出底色断痕。 */
+  --sat: env(safe-area-inset-top, 0px);
+
+  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+body.dark {
+  --glass-bg: rgba(255, 255, 255, 0.07);
+  --glass-bg-strong: rgba(255, 255, 255, 0.12);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 16px 38px -18px rgba(0, 0, 0, .6), 0 32px 70px -40px rgba(0, 0, 0, .8);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, .10);
+
+  --bg-grad: linear-gradient(165deg, #1B1822 0%, #211C2A 55%, #1E1A26 100%);
+  --sky-fade: rgba(28, 24, 36, 0.92);
+
+  --surface: var(--glass-bg);
+  --surface-solid: #2A2433;
+  --surface-2: rgba(255, 255, 255, 0.05);
+  --text: #EFEAF4;
+  --muted: #A89FB2;
+  --border: rgba(255, 255, 255, 0.10);
+
+  --primary: #A99FE0;
+  --primary-strong: #C3B9EC;
+  --primary-weak: rgba(169, 159, 224, 0.16);
+  --primary-text: #C3B9EC;
+
+  --ok: #82B093;
+  --danger: #E06A52;
+  --danger-weak: #3A231D;
+  --warn: #E0A98F;
+  --warn-text: #E0A98F;
+  --warn-bg: #2C201A;
+  --warn-border: #4A352C;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; min-height: 100vh; min-height: 100dvh; overscroll-behavior-y: none; }
+button, input, select, textarea { font-family: inherit; }
+
+body {
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--bg-grad) fixed;
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 玻璃降级：不支持 backdrop-filter 时，卡片/底栏/控件全部回退为实色 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --glass-bg: #ffffff;
+    --glass-bg-strong: #ffffff;
+    --glass-border: rgba(120, 108, 140, 0.18);
+  }
+  body.dark {
+    --glass-bg: #241F2E;
+    --glass-bg-strong: #2A2433;
+    --glass-border: rgba(255, 255, 255, 0.12);
+  }
+}
+
+/* —— 真·全平台折射层（glass.js 注入的 .grefract）——
+   每个玻璃面内嵌一张 canvas，里面是从「场景」里摘取的背后背景（经 #liquidRefract
+   滤镜模糊+位移）。普通 filter:url() 在 Chrome/Edge/Firefox/Safari 全支持，因此
+   「透过玻璃扭曲背景」第一次在所有浏览器上出现，不限于 Safari。
+   层序：宿主自身半透底 → 折射 canvas(z0) → 内容(z1)；叠加 backdrop-filter 磨砂。 */
+.grefract {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  border-radius: inherit; pointer-events: none; z-index: 0;
+  filter: url(#liquidRefract);
+  opacity: .82;
+}
+/* 玻璃宿主必须建立独立堆叠上下文，确保折射层稳定位于内容之下 */
+.card, .record-tile, .stat, .modal, .mod-item { isolation: isolate; }
+/* 内容抬到折射层之上（.card > * 已有，这里补齐其余宿主） */
+.record-tile > *, .stat > *, .modal > *, .mod-item > * { position: relative; z-index: 1; }
+
+/* 折射表面光（.card::after）为静态层；真实折射已就位，故仅留极淡的环境反光，
+   避免与真折射争抢。尊重减少动效偏好时进一步减弱。 */
+.card::after { opacity: .3; }
+@media (prefers-reduced-motion: reduce) {
+  .card::after { opacity: .22; }
+}
+
+/* ---------- 设置：开关行 ---------- */
+.row-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
+.row-switch label { margin: 0; flex: 1 1 auto; font-size: var(--fs-body); color: var(--text); }
+.row-switch .hint { flex: 1 1 auto; margin: 0; }
+.row-switch input[type="checkbox"] { width: 22px; height: 22px; flex: none; accent-color: var(--primary); cursor: pointer; }
+
+/* —— 液态玻璃 SVG 滤镜宿主：隐藏、零占位 —— */
+.glass-defs { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+
+/* —— 液态玻璃镜面高光边（rim）：渐变描边模拟玻璃边缘的反光 ——
+   用 1px 渐变描边（左上亮、右下弱）替代实色边框，是液态玻璃被一眼认出的关键。
+   仅作装饰、不拦截点击；暗色下保留亮边（玻璃边缘仍会反光）。
+   升级：整条边叠加 SVG 位移滤镜（#liquidRim），让原本笔直的高光边呈「液态弯折」
+   的反光——这是 liquid glass 最核心的可见特征，全浏览器可用（filter:url 对 HTML
+   元素被广泛支持）。位移量很小（scale 2.5），只做柔化弯折，不破碎。 */
+.card, .btn, .modal, .stat, .record-tile, .seg-btn, .cal-nav button, .toast,
+.mod-item, .theme-toggle, .home-avatar { position: relative; }
+.card::before, .btn::before, .modal::before, .stat::before, .seg-btn::before,
+.cal-nav button::before, .toast::before, .mod-item::before, .theme-toggle::before,
+.home-avatar::before, .record-tile::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px;
+  background: linear-gradient(140deg, rgba(255,255,255,.9), rgba(255,255,255,.12) 42%, rgba(255,255,255,0) 60%, rgba(255,255,255,.42));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  pointer-events: none; z-index: 1;
+  filter: url(#liquidRim);
+}
+
+/* ---------- 顶栏（透明浮层：左上角宝宝头像 + 右上角主题切换） ---------- */
+.app-header {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: space-between;
+  max-width: 640px; margin: 0 auto;
+  /* 刘海机型：顶栏让出状态栏高度，头像/主题按钮不被压住。
+     --sat 同时供首页天空的负 margin 复用，保证两者高度始终同步。 */
+  padding: calc(10px + var(--sat)) 16px 10px;
+  background: transparent; border-bottom: 1px solid transparent; box-shadow: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  user-select: none;
+  transition: background .22s ease, border-color .22s ease, box-shadow .22s ease;
+}
+/* 滚动后：顶栏浮现磨砂玻璃底。
+   「始终透明」是为首页天空服务的；但在各模块页滚动时内容会直接从顶栏下方穿过，
+   文字重叠且无任何遮罩。滚动超过 8px 后补一层玻璃，兼顾两种场景。 */
+.app-header.is-scrolled {
+  background: var(--glass-bg-strong);
+  border-bottom-color: var(--glass-border);
+  box-shadow: 0 10px 24px -20px rgba(64, 54, 86, .55);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+}
+.theme-toggle {
+  font-size: var(--fs-sm); padding: 8px 15px;
+  border: 1px solid var(--glass-border); border-radius: 999px;
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  color: var(--primary-text); cursor: pointer;
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  transition: transform .12s, background .15s, color .15s, border-color .15s;
+}
+.theme-toggle:hover { background: var(--primary-weak); }
+.theme-toggle:active { transform: scale(.96); }
+.theme-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* 宝宝头像（全局顶栏左上角，点击进入设置）：玻璃圆 */
+.home-avatar {
+  width: 46px; height: 46px; border-radius: 50%;
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .12s, box-shadow .15s;
+}
+.home-avatar:hover { transform: translateY(-1px); }
+.home-avatar:active { transform: scale(.95); }
+.home-avatar:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.home-avatar .illo { width: 38px; height: 38px; margin: 0; opacity: 1; color: var(--primary-text); }
+
+/* ---------- 主内容 ---------- */
+.view { padding: 18px 16px calc(96px + env(safe-area-inset-bottom)); max-width: 640px; margin: 0 auto; }
+
+/* ---------- 卡片（磨砂玻璃 + 顶部高光边 + 折射表面光） ---------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  margin-bottom: 14px;
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  transition: box-shadow .18s, transform .18s;
+  isolation: isolate;            /* 建立堆叠上下文，让折射光层稳定位于内容之下 */
+}
+/* 折射表面光：被 #liquidSheet 扭曲的柔光，模拟液体表面的环境折射反光。
+   静态（不动画 SVG 滤镜，避免重算开销）；screen 混合只提亮、不遮挡文字。
+   置于右上区域，避开左对齐的标题文字，保证可读性。 */
+.card::after {
+  content: ''; position: absolute; top: 4%; right: 6%; width: 46%; height: 40%;
+  border-radius: 999px;
+  background: radial-gradient(130% 150% at 70% 20%, rgba(255,255,255,.9), rgba(255,255,255,0) 62%);
+  filter: url(#liquidSheet);
+  mix-blend-mode: screen; opacity: .5; pointer-events: none; z-index: 0;
+}
+.card > * { position: relative; z-index: 1; }   /* 内容抬到折射光层之上 */
+.card:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(64,54,86,.06), 0 18px 42px -18px rgba(64,54,86,.28), var(--glass-highlight); }
+.card h2 {
+  font-size: var(--fs-h2); font-weight: 700; margin: 0 0 14px;
+  color: var(--text);
+  padding-left: 11px; border-left: 3px solid var(--tile, var(--primary)); border-radius: 2px;
+  line-height: 1.3;
+}
+
+/* ---------- 表单 ---------- */
+label { display: block; margin-bottom: 14px; font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: .01em; }
+input[type=text], input[type=date], input[type=number], select {
+  display: block; width: 100%; margin-top: 6px; padding: 11px 13px;
+  font-size: var(--fs-body); font-family: inherit;
+  border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
+  background: var(--surface-solid); color: var(--text);
+  box-shadow: var(--glass-highlight);
+  transition: border-color .15s, box-shadow .15s;
+}
+input[type=text]:focus, input[type=date]:focus, input[type=number]:focus, select:focus {
+  outline: none; border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-weak), var(--glass-highlight);
+}
+input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--primary); cursor: pointer; }
+
+input.is-invalid, select.is-invalid { border-color: var(--danger); background: var(--danger-weak); }
+input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); background: var(--surface-solid); box-shadow: 0 0 0 3px rgba(192,73,47,.20); }
+.field-error { display: block; margin: 6px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--danger); font-weight: 500; }
+.field-error::before { content: '!'; display: inline-block; font-weight: 700; margin-right: 4px; }
+
+/* ---------- 按钮 ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  margin: 4px 8px 4px 0; padding: 11px 18px;
+  font-size: var(--fs-body); font-family: inherit; line-height: 1.2;
+  border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
+  background: var(--glass-bg); color: var(--text); cursor: pointer;
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  transition: background .15s, border-color .15s, transform .1s, box-shadow .15s;
+}
+.btn .ico { width: 18px; height: 18px; }
+.btn:hover { background: var(--glass-bg-strong); transform: translateY(-1px); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-color: var(--primary); }
+.btn-primary {
+  background: linear-gradient(180deg, var(--primary) 0%, var(--primary-strong) 100%);
+  color: #fff; border-color: transparent;
+  box-shadow: 0 8px 20px -10px var(--primary-strong);
+}
+.btn-primary .ico { color: #fff; }
+.btn-primary:hover { filter: brightness(1.04); box-shadow: 0 10px 24px -10px var(--primary-strong); }
+.btn-danger { background: var(--glass-bg); color: var(--danger); border-color: rgba(192,73,47,.35); }
+.btn-danger:hover { background: var(--danger-weak); }
+
+.btn-mini {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: var(--fs-sm); padding: 8px 14px;
+  border: 1px solid var(--glass-border); border-radius: 999px;
+  background: var(--glass-bg); color: var(--muted); cursor: pointer;
+  box-shadow: var(--glass-highlight);
+  transition: background .15s, color .15s;
+}
+.btn-mini .ico { width: 15px; height: 15px; }
+.btn-mini:hover { background: var(--primary-weak); color: var(--primary-text); }
+.btn-mini:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; flex: 0 0 auto;
+  border: none; background: transparent; color: var(--muted); border-radius: 999px;
+  cursor: pointer; transition: background .15s, color .15s, transform .1s;
+}
+.icon-btn .ico { width: 18px; height: 18px; }
+.icon-btn:hover { background: var(--danger-weak); color: var(--danger); }
+.icon-btn:active { transform: scale(.92); }
+.icon-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.list li > .icon-btn { align-self: center; }
+
+.quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.quick-grid .btn { margin: 0; width: 100%; text-align: center; }
+.mod-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.mod-item {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px;
+  padding: 18px 6px; border-radius: var(--radius);
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  color: var(--text); font-size: var(--fs-sm);
+  font-family: inherit; line-height: 1.2; cursor: pointer;
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  transition: background .15s, transform .1s, box-shadow .15s, border-color .15s;
+}
+.mod-item:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.mod-item:active { transform: scale(.97); }
+.mod-item:hover { background: var(--glass-bg-strong); border-color: var(--primary-weak); }
+.mod-item .ico { width: 22px; height: 22px; padding: 9px; background: var(--primary-weak); border-radius: 999px; color: var(--primary); box-sizing: content-box; }
+
+/* ---------- 分段控件（药丸） ---------- */
+.seg { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.seg-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 16px; border: 1px solid var(--glass-border); border-radius: 999px;
+  background: var(--glass-bg); color: var(--muted); cursor: pointer;
+  font-size: 14px; font-family: inherit;
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  transition: background .15s, color .15s, border-color .15s;
+}
+.seg-btn .ico { width: 17px; height: 17px; }
+.seg-btn:hover { color: var(--text); }
+.seg-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--primary-weak); }
+.seg-btn.active { background: var(--primary-weak); color: var(--primary-text); border-color: rgba(100,87,181,.4); font-weight: 600; }
+
+/* ---------- 勾选项 ---------- */
+.chk-group { margin: 10px 0; font-size: 14px; }
+.chk { display: inline-flex; align-items: center; margin-right: 14px; font-size: 14px; cursor: pointer; }
+.chk input { margin-right: 6px; }
+
+/* ---------- 键值列表（玻璃分色小卡） ---------- */
+.kv { list-style: none; padding: 0; margin: 0; }
+.kv li {
+  padding: 10px 12px; margin-bottom: 8px;
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-left: 3px solid var(--tile, var(--primary));
+  border-radius: var(--radius-sm);
+  box-shadow: var(--glass-highlight);
+  font-size: var(--fs-body);
+}
+.kv li:last-child { margin-bottom: 0; }
+.kv li b { color: var(--tile, var(--primary-text)); }
+
+/* ---------- 记录列表（玻璃药丸卡片） ---------- */
+.list { list-style: none; padding: 0; margin: 0; }
+.list li {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; margin-bottom: 9px;
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  /* 模块分色左边条（inset 阴影，独立于 border-color，hover 改边色时不丢条） */
+  box-shadow: inset 3px 0 0 0 var(--tile, var(--primary)), var(--glass-shadow), var(--glass-highlight);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  transition: transform .15s, border-color .15s, box-shadow .15s;
+}
+.list li:last-child { margin-bottom: 0; }
+.list li:hover { transform: translateY(-1px); border-color: var(--primary-weak); box-shadow: inset 3px 0 0 0 var(--tile, var(--primary)), 0 2px 6px rgba(64,54,86,.06), 0 16px 34px -18px rgba(64,54,86,.30), var(--glass-highlight); }
+.list li small { color: var(--muted); font-size: var(--fs-sm); }
+.list li > .ico { flex: none; color: var(--muted); align-self: flex-start; margin: 2px 10px 0 0; }
+.list li > .ico + span { flex: 1 1 auto; min-width: 0; }
+.list li .row-ico { flex: 0 0 auto; margin-right: 12px; display: inline-flex; align-items: center; }
+.list li .row-ico .ico {
+  width: 20px; height: 20px; padding: 8px; box-sizing: content-box;
+  background: var(--tile-weak, var(--primary-weak)); color: var(--tile, var(--primary)); border-radius: 999px;
+}
+.list li .row-ico + span { flex: 1 1 auto; min-width: 0; }
+
+/* ---------- 标签（药丸） ---------- */
+.tag {
+  font-size: 12px; color: var(--primary-text); background: var(--primary-weak);
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap; font-weight: 600;
+}
+
+/* ---------- 警示 ---------- */
+.warn { color: var(--warn-text); font-size: var(--fs-sm); }
+.warn-box {
+  background: var(--warn-bg); border: 1px solid var(--warn-border);
+  border-radius: var(--radius-lg); padding: 15px 17px; margin-bottom: 14px;
+  color: var(--warn-text); font-size: 14px; line-height: 1.65;
+}
+.warn-box b { color: var(--danger); font-weight: 700; }
+
+/* ---------- 辅助提示 ---------- */
+.hint { color: var(--muted); font-size: var(--fs-sm); line-height: 1.65; }
+
+/* ---------- 关键数字（display 主角） ---------- */
+.big {
+  font-size: var(--fs-display); font-weight: 700; color: var(--text);
+  margin: 0 0 10px; letter-spacing: -.5px; line-height: 1.1;
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
+  animation: bigIn .4s ease both;
+}
+
+/* ---------- 进度条 ---------- */
+.progress { height: 10px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin: 12px 0; }
+.progress-bar { height: 100%; background: linear-gradient(90deg, var(--primary), var(--primary-strong)); border-radius: 999px; transition: width .4s ease; }
+
+/* ---------- 图表（SVG 由 JS 内联绘制，仅主题化覆盖） ---------- */
+.chart { display: block; margin: 8px 0; width: 100%; max-width: 100%; }
+.chart line { stroke: var(--border); }
+.chart text { fill: var(--muted); }
+.chart path:nth-of-type(1) { stroke: var(--ok); }
+.chart path:nth-of-type(2) { stroke: var(--primary); }
+
+/* ---------- 待产包完成态 ---------- */
+.pack-item.done label { text-decoration: line-through; color: var(--muted); }
+
+/* ---------- 底部 Tab（玻璃药丸） ---------- */
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+  display: flex; overflow-x: auto;
+  max-width: 640px; margin: 0 auto;
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  border-top: 1px solid var(--glass-border);
+  box-shadow: 0 -8px 24px -16px rgba(64,54,86,.25);
+  padding: 7px 8px calc(7px + env(safe-area-inset-bottom));
+  user-select: none;
+}
+.tab {
+  flex: 1 0 auto; min-width: 52px; padding: 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  border: none; background: none; border-radius: 999px;
+  font-size: var(--fs-sm); color: var(--muted); cursor: pointer;
+  font-family: inherit; font-weight: 500; line-height: 1.1;
+  transition: background .15s, color .15s, transform .18s;
+}
+.tab .ico { width: 20px; height: 20px; color: var(--muted); margin: 0; }
+.tab-label { font-size: 11px; }
+.tab:hover { color: var(--text); }
+.tab:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.tab.active { color: var(--primary-text); font-weight: 700; background: var(--primary-weak); transform: scale(1.04); }
+.tab.active .ico { color: var(--primary); }
+
+/* ---------- 隐私 / 确认弹层（磨砂玻璃） ---------- */
+.modal-mask {
+  position: fixed; inset: 0; background: rgba(40, 34, 56, .42);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; padding: 20px;
+}
+.modal {
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg); padding: 24px;
+  max-width: 440px; max-height: 84vh; overflow: auto;
+  box-shadow: 0 24px 60px -20px rgba(30,22,46,.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.3); backdrop-filter: blur(24px) saturate(1.3);
+}
+.modal h2 { margin: 0 0 14px; font-size: 18px; font-weight: 700; color: var(--text); }
+.modal p { font-size: 14px; line-height: 1.7; color: var(--muted); margin: 0 0 12px; }
+.modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+.modal-actions .btn { flex: 1 1 0; margin: 0; }
+
+/* 轻提示 toast（磨砂玻璃浮层） */
+#toastRoot {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 1200; display: flex; flex-direction: column-reverse; align-items: center;
+  gap: 8px; pointer-events: none; width: max-content; max-width: calc(100vw - 32px);
+}
+.toast {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 16px; border-radius: 16px;
+  background: var(--glass-bg-strong); color: var(--text);
+  font-size: 14px; font-weight: 500; line-height: 1.4;
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  opacity: 0; transform: translateY(10px) scale(.96);
+  transition: opacity .15s ease, transform .15s ease;
+  max-width: 100%;
+}
+.toast.show { opacity: 1; transform: translateY(0) scale(1); }
+.toast .ico { width: 18px; height: 18px; flex: none; }
+.toast-ok .ico { color: var(--ok); }
+.toast-error .ico { color: var(--danger); }
+.toast-warn .ico { color: var(--warn-text); }
+.toast-info .ico { color: var(--primary-text); }
+
+.toast-action {
+  pointer-events: auto;
+  margin-left: 6px; padding: 3px 12px;
+  border: 1px solid rgba(100,87,181,.42); border-radius: 999px; background: transparent; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--primary-text);
+  font-family: inherit; line-height: 1.2; white-space: nowrap;
+  transition: background .15s, color .15s;
+}
+.toast-action:hover { background: var(--primary-weak); }
+.toast-action:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ============================================================
+   首页：天空背景 / 模块化记录
+   ============================================================ */
+
+/* 顶部天空背景（Web 版 swiftui-sky 的画布宿主） */
+.home-sky {
+  position: relative; overflow: hidden;
+  /* 向上突破 .view 内边距并继续上移到顶栏背后，透明顶栏浮在天空上。
+     额外减去 --sat：刘海机型顶栏更高，天空要同步再上移，否则顶部露底色。 */
+  margin: calc(-18px - 64px - var(--sat)) -16px 18px;
+  height: 312px;
+  border-radius: 0 0 28px 28px;
+}
+.sky-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+.home-sky .sky-veil {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.04) 42%, var(--sky-fade) 100%);
+}
+/* 问候语：磨砂玻璃衬底。
+   白昼天空偏浅，白字直接压在天空上对比度不足；加一层半透明暗底 + 模糊，
+   保证任何时刻（清晨/正午/黄昏/夜）文字都清晰，同时契合玻璃暖房语言。 */
+.home-greet {
+  position: absolute; left: 18px; right: 18px; bottom: 18px; z-index: 2;
+  padding: 11px 15px; border-radius: 16px;
+  background: rgba(38, 30, 52, .28);
+  border: 1px solid rgba(255, 255, 255, .22);
+  -webkit-backdrop-filter: blur(8px) saturate(1.1); backdrop-filter: blur(8px) saturate(1.1);
+  color: #fff; text-shadow: 0 1px 6px rgba(30, 22, 46, .38);
+}
+.home-greet h1 { font-size: 23px; font-weight: 700; margin: 0 0 4px; }
+.home-greet p { font-size: 13px; margin: 0; opacity: .92; }
+
+/* 首页主体（单列，模块磁贴占满宽度） */
+.home-main { display: block; }
+
+/* 区块标题：小号字距标签 + 短强调竖线（克制、留白） */
+.section-title {
+  font-size: 12px; font-weight: 600; letter-spacing: 1.5px; color: var(--muted);
+  margin: 22px 0 12px; padding-left: 11px; border-left: 3px solid var(--primary); border-radius: 2px;
+}
+
+/* 今日概览：迷你玻璃统计卡（大号等宽数字做主角） */
+.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 10px; }
+.stat {
+  background: var(--surface); border: 1px solid var(--glass-border);
+  border-radius: var(--radius); padding: 14px 16px;
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.stat-num {
+  font-size: 30px; font-weight: 700; color: var(--primary-text);
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
+  line-height: 1.05; letter-spacing: -.5px;
+}
+.stat-unit { font-size: 13px; font-weight: 600; font-style: normal; color: var(--muted); margin-left: 3px; }
+.stat-lbl { font-size: 13px; color: var(--muted); }
+
+/* 模块记录磁贴网格（玻璃方片 + 顶部分色细条 + 柔彩图标底） */
+.record-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+@media (min-width: 420px) { .record-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 560px) { .record-grid { grid-template-columns: repeat(4, 1fr); } }
+.record-tile {
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; gap: 7px; align-items: flex-start;
+  padding: 15px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  cursor: pointer; text-align: left;
+  font-family: inherit; color: var(--text);
+  transition: background .15s, transform .1s, box-shadow .15s, border-color .15s;
+}
+.record-tile::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--tile, var(--primary)); border-radius: 16px 16px 0 0;
+}
+.record-tile:hover { background: var(--glass-bg-strong); box-shadow: 0 0 0 1px var(--tile-weak, var(--primary-weak)), 0 2px 6px rgba(64,54,86,.06), 0 16px 38px -18px rgba(64,54,86,.28), var(--glass-highlight); border-color: var(--tile-weak, var(--primary-weak)); transform: translateY(-1px); }
+.record-tile:active { transform: scale(.98); }
+.record-tile:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.record-tile .rt-ico { width: 22px; height: 22px; padding: 9px; background: var(--tile-weak, var(--primary-weak)); border-radius: 999px; color: var(--tile, var(--primary)); box-sizing: content-box; }
+.record-tile .rt-name { font-size: 14px; font-weight: 600; }
+.record-tile .rt-sum { font-size: 12.5px; color: var(--muted); }
+.record-tile .rt-badge {
+  position: absolute; top: 12px; right: 12px;
+  font-size: 12px; font-weight: 700; line-height: 1; padding: 4px 8px;
+  border-radius: 999px; background: var(--tile-weak, var(--primary-weak));
+  color: var(--tile, var(--primary-text));
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
+}
+
+/* 模块分色：低饱和「柔彩」色系。
+   以 [data-accent] 为单一色源，同时供首页磁贴（图标底/顶条/角标）
+   与日历日期圆点、当日明细图标复用，避免多处维护同一套色。 */
+[data-accent="feeding"]     { --tile: #4F9C97; --tile-weak: #E6F1F0; }
+[data-accent="sleep"]       { --tile: #6F72AD; --tile-weak: #ECECF6; }
+[data-accent="growth"]      { --tile: #5E9C70; --tile-weak: #E9F1EC; }
+[data-accent="period"]      { --tile: #B76C7C; --tile-weak: #F6E9EC; }
+[data-accent="pregnancy"]   { --tile: #C68C45; --tile-weak: #F8EFE2; }
+[data-accent="packing"]     { --tile: #91826F; --tile-weak: #F1ECE4; }
+[data-accent="contraction"] { --tile: #C76750; --tile-weak: #F8E9E4; }
+[data-accent="finance"]     { --tile: #7266AD; --tile-weak: #EEEAF5; }
+
+/* 暗色：同色系调亮，弱色改半透明叠底，避免与暖炭背景割裂 */
+body.dark [data-accent="feeding"]     { --tile: #79BDB8; --tile-weak: rgba(121,189,184,.16); }
+body.dark [data-accent="sleep"]       { --tile: #9C9ECB; --tile-weak: rgba(156,158,203,.16); }
+body.dark [data-accent="growth"]      { --tile: #8CBB9C; --tile-weak: rgba(140,187,156,.16); }
+body.dark [data-accent="period"]      { --tile: #D492A0; --tile-weak: rgba(212,146,160,.16); }
+body.dark [data-accent="pregnancy"]   { --tile: #D8A85F; --tile-weak: rgba(216,168,95,.16); }
+body.dark [data-accent="packing"]     { --tile: #B3A28C; --tile-weak: rgba(179,162,140,.16); }
+body.dark [data-accent="contraction"] { --tile: #E08C73; --tile-weak: rgba(224,140,115,.16); }
+body.dark [data-accent="finance"]     { --tile: #A898D2; --tile-weak: rgba(168,152,210,.16); }
+
+/* 日历 */
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.cal-title { font-size: 15px; font-weight: 700; }
+.cal-nav { display: flex; gap: 6px; }
+.cal-nav button {
+  /* 34px：月历翻页是高频点击，30px 偏小易误触（触摸目标建议 ≥ 触摸舒适区） */
+  width: 34px; height: 34px; border-radius: 999px; border: 1px solid var(--glass-border);
+  background: var(--glass-bg); color: var(--muted); cursor: pointer; font-size: 15px;
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  display: flex; align-items: center; justify-content: center; transition: background .15s, color .15s;
+}
+.cal-nav button:hover { background: var(--primary-weak); color: var(--primary-text); }
+.cal-nav button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.cal-week, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-week { margin-bottom: 4px; }
+.cal-week span { text-align: center; font-size: 11px; color: var(--muted); padding: 4px 0; }
+.cal-cell {
+  position: relative; aspect-ratio: 1 / 1; border: none; background: transparent;
+  border-radius: 12px; cursor: pointer; font-family: inherit; font-size: 13px;
+  color: var(--text); display: flex; align-items: center; justify-content: center;
+  transition: background .15s, color .15s;
+}
+.cal-cell.is-empty { cursor: default; }
+.cal-cell:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.cal-cell:hover:not(.is-empty) { background: var(--surface-2); }
+.cal-cell.is-today { font-weight: 700; box-shadow: inset 0 0 0 1.5px var(--primary); }
+.cal-cell.is-sel { background: var(--primary); color: #fff; font-weight: 700; }
+.cal-cell.is-sel .cal-dot { background: #fff; }
+/* 当日记录标记：按当天涉及的模块显示多个分色小圆点（最多 3 个），
+   颜色复用 [data-accent] 的 --tile，一眼看出这天记了哪几类 */
+.cal-dots { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); display: flex; gap: 3px; align-items: center; }
+.cal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--tile, var(--primary)); flex: none; }
+.day-detail { margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 12px; }
+.day-detail h3 { font-size: 13px; font-weight: 700; margin: 0 0 8px; color: var(--muted); }
+.day-list { list-style: none; padding: 0; margin: 0; }
+.day-list li { display: flex; align-items: center; gap: 8px; padding: 7px 0; font-size: 13.5px; border-bottom: 1px solid var(--border); }
+.day-list li:last-child { border-bottom: none; }
+.day-list .ico { width: 17px; height: 17px; color: var(--primary); flex: none; }
+/* 当日明细：图标按所属模块着色，复用同一套 [data-accent] 分色 */
+.day-list li[data-accent] .ico { color: var(--tile, var(--primary)); }
+.day-list .dl-label { color: var(--muted); flex: none; width: 38px; }
+.day-list .dl-val { flex: 1 1 auto; min-width: 0; color: var(--text); }
+.day-empty { font-size: 13px; color: var(--muted); margin: 0; }
+.day-total { margin-top: 8px; font-size: 12.5px; color: var(--muted); text-align: right; }
+
+/* 通用页头（设置等） */
+.page-head { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 16px; }
+.page-head h1 { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 700; margin: 0; }
+.page-head p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.cal-page { max-width: 560px; margin: 0 auto; }
+
+/* ============================================================
+   桌面端响应式：宽屏下放宽内容列，避免变成 640px 窄条
+   （移动端 <980px 完全保持手机列宽，零影响）
+   ============================================================ */
+@media (min-width: 980px) {
+  .view, .app-header, .tabbar { max-width: 860px; }
+  .record-grid { grid-template-columns: repeat(4, 1fr); }
+  .home-greet h1 { font-size: 26px; }
+  .home-sky { height: 340px; }
+}
+
+/* ============================================================
+   触屏适配：取消「粘住」的 hover 态
+   手机/平板点完卡片后，悬停位移与高亮会残留到下一次点击前（sticky hover），
+   看起来像卡片卡在按压状态。这里是母婴助手、绝大多数使用场景是触屏，
+   因此在 (hover: none) 下中和 hover 的位移与变色，只保留 :active 的真触感反馈。
+   ============================================================ */
+@media (hover: none) {
+  .card:hover,
+  .record-tile:hover,
+  .home-avatar:hover,
+  .mod-item:hover,
+  .btn:hover,
+  .btn-mini:hover,
+  .theme-toggle:hover,
+  .seg-btn:hover,
+  .tab:hover,
+  .list li:hover { transform: none; }
+
+  /* 卡片与磁贴：hover 不再抬升、不再改底色/描边，回落到静止态 */
+  .card:hover,
+  .record-tile:hover {
+    background: var(--surface);
+    border-color: var(--glass-border);
+    box-shadow: var(--glass-shadow), var(--glass-highlight);
+  }
+  /* 列表药丸：触屏回落静止态（保留 inset 分色左边条） */
+  .list li:hover {
+    background: var(--glass-bg);
+    border-color: var(--glass-border);
+    box-shadow: inset 3px 0 0 0 var(--tile, var(--primary)), var(--glass-shadow), var(--glass-highlight);
+  }
+  /* 底色类 hover 一并回落，避免点完仍留浅底色 */
+  .btn:hover, .btn-mini:hover, .theme-toggle:hover,
+  .seg-btn:hover, .tab:hover, .mod-item:hover { background: var(--glass-bg); }
+  .btn-primary:hover { background: linear-gradient(180deg, var(--primary) 0%, var(--primary-strong) 100%); }
+  .seg-btn.active:hover, .tab.active:hover { background: var(--primary-weak); }
+  .icon-btn:hover { background: transparent; color: var(--muted); }
+  .cal-nav button:hover { background: var(--glass-bg); color: var(--muted); }
+  .cal-cell:hover:not(.is-empty) { background: transparent; }
+}
+
+/* ============================================================
+   图标 / 插画 / 动画
+   ============================================================ */
+.ico {
+  width: var(--icon); height: var(--icon);
+  flex: 0 0 auto; display: inline-block; vertical-align: middle;
+  color: var(--primary);
+}
+.ico-sm { width: 16px; height: 16px; }
+.card h2 .ico { color: var(--primary); width: 18px; height: 18px; vertical-align: -0.28em; margin-right: 7px; }
+
+.illo {
+  display: block; width: 100%; max-width: 160px; height: auto;
+  margin: 0 auto 10px; opacity: .9; color: var(--primary);
+}
+.illo-float { animation: float 6s ease-in-out infinite; }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+/* 空状态：柔光环 + 轻浮插画 + 居中说明。
+   统一各模块空状态观感——此前是 96px 裸图标紧接一行「暂无」，过于粗糙。
+   光环用极淡主色的 radial-gradient 实现，不新增 DOM、不依赖 backdrop。 */
+.empty-illo {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center; margin: 4px 0 12px;
+}
+.empty-illo::before {
+  content: ''; position: absolute; left: 50%; top: -10px; transform: translateX(-50%);
+  width: 152px; height: 152px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 50% 45%, var(--primary-weak), rgba(100, 87, 181, 0) 68%);
+}
+.empty-illo .illo {
+  position: relative; width: 104px; height: 104px; margin: 0 auto 10px;
+  color: var(--primary); opacity: .62;
+  animation: float 6s ease-in-out infinite;
+}
+/* 空状态说明文字居中，与光环/插画同一视觉重心 */
+.empty-illo + .hint, .empty-illo + p { text-align: center; }
+
+.hero {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 10px 0 16px;
+  background: radial-gradient(150px 150px at 50% 22%, var(--primary-weak), transparent 70%);
+}
+.hero .illo { width: 128px; height: 128px; color: var(--primary); opacity: .9; }
+.hero-title { font-size: 22px; font-weight: 700; margin: 6px 0 4px; color: var(--text); }
+.hero-sub { font-size: var(--fs-sm); color: var(--muted); margin: 0; }
+
+/* 关键数字入场 */
+@keyframes bigIn {
+  from { opacity: 0; transform: translateY(8px) scale(.96); }
+  to { opacity: 1; transform: none; }
+}
+
+/* 进入动画：卡片错落淡入 */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.view-enter > *, .view--enter > * { animation: fadeUp .3s ease both; }
+.view-enter > *:nth-child(1), .view--enter > *:nth-child(1) { animation-delay: 0ms; }
+.view-enter > *:nth-child(2), .view--enter > *:nth-child(2) { animation-delay: 30ms; }
+.view-enter > *:nth-child(3), .view--enter > *:nth-child(3) { animation-delay: 60ms; }
+.view-enter > *:nth-child(4), .view--enter > *:nth-child(4) { animation-delay: 90ms; }
+.view-enter > *:nth-child(5), .view--enter > *:nth-child(5) { animation-delay: 90ms; }
+.view-enter > *:nth-child(n+6), .view--enter > *:nth-child(n+6) { animation-delay: 90ms; }
+.view-enter .hero, .view--enter .hero { animation: fadeUp .5s ease both; }
+
+/* ---------- 动效降级（覆盖全部动画/过渡） ---------- */
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
