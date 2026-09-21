@@ -15,11 +15,23 @@
       var html = '';
       html += '<div class="page-head"><h1>设置</h1></div>';
       html += '<div class="card"><h2>' + icon('export') + '数据</h2>';
+      /* 上次备份时间：纯本地应用的生命线提示 */
+      var last = s.settings.lastExportISO;
+      var backupInfo = last ? ('上次备份：' + last) : '还没有备份过数据';
+      html += '<p class="hint">' + Util.escapeHtml(backupInfo) + (last ? '' : '，强烈建议现在导出一次。') + '</p>';
       html += '<button class="btn btn-primary" id="sExport">导出全部数据（JSON）</button>';
       html += '<p class="hint">换机或交接时，先导出备份，再在新设备导入。</p>';
       html += '<button class="btn" id="sImport">导入全部数据（JSON）</button>';
       html += '<p class="hint">导入会覆盖当前全部数据，请确认。</p>';
       html += '<button class="btn btn-danger" id="sReset">清空全部数据</button></div>';
+
+      /* 数据统计：各模块记录数一目了然，导出前确认数据完整 */
+      var stats = Storage.stats();
+      html += '<div class="card"><h2>' + icon('settings') + '数据统计</h2><ul class="kv">';
+      stats.forEach(function (t) {
+        html += '<li data-accent="' + t.key + '"><b>' + t.count + '</b> 条 ' + t.name + '</li>';
+      });
+      html += '</ul></div>';
 
       html += '<div class="card"><h2>' + icon('settings') + '外观</h2>';
       html += '<div class="row-switch"><label for="sRefract">真实玻璃折射</label>' +

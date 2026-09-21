@@ -126,6 +126,10 @@
   function exportAll() {
     var text = Storage.exportJSON();
     Util.download('宝妈助手数据_' + Util.todayISO() + '.json', text, 'application/json');
+    /* 记录上次导出时间，供备份提醒与设置页展示 */
+    var s = Storage.get();
+    s.settings.lastExportISO = Util.todayISO();
+    Storage.save();
   }
 
   function importAll() {
@@ -189,6 +193,23 @@
 
     showTab('home');
     showPrivacy();
+    checkBackupReminder();
+  }
+
+  /* 备份提醒：已有数据且超过 7 天未导出（或从未导出）时，启动后温和提醒一次。
+     纯本地应用的生命线是导出备份——清浏览器/换机即丢全部数据，必须主动提醒。
+     每次启动最多提醒一次，不打扰。 */
+  function checkBackupReminder() {
+    var s = Storage.get();
+    if (!Storage.hasData()) return;
+    var last = s.settings.lastExportISO;
+    var days = last ? Util.daysBetween(last, Util.todayISO()) : 999;
+    if (days <= 7) return;
+    var msg = last ? ('已 ' + days + ' 天未备份数据。') : '你还没有备份过数据。';
+    Util.toast(msg + '建议在设置中导出备份，防止清理浏览器时丢失。', 'warn', {
+      label: '去备份',
+      onClick: function () { showTab('settings'); }
+    });
   }
 
   if (document.readyState === 'loading') {
