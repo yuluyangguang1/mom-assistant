@@ -48,6 +48,7 @@
 
       /* 模块记录摘要 */
       var feedToday = countToday(d.feedings, 'start');
+      var diaperToday = countToday(d.diapers, 'time');
       var contraToday = countToday(d.contractions, 'start');
       var sleepRecent = (d.sleeps || []).filter(function (s) { return s.end; })
         .sort(function (a, b) { return new Date(b.start) - new Date(a.start); })[0];
@@ -67,10 +68,27 @@
         .filter(function (r) { return (r.date || '').slice(0, 7) === ym; })
         .reduce(function (s, r) { return s + (parseFloat(r.amount) || 0); }, 0);
 
+      /* 疫苗进度（有生日才显示摘要） */
+      var vaxInfo = '未设置生日';
+      var vaxBadge = '';
+      if (global.Modules && Modules.vaccine && typeof Modules.vaccine._plan === 'function'
+          && d.settings.baby && d.settings.baby.birthDate) {
+        var vItems = Modules.vaccine._plan(d.settings.baby.birthDate);
+        var vDone = (d.vaccines && d.vaccines.done) || {};
+        var vDoneN = vItems.filter(function (it) { return vDone[it.key]; }).length;
+        var vNext = vItems.filter(function (it) { return !vDone[it.key]; })
+          .sort(function (a, b) { return new Date(a.dueISO) - new Date(b.dueISO); })[0];
+        vaxInfo = vDoneN + '/' + vItems.length + ' 剂';
+        if (vNext) vaxBadge = Util.daysBetween(today, vNext.dueISO) <= 7 ? '临近' : '';
+        else { vaxInfo = '全部完成'; }
+      }
+
       var tiles = [
         { id: 'feeding', name: '喂养', accent: 'feeding', sum: feedToday ? ('今日 ' + feedToday + ' 次') : '暂无今日', badge: feedToday ? String(feedToday) : '' },
+        { id: 'diaper', name: '尿布', accent: 'diaper', sum: diaperToday ? ('今日 ' + diaperToday + ' 次') : '暂无今日', badge: diaperToday ? String(diaperToday) : '' },
         { id: 'sleep', name: '睡眠', accent: 'sleep', sum: sleepRecent ? ('最近 ' + Util.fmtDuration(new Date(sleepRecent.end) - new Date(sleepRecent.start) - (sleepRecent.pausedMs || 0))) : '暂无' },
         { id: 'growth', name: '生长', accent: 'growth', sum: weightRecent ? ('最近 ' + weightRecent.weightKg + ' kg') : '暂无' },
+        { id: 'vaccine', name: '疫苗', accent: 'vaccine', sum: vaxInfo, badge: vaxBadge },
         { id: 'period', name: '经期', accent: 'period', sum: periodInfo },
         { id: 'pregnancy', name: '孕期', accent: 'pregnancy', sum: wk !== null ? ('第 ' + wk + ' 周') : '未设置', badge: wk !== null ? String(wk) : '' },
         { id: 'packing', name: '待产包', accent: 'packing', sum: pk.length ? ('已备 ' + pkPct + '%') : '未开始', badge: pk.length ? (pkPct + '%') : '' },
@@ -107,6 +125,7 @@
       /* 今日概览：迷你统计卡（关键数字做主角） */
       var stats = [];
       stats.push({ num: feedToday, lbl: '今日喂养', unit: '次' });
+      stats.push({ num: diaperToday, lbl: '今日尿布', unit: '次' });
       stats.push({ num: contraToday, lbl: '今日宫缩', unit: '次' });
       if (wk !== null) stats.push({ num: wk, lbl: '当前孕周', unit: '周' });
       if (pk.length) stats.push({ num: pkPct, lbl: '待产包', unit: '%' });

@@ -258,6 +258,17 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .btn-mini:hover { background: var(--primary-weak); color: var(--primary-text); }
 .btn-mini:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
+/* 疫苗时间表行：状态色（已种=柔和、将到期=高亮、逾期=警示） */
+.vac-item .vac-main { flex: 1; min-width: 0; line-height: 1.45; }
+.vac-item .vac-main i { font-style: normal; color: var(--muted); font-size: 12px; }
+.vac-item .vac-main small { color: var(--muted); }
+.vac-item.is-done .vac-main b { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--tile); }
+.vac-item.is-done .row-ico { color: var(--ok); }
+.vac-item.is-due { background: var(--tile-weak, var(--primary-weak)); border-radius: var(--radius-sm, 10px); }
+.vac-item.is-due .vac-main small { color: var(--tile); font-weight: 600; }
+.vac-item.is-over .vac-main small { color: var(--warn); font-weight: 600; }
+
+
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; flex: 0 0 auto;
@@ -306,6 +317,21 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .seg-btn.active { background: var(--primary-weak); color: var(--primary-text); border-color: var(--primary); font-weight: 600; }
 /* 分段切换确认感：激活时图标轻微弹跳（spring），契合奶油风的 Q 弹 */
 .seg-btn.active .ico { animation: segPop .35s var(--spring); }
+
+/* 一键快记大按钮（换尿布等高频单手场景）：大触控面 + 图标在上文字在下 */
+.quick-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); }
+.quick-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 14px 8px; border: 1px solid var(--border); border-radius: var(--radius-md, 14px);
+  background: var(--surface); color: var(--text); cursor: pointer;
+  font-size: 14px; font-family: inherit;
+  transition: transform .15s var(--ease), background .2s var(--ease), border-color .2s var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.quick-btn .quick-ico { display: inline-flex; color: var(--tile, var(--primary)); }
+.quick-btn .quick-ico .ico { width: 26px; height: 26px; }
+.quick-btn:active { transform: scale(.95); background: var(--tile-weak, var(--primary-weak)); border-color: var(--tile, var(--primary)); }
+.quick-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 @keyframes segPop {
   0% { transform: scale(.8); }
   60% { transform: scale(1.15); }
@@ -587,6 +613,8 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 [data-accent="packing"]     { --tile: #A89B88; --tile-weak: #F3EFE8; }
 [data-accent="contraction"] { --tile: #D87F6A; --tile-weak: #FAEDE9; }
 [data-accent="finance"]     { --tile: #8F85C9; --tile-weak: #EFEDF8; }
+[data-accent="diaper"]      { --tile: #D0A94E; --tile-weak: #F8F0DE; }
+[data-accent="vaccine"]     { --tile: #6FA0C0; --tile-weak: #E9F1F7; }
 
 /* 暗色：同色系调亮，弱色改半透明叠底 */
 body.dark [data-accent="feeding"]     { --tile: #7BC4BC; --tile-weak: rgba(123,196,188,.16); }
@@ -597,6 +625,8 @@ body.dark [data-accent="pregnancy"]   { --tile: #E4B982; --tile-weak: rgba(228,1
 body.dark [data-accent="packing"]     { --tile: #C2B5A1; --tile-weak: rgba(194,181,161,.16); }
 body.dark [data-accent="contraction"] { --tile: #E69E8A; --tile-weak: rgba(230,158,138,.16); }
 body.dark [data-accent="finance"]     { --tile: #B0A8DB; --tile-weak: rgba(176,168,219,.16); }
+body.dark [data-accent="diaper"]      { --tile: #E2C27E; --tile-weak: rgba(226,194,126,.16); }
+body.dark [data-accent="vaccine"]     { --tile: #97BEDD; --tile-weak: rgba(151,190,221,.16); }
 
 
 /* ============================================================

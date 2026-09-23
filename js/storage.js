@@ -19,9 +19,9 @@
   var DATA_VERSION = 2;
 
   /* 数组型字段（记录列表） */
-  var ARRAY_KEYS = ['periods', 'feedings', 'sleeps', 'contractions', 'growth'];
+  var ARRAY_KEYS = ['periods', 'feedings', 'sleeps', 'contractions', 'growth', 'diapers'];
   /* 对象型字段（嵌套容器） */
-  var OBJECT_KEYS = ['pregnancy', 'prenatal', 'packing', 'finance'];
+  var OBJECT_KEYS = ['pregnancy', 'prenatal', 'packing', 'finance', 'vaccines'];
 
   function defaultData() {
     return {
@@ -36,8 +36,10 @@
       contractions: [],
       openContraction: null,
       growth: [],
+      diapers: [],
       packing: { seeded: false, items: [] },
-      finance: { records: [] }
+      finance: { records: [] },
+      vaccines: { done: {} }
     };
   }
 
@@ -147,8 +149,10 @@
       var d = this.data || {};
       return [
         { key: 'feeding', name: '喂养', count: (d.feedings || []).length },
+        { key: 'diaper', name: '尿布', count: (d.diapers || []).length },
         { key: 'sleep', name: '睡眠', count: (d.sleeps || []).length },
         { key: 'growth', name: '生长', count: (d.growth || []).length },
+        { key: 'vaccine', name: '疫苗', count: (d.vaccines && d.vaccines.done ? Object.keys(d.vaccines.done).length : 0) },
         { key: 'period', name: '经期', count: (d.periods || []).length },
         { key: 'contraction', name: '宫缩', count: (d.contractions || []).length },
         { key: 'packing', name: '待产包', count: (d.packing && d.packing.items ? d.packing.items.length : 0) },

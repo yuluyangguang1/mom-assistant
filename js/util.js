@@ -106,6 +106,15 @@
         add(isoOf(r.start), 'sleep', '睡眠', v);
       });
       (d.growth || []).forEach(function (r) { add(r.date, 'growth', '生长', (r.weightKg ? r.weightKg + ' kg ' : '') + (r.heightCm ? r.heightCm + ' cm' : '')); });
+      (d.diapers || []).forEach(function (r) {
+        var t = r.type === 'pee' ? '尿' : (r.type === 'poop' ? '便' : '尿+便');
+        add(isoOf(r.time), 'diaper', '尿布', t);
+      });
+      if (d.vaccines && d.vaccines.done) {
+        Object.keys(d.vaccines.done).forEach(function (k) {
+          add(d.vaccines.done[k], 'vaccine', '疫苗接种', '');
+        });
+      }
       (d.periods || []).forEach(function (r) { if (r.start) add(isoOf(r.start), 'period', '经期', ''); });
       if (d.prenatal && d.prenatal.records) d.prenatal.records.forEach(function (r) { add(r.date, 'pregnancy', '产检', r.item || ''); });
       (d.contractions || []).forEach(function (r) { if (r.start) add(isoOf(r.start), 'contraction', '宫缩', ''); });

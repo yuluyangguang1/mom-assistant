@@ -119,7 +119,34 @@
     };
   }
 
-  var RULES = [ruleSleep, ruleContraction, ruleFeeding, rulePacking, rulePeriod, ruleBackup];
+  /* 疫苗到期：有宝宝生日 + 未种剂次 ≤7 天到期或已逾期（≤30 天内） */
+  function ruleVaccine(d, now) {
+    var vac = global.Modules && global.Modules.vaccine;
+    if (!vac || typeof vac._plan !== 'function') return null;
+    var birth = d.settings && d.settings.baby && d.settings.baby.birthDate;
+    if (!birth) return null;
+    var done = (d.vaccines && d.vaccines.done) || {};
+    var todayISO = new Date(now);
+    todayISO = todayISO.getFullYear() + '-' + ('0' + (todayISO.getMonth() + 1)).slice(-2) + '-' + ('0' + todayISO.getDate()).slice(-2);
+    var dueSoon = null, overdueN = 0;
+    vac._plan(birth).forEach(function (it) {
+      if (done[it.key]) return;
+      var left = daysBetween(todayISO, it.dueISO);
+      if (left >= 0 && left <= 7 && !dueSoon) dueSoon = it;
+      if (left < 0 && left >= -30) overdueN++;
+    });
+    if (dueSoon) return {
+      accent: 'vaccine', go: 'vaccine',
+      text: dueSoon.name + dueSoon.dose + (daysBetween(todayISO, dueSoon.dueISO) === 0 ? ' 今天应种。' : ' ' + daysBetween(todayISO, dueSoon.dueISO) + ' 天后应种。')
+    };
+    if (overdueN) return {
+      accent: 'vaccine', go: 'vaccine',
+      text: '有 ' + overdueN + ' 剂疫苗已逾期，建议尽快咨询接种门诊补种。'
+    };
+    return null;
+  }
+
+  var RULES = [ruleSleep, ruleContraction, ruleFeeding, ruleVaccine, rulePacking, rulePeriod, ruleBackup];
 
   var Reminders = {
     /** 评估全部规则，返回触发的提醒数组（now 默认当前时间，可注入便于测试） */
