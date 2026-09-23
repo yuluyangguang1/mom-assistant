@@ -115,6 +115,8 @@
           add(d.vaccines.done[k], 'vaccine', '疫苗接种', '');
         });
       }
+      (d.meds || []).forEach(function (r) { add(isoOf(r.time), 'meds', '服药', r.name || ''); });
+      (d.milestones || []).forEach(function (r) { add(r.date, 'milestone', '里程碑', r.title || ''); });
       (d.periods || []).forEach(function (r) { if (r.start) add(isoOf(r.start), 'period', '经期', ''); });
       if (d.prenatal && d.prenatal.records) d.prenatal.records.forEach(function (r) { add(r.date, 'pregnancy', '产检', r.item || ''); });
       (d.contractions || []).forEach(function (r) { if (r.start) add(isoOf(r.start), 'contraction', '宫缩', ''); });

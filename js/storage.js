@@ -19,7 +19,7 @@
   var DATA_VERSION = 2;
 
   /* 数组型字段（记录列表） */
-  var ARRAY_KEYS = ['periods', 'feedings', 'sleeps', 'contractions', 'growth', 'diapers'];
+  var ARRAY_KEYS = ['periods', 'feedings', 'sleeps', 'contractions', 'growth', 'diapers', 'meds', 'milestones'];
   /* 对象型字段（嵌套容器） */
   var OBJECT_KEYS = ['pregnancy', 'prenatal', 'packing', 'finance', 'vaccines'];
 
@@ -37,6 +37,8 @@
       openContraction: null,
       growth: [],
       diapers: [],
+      meds: [],
+      milestones: [],
       packing: { seeded: false, items: [] },
       finance: { records: [] },
       vaccines: { done: {} }
@@ -153,6 +155,8 @@
         { key: 'sleep', name: '睡眠', count: (d.sleeps || []).length },
         { key: 'growth', name: '生长', count: (d.growth || []).length },
         { key: 'vaccine', name: '疫苗', count: (d.vaccines && d.vaccines.done ? Object.keys(d.vaccines.done).length : 0) },
+        { key: 'meds', name: '吃药/维D', count: (d.meds || []).length },
+        { key: 'milestone', name: '里程碑', count: (d.milestones || []).length },
         { key: 'period', name: '经期', count: (d.periods || []).length },
         { key: 'contraction', name: '宫缩', count: (d.contractions || []).length },
         { key: 'packing', name: '待产包', count: (d.packing && d.packing.items ? d.packing.items.length : 0) },

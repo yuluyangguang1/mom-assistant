@@ -146,7 +146,45 @@
     return null;
   }
 
-  var RULES = [ruleSleep, ruleContraction, ruleFeeding, ruleVaccine, rulePacking, rulePeriod, ruleBackup];
+  /* 维 D 习惯：近 3 天有服药记录（说明在规律喂）但今天还没有 → 温和提醒 */
+  function ruleMeds(d, now) {
+    var meds = d.meds || [];
+    if (!meds.length) return null;
+    var todayISO = new Date(now);
+    todayISO = todayISO.getFullYear() + '-' + ('0' + (todayISO.getMonth() + 1)).slice(-2) + '-' + ('0' + todayISO.getDate()).slice(-2);
+    var hasToday = meds.some(function (r) { return (r.time || '').slice(0, 10) === todayISO; });
+    if (hasToday) return null;
+    var cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 3);
+    var recent = meds.some(function (r) { return r.time && new Date(r.time) >= cutoff; });
+    if (!recent) return null;
+    return {
+      accent: 'meds', go: 'meds',
+      text: '今天的维生素 D 还没有喂，别忘了哦。'
+    };
+  }
+
+  /* 尿布间隔：有记录习惯时，距上次含尿 >8 小时 / 含便 >48 小时 → 温和提示留意 */
+  function ruleDiaperGap(d, now) {
+    var ds = d.diapers || [];
+    if (ds.length < 3) return null; /* 记录太少说明没在用，不打扰 */
+    var lastPee = null, lastPoop = null;
+    ds.forEach(function (r) {
+      var t = r.time ? new Date(r.time).getTime() : 0;
+      if (!t) return;
+      if ((r.type === 'pee' || r.type === 'both') && (!lastPee || t > lastPee)) lastPee = t;
+      if ((r.type === 'poop' || r.type === 'both') && (!lastPoop || t > lastPoop)) lastPoop = t;
+    });
+    var H = 3600000;
+    if (lastPee && (now - lastPee) > 8 * H && (now - lastPee) < 48 * H) {
+      return { accent: 'diaper', go: 'diaper', text: '已 ' + Math.floor((now - lastPee) / H) + ' 小时没记到尿了，留意一下宝宝尿量。' };
+    }
+    if (lastPoop && (now - lastPoop) > 48 * H && (now - lastPoop) < 7 * 24 * H) {
+      return { accent: 'diaper', go: 'diaper', text: '已 ' + Math.floor((now - lastPoop) / (24 * H)) + ' 天没记到便便，可留意宝宝状态，必要时咨询医生。' };
+    }
+    return null;
+  }
+
+  var RULES = [ruleSleep, ruleContraction, ruleFeeding, ruleVaccine, ruleMeds, ruleDiaperGap, rulePacking, rulePeriod, ruleBackup];
 
   var Reminders = {
     /** 评估全部规则，返回触发的提醒数组（now 默认当前时间，可注入便于测试） */

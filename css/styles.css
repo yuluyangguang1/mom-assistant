@@ -615,6 +615,8 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 [data-accent="finance"]     { --tile: #8F85C9; --tile-weak: #EFEDF8; }
 [data-accent="diaper"]      { --tile: #D0A94E; --tile-weak: #F8F0DE; }
 [data-accent="vaccine"]     { --tile: #6FA0C0; --tile-weak: #E9F1F7; }
+[data-accent="meds"]        { --tile: #C1879E; --tile-weak: #F7ECF1; }
+[data-accent="milestone"]   { --tile: #7E9BC9; --tile-weak: #ECF1F8; }
 
 /* 暗色：同色系调亮，弱色改半透明叠底 */
 body.dark [data-accent="feeding"]     { --tile: #7BC4BC; --tile-weak: rgba(123,196,188,.16); }
@@ -627,6 +629,8 @@ body.dark [data-accent="contraction"] { --tile: #E69E8A; --tile-weak: rgba(230,1
 body.dark [data-accent="finance"]     { --tile: #B0A8DB; --tile-weak: rgba(176,168,219,.16); }
 body.dark [data-accent="diaper"]      { --tile: #E2C27E; --tile-weak: rgba(226,194,126,.16); }
 body.dark [data-accent="vaccine"]     { --tile: #97BEDD; --tile-weak: rgba(151,190,221,.16); }
+body.dark [data-accent="meds"]        { --tile: #D6A5BA; --tile-weak: rgba(214,165,186,.16); }
+body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-weak: rgba(159,185,223,.16); }
 
 
 /* ============================================================

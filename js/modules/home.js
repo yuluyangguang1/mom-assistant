@@ -83,12 +83,18 @@
         else { vaxInfo = '全部完成'; }
       }
 
+      var medsToday = countToday(d.meds, 'time');
+      var msRecent = (d.milestones || []).slice()
+        .sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); })[0];
+
       var tiles = [
         { id: 'feeding', name: '喂养', accent: 'feeding', sum: feedToday ? ('今日 ' + feedToday + ' 次') : '暂无今日', badge: feedToday ? String(feedToday) : '' },
         { id: 'diaper', name: '尿布', accent: 'diaper', sum: diaperToday ? ('今日 ' + diaperToday + ' 次') : '暂无今日', badge: diaperToday ? String(diaperToday) : '' },
         { id: 'sleep', name: '睡眠', accent: 'sleep', sum: sleepRecent ? ('最近 ' + Util.fmtDuration(new Date(sleepRecent.end) - new Date(sleepRecent.start) - (sleepRecent.pausedMs || 0))) : '暂无' },
         { id: 'growth', name: '生长', accent: 'growth', sum: weightRecent ? ('最近 ' + weightRecent.weightKg + ' kg') : '暂无' },
         { id: 'vaccine', name: '疫苗', accent: 'vaccine', sum: vaxInfo, badge: vaxBadge },
+        { id: 'meds', name: '吃药/维D', accent: 'meds', sum: medsToday ? ('今日 ' + medsToday + ' 次') : '暂无今日', badge: medsToday ? String(medsToday) : '' },
+        { id: 'milestone', name: '里程碑', accent: 'milestone', sum: msRecent ? msRecent.title : '暂无' },
         { id: 'period', name: '经期', accent: 'period', sum: periodInfo },
         { id: 'pregnancy', name: '孕期', accent: 'pregnancy', sum: wk !== null ? ('第 ' + wk + ' 周') : '未设置', badge: wk !== null ? String(wk) : '' },
         { id: 'packing', name: '待产包', accent: 'packing', sum: pk.length ? ('已备 ' + pkPct + '%') : '未开始', badge: pk.length ? (pkPct + '%') : '' },

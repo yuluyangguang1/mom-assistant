@@ -110,7 +110,12 @@
             '</span><button class="icon-btn" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
         });
         html += '</ul>';
-        html += growthChart(recs, baby);
+        /* 曲线支持三指标切换（体重/身长/头围），默认体重 */
+        html += '<div class="seg" id="gMetric">'
+          + '<button type="button" class="seg-btn active" data-m="weight">体重</button>'
+          + '<button type="button" class="seg-btn" data-m="length">身长</button>'
+          + '<button type="button" class="seg-btn" data-m="head">头围</button></div>';
+        html += '<div id="gChartBox">' + growthChart(recs, baby, 'weight') + '</div>';
         html += '<p class="warn">看趋势、看长期，单次数值不必焦虑。曲线为简化近似，非严格医学评估。</p></div>';
       } else {
         html += '<div class="card"><p class="hint">还没有测量记录。记录后可显示百分位与趋势曲线。</p></div>';
@@ -138,6 +143,15 @@
         };
         Storage.save(); global.App.rerender();
       });
+      /* 曲线指标切换：体重/身长/头围（只重绘图表，不整页刷新） */
+      Array.prototype.forEach.call(view.querySelectorAll('#gMetric .seg-btn'), function (b) {
+        b.addEventListener('click', function () {
+          Array.prototype.forEach.call(view.querySelectorAll('#gMetric .seg-btn'), function (x) { x.classList.remove('active'); });
+          b.classList.add('active');
+          view.querySelector('#gChartBox').innerHTML = growthChart(recs, baby, b.getAttribute('data-m'));
+        });
+      });
+
       view.querySelector('#gSave').addEventListener('click', function () {
         var date = view.querySelector('#gDate').value;
         var w = view.querySelector('#gW').value;
@@ -166,23 +180,28 @@
     }
   };
 
-  // 简化 SVG 曲线：宝宝体重点 vs WHO 中位数曲线
-  function growthChart(recs, baby) {
+  // 简化 SVG 曲线：宝宝某项指标 vs WHO 中位数曲线（metric: weight/length/head）
+  var METRIC_FIELD = { weight: 'weightKg', length: 'heightCm', head: 'headCm' };
+  var METRIC_UNIT = { weight: 'kg', length: 'cm', head: 'cm' };
+  var METRIC_NAME = { weight: '体重', length: '身长', head: '头围' };
+  function growthChart(recs, baby, metric) {
+    metric = metric || 'weight';
     if (!baby.birthDate) return '<p class="hint">设置出生日期后可生成曲线。</p>';
     var sexK = (baby.sex === 'girl') ? 'girl' : 'boy';
+    var field = METRIC_FIELD[metric];
     var pts = recs.map(function (r) {
       var age = Util.daysBetween(baby.birthDate, r.date) / 30.44;
-      return { age: age, w: r.weightKg };
+      return { age: age, w: r[field] };
     }).filter(function (p) { return p.w != null; });
-    if (!pts.length) return '';
+    if (!pts.length) return '<p class="hint">暂无' + METRIC_NAME[metric] + '数据，记录后可生成曲线。</p>';
     var W = 300, H = 160, pad = 28;
     var ages = pts.map(function (p) { return p.age; });
     var maxAge = Math.max.apply(null, ages);
     if (maxAge < 0.5) maxAge = 0.5;
-    var maxW = Math.max.apply(null, pts.map(function (p) { return p.w; }).concat([WHO[sexK].weight[0]]));
+    var maxW = Math.max.apply(null, pts.map(function (p) { return p.w; }).concat([WHO[sexK][metric][0]]));
     function X(age) { return pad + (W - 2 * pad) * (age / maxAge); }
     function Y(w) { return H - pad - (H - 2 * pad) * (w / (maxW * 1.2)); }
-    var med = MONTHS.map(function (m) { return { x: X(m), y: Y(interp(WHO[sexK].weight, m)) }; });
+    var med = MONTHS.map(function (m) { return { x: X(m), y: Y(interp(WHO[sexK][metric], m)) }; });
     var medPath = med.map(function (p, i) { return (i ? 'L' : 'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1); }).join(' ');
     var babyPath = pts.map(function (p, i) { return (i ? 'L' : 'M') + X(p.age).toFixed(1) + ' ' + Y(p.w).toFixed(1); }).join(' ');
     var dots = pts.map(function (p) { return '<circle cx="' + X(p.age).toFixed(1) + '" cy="' + Y(p.w).toFixed(1) + '" r="3"></circle>'; }).join('');
@@ -192,7 +211,7 @@
       '<path d="' + medPath + '" stroke="#3a9a7a" fill="none" stroke-dasharray="4 3"></path>' +
       '<path d="' + babyPath + '" stroke="#2f6fed" fill="none"></path>' + dots +
       '<text x="' + (W - pad) + '" y="' + (H - 6) + '" font-size="9" text-anchor="end" fill="#666">月龄→</text>' +
-      '<text x="4" y="' + (pad + 8) + '" font-size="9" fill="#666">↑kg</text>' +
-      '</svg><p class="hint">虚线：WHO 中位数曲线；实线：宝宝体重。</p>';
+      '<text x="4" y="' + (pad + 8) + '" font-size="9" fill="#666">↑' + METRIC_UNIT[metric] + '</text>' +
+      '</svg><p class="hint">虚线：WHO ' + METRIC_NAME[metric] + '中位数曲线；实线：宝宝' + METRIC_NAME[metric] + '。</p>';
   }
 })(window);
