@@ -779,3 +779,12 @@ body.dark [data-accent="finance"]     { --tile: #B0A8DB; --tile-weak: rgba(176,1
   * { animation: none !important; transition: none !important; }
 }
 
+
+/* ============================================================
+   首页提醒卡（reminders.js）：有提醒才渲染，复用 .list 行样式，
+   行可点击直达对应模块；左侧图标/边条按来源模块分色。
+   ============================================================ */
+.remind-card { border-left: 3px solid var(--warn); }
+.remind-list li { cursor: pointer; }
+.remind-list li:active { transform: scale(.98); }
+

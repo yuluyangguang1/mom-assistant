@@ -89,6 +89,21 @@
       /* 主体（单列，模块磁贴占满宽度） */
       html += '<div class="home-main">';
 
+      /* 本地提醒卡：基于「当前时间 × 已有数据」的温和注意（喂养间隔/计时进行中/经期临近/待产包/备份）。
+         有提醒才渲染，无提醒不占位。 */
+      if (global.Reminders) {
+        var rems = Reminders.evaluate(d);
+        if (rems.length) {
+          html += '<div class="card remind-card"><h2>' + icon('bell') + '提醒</h2><ul class="list remind-list">';
+          rems.forEach(function (r) {
+            html += '<li data-accent="' + r.accent + '" data-go="' + r.go + '" role="button" tabindex="0">'
+              + '<span class="row-ico">' + icon(r.accent === 'finance' ? 'export' : r.accent) + '</span>'
+              + '<span>' + r.text + '</span></li>';
+          });
+          html += '</ul></div>';
+        }
+      }
+
       /* 今日概览：迷你统计卡（关键数字做主角） */
       var stats = [];
       stats.push({ num: feedToday, lbl: '今日喂养', unit: '次' });
