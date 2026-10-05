@@ -1,4 +1,4 @@
-/**
+﻿/**
  * growth.js - 称重 / 生长曲线
  * 记录体重/身高/头围；按 WHO/CDC 标准中位数近似计算百分位（简化插值）；
  * 支持早产儿矫正月龄（Fenton 近似）；强调"看趋势不看单次"。
@@ -75,22 +75,57 @@
       var baby = d.settings.baby || { sex: 'boy', birthDate: null, preterm: false, birthGestWeeks: 40 };
       var html = '';
 
+      /* P2-12：宝宝信息已设置时折叠为一行摘要（复访场景表单不再霸占首屏），「修改」展开 */
+      var bExpanded = !!Modules.growth._bExpand || !baby.birthDate;
       html += '<div class="card"><h2>宝宝信息</h2>';
+      if (!bExpanded) {
+        html += '<p class="hint">' + (baby.sex === 'girl' ? '女宝' : '男宝') + ' · '
+          + (baby.birthDate ? Util.fmtDate(baby.birthDate) : '未填生日') + (baby.preterm ? ' · 早产（矫正月龄）' : '') + '</p>';
+        html += '<button type="button" class="btn-mini" id="bToggle">修改</button></div>';
+      } else {
       html += '<div class="seg" id="bSex">';
       html += '<button type="button" class="seg-btn' + (baby.sex !== 'girl' ? ' active' : '') + '" data-s="boy">男</button>';
       html += '<button type="button" class="seg-btn' + (baby.sex === 'girl' ? ' active' : '') + '" data-s="girl">女</button>';
       html += '</div>';
-      html += '<label>出生日期<input type="date" id="bBirth" value="' + (baby.birthDate || '') + '"></label>';
+      html += Util.dateSlider({ id: 'bBirth', title: '出生日期', value: baby.birthDate || '', min: Util.addDays(Util.todayISO(), -1095), max: Util.todayISO(), opt: { label: '未设置（可后补）', invert: false } });
       html += '<label class="chk"><input type="checkbox" id="bPreterm"' + (baby.preterm ? ' checked' : '') + '> 早产儿（需矫正月龄）</label>';
       html += '<label id="lblGest">出生孕周（周）<input type="number" id="bGest" min="22" max="39" value="' + (baby.birthGestWeeks || 36) + '"></label>';
       html += '<button class="btn" id="bSave">保存宝宝信息</button>';
+      if (baby.birthDate) html += '<button type="button" class="btn-mini" id="bCollapse">收起</button>';
       html += '<p class="hint">生长曲线按 WHO/CDC 标准中位数近似计算百分位，仅供趋势参考。</p></div>';
+      }
 
-      html += '<div class="card"><h2>' + icon('growth') + '记录一次测量</h2>';
-      html += '<label>日期<input type="date" id="gDate" value="' + Util.todayISO() + '"></label>';
-      html += '<label>体重 (kg)<input type="number" step="0.01" id="gW" placeholder="如 6.4"></label>';
-      html += '<label>身长/身高 (cm)<input type="number" step="0.1" id="gH" placeholder="如 62"></label>';
-      html += '<label>头围 (cm)<input type="number" step="0.1" id="gC" placeholder="如 41"></label>';
+      /* 记录一次测量：大数字 + 尺滑杆（第 41 次，对标 Cali 录入范式）。
+         三项指标共用一根滑杆，点上方圆片切换；各指标取值独立、互不覆盖。 */
+      var METS = [
+        { k: 'weight', name: '体重', unit: 'kg', min: 0.5, max: 40, step: 0.05, dec: 2, anchor: 6.00, field: 'weightKg' },
+        { k: 'height', name: '身长', unit: 'cm', min: 20, max: 160, step: 0.1, dec: 1, anchor: 60.0, field: 'heightCm' },
+        { k: 'head', name: '头围', unit: 'cm', min: 20, max: 70, step: 0.1, dec: 1, anchor: 35.0, field: 'headCm' }
+      ];
+      function metOf(k) {
+        for (var i = 0; i < METS.length; i++) if (METS[i].k === k) return METS[i];
+        return METS[0];
+      }
+      function fmtMet(m, v) { return Number(v).toFixed(m.dec); }
+      /* U-06：各指标预填最近一次记录值 */
+      var gvals = {};
+      METS.forEach(function (m) {
+        var lastM = d.growth.filter(function (r) { return r[m.field] != null && r.date; })
+          .sort(function (a, b) { return new Date(b.date) - new Date(a.date); })[0];
+        gvals[m.k] = lastM ? lastM[m.field] : null;
+      });
+      var gActive = 'weight';
+
+      html += '<div class="card"><h2>记录一次测量</h2>';
+      html += Util.dateSlider({ id: 'gDate', title: '日期', value: Util.todayISO(), min: Util.addDays(Util.todayISO(), -31), max: Util.todayISO() });
+      html += '<span class="lbl-text">测量项（点选切换滑杆）</span><div class="seg seg-wrap3" id="gMetrics">';
+      METS.forEach(function (m) {
+        var v = gvals[m.k];
+        html += '<button type="button" class="seg-btn' + (m.k === gActive ? ' active' : '') + '" data-mk="' + m.k + '">'
+          + m.name + ' <b>' + (v != null ? fmtMet(m, v) + ' ' + m.unit : '--') + '</b></button>';
+      });
+      html += '</div>';
+      html += Util.rulerHTML('gRuler', { unit: metOf(gActive).unit, label: '测量值' });
       html += '<button class="btn btn-primary" id="gSave">保存</button></div>';
 
       var recs = d.growth.slice().sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
@@ -102,12 +137,16 @@
           var pw = r.weightKg != null ? percentile('weight', baby.sex, cAge, r.weightKg) : null;
           var ph = r.heightCm != null ? percentile('length', baby.sex, cAge, r.heightCm) : null;
           var pc = r.headCm != null ? percentile('head', baby.sex, cAge, r.headCm) : null;
-          html += '<li>' + icon('growth') + '<span>' + Util.fmtDate(r.date) + ' （' + age.toFixed(1) + '月' +
-            (baby.preterm ? '，矫正' + cAge.toFixed(1) + '月' : '') + '）<br>' +
-            (r.weightKg != null ? '体重 ' + r.weightKg + 'kg P' + (pw != null ? pw : '-') + ' ｜ ' : '') +
-            (r.heightCm != null ? '身长 ' + r.heightCm + 'cm P' + (ph != null ? ph : '-') + ' ｜ ' : '') +
-            (r.headCm != null ? '头围 ' + r.headCm + 'cm P' + (pc != null ? pc : '-') : '') +
-            '</span><button class="icon-btn" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
+          /* 第 76 次（D 线）：行改「左日期+月龄 / 右三指标百分位」双列 */
+          html += '<li><span class="row-ico">' + icon('growth') + '</span>'
+            + '<span class="li-main"><b>' + Util.fmtDate(r.date) + '</b><br><small>' + age.toFixed(1) + '月'
+            + (baby.preterm ? ' · 矫正' + cAge.toFixed(1) + '月' : '') + '</small></span>'
+            + '<span class="li-sub li-sub-wrap">'
+            + (r.weightKg != null ? '体重 ' + r.weightKg + 'kg P' + (pw != null ? pw : '-') + '<br>' : '')
+            + (r.heightCm != null ? '身长 ' + r.heightCm + 'cm P' + (ph != null ? ph : '-') + '<br>' : '')
+            + (r.headCm != null ? '头围 ' + r.headCm + 'cm P' + (pc != null ? pc : '-') : '')
+            + '</span>'
+            + '<button class="icon-btn" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
         });
         html += '</ul>';
         /* 曲线支持三指标切换（体重/身长/头围），默认体重 */
@@ -121,7 +160,21 @@
         html += '<div class="card"><p class="hint">还没有测量记录。记录后可显示百分位与趋势曲线。</p></div>';
       }
 
+      /* 第 59 次：医学提示（遵医嘱） */
+      html += '<p class="hint med-note">生长数据仅作日常记录参考，不构成医疗建议；发育评估请以儿保体检医生的意见为准。</p>';
+
       view.innerHTML = html;
+      Util.bindDateSliders(view);
+
+      /* P2-12：宝宝信息折叠 / 展开 */
+      var bToggle = view.querySelector('#bToggle');
+      if (bToggle) bToggle.addEventListener('click', function () {
+        Modules.growth._bExpand = true; global.App.rerender();
+      });
+      var bCollapse = view.querySelector('#bCollapse');
+      if (bCollapse) bCollapse.addEventListener('click', function () {
+        Modules.growth._bExpand = false; global.App.rerender();
+      });
 
       Array.prototype.forEach.call(view.querySelectorAll('#bSex .seg-btn'), function (b) {
         b.addEventListener('click', function () {
@@ -129,20 +182,26 @@
           b.classList.add('active');
         });
       });
-      view.querySelector('#bPreterm').addEventListener('change', function () {
-        view.querySelector('#lblGest').style.display = this.checked ? '' : 'none';
-      });
-      view.querySelector('#lblGest').style.display = baby.preterm ? '' : 'none';
+      /* 折叠态下完整表单不在 DOM 里，绑定必须先判存在（jsdom 回归抓过的真 bug） */
+      var bPretermEl = view.querySelector('#bPreterm');
+      if (bPretermEl) {
+        bPretermEl.addEventListener('change', function () {
+          view.querySelector('#lblGest').style.display = this.checked ? '' : 'none';
+        });
+        view.querySelector('#lblGest').style.display = baby.preterm ? '' : 'none';
 
-      view.querySelector('#bSave').addEventListener('click', function () {
-        d.settings.baby = {
-          sex: view.querySelector('#bSex .active').getAttribute('data-s'),
-          birthDate: view.querySelector('#bBirth').value || null,
-          preterm: view.querySelector('#bPreterm').checked,
-          birthGestWeeks: parseInt(view.querySelector('#bGest').value, 10) || 36
-        };
-        Storage.save(); global.App.rerender();
-      });
+        view.querySelector('#bSave').addEventListener('click', function () {
+          d.settings.baby = {
+            sex: view.querySelector('#bSex .active').getAttribute('data-s'),
+            birthDate: view.querySelector('#bBirth').value || null,
+            preterm: view.querySelector('#bPreterm').checked,
+            birthGestWeeks: parseInt(view.querySelector('#bGest').value, 10) || 36
+          };
+          /* 第 80 次（宝宝档案）：生日改动同步回当前宝宝档案 */
+          if (Storage.syncBabyFromSettings) Storage.syncBabyFromSettings();
+          Storage.save(); global.App.rerender();
+        });
+      }
       /* 曲线指标切换：体重/身长/头围（只重绘图表，不整页刷新） */
       Array.prototype.forEach.call(view.querySelectorAll('#gMetric .seg-btn'), function (b) {
         b.addEventListener('click', function () {
@@ -152,20 +211,64 @@
         });
       });
 
+      /* 尺滑杆：点测量项圆片切换指标，滑杆/＋− 更新该指标取值 */
+      function paintGMetrics() {
+        var seg = view.querySelector('#gMetrics');
+        if (!seg) return;
+        Array.prototype.forEach.call(seg.querySelectorAll('[data-mk]'), function (b) {
+          var m = metOf(b.getAttribute('data-mk'));
+          var v = gvals[m.k];
+          b.classList.toggle('active', m.k === gActive);
+          var bEl = b.querySelector('b');
+          if (bEl) bEl.textContent = (v != null ? fmtMet(m, v) + ' ' + m.unit : '--');
+        });
+      }
+      function paintGRuler() {
+        var m = metOf(gActive);
+        Util.rulerPaint('gRuler', { min: m.min, max: m.max, step: m.step, value: gvals[gActive], anchor: m.anchor, dec: m.dec, unit: m.unit, label: m.name });
+      }
+      function setGV(v) {
+        var m = metOf(gActive);
+        v = Math.min(m.max, Math.max(m.min, v));
+        v = Math.round(v / m.step) * m.step;
+        gvals[gActive] = Math.round(v * 100) / 100;
+        Util.rulerPaint('gRuler', { min: m.min, max: m.max, step: m.step, value: gvals[gActive], anchor: m.anchor, dec: m.dec, unit: m.unit, label: m.name });
+        paintGMetrics();
+      }
+      Array.prototype.forEach.call(view.querySelectorAll('#gMetrics [data-mk]'), function (b) {
+        b.addEventListener('click', function () {
+          gActive = b.getAttribute('data-mk');
+          paintGMetrics();
+          paintGRuler();
+        });
+      });
+      var gRange = view.querySelector('#gRulerRange');
+      if (gRange) gRange.addEventListener('input', function () {
+        setGV(parseFloat(gRange.value));
+      });
+      var gMinus = view.querySelector('#gRulerMinus');
+      if (gMinus) gMinus.addEventListener('click', function () {
+        var m = metOf(gActive);
+        setGV((gvals[gActive] != null ? gvals[gActive] : m.anchor) - m.step);
+      });
+      var gPlus = view.querySelector('#gRulerPlus');
+      if (gPlus) gPlus.addEventListener('click', function () {
+        var m = metOf(gActive);
+        setGV((gvals[gActive] != null ? gvals[gActive] : m.anchor) + m.step);
+      });
+      paintGRuler();
+
       view.querySelector('#gSave').addEventListener('click', function () {
         var date = view.querySelector('#gDate').value;
-        var w = view.querySelector('#gW').value;
-        var h = view.querySelector('#gH').value;
-        var c = view.querySelector('#gC').value;
+        var w = gvals.weight, h = gvals.height, c = gvals.head;
         if (!date) { Util.markInvalid(view.querySelector('#gDate'), '请填写日期'); return; }
-        if (w === '' && h === '' && c === '') { Util.markInvalid([view.querySelector('#gW'), view.querySelector('#gH'), view.querySelector('#gC')], '请至少填写体重/身长/头围中的一项'); return; }
+        if (w == null && h == null && c == null) { Util.toast('请先在滑杆上设置至少一项测量值', 'warn'); return; }
         d.growth.push({
           id: Util.uid(), date: date,
-          weightKg: w !== '' ? parseFloat(w) : null,
-          heightCm: h !== '' ? parseFloat(h) : null,
-          headCm: c !== '' ? parseFloat(c) : null
+          weightKg: w, heightCm: h, headCm: c
         });
-        Storage.save(); global.App.rerender();
+        if (Storage.save()) Util.toast('已记录测量：' + date, 'ok'); /* C1 */
+        global.App.rerender();
       });
       Array.prototype.forEach.call(view.querySelectorAll('[data-del]'), function (b) {
         b.addEventListener('click', function () {

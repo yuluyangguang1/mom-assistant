@@ -1,6 +1,6 @@
 /**
  * app.js - 应用入口
- * 负责：底部 Tab 切换、主题（夜间模式）、首次隐私告知、导出/导入、初始化。
+ * 负责：底部 Tab 切换、主题（夜间模式）、首次三步引导、导出/导入、初始化。
  * 必须最后加载（依赖各模块的 Modules 注册）。
  */
 (function (global) {
@@ -9,7 +9,7 @@
   var Util = global.Util;
   var Modules = global.Modules = global.Modules || {};
 
-  // 底部导航栏只保留 2 个主入口；其余 8 个功能统一在「首页-全部功能」网格中一键直达（2026-09-19 精简）
+  // 底部导航栏只保留 2 个主入口；其余功能模块（首页磁贴现为 13 个，含白噪音）统一在「首页-全部功能」网格中一键直达（2026-09-19 精简）
   var TABS = [
     { id: 'home', title: '首页' },
     { id: 'calendar', title: '日期记录' }
@@ -17,18 +17,109 @@
 
   var current = 'home';
 
+  /* 第 100 次：底栏五口排列模式。normal=居中横排（默认）/ left=左下竖排 / right=右下竖排。
+     存储只存字符串，这里统一收口读取；无效值一律回落 normal。 */
+  function handMode() {
+    try {
+      var dd = Storage.get();
+      var s = dd && dd.settings;
+      if (s && (s.handMode === 'left' || s.handMode === 'right')) return s.handMode;
+    } catch (e) { /* 存储未就绪按正常排列渲染 */ }
+    return 'normal';
+  }
+
   function buildTabbar() {
     var bar = document.getElementById('tabbar');
     bar.innerHTML = '';
+    var hand = handMode();
+    /* 第 100 次：左手/右手模式——五个入口收进一根竖排胶囊（固定屏幕同侧下缘）：
+       首页、日期记录、快记「＋」（转发给 #qdFab 复用整套开合/快记逻辑）、
+       宝宝切换（复用 openBabySheet 面板）、设置。竖排没有文字空间，页签只留图标。 */
+    if (hand !== 'normal') {
+      var defs = [
+        { id: 'home', title: '首页', kind: 'tab' },
+        { id: 'calendar', title: '日期记录', kind: 'tab' },
+        { id: '__quick', title: '快速记录', kind: 'quick' },
+        { id: '__baby', title: '切换宝宝', kind: 'baby' },
+        { id: 'settings', title: '设置', kind: 'tab' }
+      ];
+      defs.forEach(function (t) {
+        var b = document.createElement('button');
+        b.className = 'tab' + (t.kind === 'quick' ? ' tab-plus' : '') + (t.kind === 'tab' && t.id === current ? ' active' : '');
+        b.type = 'button';
+        b.innerHTML = icon(t.id === '__quick' ? 'plus' : (t.id === '__baby' ? 'baby' : t.id))
+          + '<span class="tab-label">' + t.title + '</span>';
+        if (t.kind === 'tab') {
+          b.setAttribute('data-tab', t.id);
+          if (t.id === current) b.setAttribute('aria-current', 'page');
+          b.addEventListener('click', function () { showTab(t.id); });
+        } else if (t.kind === 'quick') {
+          b.setAttribute('data-qd-toggle', '1');
+          b.setAttribute('aria-label', '快速记录');
+          b.addEventListener('click', function () {
+            var fab = document.getElementById('qdFab');
+            if (fab && fab.click) fab.click(); /* 隐藏的 FAB 仍在 DOM，转发点击即复用全部逻辑 */
+          });
+        } else {
+          b.setAttribute('aria-label', '切换宝宝');
+          b.addEventListener('click', function () { openBabySheet(); });
+        }
+        bar.appendChild(b);
+      });
+      /* 快记动作列从底栏上方展开：把竖排胶囊高度喂给 CSS（#quickDock 定位用） */
+      try {
+        var hh = bar.offsetHeight;
+        document.documentElement.style.setProperty('--dock-h', (hh > 0 ? hh : 260) + 'px');
+      } catch (e) { /* QA 桩无真实布局，跳过 */ }
+      /* 第 101 次修复：布局自检兜底——个别真机内核（X5/夸克等）对 fixed + transform
+         覆盖链解析异常时，竖排胶囊会整体漂出画面。rAF 后实测 rect，越界即内联
+         强制回正（内联样式优先级最高，任何怪癖都压得住）。正常时零副作用。 */
+      try {
+        requestAnimationFrame(function () {
+          var r = bar.getBoundingClientRect();
+          var vw = window.innerWidth, vh = window.innerHeight;
+          if (!r || !vw) return;
+          if (r.left < 0 || r.right > vw + 1 || r.bottom > vh + 1 || r.top < 0) {
+            bar.style.left = '12px'; bar.style.right = 'auto';
+            bar.style.top = 'auto'; bar.style.transform = 'none';
+            var b2 = bar.getBoundingClientRect();
+            if (b2.bottom > vh) bar.style.bottom = Math.max(0, vh - b2.height - 4) + 'px';
+          }
+        });
+      } catch (e) { /* 老内核无 rAF 就算了：CSS 已自持 */ }
+      return;
+    }
+    /* 正常排列：居中横排（原逻辑不动） */
+    try { document.documentElement.style.setProperty('--dock-h', '0px'); } catch (e) {}
     TABS.forEach(function (t) {
       var b = document.createElement('button');
       b.className = 'tab' + (t.id === current ? ' active' : '');
       b.type = 'button';
       b.innerHTML = icon(t.id) + '<span>' + t.title + '</span>';
       b.setAttribute('data-tab', t.id);
+      if (t.id === current) b.setAttribute('aria-current', 'page'); /* 无障碍：标记当前页签 */
       b.addEventListener('click', function () { showTab(t.id); });
       bar.appendChild(b);
     });
+    /* 第 97 次：右侧自定义快捷槽位——设置页「底栏快捷入口」选一个常用模块，
+       在两页签右侧多一个直达入口（选中页签与「不显示」均不渲染）。
+       模块 id 在设置里选、存储里只存字符串，这里二次校验模块真实存在，
+       无效值（老数据/导入的未知 id）静默忽略，底栏照常两页签。 */
+    var slot = null;
+    try {
+      var dd = Storage.get();
+      slot = (dd && dd.settings) ? dd.settings.dockSlot : null;
+    } catch (e) { /* 存储未就绪时不出槽位，两页签照常 */ }
+    if (slot && Modules[slot] && slot !== current) {
+      var sb = document.createElement('button');
+      sb.className = 'tab tab-slot';
+      sb.type = 'button';
+      sb.innerHTML = icon(slot) + '<span>' + Util.escapeHtml(Modules[slot].title) + '</span>';
+      sb.setAttribute('data-tab', slot);
+      sb.setAttribute('aria-label', '快捷入口：' + Modules[slot].title);
+      sb.addEventListener('click', function () { showTab(slot); });
+      bar.appendChild(sb);
+    }
   }
 
   /* 顶栏玻璃化策略：
@@ -45,8 +136,13 @@
     else header.classList.remove('is-scrolled');
   }
 
-  function showTab(id) {
+  function showTab(id, opts) {
     if (!Modules[id]) return;
+    /* 第 96 次（原生手感·方向性进场）：按导航语义注入水平位移变量，
+       fadeUp 消费（见 styles.css）。前进=从内容深处推入（磁贴/齿轮进模块），
+       返回=从左收回（模块页回首页），底栏页签互切与平级跳转纯上浮。
+       只动 transform+opacity；reduced-motion 下全局禁动画自动降级。 */
+    var prevId = current;
     current = id;
     buildTabbar();
     var view = document.getElementById('view');
@@ -69,10 +165,38 @@
       head.innerHTML = '<span class="mod-head-ico">' + icon(id) + '</span><h1>' + Util.escapeHtml(Modules[id].title) + '</h1>';
       view.insertBefore(head, view.firstChild);
     }
-    // 进入动画：移除并重排后添加 .view-enter，触发卡片错落淡入（克制，<400ms）
+    /* 返回按钮 + 日期收起态（第 42 次）：模块页显示返回，回到首页则隐藏。
+       底栏两个页签（首页/日期记录）之外的任何页，都需要一个就近的返回出口。 */
+    var backBtn = document.getElementById('backBtn');
+    if (backBtn) backBtn.hidden = (id === 'home' || id === 'calendar' || id === 'settings');
+    /* 用 add/remove 而非 classList.toggle(cls, force)：测试桩的 toggle 不接受 force 参数，
+       会退化成「反转」，连续进两次同一页就把类删掉了。 */
+    if (id !== 'home') document.body.classList.add('in-module');
+    else document.body.classList.remove('in-module');
+    if (id === 'home') document.body.classList.add('in-home');
+    else document.body.classList.remove('in-home');
+    /* 第 43 次：模块页左上角小日期徽标（首页大日期在天空卡片内，二者互不重复） */
+    var modDate = document.getElementById('modDate');
+    if (modDate) {
+      var mD = new Date();
+      modDate.textContent = (mD.getMonth() + 1) + '月' + mD.getDate() + '日';
+    }
+    // 进入动画：移除并重排后添加 .view-enter，触发卡片错落淡入（克制，<400ms）。
+    // 第 51 次（走查专项）：rerender（保存/撤销/快记后的原地刷新）走 silent 静默路径——
+    // 只移除不回加，新插入的 DOM 不再匹配 .view-enter > * / .view-enter .list li /
+    // .view-enter .sky-canvas，整页卡片、列表与天空不再重播入场动画。
+    // 此前每记一笔全页重新错落淡入一遍（连天空都眨一下），是「假忙碌」感的主源。
     view.classList.remove('view-enter');
-    void view.offsetWidth;
-    view.classList.add('view-enter');
+    if (!(opts && opts.silent)) {
+      var dirX = '0px';
+      if (prevId === 'home' && id !== 'home' && id !== 'calendar') dirX = '18px';
+      else if (prevId && prevId !== 'home' && prevId !== 'calendar' && id === 'home') dirX = '-18px';
+      /* setProperty 是设置 CSS 自定义属性的唯一可靠途径；不支持的环境（测试桩/
+         极旧内核）静默跳过——动画退化为纯上浮，不影响功能。 */
+      try { view.style.setProperty('--enter-x', dirX); } catch (e) { /* 忽略 */ }
+      void view.offsetWidth;
+      view.classList.add('view-enter');
+    }
     // 进度条宽度过渡（从 0 动画到目标值）
     Array.prototype.forEach.call(view.querySelectorAll('.progress-bar'), function (bar) {
       var target = bar.style.width || '0%';
@@ -80,56 +204,384 @@
       void bar.offsetWidth;
       bar.style.width = target;
     });
+    traceStart(id); /* U-05：进入记录类模块即开始计时计点击 */
     window.scrollTo(0, 0);
     syncHeader(); /* 切页回到顶部，顶栏同步复位为透明 */
     if (global.Glass) global.Glass.wake(); /* 折射层：重绘场景并刷新各玻璃面 */
   }
 
-  function rerender() { showTab(current); }
+  /* C3（操作便捷性研究·第 32 次）：rerender 是轻操作后的原地刷新，必须保住滚动位置——
+     showTab 末尾会 scrollTo(0,0)，若不恢复，待产包勾选 / 疫苗标记等列表中段操作会跳回页顶。
+     真正的 Tab 切换仍从顶部开始（showTab 自身归零，这里只恢复 rerender 场景）。
+     第 51 次：rerender 同时走 silent 静默路径——轻操作只更新数据，不重播整页入场动画。 */
+  function rerender() {
+    var y = window.pageYOffset || 0;
+    showTab(current, { silent: true });
+    window.scrollTo(0, y);
+  }
+
+  /* U-09：夜间交互要做唤醒成本控制。
+     本地时间 22:00–06:00 默认进入暗色（用户可关），并给 body 打 .is-night，
+     由 CSS 降低强调色饱和度与动效强度（styles.css）。用户手动切换过主题即视为明确表态，
+     之后不再自动改他的选择——尊重显式选择优先于自动规则。 */
+  var NIGHT_FROM = 22, NIGHT_TO = 6;
+  /* 第 87 次（P1 情境3）：深夜档 23:00–05:00——暗色下再压一档表面亮度（喂夜奶场景） */
+  var DEEP_FROM = 23, DEEP_TO = 5;
+
+  function isNightNow() {
+    var h = new Date().getHours();
+    return h >= NIGHT_FROM || h < NIGHT_TO;
+  }
+
+  function isDeepNightNow() {
+    var h = new Date().getHours();
+    return h >= DEEP_FROM || h < DEEP_TO;
+  }
+
+  /* 主题模式（第 41 次）：time=跟随本地时间（22:00–06:00）/ system=跟随系统外观 /
+     light / dark=手动固定。旧数据无 themeMode 字段时从 themeAuto+theme 推导，向后兼容。 */
+  function themeMode() {
+    var s = Storage.get().settings;
+    if (s.themeMode) return s.themeMode;
+    return (s.themeAuto !== false) ? 'time' : ((s.theme === 'dark') ? 'dark' : 'light');
+  }
+
+  function sysPrefersDark() {
+    try { return !!(global.matchMedia && global.matchMedia('(prefers-color-scheme: dark)').matches); }
+    catch (e) { return false; }
+  }
+
+  function shouldDark() {
+    var mode = themeMode();
+    if (mode === 'dark') return true;
+    if (mode === 'light') return false;
+    if (mode === 'system') return sysPrefersDark();
+    return isNightNow();
+  }
 
   function applyTheme() {
-    var theme = Storage.get().settings.theme || 'light';
-    if (theme === 'dark') document.body.classList.add('dark');
+    var s = Storage.get().settings;
+    var dark = shouldDark();
+    if (dark) document.body.classList.add('dark');
     else document.body.classList.remove('dark');
-    var btn = document.getElementById('themeToggle');
-    if (btn) btn.textContent = theme === 'dark' ? '日间模式' : '夜间模式';
+    /* 夜间标记：供 CSS 压掉动效与饱和度（不是功能开关，只影响观感） */
+    if (isNightNow()) document.body.classList.add('is-night');
+    else document.body.classList.remove('is-night');
+    /* 第 87 次：深夜降档（暗色+23:00–05:00 时 CSS 把表面再压一档）。
+       第 100 次起：底栏排列由 leftHand 开关升级为 handMode 三态——
+       dock-left / dock-right 把五个入口收进屏幕同侧竖排，normal 不挂类。 */
+    document.body.classList.toggle('deep-night', dark && isDeepNightNow());
+    /* dock-left/right 用 add/remove 而非 toggle(cls, force)：QA 桩的 toggle 不吃 force
+       会退化成「反转」（与 showTab in-module 同款处理），真实语义两者等价且幂等 */
+    var hand = handMode();
+    if (hand === 'left') document.body.classList.add('dock-left');
+    else document.body.classList.remove('dock-left');
+    if (hand === 'right') document.body.classList.add('dock-right');
+    else document.body.classList.remove('dock-right');
+    /* 第 103 次（OP-GAP-03）：字号倍率。与上面三处同款处理——
+       add/remove 而非 toggle(force)，因为 QA 桩的 toggle 不吃 force 会退化成反转。 */
+    applyFontScale();
+    /* 顶栏主题按钮已移除（第 40 次）：入口在「设置 · 外观」，这里不再更新按钮文案 */
     if (global.Glass) global.Glass.setTheme(); /* 折射场景需随主题重绘背景渐变 */
   }
 
-  function toggleTheme() {
+  /* 手动设主题（设置 · 外观）：time=跟随时间；system=跟随系统外观；light/dark=明确固定。
+     同步写旧字段（themeAuto/theme），让只读旧字段的代码与测试语义正确。 */
+  function setTheme(mode) {
     var s = Storage.get();
-    s.settings.theme = (s.settings.theme === 'dark') ? 'light' : 'dark';
+    if (['time', 'system', 'light', 'dark'].indexOf(mode) < 0) mode = 'time';
+    s.settings.themeMode = mode;
+    s.settings.themeAuto = (mode === 'time');
+    if (mode === 'dark') s.settings.theme = 'dark';
+    if (mode === 'light') s.settings.theme = 'light';
     Storage.save();
     applyTheme();
   }
 
-  // 首次启动隐私告知
-  function showPrivacy() {
-    var s = Storage.get();
-    if (s.settings.privacyAccepted) return;
+  /* 第 103 次（OP-GAP-03）：全局字号倍率。挂 body 类，CSS 侧覆盖 --fs-* 五个变量。
+     为什么走 body 类而不直接改 style.fontSize：直接改根元素字号会与 body 自身的
+     font-size 声明打架，且不作用于 px 单位的图标与滑杆尺寸；覆盖 CSS 变量则是
+     「所有引用 var(--fs-*) 的地方一起变」，而 styles.css 里 font-size 无一处硬编码 px
+     （实测：硬编码 font-size 计数 0），所以变量一改全站生效、无漏网。
+     三档：normal=原样、lg=1.15、xl=1.3。非法值回落 normal。 */
+  var FONT_SCALES = ['normal', 'lg', 'xl'];
+
+  function fontScale() {
+    var v = Storage.get().settings.fontScale;
+    return (FONT_SCALES.indexOf(v) >= 0) ? v : 'normal';
+  }
+
+  function applyFontScale() {
+    var v = fontScale();
+    if (v === 'lg') document.body.classList.add('fs-lg');
+    else document.body.classList.remove('fs-lg');
+    if (v === 'xl') document.body.classList.add('fs-xl');
+    else document.body.classList.remove('fs-xl');
+  }
+
+  /* 设置 · 外观 · 字号。非法值回落 normal 而不是静默存下——
+     与 setTheme 同一套语义，避免脏值让页面落到一个没有 CSS 规则的类上。 */
+  function setFontScale(v) {
+    if (FONT_SCALES.indexOf(v) < 0) v = 'normal';
+    Storage.get().settings.fontScale = v;
+    Storage.save();
+    applyFontScale();
+  }
+
+  /* ---------------- 阶段（孕期 / 育儿期）判定 ----------------
+     优先级：用户显式选择（settings.stage）> 客观数据（末次月经/预产期推孕周、宝宝已出生）。
+     引导里让人先选阶段，只是为了少填几个字段、首页少显示不相关的磁贴，
+     不影响任何功能可用性——所以它可以随时为空、为空时全部回落到客观判定。 */
+  function stageOf(s) {
+    var st = s.settings.stage;
+    if (st === 'pregnancy' || st === 'baby') return st;
+    return (pregnancyWeekOf(s) !== null) ? 'pregnancy' : 'baby';
+  }
+  function pregnancyWeekOf(s) {
+    var pg = s.pregnancy || {};
+    var base = pg.lmp || (pg.dueDate ? Util.addDays(pg.dueDate, -280) : null);
+    if (!base) return null;
+    var wk = Math.floor(Util.daysBetween(base, Util.todayISO()) / 7);
+    return (wk >= 0 && wk <= 45) ? wk : null;
+  }
+
+  /* ---------------- 首次引导（O 系列规范） ----------------
+     检索结论（出处见《哄睡白噪音与首次引导_功能研究与落地设计》）：
+     · NN/g《Mobile-App Onboarding》(2020)：能不做引导就不做——引导本身有交互成本、很少提升任务表现；
+       若必须做，只问真正会用到的信息（customization），并务必允许跳过。
+     · JMIR《Digital Parenting Interventions for Fathers》系统综述 (2023)：父亲向数字干预参与度普遍很低
+       （例如仅 20.9% 会再次打开、平均只浏览 1 个模块），一上来就要资料会直接劝退。
+     · Ragni 等《Fathers and Sleep》系统综述 (2020)：父亲参与与孩子睡眠结果相关，但 26 项研究多为西方样本、
+       仅 13 项纵向、5 项用体动记录仪，属有限关联证据——身份只用来改称呼与视角，不做任何推断。
+
+     据此三条硬规则：
+     1. 只采集「会用到」的字段：身份（改称呼）、宝宝性别/出生日期（疫苗排期与生长曲线要用）、早产（矫正月龄要用）。
+        不采集姓名、手机号、邮箱、地址、头像，也没有账号。
+     2. 每一步都能跳过；跳过只影响称呼与默认值的个性化，不影响任何功能。
+     3. 数据风险与能力边界必须在产生数据之前讲完（R-05 / U-32），且不写任何安全承诺（U-37）。 */
+  /* 第 80 次（宝宝档案）：刷新左上角头像——当前宝宝有照片显示照片（圆裁），
+     没有则回落默认插画。切换宝宝/上传照片/引导完成后调用。 */
+  function refreshHeaderAvatar() {
+    var av = document.getElementById('avatarBtn');
+    if (!av) return;
+    var b = (Storage.activeBaby) ? Storage.activeBaby() : null;
+    if (b && b.photo) {
+      av.innerHTML = '<img class="ha-photo" src="' + b.photo + '" alt="">';
+    } else {
+      av.innerHTML = (global.illo ? illo('avatar') : '');
+    }
+  }
+
+  /* 第 82 次（用户反馈：左上角不该进设置）：底部宝宝切换面板。
+     点行切换（同步镜像生日/称呼、刷新头像、重绘当前页），底部「管理宝宝档案」
+     去设置——添加/改名/照片/删除仍在设置页宝宝档案卡做，面板只管「切换」。 */
+  function openBabySheet() {
     var root = document.getElementById('modalRoot');
-    root.innerHTML =
-      '<div class="modal-mask"><div class="modal">' +
-      '<h2>隐私说明</h2>' +
-      '<p>宝妈助手是一个纯本地工具。你记录的所有数据（经期、孕期、喂养、睡眠、宫缩、生长、待产包、记账等）仅保存在你本机的浏览器中。</p>' +
-      '<p>本应用：不注册账号、不联网、不上传任何数据、不接入第三方 SDK、不做广告、不做分析。</p>' +
-      '<p>换设备或清理浏览器数据会导致记录丢失，请使用「设置-导出数据」定期备份。</p>' +
-      '<button id="privacyOk" class="btn btn-primary" type="button">我已知晓，开始使用</button>' +
-      '</div></div>';
-    document.getElementById('privacyOk').addEventListener('click', function () {
-      s.settings.privacyAccepted = true;
-      Storage.save();
-      root.innerHTML = '';
+    if (!root) return;
+    var s = Storage.get();
+    var babies = s.babies || [];
+    var cur = s.settings.activeBabyId;
+    var rows = babies.map(function (b) {
+      var ava = b.photo
+        ? '<img src="' + b.photo + '" alt="">'
+        : '<span class="sheet-ava">' + Util.escapeHtml((b.name || '宝').charAt(0)) + '</span>';
+      return '<li><button type="button" class="sheet-row' + (b.id === cur ? ' active' : '') + '" data-pick="' + b.id + '">'
+        + ava
+        + '<span class="sheet-name">' + Util.escapeHtml(b.name || '宝宝') + '</span>'
+        + (b.id === cur ? '<span class="sheet-check">当前</span>' : '')
+        + '</button></li>';
+    }).join('');
+    if (!babies.length) {
+      rows = '<li class="sheet-empty">还没有宝宝档案，先去设置里建一个。</li>';
+    }
+    root.innerHTML = '<div class="modal-mask sheet-mask" data-sheet-mask>'
+      + '<div class="sheet" role="dialog" aria-modal="true" aria-label="切换宝宝">'
+      + '<h2>切换宝宝</h2>'
+      + '<ul class="sheet-list">' + rows + '</ul>'
+      + '<div class="sheet-actions"><button type="button" class="btn" id="sheetManage">管理宝宝档案</button></div>'
+      + '</div></div>';
+    var close = function () { root.innerHTML = ''; };
+    root.querySelector('[data-sheet-mask]').addEventListener('click', function (e) {
+      if (e.target === e.currentTarget) close();
+    });
+    root.querySelector('.sheet-list').addEventListener('click', function (ev) {
+      var btn = ev.target.closest ? ev.target.closest('[data-pick]') : null;
+      if (!btn) return;
+      var b = Storage.switchBaby(btn.getAttribute('data-pick'));
+      close();
+      if (b) {
+        refreshHeaderAvatar();
+        App.rerender();
+        Util.toast('已切换到「' + b.name + '」', 'ok');
+      }
+    });
+    root.querySelector('#sheetManage').addEventListener('click', function () {
+      close();
+      showTab('settings');
     });
   }
 
-  function exportAll() {
+  function showOnboarding() {
+    var s = Storage.get();
+    if (s.settings.privacyAccepted) return;
+    var root = document.getElementById('modalRoot');
+    if (!root) return;
+
+    var draft = {
+      role: (s.settings.caregiver && s.settings.caregiver.role) || null,
+      name: (s.settings.caregiver && s.settings.caregiver.name) || '',
+      stage: s.settings.stage || null,
+      baby: s.settings.baby || { sex: 'boy', birthDate: null, preterm: false, birthGestWeeks: 40, nickname: '' }
+    };
+
+    function finish() {
+      s.settings.caregiver = (draft.role || draft.name)
+        ? { role: draft.role, name: (draft.name || '').slice(0, 12) } : null;
+      s.settings.baby = draft.baby;
+      s.settings.stage = draft.stage;
+      s.settings.privacyAccepted = true;
+      s.settings.onboardingDone = true;
+      /* 第 80 次（宝宝档案）：引导里填的名字/生日同步进当前宝宝档案（无档案自动播种） */
+      if (Storage.syncBabyFromSettings) Storage.syncBabyFromSettings();
+      Storage.save();
+      root.innerHTML = '';
+      refreshHeaderAvatar();
+      rerender();
+      Util.toast((draft.role || draft.baby.birthDate)
+        ? '已按你的设置准备好，之后随时可以在设置里改。'
+        : '先跳过也没关系，之后在设置里补就行。', 'ok');
+    }
+
+    var step = 1;
+    function bodyOf(n) {
+      if (n === 1) return stepOneBody(draft);
+      if (n === 2) return stepStageBody(draft);
+      if (n === 3) return stepTwoBody(draft);
+      return stepThreeBody();
+    }
+
+    function renderStep() {
+      root.innerHTML = '<div class="modal-mask"><div class="modal ob-modal" role="dialog" aria-modal="true">'
+        + bodyOf(step) + '</div></div>';
+      Util.bindDateSliders(root);
+
+      Array.prototype.forEach.call(root.querySelectorAll('#obRole [data-role]'), function (btn) {
+        btn.addEventListener('click', function () {
+          draft.role = btn.getAttribute('data-role');
+          Array.prototype.forEach.call(root.querySelectorAll('#obRole [data-role]'), function (x) { x.classList.remove('active'); });
+          btn.classList.add('active');
+        });
+      });
+      /* 阶段选择（第 43 次）：选完立刻切下一步的文案，让用户看到「选了之后要填什么」 */
+      Array.prototype.forEach.call(root.querySelectorAll('#obStage [data-stage]'), function (btn) {
+        btn.addEventListener('click', function () {
+          draft.stage = btn.getAttribute('data-stage');
+          Array.prototype.forEach.call(root.querySelectorAll('#obStage [data-stage]'), function (x) { x.classList.remove('active'); });
+          btn.classList.add('active');
+        });
+      });
+      Array.prototype.forEach.call(root.querySelectorAll('#obSex [data-sex]'), function (btn) {
+        btn.addEventListener('click', function () {
+          var v = btn.getAttribute('data-sex');
+          draft.baby.sex = v || 'boy';
+          draft.baby.sexUnknown = (v === '');
+          Array.prototype.forEach.call(root.querySelectorAll('#obSex [data-sex]'), function (x) { x.classList.remove('active'); });
+          btn.classList.add('active');
+        });
+      });
+      Array.prototype.forEach.call(root.querySelectorAll('[data-ob]'), function (btn) {
+        btn.addEventListener('click', function () {
+          var act = btn.getAttribute('data-ob');
+          if (act === 'skip') { finish(); return; }        /* 跳过 = 留空身份，功能不受影响 */
+          if (act === 'next' || act === 'back') {
+            collectStep();
+            step += (act === 'next' ? 1 : -1);
+            renderStep();
+            return;
+          }
+          if (act === 'done') { collectStep(); finish(); }
+        });
+      });
+    }
+
+    /* 只读当前这一步的输入，避免未渲染的字段被清空 */
+    function collectStep() {
+      if (step === 1) {
+        var nm = root.querySelector('#obName');
+        if (nm) draft.name = nm.value.trim();
+      } else if (step === 3) {
+        var nick = root.querySelector('#obNick');
+        var birth = root.querySelector('#obBirth');
+        var pre = root.querySelector('#obPreterm');
+        if (nick) draft.baby.nickname = nick.value.trim().slice(0, 12);
+        if (birth) draft.baby.birthDate = birth.value || null;
+        if (pre) draft.baby.preterm = !!pre.checked;
+      }
+    }
+    renderStep();
+  }
+
+  /* 引导第 2 步（第 43 次）：先问阶段。
+     为什么值得多问一句：孕期与育儿期要填的字段完全不同（末次月经 vs 宝宝生日），
+     先定阶段才能只问该问的，首页也据此排磁贴。选错了也不锁死——设置里随时能改，
+     且不选也能用（回落到客观判定）。 */
+  function stepStageBody(draft) {
+    return '<h2>你现在处于哪个阶段？</h2>'
+      + '<p class="hint">只影响接下来要问什么，以及首页优先显示哪些记录模块。所有模块都还能从设置里进入，不会因为选错就用不了。</p>'
+      + '<div class="seg seg-wrap2" id="obStage">'
+      + '<button type="button" class="seg-btn' + (draft.stage === 'pregnancy' ? ' active' : '') + '" data-stage="pregnancy">孕期中</button>'
+      + '<button type="button" class="seg-btn' + (draft.stage === 'baby' ? ' active' : '') + '" data-stage="baby">宝宝已出生</button>'
+      + '</div>'
+      + '<p class="hint">' + (draft.stage === 'pregnancy'
+        ? '接下来会问预产期或末次月经——用它推孕周、排疫苗与生长曲线。'
+        : '接下来会问宝宝的出生日期——疫苗排期、生长曲线、里程碑都要用它。') + '</p>'
+      + '<div class="modal-actions">'
+      + '<button type="button" class="btn" data-ob="back">上一步</button>'
+      + '<button type="button" class="btn btn-primary" data-ob="next">下一步</button></div>';
+  }
+
+  /* 导出全部数据（可迁移格式 JSON）。
+     第一次导出前给一次性明文风险告知（U-41）：导出文件含可识别的母婴健康数据，
+     请勿存放在公共或自动同步的目录。之后不再打断。 */
+  function doExport() {
     var text = Storage.exportJSON();
     Util.download('宝妈助手数据_' + Util.todayISO() + '.json', text, 'application/json');
     /* 记录上次导出时间，供备份提醒与设置页展示 */
     var s = Storage.get();
     s.settings.lastExportISO = Util.todayISO();
     Storage.save();
+  }
+
+  function exportAll() {
+    var s = Storage.get();
+    if (s.settings.exportNoticeShown) { doExport(); return; }
+    Util.confirm({
+      title: '导出前提醒',
+      message: '导出文件是明文，包含可识别的母婴健康数据。请存到你自己信任的位置，不要放在公共目录或会自动同步到云端的文件夹里。',
+      okText: '继续导出',
+      cancelText: '暂不导出',
+      onConfirm: function () {
+        s.settings.exportNoticeShown = true;
+        Storage.save();
+        doExport();
+      }
+    });
+  }
+
+  /* P2-17：导入前差异预览——先告诉用户「现有多少条 → 将被替换为多少条」，
+     配合阻断确认（U-33 同款：后果说明 + 先导出出口），避免误导入清空辛苦记录。 */
+  function countRecords(obj) {
+    var arrays = ['feedings', 'sleeps', 'diapers', 'meds', 'milestones', 'growth',
+      'contractions', 'periods', 'metrics', 'moods'];
+    var n = 0;
+    arrays.forEach(function (k) { if (Array.isArray(obj && obj[k])) n += obj[k].length; });
+    var deep = [['finance', 'records'], ['prenatal', 'records'], ['prenatal', 'checks'], ['packing', 'items']];
+    deep.forEach(function (p) {
+      var sub = obj && obj[p[0]];
+      if (sub && Array.isArray(sub[p[1]])) n += sub[p[1]].length;
+    });
+    if (obj && obj.vaccines && obj.vaccines.done) n += Object.keys(obj.vaccines.done).length;
+    return n;
   }
 
   function importAll() {
@@ -140,12 +592,32 @@
       if (!inp.files || !inp.files[0]) return;
       var reader = new FileReader();
       reader.onload = function () {
-        try {
-          Storage.importJSON(String(reader.result));
-          Util.toast('导入成功，已恢复全部数据。', 'ok');
-          rerender();
-        } catch (e) {
-          Util.toast('导入失败：' + (e && e.message ? e.message : e), 'error');
+        var text = String(reader.result);
+        function doImport() {
+          try {
+            Storage.importJSON(text);
+            Util.toast('导入成功，已恢复全部数据。', 'ok');
+            rerender();
+          } catch (e) {
+            Util.toast('导入失败：' + (e && e.message ? e.message : e), 'error');
+          }
+        }
+        var incoming = null;
+        try { incoming = JSON.parse(text); } catch (e) { /* 让 importJSON 给出解析错误 */ }
+        if (incoming && typeof incoming === 'object') {
+          var cur = countRecords(Storage.get());
+          var inc = countRecords(incoming);
+          Util.confirm({
+            title: '导入前确认',
+            message: '导入会覆盖本机全部数据：现有 ' + cur + ' 条记录，将被替换为文件中的 ' + inc + ' 条，覆盖后无法找回。',
+            okText: '仍要导入',
+            cancelText: '取消',
+            danger: true,
+            extra: { text: '先导出现有数据', onClick: function () { exportAll(); } },
+            onConfirm: doImport
+          });
+        } else {
+          doImport();
         }
       };
       reader.readAsText(inp.files[0]);
@@ -153,12 +625,16 @@
     inp.click();
   }
 
+  /* 不可逆批量操作：后果说明 + 立即导出口 + 防误触（U-12 / U-33 阻断分支）。
+     确认框里直接给「先导出备份」按钮，不让用户先备份还得退出弹层。 */
   function resetAll() {
     Util.confirm({
       title: '清空全部数据',
-      message: '确定清空全部数据？此操作不可恢复。',
-      okText: '清空',
+      message: '将删除本机保存的全部记录，此操作不可恢复。',
+      okText: '仍要清空',
+      cancelText: '取消',
       danger: true,
+      extra: { text: '先导出备份', onClick: function () { exportAll(); } },
       onConfirm: function () {
         Storage.reset();
         Util.toast('已清空全部数据。', 'ok');
@@ -167,46 +643,442 @@
     });
   }
 
+  /* ---------------- U-05 记录成本埋点（纯本地验收指标） ----------------
+     报告把「单次记录 ≤2 次点击、≤1 秒」写成可核查的验收线，而不是体验目标。
+     这里只在本机统计：从进入记录模块到数据真正落盘，点了多少次、花了多少毫秒。
+     不联网、不上报、不接第三方 SDK；样本只保留最近 50 条，并随导出一起走。 */
+  var QUICK_MODULES = { feeding: 1, sleep: 1, diaper: 1, meds: 1, contraction: 1, growth: 1, mood: 1 };
+  var trace = null;
+
+  function nowMs() {
+    return (global.performance && global.performance.now) ? global.performance.now() : Date.now();
+  }
+  function dataCount() {
+    try { return Storage.stats().reduce(function (s, t) { return s + t.count; }, 0); }
+    catch (e) { return 0; }
+  }
+  function traceStart(id) {
+    if (!QUICK_MODULES[id]) { trace = null; return; }
+    trace = { id: id, t0: nowMs(), clicks: 0, before: dataCount() };
+  }
+  function traceClick() { if (trace) trace.clicks++; }
+  function traceFinish() {
+    if (!trace) return;
+    if (dataCount() <= trace.before) return; /* 只是设置类保存，不算一次记录 */
+    var ms = Math.round(nowMs() - trace.t0);
+    var d = Storage.get();
+    if (!d.metrics) d.metrics = { records: [] };
+    d.metrics.records.push({
+      mod: trace.id, clicks: trace.clicks, ms: ms,
+      pass: (trace.clicks <= 2 && ms <= 1000), at: Util.nowLocal()
+    });
+    if (d.metrics.records.length > 50) d.metrics.records = d.metrics.records.slice(-50);
+    /* 必须绑定 this：裸调用 rawSave() 在严格模式下 this=undefined，this.data 抛 TypeError
+       被 save() 的 catch 捕获，导致每次快速记录成功后紧跟一条假的「保存失败」错误 toast
+       （且埋点数据未即时落盘）。2026-09-24 由 UX-P0 回归测试（G 组）发现并修复。 */
+    rawSave.call(Storage);
+    trace = null;
+  }
+
+  /* 保存成功即视为一次记录完成：用「数据条数是否变多」判定，
+     避免把主题切换、宝宝信息等非记录保存也算进来。 */
+  var rawSave = Storage.save;
+  Storage.save = function () {
+    var ok = rawSave.apply(Storage, arguments);
+    if (ok) traceFinish();
+    return ok;
+  };
+
+  /** 验收汇总：达标率 = 点击 ≤2 且耗时 ≤1 秒 的样本占比（U-05） */
+  function metricsSummary() {
+    var recs = (Storage.get().metrics && Storage.get().metrics.records) || [];
+    if (!recs.length) return null;
+    var n = recs.length, pass = 0, cSum = 0, mSum = 0;
+    recs.forEach(function (r) { if (r.pass) pass++; cSum += r.clicks; mSum += r.ms; });
+    return {
+      n: n, pass: pass, passRate: Math.round(pass / n * 100),
+      avgClicks: Math.round(cSum / n * 10) / 10,
+      avgMs: Math.round(mSum / n),
+      recent: recs.slice(-5).reverse()
+    };
+  }
+
+  /* U-04 周回顾提醒：只有用户主动开启后才出现，每周最多 1 次，
+     内容必须是「回报兑现」（摘要已生成）而不是催促；关掉不损失任何功能
+     ——回顾本身在「日期记录」页随时可看，不需要提醒也能拿到。 */
+  function maybeWeeklyReview() {
+    var s = Storage.get();
+    if (!s.settings.weeklyReviewEnabled) return;
+    if (!Storage.hasData()) return;
+    var last = s.settings.lastReviewISO;
+    if (last && Util.daysBetween(last, Util.todayISO()) < 7) return;
+    s.settings.lastReviewISO = Util.todayISO();
+    Storage.save();
+    Util.toast('本周记录摘要已生成。', 'ok', {
+      label: '去看看',
+      onClick: function () { showTab('calendar'); }
+    });
+  }
+
+  /* 引导第 1 步：身份（只影响称呼，不做画像） */
+  function stepOneBody(draft) {
+    return '<h2>先说一句：这是给谁用的？</h2>' +
+      '<p class="hint">只用来决定称呼和首页视角。不做账号、不采集姓名手机号，选错随时可以在设置里改。</p>' +
+      '<div class="seg seg-lg" id="obRole">' +
+      '<button type="button" class="seg-btn' + (draft.role === 'mom' ? ' active' : '') + '" data-role="mom">妈妈</button>' +
+      '<button type="button" class="seg-btn' + (draft.role === 'dad' ? ' active' : '') + '" data-role="dad">爸爸</button>' +
+      '<button type="button" class="seg-btn' + (draft.role === 'other' ? ' active' : '') + '" data-role="other">其他照护者</button>' +
+      '</div>' +
+      '<label>想让首页怎么叫你？（可留空）<input type="text" id="obName" maxlength="12" placeholder="比如：妈妈、豆豆妈、奶奶" value="' +
+      Util.escapeHtml(draft.name || '') + '"></label>' +
+      '<p class="hint">为什么问：研究显示爸爸参与和宝宝、妈妈自己的睡眠都相关（Ragni 2020，有限的关联证据）；'
+      + '把称呼讲对，是让另一位照护者也愿意用的最低成本。</p>' +
+      '<div class="modal-actions">' +
+      '<button type="button" class="btn" data-ob="skip">跳过</button>' +
+      '<button type="button" class="btn btn-primary" data-ob="next">下一步</button></div>';
+  }
+
+  /* 引导第 2 步：宝宝信息（全部可留空，且说明每项到底影响什么） */
+  function stepTwoBody(draft) {
+    var b = draft.baby;
+    var preg = (draft.stage === 'pregnancy');
+    /* 第 43 次：按已选阶段换标题与说明——孕期问不到「宝宝信息」，育儿期才是那三项 */
+    return '<h2>' + (preg ? '孕期的信息（可以全空）' : '宝宝的信息（可以全空）') + '</h2>' +
+      '<p class="hint">' + (preg
+        ? '预产期或末次月经用于推算孕周、待产包与产后阶段；可留空，之后在「孕期」页补。'
+        : '这三项各有用处：性别与出生日期用于疫苗排期和生长曲线，早产用于矫正月龄；'
+          + '其余可后补（「生长」页或设置）。') + '</p>' +
+      '<label>小名（可留空）<input type="text" id="obNick" maxlength="12" placeholder="比如：小汤圆" value="' +
+      Util.escapeHtml(b.nickname || '') + '"></label>' +
+      (preg ? '' :
+        '<label>性别</label>' +
+        '<div class="seg" id="obSex">' +
+        '<button type="button" class="seg-btn' + (b.sex !== 'girl' && !b.sexUnknown ? ' active' : '') + '" data-sex="boy">男宝</button>' +
+        '<button type="button" class="seg-btn' + (b.sex === 'girl' && !b.sexUnknown ? ' active' : '') + '" data-sex="girl">女宝</button>' +
+        '<button type="button" class="seg-btn' + (b.sexUnknown ? ' active' : '') + '" data-sex="">暂不确定</button>' +
+        '</div>' +
+        Util.dateSlider({ id: 'obBirth', title: '出生日期', value: b.birthDate || '', min: Util.addDays(Util.todayISO(), -1095), max: Util.todayISO(), opt: { label: '未设置（可后补）', invert: false } }) +
+        '<label class="chk"><input type="checkbox" id="obPreterm"' + (b.preterm ? ' checked' : '') + '> 早产儿（生长曲线需用矫正月龄）</label>') +
+      '<div class="modal-actions">' +
+      '<button type="button" class="btn" data-ob="back">上一步</button>' +
+      '<button type="button" class="btn btn-primary" data-ob="next">下一步</button></div>';
+  }
+
+  /* 引导第 3 步：数据风险与能力边界（R-05 / U-32 / U-37）——必须在产生数据之前讲完 */
+  function stepThreeBody() {
+    return '<h2>开始之前，先看清这份数据的形状</h2>' +
+      '<p>宝妈助手是一个纯本地工具：不注册账号、不联网、不上传、不接入第三方 SDK、不做广告，也没有服务器接收你的记录。</p>' +
+      '<p>代价是它<b>只有一份</b>：清理浏览器数据、换手机或换浏览器，记录都会消失且无法找回；'
+      + 'iPhone / iPad 的 Safari 对长期不打开的网站数据可能在约 7 天后清除。</p>' +
+      '<p>本应用<b>不提供</b>多设备同步、云端备份或家人实时共享。唯一能自己掌控的兜底是<b>定期导出成文件</b>——'
+      + '导出的是明文，请自己放到信任的位置。</p>' +
+      '<p class="hint">说明：导出、备份与浏览器持久存储都只是「可申请、可被拒绝」，不构成任何安全保证；'
+      + '这里也不做加密（无账号体系下忘记密码会变成又一条永久丢数据的路）。健康数据仅供参考，重要判断请遵医嘱。</p>' +
+      '<div class="modal-actions">' +
+      '<button type="button" class="btn" data-ob="back">上一步</button>' +
+      '<button type="button" class="btn btn-primary" data-ob="done">我已知晓，开始使用</button></div>';
+  }
+
   global.App = {
     showTab: showTab,
     rerender: rerender,
+    refreshHeaderAvatar: refreshHeaderAvatar, /* 第 80 次：设置页改照片/切宝宝后刷新左上角 */
+    /* C7（操作便捷性研究）：一次性日期覆盖。日历空日「补记」入口设置它再跳模块，
+       模块在 render 时读取并立即清空（消费式），保存即落到该日期。默认 null。 */
+    pendingDate: null,
+    startOnboarding: showOnboarding, /* 设置页「重新开始首次引导」入口（调用前需先把 privacyAccepted 置回 false） */
     exportAll: exportAll,
     importAll: importAll,
     resetAll: resetAll,
-    applyTheme: applyTheme
+    applyTheme: applyTheme,
+    buildTabbar: buildTabbar, /* 第 97 次：设置页改「底栏快捷入口」后即时重建底栏 */
+    setTheme: setTheme, /* 设置 · 外观 的主题切换（auto/light/dark） */
+    setFontScale: setFontScale, /* 设置 · 外观 · 字号（normal/lg/xl，第 103 次） */
+    fontScale: fontScale, /* 供 QA 断言当前档位 */
+    _bindQuickDock: buildQuickDock, /* QA：重置缓存桩后重绑 dock（幂等，同元素不叠加） */
+    metricsSummary: metricsSummary,
+    _countRecords: countRecords, /* QA：导入差异预览的计数函数（导出前确认共用） */
+    stageOf: stageOf, /* 阶段判定（settings.stage 优先，缺省回落到客观数据） */
+    pregnancyWeekOf: pregnancyWeekOf,
+    setStage: function (st) {
+      if (st !== 'pregnancy' && st !== 'baby' && st !== null) return;
+      Storage.get().settings.stage = st;
+      Storage.save();
+    }
   };
+
+  /* ---------------- 全局快捷记录 dock（第 40 次，回应「操作以填写为主」的反馈） ----------------
+     展开式 FAB：默认只有一个「＋」，点开才显示动作列——用「多一次刻意点击」换「不放误触面」，
+     落地原 P2-18 的顾虑（真机误触）。动作都是零表单一键即记（喂养用上次默认值），带撤销。 */
+  var qdBasket = { fab: null }; /* 记住已绑定的 FAB 元素：同一元素不重复绑（测试重置缓存后可重绑） */
+
+  /* 第 103 次（OP-GAP-02）：快记补 amountBm/amountFm。
+     起因是第七版审计的缺口——喂养页落库会写 amountBm/amountFm 两根瓶喂滑杆的值
+     （feeding.js:346-347），但快记只写合计 amount。后果是「上次记的是母乳 80 + 配方奶 40」
+     时，快记会落一条 amount=120 而两根分量为 null 的记录，喂养页明细随即退化成
+     「120 ml/g」（feeding.js:177 的 if 不成立），母乳/配方奶的配比就此丢失。
+
+     为什么这是「不新增字段」而是「补齐已有字段」：amountBm/amountFm 早已在
+     feeding.js 的记录结构里（line 332 初始化、line 346-347 赋值），storage.js 无字段白名单
+     （grep amountBm 在 storage.js 零命中），所以这里只是让快记与喂养页写同一组字段，
+     DATA_VERSION 不动、落库结构不动、旧数据零迁移。
+
+     写法上沿用喂养页的同一口径：bottle/formula 才拆两根，母乳/吸奶/辅食不拆；
+     amount 仍是两者的和，供统计（feeding.js:51、home.js:105 都只读 amount，口径不变）。 */
+  function fedDefaults() {
+    var last = (Storage.get().feedings || []).slice()
+      .sort(function (a, b) { return new Date(b.start) - new Date(a.start); })[0];
+    var t = (last && last.type) || 'breast';
+    var side = (last && last.side) || 'left';
+    var dur = (last && last.durationMin) || (t === 'breast' ? 15 : null);
+    var amt = (last && last.amount) || (t !== 'breast' && t !== 'pump' ? 120 : null);
+    var name = { breast: '母乳', bottle: '奶瓶', formula: '奶粉', pump: '吸奶', solid: '辅食'}[t] || '母乳';
+    var sideT = side === 'right' ? '右侧' : (side === 'both' ? '双侧' : '左侧');
+
+    /* 瓶喂沿用上次的母乳/配方奶配比；上次只有合计（旧数据或他从别处导入）时，
+       按喂养页 line 231 的同一兜底把合计记到母乳侧——两处口径必须一致，
+       否则快记与喂养页会互相把对方的值当成「没拆过」。 */
+    var amtBm = null, amtFm = null;
+    if (t === 'bottle' || t === 'formula') {
+      if (last && (last.amountBm != null || last.amountFm != null)) {
+        amtBm = (last.amountBm != null) ? last.amountBm : null;
+        amtFm = (last.amountFm != null) ? last.amountFm : null;
+      } else if (amt) {
+        amtBm = amt;
+      }
+    }
+
+    /* 明细文案同步显示配比：快记按钮上写「母乳 80 · 配方奶 40」，
+       用户点之前就知道这条会记成什么——这正是快记「零表单」的前提，
+       若只显示合计 120，用户无法预判这次记的是哪种奶。 */
+    var amtDetail;
+    if (amtBm || amtFm) {
+      amtDetail = (amtBm ? '母乳 ' + amtBm : '') + (amtBm && amtFm ? ' · ' : '')
+        + (amtFm ? '配方奶 ' + amtFm : '') + ' ml';
+    } else {
+      amtDetail = amt + ' ml';
+    }
+    var detail = t === 'breast'
+      ? (dur + ' 分钟 · ' + sideT)
+      : (t === 'pump' ? ((amt ? amt + 'ml' : '') + (amt && dur ? ' · ' : '') + (dur ? dur + ' 分' : '') + ' · ' + sideT)
+        : amtDetail);
+    return {
+      rec: { type: t, side: (t === 'solid') ? null : side, durationMin: dur,
+        amount: amt, amountBm: amtBm, amountFm: amtFm },
+      label: name + ' ' + detail
+    };
+  }
+
+  function buildQuickDock() {
+    var root = document.getElementById('quickDock');
+    if (!root) return;
+    var fab = root.querySelector('#qdFab');
+    if (!fab || fab === qdBasket.fab) return; /* 已绑过同一元素：不叠加监听 */
+    qdBasket.fab = fab;
+    /* 第 43 次：遮罩用真实元素，不再用 ::before 伪元素——伪元素的 target 是宿主元素本身，
+       无法与「点 dock 自身」区分，导致点遮罩永远收不起。 */
+    var mask = root.querySelector('#qdMask');
+
+    function close() { root.classList.remove('open'); fab.setAttribute('aria-expanded', 'false'); }
+
+    /* 第 43 次：外部关闭。遮罩用真实元素 #qdMask——旧版是 ::before 伪元素，
+       撑满全屏但事件 target 是宿主 #quickDock 本身，`root.contains(e.target)` 恒为
+       true，点遮罩永远收不起。
+       遮罩点击只在构建时绑一次（不随开合反复增删），document 监听才需要开合时挂卸。 */
+    if (mask && mask.addEventListener) {
+      mask.addEventListener('click', function () {
+        if (root.classList.contains('open')) { close(); detachOutside(); }
+      });
+    }
+    function onDocDown(e) {
+      if (!root.classList.contains('open')) { detachOutside(); return; }
+      if (root.contains(e.target)) return;
+      /* 第 100 次：竖排 dock 模式下「＋」在底栏里（#qdFab 已隐藏但不在 root 内）。
+         点它时不先关——否则 pointerdown 先 close、click 再 open，永远合不上；
+         转发的 click 自带开/合判断，这里放行即可。 */
+      if (e.target && e.target.closest && e.target.closest('[data-qd-toggle]')) return;
+      close(); detachOutside();
+    }
+    function onKey(e) { if (e.key === 'Escape') { close(); detachOutside(); } }
+    function attachOutside() {
+      document.addEventListener('pointerdown', onDocDown, true);
+      document.addEventListener('keydown', onKey, true);
+    }
+    function detachOutside() {
+      if (document.removeEventListener) {
+        document.removeEventListener('pointerdown', onDocDown, true);
+        document.removeEventListener('keydown', onKey, true);
+      }
+    }
+    function saveFetal() {
+      var d = Storage.get();
+      var rec = { id: Util.uid(), time: Util.nowLocal() };
+      d.fetal.push(rec);
+      if (Storage.save()) Util.toast('已记录一次胎动', 'ok', { label: '撤销', onClick: function () {
+        for (var i = d.fetal.length - 1; i >= 0; i--) if (d.fetal[i].id === rec.id) { d.fetal.splice(i, 1); break; }
+        Storage.save(); rerender(); Util.toast('已撤销', 'ok');
+      } });
+      rerender();
+    }
+    function saveOne(arrName, rec, msg) {
+      var d2 = Storage.get();
+      d2[arrName].push(rec);
+      if (Storage.save()) Util.toast(msg, 'ok', { label: '撤销', onClick: function () {
+        var arr = Storage.get()[arrName];
+        for (var i = arr.length - 1; i >= 0; i--) if (arr[i].id === rec.id) { arr.splice(i, 1); break; }
+        Storage.save(); rerender(); Util.toast('已撤销', 'ok');
+      } });
+      close(); detachOutside(); rerender();
+    }
+
+    fab.addEventListener('click', function () {
+      /* 第 43 次修正：再点 FAB 应当「收起」，而不是重新展开。
+         此前 FAB 的 click 无条件重建动作列并 add('open')，等于永远关不掉。 */
+      if (root.classList.contains('open')) { close(); detachOutside(); return; }
+      var d = Storage.get();
+      var wk = (function () {
+        var pg = d.pregnancy || {};
+        var base = pg.lmp || (pg.dueDate ? Util.addDays(pg.dueDate, -280) : null);
+        return base ? Math.floor(Util.daysBetween(base, Util.todayISO()) / 7) : null;
+      })();
+      var fed = fedDefaults();
+      /* 第 84 次：补「尿布：拉了」（pee/poop 是尿布两大类，此前快记只有「尿了」）；
+         动作加识别图标（读得快）+ 内联 --i 序号（CSS 逐项 stagger 入场用） */
+      var acts = [
+        { id: 'qdFeed', ico: 'feeding', label: '喂养：' + fed.label },
+        { id: 'qdDiaper', ico: 'pee', label: '尿布：尿了' },
+        { id: 'qdPoop', ico: 'poop', label: '尿布：拉了' },
+        { id: 'qdMeds', ico: 'meds', label: '吃药：维生素 D3' }
+      ];
+      if (wk !== null) acts.push({ id: 'qdFetal', ico: 'fetal', label: '胎动 +1' });
+      var list = root.querySelector('#qdActions');
+      list.innerHTML = acts.map(function (a, i) {
+        return '<button type="button" class="qd-action" id="' + a.id + '" style="--i:' + i + '">'
+          + (global.icon ? global.icon(a.ico, 'qd-ico') : '')
+          + '<span>' + Util.escapeHtml(a.label) + '</span></button>';
+      }).join('');
+      root.classList.add('open');
+      fab.setAttribute('aria-expanded', 'true');
+
+      var f0 = fed.rec;
+      list.querySelector('#qdFeed').addEventListener('click', function () {
+        /* 第 103 次（OP-GAP-02）：补 amountBm/amountFm，与喂养页写同一组字段。
+           amount 仍是两者的和——统计侧（feeding.js:51、home.js:105）只读它，口径不变。 */
+        saveOne('feedings', { id: Util.uid(), type: f0.type, start: Util.nowLocal(),
+          durationMin: f0.durationMin, amount: f0.amount,
+          amountBm: f0.amountBm || null, amountFm: f0.amountFm || null,
+          side: f0.side, note: null }, '已快记：' + fed.label + '（可在喂养页改）');
+      });
+      list.querySelector('#qdDiaper').addEventListener('click', function () {
+        saveOne('diapers', { id: Util.uid(), type: 'pee', time: Util.nowLocal(), note: null }, '已快记：尿布 · 尿');
+      });
+      list.querySelector('#qdPoop').addEventListener('click', function () {
+        saveOne('diapers', { id: Util.uid(), type: 'poop', time: Util.nowLocal(), note: null }, '已快记：尿布 · 便');
+      });
+      list.querySelector('#qdMeds').addEventListener('click', function () {
+        saveOne('meds', { id: Util.uid(), name: '维生素 D3', time: Util.nowLocal(), note: null }, '已快记：维生素 D3');
+      });
+      var qdF = list.querySelector('#qdFetal');
+      if (qdF) qdF.addEventListener('click', function () { close(); detachOutside(); saveFetal(); });
+
+      attachOutside();
+    });
+  }
 
   function init() {
     Storage.load();
+    /* 第 74 次（G1）：损坏自愈后的告知——此前 _corruptRecovered 只置位、无消费方。
+       toast 只在恢复后的第一次启动弹出（corruptNoticeShown 设置键），
+       设置页「数据与备份」的常驻状态行兜底，保证知情权不依赖一次性提示。 */
+    if (Storage._corruptRecovered && !Storage.get().settings.corruptNoticeShown) {
+      Storage.get().settings.corruptNoticeShown = true;
+      Storage.save();
+      if (global.Util && Util.toast) {
+        Util.toast('检测到本地数据曾损坏，已自动恢复出厂状态；损坏原文已在本机备份，可在「设置 · 数据与备份」查看。', 'error');
+      }
+    }
     applyTheme();
     buildTabbar();
-    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
-    /* 全局左上角宝宝头像：注入插画并点击进入设置 */
+    /* 顶栏主题按钮已移除（第 40 次），主题入口在「设置 · 外观」；保留空位注释防回填 */
+
+    /* 跟随系统：系统外观变化时（含 Web 深浅色切换），system 模式下实时重算主题 */
+    try {
+      if (global.matchMedia) {
+        var mqDark = global.matchMedia('(prefers-color-scheme: dark)');
+        var onSysTheme = function () { if (themeMode() === 'system') applyTheme(); };
+        if (mqDark.addEventListener) mqDark.addEventListener('change', onSysTheme);
+        else if (mqDark.addListener) mqDark.addListener(onSysTheme);
+      }
+    } catch (e) { /* 老环境无该 API 则只在启动时取一次 */ }
+
+    /* 全局快捷记录 dock（展开式 FAB，所有页面可用） */
+    buildQuickDock();
+    /* 模块页返回按钮（第 42 次）：就近的「回首页」出口，不依赖底栏 */
+    /* 第 95 次：返回按钮改顶栏内圆形图标（与设置齿轮同语言），fixed 定位漂移根治。
+       图标在这里注入；显示/隐藏仍由 showTab 切 hidden。 */
+    var backBtn = document.getElementById('backBtn');
+    if (backBtn) {
+      backBtn.innerHTML = icon('back');
+      backBtn.addEventListener('click', function () { showTab('home'); });
+    }
+    /* 全局左上角宝宝头像（第 80 次重设计）：显示当前宝宝照片（未上传回落插画），
+       多宝宝家庭点按即循环切换，单宝宝点按进设置（保持旧出口）。
+       右上角新增设置齿轮——旧版右上角是天空大日期（已并入问候卡日期行）。 */
     var av = document.getElementById('avatarBtn');
     if (av) {
-      av.innerHTML = (global.illo ? illo('avatar') : '');
-      av.addEventListener('click', function () { showTab('settings'); });
+      av.setAttribute('aria-label', '切换宝宝');
+      /* 第 82 次（用户反馈：左上角右上角都进设置，冗余）：左上角专司宝宝切换——
+         点按打开底部宝宝面板（列表点选切换 + 管理入口），不再直接进设置。
+         呈现语义：短打断 → 半高底部面板（sheet），不是整页跳转。 */
+      av.addEventListener('click', openBabySheet);
+      refreshHeaderAvatar();
+    }
+    /* 右上角设置齿轮（第 80 次）：只在首页显示（模块页右上角是返回按钮，
+      见 CSS body.in-module .header-gear）。进设置的唯一顶栏出口就是它。 */
+    var gear = document.getElementById('settingsBtn');
+    if (gear) {
+      gear.innerHTML = icon('settings');
+      gear.addEventListener('click', function () { showTab('settings'); });
     }
     /* 顶栏滚动玻璃化（被动监听，不影响滚动性能） */
     window.addEventListener('scroll', syncHeader, { passive: true });
     syncHeader();
 
+    /* PWA 离线缓存：仅在 http(s) 环境注册 Service Worker（「添加到主屏」后可离线秒开）。
+       file:// 双击打开时浏览器不提供 SW，静默跳过——纯本地能力不受任何影响。
+       三重守卫（navigator / serviceWorker / 协议）保证 QA 沙箱与老环境零报错。 */
+    try {
+      if (global.navigator && navigator.serviceWorker &&
+          global.location && /^https?:$/.test(global.location.protocol)) {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+      }
+    } catch (e) { /* SW 不可用不影响任何功能 */ }
+
+    /* U-05：捕获阶段统计记录页内的点击次数（只在本机计数，不记录点了什么） */
+    var viewEl = document.getElementById('view');
+    if (viewEl) viewEl.addEventListener('click', traceClick, true);
+
+    /* W 系列：刷新页面后音频必然已经停了，先把可能残留的 playing 标记清掉，
+       不让首页磁贴 / 提醒卡显示一个不存在的「播放中」状态。 */
+    if (global.Modules && global.Modules.whitenoise && global.Modules.whitenoise.resetStaleState) {
+      global.Modules.whitenoise.resetStaleState();
+    }
     showTab('home');
-    showPrivacy();
+    Util.bindLongPressCopy(); /* 第 87 次：列表行长按复制该条记录（全局委托，一次绑定） */
+    showOnboarding();
     checkBackupReminder();
+    maybeWeeklyReview();
   }
 
-  /* 备份提醒：已有数据且超过 7 天未导出（或从未导出）时，启动后温和提醒一次。
-     纯本地应用的生命线是导出备份——清浏览器/换机即丢全部数据，必须主动提醒。
-     每次启动最多提醒一次，不打扰。 */
+  /* 备份提醒（第 59 次降噪）：只在「已有数据且从未导出」时，启动后温和提醒一次——
+     这是唯一不可省略的生命线状态。超过 7 天未备份不再启动弹 toast：
+     该状态由首页提醒卡条目（可随「首页提醒卡」开关整体关掉）与底部备份状态行
+     持续展示，四处同催只会让人想关掉提醒本身。每次启动最多提醒一次，不打扰。 */
   function checkBackupReminder() {
     var s = Storage.get();
     if (!Storage.hasData()) return;
-    var last = s.settings.lastExportISO;
-    var days = last ? Util.daysBetween(last, Util.todayISO()) : 999;
-    if (days <= 7) return;
-    var msg = last ? ('已 ' + days + ' 天未备份数据。') : '你还没有备份过数据。';
-    Util.toast(msg + '建议在设置中导出备份，防止清理浏览器时丢失。', 'warn', {
+    if (s.settings.lastExportISO) return;
+    Util.toast('你还没有备份过数据。建议在设置中导出备份，防止清理浏览器时丢失。', 'warn', {
       label: '去备份',
       onClick: function () { showTab('settings'); }
     });

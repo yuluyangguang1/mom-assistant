@@ -44,6 +44,33 @@
     });
   }
 
+  /* 儿保体检节点（第 70 次，B4）：国家基本公卫 0-6 岁儿童健康管理的体检时点——
+     新生儿访视 + 满月 + 3/6/8/12/18/24/30/36 月龄 + 4/5/6 岁各一次。
+     检查内容为该时点常规项目的简要提示，具体以体检机构安排为准。 */
+  var CHECKUPS = [
+    { key: 'visit',    name: '新生儿访视',  at: 7,    content: '出院后一周内：黄疸观察、脐部护理、喂养与睡眠指导' },
+    { key: 'fullmoon', name: '满月体检',    at: 28,   content: '体重 / 身长 / 头围测量，喂养与发育指导，黄疸复查' },
+    { key: 'm3',       name: '3 月龄体检',  at: d(3),  content: '体格测量，喂养与发育指导' },
+    { key: 'm6',       name: '6 月龄体检',  at: d(6),  content: '体格测量、血常规，辅食引入指导' },
+    { key: 'm8',       name: '8 月龄体检',  at: d(8),  content: '体格测量、血常规，发育筛查' },
+    { key: 'm12',      name: '12 月龄体检', at: d(12), content: '体格测量、血常规，发育筛查' },
+    { key: 'm18',      name: '18 月龄体检', at: d(18), content: '体格测量、血常规，语言与行为观察' },
+    { key: 'm24',      name: '24 月龄体检', at: d(24), content: '体格测量、血常规，发育筛查' },
+    { key: 'm30',      name: '30 月龄体检', at: d(30), content: '体格测量、血常规' },
+    { key: 'm36',      name: '36 月龄体检', at: d(36), content: '体格测量、血常规、视力筛查' },
+    { key: 'y4',       name: '4 岁体检',    at: d(48), content: '体格检查与发育评估' },
+    { key: 'y5',       name: '5 岁体检',    at: d(60), content: '体格检查与发育评估' },
+    { key: 'y6',       name: '6 岁体检',    at: d(72), content: '入学前全面体检' }
+  ];
+
+  /** 由生日生成体检排期（供模块页与提醒引擎共用） */
+  function planCheckups(birthDate) {
+    if (!birthDate) return [];
+    return CHECKUPS.map(function (s) {
+      return { key: s.key, name: s.name, dueISO: Util.addDays(birthDate, s.at), content: s.content };
+    });
+  }
+
   Modules.vaccine = {
     id: 'vaccine',
     title: '疫苗',
@@ -55,8 +82,8 @@
       var html = '';
 
       /* 宝宝生日（与生长模块共用 settings.baby.birthDate） */
-      html += '<div class="card"><h2>' + icon('vaccine') + '宝宝生日</h2>';
-      html += '<label>出生日期<input type="date" id="vBirth" value="' + (baby.birthDate || '') + '"></label>';
+      html += '<div class="card"><h2>宝宝生日</h2>';
+      html += Util.dateSlider({ id: 'vBirth', title: '出生日期', value: baby.birthDate || '', min: Util.addDays(Util.todayISO(), -1095), max: Util.todayISO(), opt: { label: '未设置（可后补）', invert: false } });
       html += '<p class="hint">与「生长」模块共用同一生日，改一处两边生效。</p></div>';
 
       if (!baby.birthDate) {
@@ -67,12 +94,12 @@
         var next = items.filter(function (it) { return !done[it.key]; })
           .sort(function (a, b) { return new Date(a.dueISO) - new Date(b.dueISO); })[0];
 
-        html += '<div class="card"><h2>' + icon('vaccine') + '接种进度</h2>';
+        html += '<div class="card"><h2>接种进度</h2>';
         html += '<div class="progress"><div class="progress-bar" style="width:' + Math.round(doneN / items.length * 100) + '%"></div></div>';
         html += '<p class="hint">已完成 ' + doneN + ' / ' + items.length + ' 剂'
           + (next ? '，下一剂：' + next.name + next.dose + '（' + next.dueISO + '）' : '，全部完成！') + '</p></div>';
 
-        html += '<div class="card"><h2>' + icon('vaccine') + '接种时间表</h2><ul class="list vac-list">';
+        html += '<div class="card"><h2>接种时间表</h2><ul class="list vac-list">';
         items.forEach(function (it) {
           var doneDate = done[it.key];
           var left = Util.daysBetween(today, it.dueISO);
@@ -86,29 +113,89 @@
             + '<span class="row-ico">' + icon(doneDate ? 'check' : 'vaccine') + '</span>'
             + '<span class="vac-main"><b>' + it.name + '</b> <i>' + it.dose + '</i><br><small>' + status + '</small></span>'
             + (doneDate
-              ? '<button class="icon-btn" data-unvax="' + it.key + '" aria-label="取消已种" title="取消已种">' + icon('trash') + '</button>'
+              ? '<button class="btn btn-mini" data-vaxdate="' + it.key + '">改日期</button>'
+                + '<button class="icon-btn" data-unvax="' + it.key + '" aria-label="取消已种" title="取消已种">' + icon('trash') + '</button>'
               : '<button class="btn btn-mini" data-vax="' + it.key + '">已接种</button>')
             + '</li>';
         });
         html += '</ul><p class="hint">时间表按国家免疫规划程序生成，仅供参考；实际以接种门诊安排为准。</p></div>';
+
+        /* 第 70 次（B4）：儿保体检节点——与接种时间表并排的另一张官方时刻表。
+           标记只落本机 checkups.done，随导出走；早产宝宝的体检安排常按矫正月龄，
+           因此本表只作参考、以医生安排为准。 */
+        var cks = planCheckups(baby.birthDate);
+        var ckDone = (d.checkups && d.checkups.done) || {};
+        html += '<div class="card"><h2>儿保体检节点</h2><ul class="list vac-list">';
+        cks.forEach(function (it) {
+          var doneDate = ckDone[it.key];
+          var left = Util.daysBetween(today, it.dueISO);
+          var status, cls;
+          if (doneDate) { status = '已体检 ' + doneDate; cls = ' is-done'; }
+          else if (left < -30) { status = '已过参考时间较久，下次体检时一并评估'; cls = ' is-over'; }
+          else if (left < 0) { status = '已过参考时间 ' + (-left) + ' 天'; cls = ' is-over'; }
+          else if (left <= 7) { status = left === 0 ? '参考时间就是今天' : left + ' 天后到期'; cls = ' is-due'; }
+          else { status = '参考时间 ' + it.dueISO; cls = ''; }
+          html += '<li class="vac-item' + cls + '">'
+            + '<span class="row-ico">' + icon(doneDate ? 'check' : 'heart') + '</span>'
+            + '<span class="vac-main"><b>' + it.name + '</b><br><small>' + it.content + ' · ' + status + '</small></span>'
+            + (doneDate
+              ? '<button class="btn btn-mini" data-ckdate="' + it.key + '">改日期</button>'
+                + '<button class="icon-btn" data-unck="' + it.key + '" aria-label="取消已体检" title="取消已体检">' + icon('trash') + '</button>'
+              : '<button class="btn btn-mini" data-ck="' + it.key + '">已体检</button>')
+            + '</li>';
+        });
+        html += '</ul><p class="hint">体检时点按国家 0-6 岁儿童健康管理规范生成，仅供参考；'
+          + '以社区卫生服务中心 / 妇幼保健院的实际安排为准，早产宝宝的体检与评估请遵医嘱。</p></div>';
       }
 
+      /* 第 59 次：医学提示（遵医嘱） */
+      html += '<p class="hint med-note">接种时间以社区卫生服务中心 / 接种门诊的通知为准，本页仅作记录，不构成医疗建议；接种前有疑问请咨询医生。</p>';
+
       view.innerHTML = html;
+      Util.bindDateSliders(view);
 
       view.querySelector('#vBirth').addEventListener('change', function (e) {
         var s = Storage.get();
         s.settings.baby = s.settings.baby || { sex: 'boy', birthDate: null, preterm: false, birthGestWeeks: 40 };
         s.settings.baby.birthDate = e.target.value || null;
+        /* 第 80 次（宝宝档案）：生日改动同步回当前宝宝档案 */
+        if (Storage.syncBabyFromSettings) Storage.syncBabyFromSettings();
         Storage.save(); global.App.rerender();
       });
+      /* 打开「改日期」弹层的共用流程（C6）：快捷记录写死了今天，补种 / 补记要能改到过去某天 */
+      function openDatePicker(key, val) {
+        Util.editDate({
+          title: '实际接种日期',
+          message: '可补记到过去某天；以接种门诊记录为准。',
+          value: val || today, max: today, okText: '保存日期',
+          onConfirm: function (v) {
+            var s = Storage.get();
+            s.vaccines = s.vaccines || { done: {} };
+            s.vaccines.done[key] = v;
+            if (Storage.save()) Util.toast('已更新接种日期：' + v, 'ok');
+            global.App.rerender();
+          }
+        });
+      }
       Array.prototype.forEach.call(view.querySelectorAll('[data-vax]'), function (b) {
         b.addEventListener('click', function () {
+          var key = b.getAttribute('data-vax');
           var s = Storage.get();
           s.vaccines = s.vaccines || { done: {} };
-          s.vaccines.done[b.getAttribute('data-vax')] = today;
+          s.vaccines.done[key] = today;
           Storage.save();
-          Util.toast('已记录接种：' + today, 'ok');
+          /* C6：默认记今天，但立刻给「日期不对？」改期出口，不用删掉重来 */
+          Util.toast('已记录接种：' + today, 'ok', {
+            label: '日期不对？',
+            onClick: function () { openDatePicker(key, null); }
+          });
           global.App.rerender();
+        });
+      });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-vaxdate]'), function (b) {
+        b.addEventListener('click', function () {
+          var key = b.getAttribute('data-vaxdate');
+          openDatePicker(key, (Storage.get().vaccines && Storage.get().vaccines.done[key]) || null);
         });
       });
       Array.prototype.forEach.call(view.querySelectorAll('[data-unvax]'), function (b) {
@@ -118,9 +205,53 @@
           Storage.save(); global.App.rerender();
         });
       });
+      /* 第 70 次：体检标记交互（与疫苗同款三件套：记今天 + 改日期 + 取消） */
+      function openCkDate(key, val) {
+        Util.editDate({
+          title: '实际体检日期',
+          message: '可补记到过去某天；以体检机构记录为准。',
+          value: val || today, max: today, okText: '保存日期',
+          onConfirm: function (v) {
+            var s = Storage.get();
+            s.checkups = s.checkups || { done: {} };
+            s.checkups.done[key] = v;
+            if (Storage.save()) Util.toast('已更新体检日期：' + v, 'ok');
+            global.App.rerender();
+          }
+        });
+      }
+      Array.prototype.forEach.call(view.querySelectorAll('[data-ck]'), function (b) {
+        b.addEventListener('click', function () {
+          var key = b.getAttribute('data-ck');
+          var s = Storage.get();
+          s.checkups = s.checkups || { done: {} };
+          s.checkups.done[key] = today;
+          Storage.save();
+          Util.toast('已记录体检：' + today, 'ok', {
+            label: '日期不对？',
+            onClick: function () { openCkDate(key, null); }
+          });
+          global.App.rerender();
+        });
+      });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-ckdate]'), function (b) {
+        b.addEventListener('click', function () {
+          var key = b.getAttribute('data-ckdate');
+          openCkDate(key, (Storage.get().checkups && Storage.get().checkups.done[key]) || null);
+        });
+      });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-unck]'), function (b) {
+        b.addEventListener('click', function () {
+          var s = Storage.get();
+          if (s.checkups && s.checkups.done) delete s.checkups.done[b.getAttribute('data-unck')];
+          Storage.save(); global.App.rerender();
+        });
+      });
     }
   };
 
   /* 提醒引擎共用：由生日生成排期 */
   Modules.vaccine._plan = plan;
+  /* 第 70 次：体检排期同样供提醒引擎共用 */
+  Modules.vaccine._planCheckups = planCheckups;
 })(window);

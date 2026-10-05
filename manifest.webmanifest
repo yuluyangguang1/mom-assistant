@@ -1,7 +1,7 @@
 {
   "name": "宝妈助手",
   "short_name": "宝妈助手",
-  "description": "本地优先的孕期与育儿记录助手：经期、孕期、喂养、睡眠、宫缩、生长、待产包、记账。",
+  "description": "本地优先的孕期与育儿记录助手：经期、孕期、喂养、换尿布、睡眠、白噪音哄睡、宫缩、生长、疫苗、里程碑、待产包、记账。",
   "lang": "zh-CN",
   "start_url": ".",
   "scope": ".",
@@ -11,10 +11,22 @@
   "theme_color": "#FDF9F4",
   "icons": [
     {
-      "src": "favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

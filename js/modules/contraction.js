@@ -28,7 +28,7 @@
       html += '<div class="warn-box"><p>本工具仅用于自我观察记录，<b>仅供参考，一切以医生判断为准</b>。' +
         '如有出血、破水、剧烈腹痛或任何担心，请及时联系医生/就医。</p></div>';
 
-      html += '<div class="card"><h2>' + icon('contraction') + '宫缩计时</h2>';
+      html += '<div class="card"><h2>宫缩计时</h2>';
       if (oc) {
         html += '<p class="big">本次时长 <span id="cTimer">--</span></p>';
         html += '<p class="hint">开始：' + Util.fmtDateTime(oc.start) + '</p>';
@@ -40,7 +40,7 @@
       }
       html += '</div>';
 
-      html += '<div class="card"><h2>' + icon('contraction') + '最近几次</h2>';
+      html += '<div class="card"><h2>最近几次</h2>';
       var list = d.contractions.slice().sort(function (a, b) { return new Date(a.start) - new Date(b.start); });
       if (list.length) {
         html += '<ul class="list">';
@@ -61,6 +61,9 @@
       }
       html += '</div>';
 
+      /* 第 59 次：医学提示（遵医嘱） */
+      html += '<p class="hint med-note">宫缩记录仅供产程参考；宫缩规律加密、破水或见红时，请及时联系医院或医生。</p>';
+
       view.innerHTML = html;
       cTick();
 
@@ -73,8 +76,10 @@
       if (cEnd) cEnd.addEventListener('click', function () {
         d.openContraction.end = Util.nowLocal();
         d.contractions.push(d.openContraction);
+        var durMs = new Date(d.openContraction.end).getTime() - new Date(d.openContraction.start).getTime();
         d.openContraction = null;
-        Storage.save(); global.App.rerender();
+        if (Storage.save()) Util.toast('已记录：本次宫缩 ' + Util.fmtDuration(Math.max(0, durMs)), 'ok'); /* C1 */
+        global.App.rerender();
       });
       var cCancel = view.querySelector('#cCancel');
       if (cCancel) cCancel.addEventListener('click', function () {

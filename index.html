@@ -2,11 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <!-- viewport：允许捏合缩放（WCAG 1.4.4）；输入框已是 16px，不会触发 iOS 聚焦自动放大 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>宝妈助手</title>
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <!-- 第 77 次：品牌 LOGO（宝宝笑脸）——favicon 走 PNG 多尺寸，apple-touch 用 180（iOS 自动圆角） -->
+  <link rel="icon" href="assets/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="assets/favicon-16.png" type="image/png" sizes="16x16">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="favicon.svg">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <meta name="theme-color" content="#FDF9F4">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -36,13 +39,28 @@
 
   <div id="app">
     <header class="app-header">
-      <button id="avatarBtn" class="home-avatar" type="button" aria-label="进入设置"></button>
-      <button id="themeToggle" class="theme-toggle" type="button">夜间模式</button>
+      <!-- 第 80 次：左上角=当前宝宝头像（多宝宝点按切换，单宝宝进设置）；
+           右上角=设置齿轮（旧版右上角的天空大日期已并入问候卡日期行）。
+           第 95 次：模块页返回按钮改为顶栏内的圆形图标（与齿轮同视觉语言），
+           日期徽标也收进顶栏——二者此前 position:fixed 相对视口定位，
+           宽屏/不同页宽下会脱离内容列漂移，现在随 sticky 顶栏与内容对齐。 -->
+      <button id="avatarBtn" class="home-avatar" type="button" aria-label="切换宝宝 / 进入设置"></button>
+      <div id="modDate" class="mod-date" aria-hidden="true"></div>
+      <button id="backBtn" class="header-back" type="button" aria-label="返回首页" hidden></button>
+      <button id="settingsBtn" class="header-gear" type="button" aria-label="设置"></button>
     </header>
 
     <main id="view" class="view"></main>
 
     <nav id="tabbar" class="tabbar"></nav>
+
+    <!-- 全局快捷记录 dock（展开式 FAB）：点「＋」展开一键快记动作，任意页面可用 -->
+    <div id="quickDock">
+      <!-- 第 43 次：遮罩改为真实元素，才能单独承载「点外部关闭」的点击 -->
+      <div id="qdMask" class="qd-mask" aria-hidden="true"></div>
+      <div class="qd-actions" id="qdActions"></div>
+      <button id="qdFab" class="qd-fab" type="button" aria-expanded="false" aria-label="快速记录">＋</button>
+    </div>
   </div>
 
   <div id="modalRoot"></div>
@@ -53,19 +71,25 @@
   <script src="js/icons.js"></script>
   <script src="js/sky.js"></script>
   <script src="js/reminders.js"></script>
+  <script src="js/knowledge.js"></script>
   <script src="js/modules/home.js"></script>
   <script src="js/modules/period.js"></script>
   <script src="js/modules/pregnancy.js"></script>
   <script src="js/modules/feeding.js"></script>
   <script src="js/modules/diaper.js"></script>
-<script src="js/modules/meds.js"></script>
+  <script src="js/modules/meds.js"></script>
   <script src="js/modules/sleep.js"></script>
+  <script src="js/modules/whitenoise.js"></script>
   <script src="js/modules/contraction.js"></script>
+  <script src="js/modules/fetal.js"></script>
+  <script src="js/modules/temp.js"></script>
   <script src="js/modules/growth.js"></script>
   <script src="js/modules/vaccine.js"></script>
-<script src="js/modules/milestone.js"></script>
+  <script src="js/modules/milestone.js"></script>
   <script src="js/modules/packing.js"></script>
   <script src="js/modules/finance.js"></script>
+  <script src="js/modules/supplies.js"></script>
+  <script src="js/modules/mood.js"></script>
   <script src="js/modules/settings.js"></script>
   <script src="js/modules/calendar.js"></script>
   <script src="js/glass.js"></script>

@@ -28,12 +28,13 @@
 
   var Glass = {};
 
-  /* 与 styles.css 的 --bg-grad 完全对应，用于把背景「原样」重绘进场景 canvas */
+  /* 与 styles.css 的 --bg-grad 完全对应，用于把背景「原样」重绘进场景 canvas
+     （第 91 次：旧常量是更早期调色板的残留冷白/蓝紫，玻璃面采样后与页面四周
+     色温不一致——随当前 --bg-grad 逐值对齐：#FDF9F4,#FBF5EF,#F8F2EC / #221E1A,#26211C,#231F1B） */
   var BG = {
-    light: [[244, 241, 251], [251, 247, 243], [247, 243, 248]],
-    dark:  [[27, 24, 34], [33, 28, 42], [30, 26, 38]]
+    light: [[253, 249, 244], [251, 245, 239], [248, 242, 236]],
+    dark:  [[34, 30, 26], [38, 33, 28], [35, 31, 27]]
   };
-  var FADE = { light: 'rgba(249,246,251,0.92)', dark: 'rgba(28,24,36,0.92)' };
 
   /* 需要折射的玻璃宿主（大面板为主；小控件靠 rim 液态边即可） */
   var SEL = '.card, .record-tile, .stat, .modal, .mod-item';
@@ -74,13 +75,10 @@
     if (sky && sky.isConnected) {
       var r = sky.getBoundingClientRect();
       if (r.width > 1 && r.height > 1) {
+        /* 第 91 次：画布底边已自行淡出为透明（sky.js fadeBottomOut），
+           drawImage 保留 alpha，场景里天空底部自然汇入 bg 渐变——
+           不再需要旧的 FADE 实色罩（旧值是冷白/蓝紫残留，正是色差来源） */
         try { sctx.drawImage(sky, r.left, r.top, r.width, r.height); } catch (e) {}
-        /* 天空底部淡入页面底色，模拟 .sky-veil，避免硬边 */
-        var fg = sctx.createLinearGradient(0, r.top + r.height * 0.5, 0, r.top + r.height);
-        fg.addColorStop(0, 'rgba(0,0,0,0)');
-        fg.addColorStop(1, dark ? FADE.dark : FADE.light);
-        sctx.fillStyle = fg;
-        sctx.fillRect(r.left, r.top, r.width, r.height);
       }
     }
   }

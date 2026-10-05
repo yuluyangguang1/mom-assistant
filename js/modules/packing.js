@@ -59,12 +59,19 @@
       var html = '';
       html += '<div class="card"><p class="hint">按场景勾选，防遗漏。标注“易闲置/非必需”的可酌情准备。</p></div>';
 
+      /* P2-16：添加表单上移到清单前——连加多件物品不用反复滚到页底 */
+      html += '<div class="card"><h2>添加自定义物品</h2>';
+      html += '<label>场景/分组<input type="text" id="pkCat" placeholder="如 其他"></label>';
+      html += '<label>物品名称<input type="text" id="pkName"></label>';
+      html += '<label>提示（可选）<input type="text" id="pkHint" placeholder="如 易闲置"></label>';
+      html += '<button class="btn" id="pkAdd">添加</button></div>';
+
       var cats = [];
       d.packing.items.forEach(function (it) { if (cats.indexOf(it.cat) < 0) cats.push(it.cat); });
       cats.forEach(function (cat) {
         var items = d.packing.items.filter(function (x) { return x.cat === cat; });
         var done = items.filter(function (x) { return x.checked; }).length;
-        html += '<div class="card"><h2>' + icon('packing') + Util.escapeHtml(cat) + ' (' + done + '/' + items.length + ')</h2><ul class="list">';
+        html += '<div class="card"><h2>' + Util.escapeHtml(cat) + ' (' + done + '/' + items.length + ')</h2><ul class="list">';
         items.forEach(function (it) {
           html += '<li class="pack-item' + (it.checked ? ' done' : '') + '">' +
             '<label><input type="checkbox" ' + (it.checked ? 'checked' : '') + ' data-chk="' + it.id + '"> ' +
@@ -73,12 +80,6 @@
         });
         html += '</ul></div>';
       });
-
-      html += '<div class="card"><h2>' + icon('packing') + '添加自定义物品</h2>';
-      html += '<label>场景/分组<input type="text" id="pkCat" placeholder="如 其他"></label>';
-      html += '<label>物品名称<input type="text" id="pkName"></label>';
-      html += '<label>提示（可选）<input type="text" id="pkHint" placeholder="如 易闲置"></label>';
-      html += '<button class="btn" id="pkAdd">添加</button></div>';
 
       view.innerHTML = html;
 
@@ -105,7 +106,8 @@
         var hint = view.querySelector('#pkHint').value.trim();
         if (!name) { Util.markInvalid(view.querySelector('#pkName'), '请填写物品名称'); return; }
         d.packing.items.push({ id: Util.uid(), cat: cat, name: name, checked: false, hint: hint });
-        Storage.save(); global.App.rerender();
+        if (Storage.save()) Util.toast('已添加：' + name, 'ok'); /* C1 */
+        global.App.rerender();
       });
     }
   };

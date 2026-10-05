@@ -6,40 +6,65 @@
    - 卡片：每模块一张淡色身份卡（低饱和柔彩实底），无需 backdrop-filter
    - 主色：蜜桃珊瑚（温暖可信），模块 8 分色保留但调亮调奶
    - 微动效：弹性 cubic-bezier(.34,1.56,.64,1)，克制 < 400ms
-   无障碍：浅色正文/辅助文字全部 ≥ WCAG AA 4.5:1；
+   无障碍：浅色正文/辅助文字目标 ≥ WCAG AA 4.5:1 —— 达标情况由 qa/contrast_check.js
+   逐对回归（170+ 项，含明暗双模式与 12 组分色），勿仅凭本注释判断；
    保留明暗双模式、模块分色 [data-accent]、prefers-reduced-motion 降级。
    ============================================================ */
 
 :root {
   /* —— 奶油底色 —— */
   --bg-grad: linear-gradient(170deg, #FDF9F4 0%, #FBF5EF 55%, #F8F2EC 100%);
-  --sky-fade: rgba(253, 249, 244, 0.94);
+  /* 第 105 次（修「顶栏与下方透明渐变之间一条横线」）：顶栏雾纱的基色。
+     这不是新颜色，而是把 --bg-grad 的首档色单独提出来，供顶栏雾化渐变起步。
+
+     为什么必须显式写：--bg-grad 是 linear-gradient，无法从中间「取某一档」，
+     而顶栏要的恰恰是「页面底色在视口顶 0px 处的取值」——bg-grad 是 170deg，
+     视口顶即 0% 档，所以把它拆成一个具名 token，顶栏与页面底从此同源。
+
+     注意：这个 token 只是【底色层】。body 背景实际是两层（见 body 规则）：
+     上层是 sky.js 每帧写入的 --sky-ambient 色温层，下层才是 --bg-grad。
+     所以顶栏雾化也必须叠同样一层 ambient，否则夜间色板（冷紫、alpha 升到
+     .128）会把页面底推离本 token，横线不但没消反而更大。ambient 层不进
+     本 token，而是在 .app-header.is-scrolled 里作为第一层单独叠上去。 */
+  --header-bg-top: #FDF9F4;
+  /* 第 64 次（接缝同色）：天空→页面的接缝色 = 天空画布底部当前色。
+     sky.js 每帧把 pal.bottom 写进 --sky-live-rgb（html 内联），这里映射成
+     --sky-seam-rgb 供 veil 终档与 .sky-seam 过渡带消费——接缝两侧永远同色，
+     明暗昼夜都连续（白天≈奶油白无感、晨昏暖光下渗、夜晚淡紫下渗）。
+     浅色 fallback = 白天色板底色（画布未挂载时）。 */
+  --sky-seam-rgb: var(--sky-live-rgb, 253, 249, 244);
 
   /* 卡片面：实色奶油白（不再半透明） */
   --surface: #FFFFFF;
   --surface-solid: #FFFFFF;
   --surface-2: #F7F1EA;
   --text: #33302B;
-  --muted: #7A7268;
+  --muted: #716860;
   --border: rgba(122, 114, 104, 0.16);
+  --border-input: #8F8578;   /* 表单控件描边：对输入底 ≥3:1（WCAG 1.4.11）；装饰性卡片边仍用 --border */
 
-  /* 主色：蜜桃珊瑚（白字对比 ≈4.8，AA） */
-  --primary: #E8907C;
+  /* 主色：蜜桃珊瑚。分三个角色（均经 qa/contrast_check.js 回归）：
+     --primary 图形色（描边/圆点/图标，对各底 ≥3:1）；--primary-fill 按钮/选中填充底
+     （配 --on-primary 深暖字 ≥4.5:1）；--primary-text 主色作文字（对白/弱底 ≥4.5:1）。 */
+  --primary: #D06B51;
+  --primary-fill: #E8907C;
   --primary-strong: #D97A64;
   --primary-weak: rgba(232, 144, 124, 0.12);
-  --primary-text: #C4674F;   /* 主色作文字（对奶油底 AA） */
+  --primary-text: #A8503C;
+  --on-primary: #3B211A;      /* 珊瑚底上的文字/图标（深暖棕） */
 
-  --ok: #5FA88A;
-  --danger: #D05B4A;
+  --ok: #4F9475;
+  --danger: #C2402E;
   --danger-weak: #FBEBE8;
   --warn: #C08A3E;
-  --warn-text: #9A6A26;
+  --warn-text: #8A5E15;
   --warn-bg: #FBF3E6;
   --warn-border: #F0E2CC;
 
-  /* 卡片投影：柔和大半径低透明，奶油质感 */
-  --shadow-card: 0 1px 2px rgba(90, 74, 62, .05), 0 8px 24px -12px rgba(90, 74, 62, .14), 0 20px 48px -24px rgba(90, 74, 62, .18);
-  --shadow-hover: 0 2px 4px rgba(90, 74, 62, .06), 0 12px 32px -14px rgba(90, 74, 62, .20), 0 28px 56px -28px rgba(90, 74, 62, .24);
+  /* 卡片投影：单层极轻（第 60 次收敛：三层浮夸阴影让所有元素都「飘着」，是模板感来源之一；
+     卡片安定地贴在奶油底上，靠 1px 描边分层，不靠影子悬浮） */
+  --shadow-card: 0 1px 2px rgba(90, 74, 62, .04), 0 6px 18px -10px rgba(90, 74, 62, .10);
+  --shadow-hover: 0 2px 4px rgba(90, 74, 62, .05), 0 10px 26px -12px rgba(90, 74, 62, .16);
 
   /* 字号档：display 为关键数字主角 */
   --fs-display: 34px;
@@ -48,10 +73,15 @@
   --fs-body: 15px;
   --fs-sm: 13px;
 
-  /* 圆角：奶油风更大更圆 */
-  --radius-sm: 16px;
-  --radius: 20px;
-  --radius-lg: 24px;
+  /* 圆角（第 60 次收敛：22px+ 的大圆角是「气球感」来源，降到 12–18 恢复秩序感。
+     第 81 次（Appllama 形状锁）：尺度显式立规——药丸=999px、圆=50%、
+     卡片 lg=18 / base=16 / md=14 / sm=12、小件 xs=8、色条=3px、滑杆条=2.5px。
+     全文件只允许 token 与这五个例外字面量（qa 机械化计数锁死）。 */
+  --radius-sm: 12px;
+  --radius: 16px;
+  --radius-lg: 18px;
+  --radius-md: 14px;
+  --radius-xs: 8px;
   --icon: 22px;
 
   /* 弹性动效曲线（奶油感的 Q 弹） */
@@ -74,19 +104,29 @@
 
 body.dark {
   --bg-grad: linear-gradient(170deg, #221E1A 0%, #26211C 55%, #231F1B 100%);
-  --sky-fade: rgba(34, 30, 26, 0.94);
+  /* 第 105 次（修顶栏横线）：与 --bg-grad 首档同步，理由见 :root 处同 token 注释。
+     暗色下色系差同样被放大：#2E2924（surface）与 #221E1A（页面顶）差 12/255，
+     与浅色同量级，且暗色下人眼对明度阶更敏感，所以两处都必须改。 */
+  --header-bg-top: #221E1A;
+  --sky-seam-rgb: 34, 30, 26; /* 第 64 次：暗色接缝色 = veil 压暗后的页面顶色（暗色下天空底=页面顶，恒同色） */
+  /* 第 54 次：暗色环境光系数——亮色温叠暗底容易发灰，乘 0.6 兜底；
+     夜间可见度主要由 --sky-ambient-a 的亮度自适应负责（暗板自动升透明度） */
+  --amb-mul: .6;
 
   --surface: #2E2924;
   --surface-solid: #322C26;
   --surface-2: #282320;
   --text: #F0EBE4;
-  --muted: #B0A79A;
+  --muted: #BAB1A4;
   --border: rgba(255, 255, 255, 0.10);
+  --border-input: #8A8177;   /* 深色表单描边：对输入底 ≥3:1 */
 
   --primary: #F0A891;
+  --primary-fill: #F0A891;
   --primary-strong: #F5BFAE;
   --primary-weak: rgba(240, 168, 145, 0.16);
   --primary-text: #F5BFAE;
+  --on-primary: #3B211A;
 
   --ok: #8FBF9F;
   --danger: #E8826F;
@@ -109,7 +149,18 @@ body {
   font-size: var(--fs-body);
   line-height: 1.6;
   color: var(--text);
-  background: var(--bg-grad) fixed;
+  /* 第 53 次（时光沉浸）：环境色温层——sky.js 的 syncAmbient 把当前天空
+     顶/底色写到 --sky-ambient-top/bottom（R,G,B 三元组），垫在 --bg-grad
+     之上，整页底色随太阳色温呼吸（正午清透、黄昏泛金、入夜转青）。
+     第 54 次：透明度不再写死——syncAmbient 按色板亮度算出 --sky-ambient-a
+     （正午亮板 ~.10、深夜暗板 ~.17），暗色板必须更高透明度才能染上页面；
+     暗色模式再乘 --amb-mul（.6）兜底防灰。变量未就绪回落 9% 白（暖奶油）。 */
+  --amb-mul: 1;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul))),
+      rgba(var(--sky-ambient-bottom, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul)))) fixed,
+    var(--bg-grad) fixed;
   text-align: left;
   -webkit-font-smoothing: antialiased;
   /* mobile-native 三件套：
@@ -130,7 +181,7 @@ body {
 .glass-defs { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
 
 /* ============================================================
-   顶栏（透明浮层：左上角宝宝头像 + 右上角主题切换）
+   顶栏（透明浮层：左上角宝宝头像 + 右上角设置齿轮）
    ============================================================ */
 .app-header {
   position: sticky; top: 0; z-index: 30;
@@ -142,9 +193,36 @@ body {
   transition: background .25s var(--ease), border-color .25s var(--ease), box-shadow .25s var(--ease);
 }
 .app-header.is-scrolled {
-  background: var(--surface);
-  border-bottom-color: var(--border);
-  box-shadow: 0 4px 16px -8px rgba(90, 74, 62, .18);
+  /* 第 95 次（用户反馈：顶栏与下方内容有割裂）：实色 + 分隔线 + 投影换成
+     「渐进雾化」——顶栏上部保持实面保证图标可读，下缘渐变到透明，
+     内容从雾里浮现而不是被一条实线切断。
+
+     第 104 次（用户反馈：顶栏与下方透明渐变之间有一条横线）：
+     雾化原先从 var(--surface)（实色 #FFFFFF）起步，但顶栏背后是页面渐变底色，
+     两个色系在同一条水平线相接，肉眼看就是一道横线。第 95 次只淡出了下缘，
+     没解决上缘的色系不匹配，所以那道线一直在。
+
+     第 105 次（实测后修正第 104 次的判断错误）：第 104 次只把起点换成了
+     --bg-grad 首档色，落差只从 28/255 降到 23/255，没消掉。原因是漏了
+     body 背景的【上层】——sky.js 每帧写入的 --sky-ambient 色温层。
+     夜间色板是冷紫（night top = 70,74,112）且 alpha 自动升到 .128，
+     页面顶被推向冷紫，而顶栏还停在暖奶油，色系反而拉得更开。
+
+     所以这里必须复刻 body 的两层结构：
+       第 1 层 = ambient 色温层（与 body 完全同源，同样随色温呼吸）
+       第 2 层 = 雾化渐变（底色取 --header-bg-top，62% 后淡出到透明）
+     两层的淡出曲线都压在同一区段，保证下缘「一起」消失而不是先后错位。 */
+  background:
+    linear-gradient(180deg,
+      rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1))) 0%,
+      rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1))) 62%,
+      rgba(var(--sky-ambient-top, 255, 255, 255), 0) 100%),
+    linear-gradient(180deg,
+      var(--header-bg-top) 0%,
+      var(--header-bg-top) 62%,
+      color-mix(in srgb, var(--header-bg-top) 0%, transparent) 100%);
+  border-bottom-color: transparent;
+  box-shadow: none;
 }
 .theme-toggle {
   font-size: var(--fs-sm); padding: 8px 16px;
@@ -171,6 +249,26 @@ body {
 .home-avatar:active { transform: scale(.93); }
 .home-avatar:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .home-avatar .illo { width: 38px; height: 38px; margin: 0; opacity: 1; color: var(--primary-text); }
+/* 第 80 次：头像位显示当前宝宝照片（上传后 dataURL，圆裁铺满） */
+.home-avatar .ha-photo {
+  width: 100%; height: 100%; object-fit: cover;
+  border-radius: 50%; display: block;
+}
+/* 右上角设置齿轮（第 80 次）：与左上角头像同高同视觉重量，幽灵底不抢戏。
+   只在首页显示——模块页右上角是返回按钮（body.in-module 隐藏）。 */
+.header-gear {
+  width: 46px; height: 46px; border-radius: 50%;
+  background: var(--surface); border: 1px solid var(--border);
+  box-shadow: var(--shadow-card); cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text);
+  transition: transform .2s var(--spring), box-shadow .2s var(--ease), background .2s var(--ease);
+}
+.header-gear .ico { width: 21px; height: 21px; }
+.header-gear:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); background: var(--primary-weak); }
+.header-gear:active { transform: scale(.93); }
+.header-gear:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+body.in-module .header-gear { display: none; }
 
 /* ============================================================
    主内容
@@ -189,12 +287,15 @@ body {
   box-shadow: var(--shadow-card);
   transition: box-shadow .25s var(--ease), transform .25s var(--spring);
 }
-.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+/* 第 51 次（走查专项）：去掉 .card:hover 抬升——概览/提醒/速览/提示卡整体不可点，
+   hover 上浮 + 阴影加深是「可点」暗示（可点性误导）；hover 反馈只保留给
+   真正可点的元素（磁贴/列表行/按钮）。触屏端本就被 hover:none 禁用，此处对齐桌面。 */
 .card h2 {
-  font-size: var(--fs-h2); font-weight: 700; margin: 0 0 14px;
-  color: var(--text);
-  padding-left: 12px; border-left: 3px solid var(--tile, var(--primary)); border-radius: 3px;
-  line-height: 1.3;
+  /* 第 60 次（去 AI 味）：标题从「加粗 + 竖条 + 图标」三重装饰改为小型字距标签——
+     标题是导航，内容才是主角；层级靠字号与灰度对比，不靠加粗堆叠 */
+  font-size: 13px; font-weight: 600; letter-spacing: .08em; margin: 0 0 12px;
+  color: var(--muted);
+  line-height: 1.4;
 }
 
 /* ============================================================
@@ -205,7 +306,7 @@ input[type=text], input[type=date], input[type=number], select {
   display: block; width: 100%; margin-top: 6px; padding: 12px 14px;
   /* mobile-native：iOS Safari 聚焦 <16px 输入框时自动缩放页面，打断体验。16px 是免缩放阈值。 */
   font-size: 16px; font-family: inherit;
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  border: 1px solid var(--border-input, var(--border)); border-radius: var(--radius-sm);
   background: var(--surface-solid); color: var(--text);
   transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
 }
@@ -238,24 +339,25 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .btn:active { transform: scale(.97); }
 .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-color: var(--primary); }
 .btn-primary {
-  background: linear-gradient(180deg, var(--primary) 0%, var(--primary-strong) 100%);
-  color: #fff; border-color: transparent;
+  background: linear-gradient(180deg, var(--primary-fill) 0%, var(--primary-strong) 100%);
+  color: var(--on-primary); border-color: transparent;
   box-shadow: 0 6px 16px -6px var(--primary-strong);
 }
-.btn-primary .ico { color: #fff; }
+.btn-primary .ico { color: var(--on-primary); }
 .btn-primary:hover { filter: brightness(1.05); box-shadow: 0 8px 20px -8px var(--primary-strong); }
 .btn-danger { background: var(--surface); color: var(--danger); border-color: rgba(208,91,74,.35); }
 .btn-danger:hover { background: var(--danger-weak); }
 
 .btn-mini {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: var(--fs-sm); padding: 8px 14px;
+  font-size: var(--fs-sm); padding: 8px 16px; min-height: 40px; box-sizing: border-box; /* 第 72 次：触控目标 33→40px（疫苗已体检/改日期等高频标记按钮） */
   border: 1px solid var(--border); border-radius: 999px;
   background: var(--surface); color: var(--muted); cursor: pointer;
   transition: background .2s var(--ease), color .2s var(--ease);
 }
 .btn-mini .ico { width: 15px; height: 15px; }
 .btn-mini:hover { background: var(--primary-weak); color: var(--primary-text); }
+.btn-mini:active { transform: scale(.92); } /* 第 44 次：± 微调按钮按压反馈（滑杆旁高频控件） */
 .btn-mini:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* 疫苗时间表行：状态色（已种=柔和、将到期=高亮、逾期=警示） */
@@ -265,13 +367,13 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .vac-item.is-done .vac-main b { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--tile); }
 .vac-item.is-done .row-ico { color: var(--ok); }
 .vac-item.is-due { background: var(--tile-weak, var(--primary-weak)); border-radius: var(--radius-sm, 10px); }
-.vac-item.is-due .vac-main small { color: var(--tile); font-weight: 600; }
+.vac-item.is-due .vac-main small { color: var(--tile-text, var(--tile)); font-weight: 600; }
 .vac-item.is-over .vac-main small { color: var(--warn); font-weight: 600; }
 
 
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; flex: 0 0 auto;
+  width: 40px; height: 40px; flex: 0 0 auto; /* 第 72 次：34→40px（列表行删除按钮是唯一不可逆操作入口，触控目标向 44px 标准靠拢） */
   border: none; background: transparent; color: var(--muted); border-radius: 999px;
   cursor: pointer; transition: background .2s var(--ease), color .2s var(--ease), transform .15s var(--spring);
 }
@@ -305,24 +407,92 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .seg-btn {
   flex: 1 1 0; min-width: 0;
   justify-content: center;
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 9px 16px; border: 1px solid var(--border); border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 5px;
+  /* 内边距/字号按「喂养 4 枚类型 chips 在 360–375px 一行放下」反推：
+     4×(22+15+5+27)+3×6 ≈ 286 ≤ 360 视口内容宽 286。勿再放大，否则母乳/辅食会折行。 */
+  padding: 9px 11px; border: 1px solid var(--border); border-radius: 999px;
   background: var(--surface); color: var(--muted); cursor: pointer;
-  font-size: 14px; font-family: inherit;
+  font-size: 13.5px; font-family: inherit;
   transition: background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease);
 }
-.seg-btn .ico { width: 17px; height: 17px; }
+.seg-btn .ico { width: 15px; height: 15px; }
 .seg-btn:hover { color: var(--text); }
+/* 按压反馈（第 44 次）：触屏 hover 已被 @media(hover:none) 禁用，:active 是仅剩的
+   触控反馈通道——没有它，点药丸看不出「点到了」（MicroKit click-feedback 模式） */
+.seg-btn:active { transform: scale(.95); }
 .seg-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .seg-btn.active { background: var(--primary-weak); color: var(--primary-text); border-color: var(--primary); font-weight: 600; }
 /* 分段切换确认感：激活时图标轻微弹跳（spring），契合奶油风的 Q 弹 */
 .seg-btn.active .ico { animation: segPop .35s var(--spring); }
 
+/* 首次引导（O 系列）：身份 / 性别按钮更大更好点按 */
+.seg-lg .seg-btn { flex: 1 1 auto; padding: 12px 10px; font-size: 15px; }
+
+/* 标签式 chips 行（里程碑预设等）：按内容自然宽度排布、可换行，不做等分 */
+.chip-row { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-bottom: var(--space-md); }
+.chip-row .seg-btn { flex: 0 1 auto; }
+.chip-row .btn-mini { margin: 0; }
+
+/* 独立字段小标题（label 不能包 seg 时用，如喂养「本次侧别」）：与 label 同一档排版 */
+.lbl-text { display: block; margin-bottom: var(--space-xs); font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: .01em; }
+
+/* C7 补记模式提示条：细左条 + 弱底，一眼知道「这条会记到别处」 */
+.backfill-note { border-left: 3px solid var(--warn); padding: 12px 16px; }
+
+/* 第 72 次：辅食观察期进度环（Kinetics Progress Ring 落地）——环内数字随主题色 */
+.nf-ring-row { display: flex; align-items: center; gap: 12px; }
+.nf-ring-row .hint { margin: 0; flex: 1; }
+.nf-ring { flex: 0 0 auto; color: var(--text); }
+.backfill-note p { margin: 0; }
+
+/* 胎动计数（fetal.js）：大数字 + 通栏大按钮的专注版式 */
+.fetal-hero { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 2px 0 12px; }
+.fetal-hero .hint { margin: 0; }
+.fetal-add { width: 100%; margin: 4px 0 10px; padding: 15px 20px; font-size: 16px; font-weight: 600; }
+
+/* 日历周历条（对标 Cali 记录页，报告 P0-A）：所选日期所在周，点哪天看/记哪天 */
+.week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 12px; }
+.week-strip button, .week-strip .ws-cell {
+  border: none; background: none; padding: 7px 0 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  font-family: inherit; color: var(--text); min-height: 48px;
+  border-radius: var(--radius-md);
+  transition: background .2s var(--ease), color .2s var(--ease);
+}
+.week-strip .ws-dow { font-size: 11px; color: var(--muted); line-height: 1; }
+.week-strip .ws-day { font-size: 16px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.week-strip button { cursor: pointer; }
+.week-strip button:hover { background: var(--surface-2); }
+.week-strip button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.week-strip button.is-sel { background: var(--primary-fill); color: var(--on-primary); }
+.week-strip button.is-sel .ws-dow { color: var(--on-primary); opacity: .8; }
+.week-strip button.is-today:not(.is-sel) .ws-dow { color: var(--primary-text); font-weight: 700; }
+.week-strip .ws-cell.is-future { color: var(--muted); opacity: .55; }
+@media (hover: none) {
+  .week-strip button:hover { background: none; }
+  .week-strip button.is-sel { background: var(--primary-fill); }
+}
+
+/* 哄睡白噪音（W 系列） */
+.noise-state { font-size: 15px; font-weight: 600; color: var(--text); margin: 0 0 6px; }
+.noise-card .btn { margin-top: 10px; }
+input[type="range"] { width: 100%; accent-color: var(--primary); margin-top: 8px; cursor: pointer; }
+
+/* 第 62 次：滑块选日期（date-slider）——手机免键盘；真正的值在保留原 id 的隐藏 input 上 */
+.date-slider { margin: 6px 0 14px; }
+.ds-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ds-title { font-size: 13px; color: var(--muted); }
+.ds-label { font-size: 14.5px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+.ds-opt { margin: 2px 0 6px; font-size: 13.5px; color: var(--muted); }
+.ds-dual { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; }
+.ds-m-label { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.date-slider[data-off="1"] .ds-range { opacity: .35; }
+
 /* 一键快记大按钮（换尿布等高频单手场景）：大触控面 + 图标在上文字在下 */
 .quick-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); }
 .quick-btn {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: 14px 8px; border: 1px solid var(--border); border-radius: var(--radius-md, 14px);
+  padding: 14px 8px; border: 1px solid var(--border); border-radius: var(--radius-md);
   background: var(--surface); color: var(--text); cursor: pointer;
   font-size: 14px; font-family: inherit;
   transition: transform .15s var(--ease), background .2s var(--ease), border-color .2s var(--ease);
@@ -344,6 +514,8 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .chk-group { margin: 10px 0; font-size: 14px; }
 .chk { display: inline-flex; align-items: center; margin-right: 14px; font-size: 14px; cursor: pointer; }
 .chk input { margin-right: 6px; }
+/* 第 112 次：勾选框旁的行内说明（提示这笔记到记账的哪个类别） */
+.hint-inline { color: var(--text-sub, #6b6b6b); font-size: 13px; margin-left: 6px; }
 
 
 /* ============================================================
@@ -353,23 +525,34 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .kv li {
   padding: 11px 14px; margin-bottom: var(--space-sm);
   background: var(--surface); border: 1px solid var(--border);
-  border-left: 3px solid var(--tile, var(--primary));
+  /* 第 51 次：左边条与 .list 统一为 inset 直条——border-left 会顺着 16px 圆角
+     弯出一段弧，inset 影条是贴住内缘的直线，与记录列表视觉一致 */
+  box-shadow: inset 3px 0 0 0 var(--tile, var(--primary));
   border-radius: var(--radius-sm);
   font-size: var(--fs-body);
 }
 .kv li:last-child { margin-bottom: 0; }
-.kv li b { color: var(--tile, var(--primary-text)); }
+.kv li b { color: var(--tile-text, var(--tile, var(--primary-text))); }
 
 /* ============================================================
    记录列表（奶油药丸卡片 + 分色左边条 + 错落淡入）
    ============================================================ */
 .list { list-style: none; padding: 0; margin: 0; }
-/* 列表项错落淡入：模块页核心内容，比整页 .view-enter 更细腻 */
-.list li { animation: listIn .3s var(--ease) both; }
-.list li:nth-child(1) { animation-delay: 0ms; }
-.list li:nth-child(2) { animation-delay: 40ms; }
-.list li:nth-child(3) { animation-delay: 80ms; }
-.list li:nth-child(n+4) { animation-delay: 120ms; }
+/* 列表项错落淡入：模块页核心内容，比整页 .view-enter 更细腻。
+   第 51 次：scope 到 .view-enter——真实切页照常播放；rerender 静默刷新时
+   新列表行不再重播错落淡入（否则每保存一条，整列从头闪一遍）。
+   第 96 次：日历当日明细（.day-list）并入同一节奏——此前它是页内唯一
+   没有入场动画的列表，切页时其它列表都在飞、它原地闪现，节奏割裂。 */
+.view-enter .list li, .view--enter .list li,
+.view-enter .day-list li, .view--enter .day-list li { animation: listIn .3s var(--ease) both; }
+.view-enter .list li:nth-child(1), .view--enter .list li:nth-child(1),
+.view-enter .day-list li:nth-child(1), .view--enter .day-list li:nth-child(1) { animation-delay: 0ms; }
+.view-enter .list li:nth-child(2), .view--enter .list li:nth-child(2),
+.view-enter .day-list li:nth-child(2), .view--enter .day-list li:nth-child(2) { animation-delay: 40ms; }
+.view-enter .list li:nth-child(3), .view--enter .list li:nth-child(3),
+.view-enter .day-list li:nth-child(3), .view--enter .day-list li:nth-child(3) { animation-delay: 80ms; }
+.view-enter .list li:nth-child(n+4), .view--enter .list li:nth-child(n+4),
+.view-enter .day-list li:nth-child(n+4), .view--enter .day-list li:nth-child(n+4) { animation-delay: 120ms; }
 @keyframes listIn {
   from { opacity: 0; transform: translateX(-8px); }
   to { opacity: 1; transform: none; }
@@ -383,16 +566,132 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
   transition: transform .2s var(--spring), border-color .2s var(--ease), box-shadow .2s var(--ease);
 }
 .list li:last-child { margin-bottom: 0; }
+/* 第 85 次：列表行离场——收高 + 淡出 + 轻左移。height 由 JS 起步
+   （exitRow 先锁原行高再置 0），padding/margin/边框色随类过渡归零；
+   .16s 退场快于 listIn 入场 .3s（第 81 次动效纪律）。不 scale：
+   行的动效语言只有透明度/位移/收合。 */
+.list li.row-out {
+  overflow: hidden;
+  opacity: 0; transform: translateX(-10px);
+  padding-top: 0; padding-bottom: 0; margin-bottom: 0;
+  border-color: transparent;
+  transition: opacity .16s var(--ease), transform .16s var(--ease),
+    height .16s var(--ease), padding .16s var(--ease),
+    margin .16s var(--ease), border-color .16s var(--ease);
+  pointer-events: none;
+}
 .list li:hover { transform: translateY(-1px); border-color: var(--primary-weak); box-shadow: inset 3px 0 0 0 var(--tile, var(--primary)), var(--shadow-hover); }
+/* 可点列表项按压反馈（第 44 次）：data-go 是可跳转项（提醒卡/磁贴行）——
+   触屏无 hover（已被 hover:none 禁用），按下时轻微下沉确认「点到了」 */
+/* 第 81 次（Appllama 动效纪律）：列表行按压只用底色高亮，永不 scale——
+   scale 是按钮/卡片的语言，行位移会牵动分隔线与相邻行（transform: none
+   同时压掉下方通用 [data-go]:active 的 scale，行选择器特异性更高必胜）。 */
+.list li[data-go]:active { background: var(--primary-weak); transform: none; opacity: 1; }
+[data-go]:active { transform: scale(.97); }
 .list li small { color: var(--muted); font-size: var(--fs-sm); }
 .list li > .ico { flex: none; color: var(--muted); align-self: flex-start; margin: 2px 10px 0 0; }
 .list li > .ico + span { flex: 1 1 auto; min-width: 0; }
 .list li .row-ico { flex: 0 0 auto; margin-right: 12px; display: inline-flex; align-items: center; }
-.list li .row-ico .ico {
-  width: 20px; height: 20px; padding: 8px; box-sizing: content-box;
-  background: var(--tile-weak, var(--primary-weak)); color: var(--tile, var(--primary)); border-radius: 999px;
-}
+/* 第 61 次：列表行图标去白圆底（与第 60 次磁贴 rt-ico 同理——模块色直接呈现） */
+.list li .row-ico .ico { width: 20px; height: 20px; color: var(--tile, var(--primary)); }
 .list li .row-ico + span { flex: 1 1 auto; min-width: 0; }
+/* 第 61 次：「左名称右数据」双列行——li-main（时间/名称）左、li-sub（详情/备注）右 */
+.list li .li-main { flex: 0 1 auto; min-width: 0; white-space: nowrap; }
+.list li .li-main b { font-weight: 600; font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+.list li .li-sub {
+  flex: 1 1 auto; min-width: 0; margin-left: auto; padding-left: 12px; text-align: right;
+  color: var(--muted); font-size: 12.5px; line-height: 1.5;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* 第 107 次（消耗品）：表单双列 + 剩余天数进度条 + 三档配色。
+   .row2 此前不存在，消耗品表单是第一个用它的模块。 */
+.row2 { display: flex; gap: 10px; }
+.row2 > label { flex: 1 1 0; min-width: 0; }
+
+/* 进度条：宽由渲染期派生（剩余/总可用），底槽固定，不随内容跳动 */
+.sup-bar {
+  flex: 0 0 100%; width: 100%; height: 5px; margin-top: 6px;
+  background: var(--surface-2); border-radius: 3px; overflow: hidden;
+}
+.sup-bar > i { display: block; height: 100%; border-radius: 3px; background: var(--tile, var(--primary)); transition: width .28s ease; }
+.list li .li-num.sup-low  { color: #C0392B; }
+.list li .li-num.sup-mid  { color: #9A6A12; }
+.list li .li-num.sup-ok   { color: #2C6B54; }
+
+/* ---- 第 108 次 · 辅食食材分段标签（喂养模块辅食结构化） ----
+   食材按「荤｜素｜主食」分段存纯 text，展示层解析成一段一个标签。
+   换行手法沿用第 107 次的 .sup-bar：flex 0 0 100% 占满整行，
+   不去改 .list li 的单行 flex 布局（那个布局有大量既有依赖）。 */
+.list li .ing-tags {
+  flex: 0 0 100%; width: 100%; display: flex; flex-wrap: wrap; gap: 5px;
+  margin: 5px 0 2px;
+}
+.list li .ing-tag {
+  display: inline-flex; align-items: center; max-width: 100%;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 11.5px; line-height: 1.6; font-style: normal;
+  background: var(--surface-2); color: var(--muted);
+  border: 1px solid var(--border);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* 三类食材各一个色，只做「区分」不做「优劣判断」——
+   不给任何一类加高亮或警示色，避免读成「这种更好」。
+   类名用 ASCII（ing-meat/ing-veg/ing-staple）而不是中文：
+   非 ASCII 类名虽能跑，但转义与工具链兼容上是隐患。 */
+.list li .ing-tag.ing-meat   { color: #A85A32; background: rgba(168, 90, 50, .10); border-color: rgba(168, 90, 50, .22); }
+.list li .ing-tag.ing-veg    { color: #2C6B54; background: rgba(44, 107, 84, .10); border-color: rgba(44, 107, 84, .22); }
+.list li .ing-tag.ing-staple { color: #7A5A18; background: rgba(122, 90, 24, .10); border-color: rgba(122, 90, 24, .22); }
+.list li .ing-tag.ing-x      { color: var(--muted); }
+
+body.dark .list li .ing-tag { background: rgba(255, 255, 255, .05); border-color: var(--border); }
+body.dark .list li .ing-tag.ing-meat   { color: #E8B48C; background: rgba(232, 180, 140, .12); border-color: rgba(232, 180, 140, .26); }
+body.dark .list li .ing-tag.ing-veg    { color: #8FCDB2; background: rgba(143, 205, 178, .12); border-color: rgba(143, 205, 178, .26); }
+body.dark .list li .ing-tag.ing-staple { color: #E3C88E; background: rgba(227, 200, 142, .12); border-color: rgba(227, 200, 142, .26); }
+
+/* 做法步骤：只在需要展开查看时才出现（第 108 次仅显示步数，
+   留好样式，后续若做详情弹层可直接用）。 */
+.list li .steps-list {
+  flex: 0 0 100%; width: 100%; margin: 4px 0 0; padding: 0 0 0 2px;
+  list-style: none; counter-reset: stp;
+}
+.list li .steps-list > li {
+  position: relative; padding: 2px 0 2px 20px; margin: 0;
+  background: none; border: 0; box-shadow: none; border-radius: 0;
+  color: var(--muted); font-size: 12.5px; line-height: 1.6;
+}
+.list li .steps-list > li::before {
+  counter-increment: stp; content: counter(stp);
+  position: absolute; left: 0; top: 4px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--primary-weak); color: var(--primary);
+  font-size: 9.5px; line-height: 14px; text-align: center; font-weight: 700;
+}
+body.dark .list li .li-num.sup-low { color: #F0A79A; }
+body.dark .list li .li-num.sup-mid { color: #E8C88A; }
+body.dark .list li .li-num.sup-ok  { color: #8FCDB2; }
+.list li .li-num {
+  flex: 0 0 auto; margin-left: auto; padding-left: 12px;
+  font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
+}
+.list li .li-num i { font-style: normal; font-weight: 400; font-size: 12px; color: var(--muted); margin-left: 1px; }
+.list li .li-sub + .li-num { margin-left: 0; }
+/* 第 76 次（D 线）：多行详情变体——growth/sleep 等右栏内容长的行允许换行 */
+.list li .li-sub.li-sub-wrap { white-space: normal; }
+/* 第 82 次（软药丸回归·用户反馈「裸行难看」）：第 79 次前的描边药丸被否
+   （框中框），第 79 次的裸行+分隔线也被否（图标悬浮、散乱）。落点取中间态——
+   卡片内行用「软药丸」：弱色底、无描边、无投影、无分隔线、sm 圆角，
+   与首页磁贴同一语言；分色左条撤下（模块色由行图标 tile 承担）。
+   散落在页面上的独立 .list/.kv（模块页记录列表）不受影响，仍是描边药丸卡。 */
+.card .list li, .card .kv li {
+  background: var(--surface-2); border: 0; border-radius: var(--radius-sm);
+  box-shadow: none;
+  margin-bottom: 8px; padding: 10px 12px;
+}
+.card .list li:last-child, .card .kv li:last-child { margin-bottom: 0; }
+.card .list li:hover { transform: none; box-shadow: none; background: var(--primary-weak); }
+/* 「更早…」入口：短滑块下方独立一行 */
+.date-slider .ds-earlier { margin-top: 2px; }
 
 /* ============================================================
    标签（药丸） / 警示 / 提示 / 关键数字 / 进度条 / 图表
@@ -401,6 +700,8 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
   font-size: 12px; color: var(--primary-text); background: var(--primary-weak);
   padding: 3px 10px; border-radius: 999px; white-space: nowrap; font-weight: 600;
 }
+/* 强调标签（孕期「下一个」节点等）：主按钮同款高对比组合（primary-fill × on-primary，已过对比度回归） */
+.tag-accent { background: var(--primary-fill); color: var(--on-primary); }
 .warn { color: var(--warn-text); font-size: var(--fs-sm); }
 .warn-box {
   background: var(--warn-bg); border: 1px solid var(--warn-border);
@@ -427,17 +728,42 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 
 
 /* ============================================================
-   底部 Tab（实色奶油底 + 弹性激活）
+   底部 Tab（第 97 次液态玻璃化：悬浮胶囊 + 三层玻璃材质 + 弹性激活）
+   液态玻璃配方（跨内核稳妥版，调研结论见变更记录）：
+   effect — backdrop-filter: blur(20px) saturate(180%)（WWDC 2025 配比，
+            saturate 补回被模糊掉的颜色；-webkit- 前缀必须，iOS 全系要它）
+   tint   — 半透明 surface 底（color-mix 74%，透出页面环境色但不失可读）
+   shine  — inset 顶部高光线 + 底部弱高光 + 悬浮投影（玻璃厚度感）
+   不做 SVG 折射（feDisplacementMap 只在 Chromium 的 backdrop-filter 里生效，
+   Safari 会整块玻璃消失——调研文章实测的坑），blur-only 即为设计基线。
    ============================================================ */
 .tabbar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+  /* 第 98 次：收窄为内容自适应宽的悬浮胶囊——此前 left/right 12px 近乎撑满，
+     与「底栏快捷槽位」叠在一起视觉过重；且圆角 18px 偏生硬。现对齐项目
+     圆角规范：与 .tab 激活底/快记 FAB/返回钮同用 999px 全胶囊（白名单字面量），
+     宽度 max-content 居中（100vw-24px 兜底防窄屏溢出）。 */
+  position: fixed; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 10;
+  transform: translateX(-50%);
   display: flex; overflow-x: auto;
-  max-width: 640px; margin: 0 auto;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  box-shadow: 0 -4px 20px -12px rgba(90, 74, 62, .20);
-  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+  width: max-content; max-width: calc(100vw - 24px);
+  background: color-mix(in srgb, var(--surface) 74%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .38), inset 0 -1px 0 rgba(255, 255, 255, .10),
+    0 12px 32px -14px rgba(90, 74, 62, .40);
+  padding: 8px 10px;
   user-select: none;
+}
+/* 老内核（微信 X5 低版等）不支持 backdrop-filter：回落实色胶囊，布局不动 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .tabbar { background: var(--surface); }
+}
+body.dark .tabbar {
+  background: color-mix(in srgb, var(--surface) 68%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .10), inset 0 -1px 0 rgba(255, 255, 255, .04),
+    0 12px 32px -14px rgba(0, 0, 0, .55);
 }
 .tab {
   position: relative;
@@ -451,6 +777,7 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .tab .ico { width: 20px; height: 20px; color: var(--muted); margin: 0; }
 .tab-label { font-size: 11px; }
 .tab:hover { color: var(--text); }
+.tab:active { transform: scale(.9); } /* 第 44 次：底栏按压反馈 */
 .tab:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .tab.active { color: var(--primary-text); font-weight: 700; background: var(--primary-weak); }
 .tab.active::after {
@@ -458,6 +785,15 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
   width: 4px; height: 4px; border-radius: 50%; background: var(--primary);
 }
 .tab.active .ico { color: var(--primary); }
+
+/* 第 97 次：右侧自定义快捷槽位——与前两页签区分（描边 + 主色弱底 + 主色图标），
+   点按直达设置里选定的常用模块；不显示时底栏维持两页签。 */
+.tab-slot {
+  flex: 0 0 auto; margin-left: 6px; padding: 10px 14px 8px;
+  border: 1px solid var(--border); background: var(--primary-weak);
+}
+.tab-slot .ico { color: var(--primary); }
+.tab-slot span { color: var(--primary-text); }
 
 /* ============================================================
    隐私 / 确认弹层（实色奶油底）
@@ -472,12 +808,74 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
   border: 1px solid var(--border);
   border-radius: var(--radius-lg); padding: 24px;
   max-width: 440px; max-height: 84vh; overflow: auto;
+  /* 第 96 次（原生滚动）：iOS 旧内核动量滚动 + 滚动收口——弹层内滚到头
+     不再把页面拖动（滚动穿透是微信内置浏览器最常见的「假 App」破绽）。 */
+  -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
   box-shadow: 0 24px 60px -20px rgba(51, 48, 43, .5);
+  /* 第 81 次（Appllama 动效纪律）：弹层属于「偶尔」档，给标准入场——
+     从 scale(.95)+淡入上浮（禁 scale(0)），CSS 动画随插入自动播放；
+     关闭是瞬时移除（比入场快，符合「退场永远快于入场」）。 */
+  animation: modalIn .22s var(--ease) both;
 }
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(6px) scale(.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-mask {
+  /* 遮罩随弹层同步淡入（18ms 级差别不可感，18% 不抢戏） */
+  animation: maskIn .18s var(--ease) both;
+}
+@keyframes maskIn { from { opacity: 0; } to { opacity: 1; } }
 .modal h2 { margin: 0 0 14px; font-size: 18px; font-weight: 700; color: var(--text); }
 .modal p { font-size: 14px; line-height: 1.7; color: var(--muted); margin: 0 0 12px; }
 .modal-actions { display: flex; gap: var(--space-sm); margin-top: var(--space-lg); }
 .modal-actions .btn { flex: 1 1 0; margin: 0; }
+
+/* 第 83 次（C2）：分享卡片预览弹层——图片居中、限高，避免长图撑爆弹层 */
+.share-card-modal { max-width: 420px; }
+.share-card-preview { margin: 6px 0 4px; display: flex; justify-content: center; }
+.share-card-preview img { max-width: 100%; max-height: 54vh; border-radius: var(--radius-lg);
+  box-shadow: 0 10px 34px rgba(62,155,146,.20); background: #FFF7EF; }
+
+/* 第 82 次：底部宝宝切换面板（左上角头像专用）——短打断用半高底部面板，
+   不是整页跳转（呈现即语义）。遮罩复用 .modal-mask（含 maskIn 淡入），
+   面板本体从底部弹入；关闭瞬时移除（退场快于入场）。 */
+.modal-mask.sheet-mask { align-items: flex-end; padding: 0; }
+.sheet {
+  width: 100%; background: var(--surface);
+  border: 1px solid var(--border); border-bottom: 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: 16px 16px calc(14px + env(safe-area-inset-bottom));
+  box-shadow: 0 -12px 40px -16px rgba(51, 48, 43, .35);
+  animation: sheetUp .26s var(--spring) both;
+}
+@keyframes sheetUp {
+  from { transform: translateY(30%); opacity: .4; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.sheet h2 { margin: 0 0 10px; font-size: 16px; font-weight: 700; color: var(--text); }
+.sheet-list { list-style: none; margin: 0; padding: 0; }
+.sheet-empty { padding: 14px 4px; font-size: 13.5px; color: var(--muted); line-height: 1.6; }
+.sheet-row {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 10px 12px; border: 0; border-radius: var(--radius-sm);
+  background: transparent; cursor: pointer;
+  font-family: inherit; font-size: 15px; color: var(--text); text-align: left;
+}
+.sheet-row + .sheet-row { margin-top: 6px; }
+.sheet-row:active { background: var(--primary-weak); }
+.sheet-row .sheet-ava {
+  flex: none; width: 36px; height: 36px; border-radius: 50%;
+  background: var(--primary-weak); color: var(--primary-text);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700;
+}
+.sheet-row img { flex: none; width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
+.sheet-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-row.active { background: var(--primary-weak); color: var(--primary-text); font-weight: 600; }
+.sheet-check { flex: none; margin-left: auto; font-size: 12px; font-weight: 700; color: var(--primary-text); }
+.sheet-actions { margin-top: 12px; }
+.sheet-actions .btn { width: 100%; margin: 0; }
 
 /* 轻提示 toast（实色奶油浮层） */
 #toastRoot {
@@ -498,6 +896,9 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
   max-width: 100%;
 }
 .toast.show { opacity: 1; transform: translateY(0) scale(1); }
+/* 第 81 次（Appllama 动效纪律）：退场比入场快（约 0.7×）——.show 摘除后
+   落到 :not(.show) 的 140ms 快速淡出，入场仍走上面 200/250ms 的弹性。 */
+.toast:not(.show) { transition: opacity .14s var(--ease), transform .14s var(--ease); }
 .toast .ico { width: 18px; height: 18px; flex: none; }
 .toast-ok .ico { color: var(--ok); }
 .toast-error .ico { color: var(--danger); }
@@ -506,13 +907,19 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 
 .toast-action {
   pointer-events: auto;
-  margin-left: 6px; padding: 4px 12px;
-  border: 1px solid var(--primary); border-radius: 999px; background: transparent; cursor: pointer;
+  /* 第 72 次：撤销是「关键恢复动作」，按 UX 研究（触控目标 ≥44px 标准）从
+     4px 12px（实高约 24px）提升到 min-height 40px——被窝里单手也能稳稳点中。
+     第 79 次：去描边改弱色底填充——描边按钮嵌在带边框的 toast 药丸里
+     是「大框套小框」，填充色块无框，与整体软卡片语言一致。 */
+  display: inline-flex; align-items: center;
+  margin-left: 6px; padding: 8px 16px; min-height: 40px; box-sizing: border-box;
+  border: 0; border-radius: 999px; background: var(--primary-weak); cursor: pointer;
   font-size: 13px; font-weight: 600; color: var(--primary-text);
   font-family: inherit; line-height: 1.2; white-space: nowrap;
-  transition: background .2s var(--ease), color .2s var(--ease);
+  transition: background .2s var(--ease), color .2s var(--ease), transform .15s var(--spring), filter .2s var(--ease);
 }
-.toast-action:hover { background: var(--primary-weak); }
+.toast-action:hover { filter: brightness(.96); }
+.toast-action:active { transform: scale(.94); } /* 第 72 次：补按压反馈（此前 toast 内唯一没有 active 态的按钮） */
 .toast-action:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 
@@ -526,28 +933,219 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
   /* 向上突破 .view 内边距并继续上移到顶栏背后，透明顶栏浮在天空上。
      额外减去 --sat：刘海机型顶栏更高，天空要同步再上移，否则顶部露底色。 */
   margin: calc(-18px - 64px - var(--sat)) -16px 14px;
-  height: 184px;
-  /* 静态渐变兜底：即使画布未加载也是一块有质感的色，而非空白 */
-  background: linear-gradient(180deg, #E8907C 0%, #F5BFAE 100%);
-  border-radius: 0 0 32px 32px;
+  /* 第 47 次（修重叠）：原 height:216px 固定 + 大日期/问候卡两块 absolute 硬定位
+     （top:66 / bottom:14），系统字号放大或问候文案偏高时两块相加超过 216px 就互相压住。
+     改为 flex 纵向流：日期在上、问候卡 margin-top:auto 沉底，中间自然拉开；
+     内容过高时天空整体长高（min-height 兜底），任何字号下都不会再重叠。 */
+  min-height: 216px;
+  display: flex; flex-direction: column; align-items: stretch;
+  /* 第 64 次：padding-top 66px → calc(10px + var(--sat))——日期上移到顶栏行
+     （与 .app-header 的 padding 同值，首行与头像齐平），天空主体让给弧线 */
+  padding: calc(10px + var(--sat)) 18px 14px; box-sizing: border-box;
+  /* 静态渐变兜底：即使画布未加载也是白天色板的样子（与 sky.js 的 day 三停一致，而非空白）。
+     第 90 次：末档改为 #FDF9F4（旧冷白值退场），与 --bg-grad 首档同色（修问候卡下方白色条） */
+  /* 第 91 次：末档透明——与画布同样把底边交还页面真实背景，兜底模式也不出横带 */
+  background: linear-gradient(180deg, #A7BDEC 0%, #C8D8F2 55%, rgba(253, 249, 244, 0) 100%);
+  /* 第 50 次（天空无界）：去掉底部 32px 圆角——圆角是「卡片分割感」的主源之一，
+     下边界交给 veil 渐变整体融入页面底色（见 .home-sky .sky-veil），不再有硬边 */
 }
 .sky-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
-/* 问候语：轻融合式排版（落到天空底部，借 sky-veil 下缘渐变兜住对比度） */
+/* 第 46 次：挂载淡入——回首页 / 首次进页时天空不再硬切弹出。
+   第 51 次：scope 到 .view-enter——真实切页照常淡入；rerender 静默刷新时
+   重挂载的画布直接绘制（云位/精灵有 skyPersist 恢复），不再每保存一笔就眨一次。
+   reduced-motion 全局 animation:none 覆盖后 opacity 停在默认 1，无闪烁风险 */
+.view-enter .sky-canvas, .view--enter .sky-canvas { animation: skyIn .55s ease-out both; }
+@keyframes skyIn { from { opacity: 0; } to { opacity: 1; } }
+/* 问候语：轻融合式排版（落到天空底部，借 sky-veil 下缘渐变兜住对比度）。
+   第 47 次：absolute bottom 改为 margin-top:auto 沉底（flex 流内），
+   与大日期天然拉开，字号放大时只会推着天空长高、不再互相压住。 */
+/* 问候卡（第 64 次）：与下方 .card 完全同一套 token（surface / border /
+   radius / shadow）——用户反馈上一版浅玻璃特例面与提醒卡「割裂」。
+   同 token 即同语言，明暗模式随 token 自动适配，无需暗色特例。
+   卡片自身提供对比度（浅面深字），不依赖 text-shadow。 */
 .home-greet {
-  position: absolute; left: 18px; right: 18px; bottom: 14px; z-index: 2;
-  padding: 9px 13px; border-radius: 14px;
-  background: rgba(51, 48, 43, .20);
-  border: 1px solid rgba(255, 255, 255, .16);
-  color: #fff; text-shadow: 0 1px 8px rgba(51, 48, 43, .45);
+  position: relative; z-index: 2; margin-top: auto; flex: none;
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 14px; border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
 }
 .home-sky .sky-veil {
   position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(255,255,255,.02) 30%, rgba(51,48,43,.16) 62%, var(--sky-fade) 100%);
+  /* 第 63 次（修「还有明显分界」）：S 曲线雾化消除色带。
+   第 91 次（白色条根治）：veil 不再「渐变到接缝实色」——那条实色不带页面
+     环境色温层，白天偏白、夜晚把浅紫夜板染出灰带（用户两次实测反馈）。
+     改为中途轻微雾化后**归零淡出**，天空底边由画布自身淡出为透明
+     （sky.js fadeBottomOut），交界处露出页面真实背景，任何时段零错位。 */
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0) 30%,
+    rgba(var(--sky-seam-rgb, 253, 249, 244), .14) 48%,
+    rgba(var(--sky-seam-rgb, 253, 249, 244), 0) 78%);
 }
-.home-greet h1 { font-size: 22px; font-weight: 700; margin: 0 0 3px; letter-spacing: .01em; }
-.home-greet p { font-size: 13px; margin: 0; opacity: .93; }
+/* 暗色模式下天空是「真实时钟」的白天色，整页暗底上会突兀发亮；
+   叠一层暖炭罩子压暗（z-index 1：盖过画布与 veil，仍在问候卡 z-index 2 之下）。
+   第 50 次：罩子在下缘淡出到透明（原来到底还是 .30 实色，会在暗色模式下
+   把已融入页面的下缘重新染出一道深浅差）——暗色的融合交给 veil 实色完成。
+   第 55 次（夜色减负）：罩子强度随色板亮度走——syncAmbient 按当前板亮度写
+   --sky-dim-o（白天亮板 1、夜晚暗板 0.3），夜晚不再双重压暗；变量未就绪
+   回落 1（保持压暗，防止未挂载时白天板刺眼）。
+   第 92 次（暗色过渡）：淡出终点 82% → 72%，与画布 fadeBottomOut 的擦除起点
+   （H*0.72）同步——此前画布 72% 起已开始变透明、罩子却压到 82%，交界区段
+   「页面暗底已透出、暗罩还在压」，正是暗色下过渡不如亮色的成因之一。 */
+body.dark .home-sky::after {
+  content: ''; position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(180deg, rgba(34, 30, 26, .40) 0%, rgba(34, 30, 26, .28) 50%, rgba(34, 30, 26, 0) 72%);
+  opacity: var(--sky-dim-o, 1);
+  pointer-events: none;
+}
+/* 第 85 次：日轮弧线（.sky-arc）与太阳/月亮（.sky-orb-*）样式已随元素一并移除
+   ——用户反馈日轮「挡住了」内容。天空保留色板/云/星/雾化 veil。 */
+/* 问候卡文字（第 63 次）：浅面深字，正文用 --muted（对比度由卡面保证，
+   不再靠 text-shadow 硬撑） */
+.home-greet h1 { font-size: 20px; font-weight: 700; margin: 0 0 2px; letter-spacing: .01em; color: var(--text); }
+/* 第 77 次：品牌 LOGO 头像位——44px 圆角方块，与磁贴圆角语言一致 */
+.home-greet .home-logo {
+  flex: 0 0 auto; width: 44px; height: 44px;
+  border-radius: var(--radius-sm); object-fit: cover; display: block;
+  border: 1px solid var(--border);
+}
+.hg-body { flex: 1 1 auto; min-width: 0; }
+/* 副标题单行省略：问候卡高度恒定，hero（大日期）永远不会与它重叠（第 40 次根修）。
+   第 63 次：颜色从白改 --muted（浅卡上白字不可读）。 */
+.home-greet p {
+  font-size: 13px; margin: 0; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
-.home-main { display: block; }
+/* 第 80 次（首页重设计）：天空大日期（.home-date）撤下——日期并入问候卡首行
+   （.hg-date，「今天是M月D日 周X · 节日」），天空整幅让给天色与日轮弧线，
+   顶部信息一行说完不再分两处。模块页日期仍用 .mod-date 小徽标。 */
+/* 模块页左上角小日期徽标：第 95 次起收进顶栏流（此前 position:fixed 相对视口，
+   宽屏下会漂出内容列）——flex:1 居中，首页隐藏但占位，保证齿轮仍贴右。 */
+.mod-date {
+  flex: 1 1 auto; text-align: center;
+  font-size: 13px; font-weight: 700; letter-spacing: .04em;
+  color: var(--text); opacity: .6; user-select: none; pointer-events: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+body.in-home .mod-date { visibility: hidden; }
+
+/* 模块页返回按钮（第 95 次重设计）：顶栏内圆形图标钮，与右上角设置齿轮同一
+   视觉语言（同径 46px、同描边同投影）；showTab 切 hidden，模块页才出现。
+   旧版「‹ 返回」文字药丸是 fixed 定位，宽屏下漂移，已整体移除。 */
+.header-back {
+  width: 46px; height: 46px; border-radius: 50%; flex: none;
+  background: var(--surface); border: 1px solid var(--border);
+  box-shadow: var(--shadow-card); cursor: pointer; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text);
+  transition: transform .2s var(--spring), box-shadow .2s var(--ease), background .2s var(--ease);
+}
+.header-back .ico { width: 22px; height: 22px; }
+.header-back[hidden] { display: none; }
+.header-back:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); background: var(--primary-weak); }
+.header-back:active { transform: scale(.93); }
+.header-back:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* 喂养模块的多根滑杆容器（第 43 次）：相邻滑杆之间留出呼吸空间。
+   第 44 次：切喂养类型时容器 display 硬切会「闪现」——给显示态一个短淡入
+   （display:none → 显示会重启动画，天然只在出现时播）。 */
+#wrapRulerL, #wrapRulerR, #wrapRulerBm, #wrapRulerFm, #wrapRulerPump {
+  margin-bottom: 14px;
+  animation: rulerIn .22s var(--ease) both;
+}
+@keyframes rulerIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* 居中空状态（对标报告 P0-B）：主文案 + 副文案，替代单行 hint（主要空场景逐步迁移） */
+.empty-state { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 14px 8px 8px; gap: 4px; }
+.empty-state p { margin: 0; font-weight: 600; color: var(--text); }
+.empty-state .hint { margin: 0; }
+
+/* 通用弹性行（表单两列并排等）：此前靠 inline style，收编为工具类 */
+.row { display: flex; gap: var(--space-sm); }
+.row > label { flex: 1 1 0; min-width: 0; }
+
+.home-main { display: block; position: relative; }
+
+/* 第 91 次（白色条根治）：.home-main 的 seam 过渡带已删除——它顶格压在问候卡
+   正下方 170px，白天把不带环境色温的实色盖在页面上（白条元凶），夜晚亦然。
+   融合改由画布自身淡出完成（sky.js fadeBottomOut），交界即页面真背景。
+   直子元素抬层规则保留（磁贴层叠仍需要）。 */
+.home-main > * { position: relative; z-index: 1; }
+
+/* 第 80 次（首页重设计）：日期行——「今天是M月D日 周X · 节日」，问候卡首行、
+   h1 之前。节日名用主色轻强调，日期本体保持 muted（它是场景不是主角）。 */
+.home-greet .hg-date {
+  margin: 0 0 2px;
+  font-size: 12.5px; font-weight: 600; line-height: 1.5;
+  color: var(--muted); letter-spacing: .02em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.home-greet .hg-date .hg-fest { color: var(--primary-text); font-weight: 700; }
+
+/* 第 63 次：小知识并入问候卡（用户点名整合「你好」与知识句），首页正文
+   独立行撤销。卡内用细分隔线分节（不再左侧 primary 竖条——那是给孤行的语言）。
+   注意 .home-greet p 的单行省略只该作用于副标题：知识句是多行内容，
+   这里显式恢复换行，否则整句被省略号吃掉。 */
+.home-greet .know-hint {
+  margin: 9px 0 0; padding-top: 9px;
+  border-top: 1px solid var(--border);
+  white-space: normal; overflow: visible;
+}
+/* 第 67 次：妈妈情绪页 mind 知识句——与首页知识行同一视觉语言，
+   色条用模块分色（情绪页为 mood 紫），失败回落 primary */
+.mind-know { margin: 12px 2px 0; padding-left: 12px; border-left: 3px solid var(--tile, var(--primary)); border-radius: 3px; }
+/* 第 68 次：发育观察点（B2）——自评行「能区标签 + 条目 + 是/还没」，预警行同骨架 */
+.obs-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+#obsList .obs-row:last-child, #warnList .obs-row:last-child { border-bottom: 0; }
+.obs-area { flex: none; font-size: 11px; line-height: 1.6; color: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 1px 6px; margin-top: 1px; white-space: nowrap; }
+.obs-txt { flex: 1; font-size: 13.5px; line-height: 1.55; min-width: 0; }
+.obs-btns { flex: none; display: flex; gap: 6px; }
+.obs-btns .seg-btn { padding: 3px 10px; font-size: 12px; }
+.obs-btns .seg-btn.active.no-sel { color: var(--warn); border-color: var(--warn); background: transparent; }
+
+/* 第 59 次：医学提示行（growth/vaccine/meds/pregnancy/contraction/period/fetal/temp 页脚）
+   与 know-hint 同一视觉语言（左侧竖条），但语气更中性、不做强调色 */
+.med-note { margin: 14px 2px 0; padding-left: 12px; border-left: 3px solid var(--primary); border-radius: 3px; opacity: .92; }
+
+/* 第 59 次：设置二级菜单——<details class="set-group"> 分组目录。
+   summary 做成菜单行（icon + 标题/描述 + chevron），展开后内部是原有卡片；
+   内容始终留在 DOM（无障碍 / 页内查找 / 回归测试不受折叠影响）。 */
+.set-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  margin-bottom: var(--space-sm);
+  overflow: hidden;
+}
+.set-group summary {
+  list-style: none;
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.set-group summary::-webkit-details-marker { display: none; }
+.set-group summary:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.set-group .sg-ico { width: 20px; height: 20px; padding: 8px; flex-shrink: 0; box-sizing: content-box; background: rgba(0,0,0,.05); border-radius: 999px; color: var(--primary); }
+body.dark .set-group .sg-ico { background: rgba(255,255,255,.08); }
+.set-group .sg-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.set-group .sg-txt b { font-size: 14.5px; font-weight: 600; color: var(--text); }
+.set-group .sg-txt i { font-style: normal; font-size: 12.5px; color: var(--muted); }
+.set-group .sg-chv { flex-shrink: 0; width: 18px; height: 18px; color: var(--muted); opacity: .55; transition: transform .2s var(--ease); }
+/* 第 99 次：svg 无尺寸规则会走 --icon 默认 22px，溢出 18px 容器（旋转基也随之偏大） */
+.set-group .sg-chv .ico { width: 18px; height: 18px; }
+.set-group[open] .sg-chv { transform: rotate(90deg); }
+.set-group[open] summary { border-bottom: 1px solid var(--border); }
+.set-group > .card { margin: var(--space-sm); box-shadow: none; }
+.set-group > .card:last-child { margin-bottom: 16px; }
 
 /* 区块标题：小号字距标签 + 短强调竖线（克制、留白） */
 .section-title {
@@ -555,8 +1153,14 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
   margin: 22px 0 12px; padding-left: 12px; border-left: 3px solid var(--primary); border-radius: 3px;
 }
 
-/* 今日概览：奶油统计卡（大号等宽数字做主角） */
-.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: var(--space-sm); }
+/* 今日概览：奶油统计卡（大号等宽数字做主角）。
+   列数由 home.js 按实际卡片数写 data-n：3→单行三列、4→2×2、5/6→三列，
+   避免 auto-fit 在 375px 宽度下出现「2+1 孤行」；桌面端回退 auto-fit 自适应。 */
+.stat-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-sm); }
+.stat-row[data-n="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.stat-row[data-n="3"] .stat { padding: 13px 14px; }
+.stat-row[data-n="3"] .stat-lbl { font-size: 12px; }
+.stat-row[data-n="5"], .stat-row[data-n="6"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .stat {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 15px 17px;
@@ -564,21 +1168,32 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
   display: flex; flex-direction: column; gap: 4px;
 }
 .stat-num {
-  font-size: 30px; font-weight: 700; color: var(--primary-text);
+  font-size: 34px; font-weight: 700; color: var(--primary-text);
   font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
   line-height: 1.05; letter-spacing: -.5px;
 }
 .stat-unit { font-size: 13px; font-weight: 600; font-style: normal; color: var(--muted); margin-left: 3px; }
 .stat-lbl { font-size: 13px; color: var(--muted); }
+/* 第 53 次：stat 数字弹簧入场——关键数字带 overshoot 弹出、错落跟进。
+   scope 到 .view-enter（第 51 次同款纪律）：真实进页才弹一次，
+   rerender 静默刷新时数字纹丝不动。 */
+.view-enter .stat-num, .view--enter .stat-num { animation: statPop .5s var(--spring) both; }
+.view-enter .stat:nth-child(2) .stat-num, .view--enter .stat:nth-child(2) .stat-num { animation-delay: 45ms; }
+.view-enter .stat:nth-child(3) .stat-num, .view--enter .stat:nth-child(3) .stat-num { animation-delay: 90ms; }
+.view-enter .stat:nth-child(n+4) .stat-num, .view--enter .stat:nth-child(n+4) .stat-num { animation-delay: 130ms; }
+@keyframes statPop {
+  from { opacity: 0; transform: translateY(7px) scale(.86); }
+  to { opacity: 1; transform: none; }
+}
 
-/* 模块记录磁贴网格（奶油柔彩身份卡：每模块一张淡色实底卡） */
-.record-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-sm); }
-@media (min-width: 420px) { .record-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 560px) { .record-grid { grid-template-columns: repeat(4, 1fr); } }
+/* 模块记录（第 56 次：单条信息行）——磁贴从多列网格改单列横条：
+   每行 icon + 名称（左）+ 记录信息（右）+ 今日角标 + ›（第 57 次改左右分布），
+   「今日概览」数字卡因此迁往日期记录页（数字不再与磁贴重复） */
+.record-grid { display: flex; flex-direction: column; gap: 10px; }
 .record-tile {
   position: relative; overflow: hidden;
-  display: flex; flex-direction: column; gap: 7px; align-items: flex-start;
-  padding: 16px; border-radius: var(--radius);
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: var(--radius);
   /* 奶油柔彩核心：磁贴用模块淡色实底，而非统一白卡 */
   background: var(--tile-weak, var(--surface));
   border: 1px solid var(--tile-weak, var(--border));
@@ -588,49 +1203,274 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
   transition: background .2s var(--ease), transform .15s var(--spring), box-shadow .2s var(--ease);
 }
 .record-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
-/* 按压反馈：按进奶油里的 Q 弹感（轻微下沉 + 缩小） */
-.record-tile:active { transform: scale(.96) translateY(1px); }
+/* 按压反馈：按进奶油里的 Q 弹感（轻微下沉 + 缩小）。
+   第 53 次：按压光晕——按下去的瞬间从磁贴泛开一圈本模块色的柔光；
+   color-mix 直接取现有 --tile 分色 token，不支持的老浏览器安静降级为无光晕 */
+.record-tile:active {
+  transform: scale(.96) translateY(1px);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--tile, #fff) 20%, transparent),
+              0 8px 22px color-mix(in srgb, var(--tile, #fff) 28%, transparent);
+}
 .record-tile:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.record-tile .rt-ico { width: 22px; height: 22px; padding: 9px; background: var(--surface); border-radius: 999px; color: var(--tile, var(--primary)); box-sizing: content-box; box-shadow: var(--shadow-card); }
-.record-tile .rt-name { font-size: 14px; font-weight: 600; }
-.record-tile .rt-sum { font-size: 12.5px; color: var(--muted); }
+.record-tile .rt-ico { width: 20px; height: 20px; flex-shrink: 0; color: var(--tile, var(--primary)); }
+/* 第 57 次（用户反馈）：名称在左、记录信息在右——同一行左右分布，不上下堆叠 */
+.record-tile .rt-name { font-size: 14.5px; font-weight: 600; flex-shrink: 0; }
+.record-tile .rt-sum { font-size: 12.5px; color: var(--muted); margin-left: auto; padding-left: 12px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 .record-tile .rt-badge {
-  position: absolute; top: 12px; right: 12px;
+  flex-shrink: 0;
   font-size: 12px; font-weight: 700; line-height: 1; padding: 4px 8px;
   border-radius: 999px; background: var(--surface);
-  color: var(--tile, var(--primary-text));
+  color: var(--tile-text, var(--primary-text));
   box-shadow: var(--shadow-card);
   font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
 }
+/* 第 58 次：› 文本字符换成项目统一的线性 SVG（chevron-right），尺寸与行高对齐 */
+.record-tile .rt-arrow { flex-shrink: 0; color: var(--muted); opacity: .55; display: flex; align-items: center; transition: transform .15s var(--ease), opacity .15s var(--ease); }
+.record-tile .rt-arrow .ico { width: 15px; height: 15px; }
+.record-tile:hover .rt-arrow { transform: translateX(2px); opacity: .8; }
 
 /* 模块分色：奶油柔彩系（低饱和、调亮调奶，适配淡色实底磁贴）。
    [data-accent] 为单一色源，供首页磁贴 / 日历圆点 / 当日明细图标复用。 */
-[data-accent="feeding"]     { --tile: #4FA8A0; --tile-weak: #E3F2F1; }
-[data-accent="sleep"]       { --tile: #8B8EC7; --tile-weak: #EBECF6; }
-[data-accent="growth"]      { --tile: #6BAF7D; --tile-weak: #E7F2EA; }
-[data-accent="period"]      { --tile: #C97E8E; --tile-weak: #F8EBEE; }
-[data-accent="pregnancy"]   { --tile: #D8A05F; --tile-weak: #FAF0E3; }
-[data-accent="packing"]     { --tile: #A89B88; --tile-weak: #F3EFE8; }
-[data-accent="contraction"] { --tile: #D87F6A; --tile-weak: #FAEDE9; }
-[data-accent="finance"]     { --tile: #8F85C9; --tile-weak: #EFEDF8; }
-[data-accent="diaper"]      { --tile: #D0A94E; --tile-weak: #F8F0DE; }
-[data-accent="vaccine"]     { --tile: #6FA0C0; --tile-weak: #E9F1F7; }
-[data-accent="meds"]        { --tile: #C1879E; --tile-weak: #F7ECF1; }
-[data-accent="milestone"]   { --tile: #7E9BC9; --tile-weak: #ECF1F8; }
+[data-accent="feeding"]     { --tile: #2E8C84; --tile-text: #17706A; --tile-weak: #E3F2F1; }
+[data-accent="sleep"]       { --tile: #686BAF; --tile-text: #454896; --tile-weak: #EBECF6; }
+[data-accent="growth"]      { --tile: #43935B; --tile-text: #26713E; --tile-weak: #E7F2EA; }
+[data-accent="period"]      { --tile: #B0576B; --tile-text: #96394B; --tile-weak: #F8EBEE; }
+[data-accent="pregnancy"]   { --tile: #9E6D24; --tile-text: #8A5A17; --tile-weak: #FAF0E3; }
+[data-accent="packing"]     { --tile: #8C7F6B; --tile-text: #6A5D48; --tile-weak: #F3EFE8; }
+[data-accent="contraction"] { --tile: #C0604A; --tile-text: #A33F26; --tile-weak: #FAEDE9; }
+[data-accent="finance"]     { --tile: #6C63B8; --tile-text: #4B44A6; --tile-weak: #EFEDF8; }
+[data-accent="diaper"]      { --tile: #A8842B; --tile-text: #7A5A0F; --tile-weak: #F8F0DE; }
+[data-accent="vaccine"]     { --tile: #4E7FA6; --tile-text: #2C5E82; --tile-weak: #E9F1F7; }
+[data-accent="meds"]        { --tile: #A45F7C; --tile-text: #8A4660; --tile-weak: #F7ECF1; }
+[data-accent="milestone"]   { --tile: #5C7DB4; --tile-text: #3A5A94; --tile-weak: #ECF1F8; }
+[data-accent="fetal"]       { --tile: #A84A7C; --tile-text: #8A3260; --tile-weak: #F8ECF4; }
+[data-accent="temp"]        { --tile: #2E8FA0; --tile-text: #176F80; --tile-weak: #E6F3F5; }
+[data-accent="mood"]        { --tile: #8A5FA0; --tile-text: #6F4787; --tile-weak: #F3EDF7; }
+  /* 第 107 次：消耗品（浅色）——青绿，与 finance 的紫、temp 的青蓝区分开 */
+  [data-accent="supplies"]    { --tile: #3F8A6E; --tile-text: #2C6B54; --tile-weak: #E6F3EE; }
 
 /* 暗色：同色系调亮，弱色改半透明叠底 */
-body.dark [data-accent="feeding"]     { --tile: #7BC4BC; --tile-weak: rgba(123,196,188,.16); }
-body.dark [data-accent="sleep"]       { --tile: #ABADD6; --tile-weak: rgba(171,173,214,.16); }
-body.dark [data-accent="growth"]      { --tile: #93C9A4; --tile-weak: rgba(147,201,164,.16); }
-body.dark [data-accent="period"]      { --tile: #DCA2AE; --tile-weak: rgba(220,162,174,.16); }
-body.dark [data-accent="pregnancy"]   { --tile: #E4B982; --tile-weak: rgba(228,185,130,.16); }
-body.dark [data-accent="packing"]     { --tile: #C2B5A1; --tile-weak: rgba(194,181,161,.16); }
-body.dark [data-accent="contraction"] { --tile: #E69E8A; --tile-weak: rgba(230,158,138,.16); }
-body.dark [data-accent="finance"]     { --tile: #B0A8DB; --tile-weak: rgba(176,168,219,.16); }
-body.dark [data-accent="diaper"]      { --tile: #E2C27E; --tile-weak: rgba(226,194,126,.16); }
-body.dark [data-accent="vaccine"]     { --tile: #97BEDD; --tile-weak: rgba(151,190,221,.16); }
-body.dark [data-accent="meds"]        { --tile: #D6A5BA; --tile-weak: rgba(214,165,186,.16); }
-body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-weak: rgba(159,185,223,.16); }
+body.dark [data-accent="feeding"]     { --tile: #7BC4BC; --tile-text: #7BC4BC; --tile-weak: rgba(123,196,188,.16); }
+body.dark [data-accent="sleep"]       { --tile: #ABADD6; --tile-text: #ABADD6; --tile-weak: rgba(171,173,214,.16); }
+body.dark [data-accent="growth"]      { --tile: #93C9A4; --tile-text: #93C9A4; --tile-weak: rgba(147,201,164,.16); }
+body.dark [data-accent="period"]      { --tile: #DCA2AE; --tile-text: #DCA2AE; --tile-weak: rgba(220,162,174,.16); }
+body.dark [data-accent="pregnancy"]   { --tile: #E4B982; --tile-text: #E4B982; --tile-weak: rgba(228,185,130,.16); }
+body.dark [data-accent="packing"]     { --tile: #C2B5A1; --tile-text: #C2B5A1; --tile-weak: rgba(194,181,161,.16); }
+body.dark [data-accent="contraction"] { --tile: #E69E8A; --tile-text: #E69E8A; --tile-weak: rgba(230,158,138,.16); }
+body.dark [data-accent="finance"]     { --tile: #B0A8DB; --tile-text: #B0A8DB; --tile-weak: rgba(176,168,219,.16); }
+body.dark [data-accent="diaper"]      { --tile: #E2C27E; --tile-text: #E2C27E; --tile-weak: rgba(226,194,126,.16); }
+body.dark [data-accent="vaccine"]     { --tile: #97BEDD; --tile-text: #97BEDD; --tile-weak: rgba(151,190,221,.16); }
+body.dark [data-accent="meds"]        { --tile: #D6A5BA; --tile-text: #D6A5BA; --tile-weak: rgba(214,165,186,.16); }
+body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-text: #9FB9DF; --tile-weak: rgba(159,185,223,.16); }
+body.dark [data-accent="fetal"]       { --tile: #DE9CC4; --tile-text: #DE9CC4; --tile-weak: rgba(222,156,196,.16); }
+body.dark [data-accent="temp"]        { --tile: #7FC4D0; --tile-text: #7FC4D0; --tile-weak: rgba(127,196,208,.16); }
+body.dark [data-accent="mood"]        { --tile: #C4A6D6; --tile-text: #C4A6D6; --tile-weak: rgba(196,166,214,.16); }
+  body.dark [data-accent="supplies"]    { --tile: #8FCDB2; --tile-text: #8FCDB2; --tile-weak: rgba(143,205,178,.16); }
+
+/* 第 66 次（F 线）：妈妈情绪随记——5 档 chip / 处境多选 / 14 天圆点时间轴。
+   时间轴刻意不做折线：趋势温和呈现，不放大波动制造「病感情感」。 */
+.mood-lv { display: flex; gap: 8px; }
+.mood-lv button {
+  flex: 1; padding: 11px 0; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font-size: 13px; font-family: inherit; cursor: pointer;
+}
+.mood-lv button.active {
+  background: var(--tile-weak); border-color: var(--tile);
+  color: var(--tile-text); font-weight: 600;
+}
+.mood-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.mood-tags button {
+  padding: 7px 14px; border-radius: 999px; font-size: 12.5px;
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font-family: inherit; cursor: pointer;
+}
+.mood-tags button.active {
+  background: var(--tile-weak); border-color: var(--tile);
+  color: var(--tile-text); font-weight: 600;
+}
+.mtl { display: flex; justify-content: space-between; gap: 2px; }
+.mtl-d { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.mtl-dot {
+  width: 13px; height: 13px; border-radius: 50%;
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.mtl-dot.lv1 { background: #A33F26; border-color: transparent; }
+.mtl-dot.lv2 { background: #A45F7C; border-color: transparent; }
+.mtl-dot.lv3 { background: #A8842B; border-color: transparent; }
+.mtl-dot.lv4 { background: #2E8C84; border-color: transparent; }
+.mtl-dot.lv5 { background: #26713E; border-color: transparent; }
+body.dark .mtl-dot.lv1 { background: #E69E8A; }
+body.dark .mtl-dot.lv2 { background: #D6A5BA; }
+body.dark .mtl-dot.lv3 { background: #E2C27E; }
+body.dark .mtl-dot.lv4 { background: #7BC4BC; }
+body.dark .mtl-dot.lv5 { background: #93C9A4; }
+.mtl-num { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mtl-num.now { color: var(--text); font-weight: 600; }
+/* 紧急指引卡：常驻页尾、温和描边但不做红字恐吓——文字保持中性，可达性优先 */
+.mood-urgent { border-color: var(--warn-border, var(--warn-text, #B0576B)); }
+
+/* 吸奶等 5 类型 chips（feeding）：3+2 两行排布，避免 5 等分时文字内折行 */
+.seg-wrap3 .seg-btn { flex: 1 1 30%; }
+
+/* 首页生长速览 sparkline（对标 Cali 身高/体重迷你图） */
+.gs-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); }
+.gs-cell {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.gs-lbl { font-size: 12px; font-weight: 600; color: var(--muted); }
+.gs-val { font-size: 19px; font-weight: 700; color: var(--primary-text); font-variant-numeric: tabular-nums; }
+.spark { display: block; width: 100%; height: 30px; margin-top: 4px; }
+.spark polyline { fill: none; stroke: var(--primary); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.spark circle { fill: var(--primary); }
+
+/* 全局快捷记录 dock（第 40 次）：展开式 FAB，悬在底栏右上角；
+   默认只有「＋」，点开才出现动作列 + 半透明遮罩——刻意多一次点击，不放误触面。 */
+#quickDock { position: fixed; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 40; }
+#quickDock .qd-fab {
+  width: 54px; height: 54px; border-radius: 999px; border: none; cursor: pointer;
+  background: linear-gradient(180deg, var(--primary-fill) 0%, var(--primary-strong) 100%);
+  color: var(--on-primary); font-size: 26px; font-weight: 700; line-height: 1;
+  box-shadow: var(--shadow-hover);
+  display: flex; align-items: center; justify-content: center;
+  margin-left: auto;
+  transition: transform .2s var(--spring), box-shadow .2s var(--ease);
+}
+#quickDock .qd-fab:active { transform: scale(.92); }
+#quickDock .qd-fab:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+#quickDock.open .qd-fab { transform: rotate(45deg); }
+#quickDock .qd-actions {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  margin-bottom: 10px; visibility: hidden; opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .18s var(--ease), transform .2s var(--spring), visibility .18s;
+}
+#quickDock.open .qd-actions { visibility: visible; opacity: 1; transform: none; }
+#quickDock .qd-action {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 16px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); cursor: pointer;
+  font-size: 14px; font-weight: 600; font-family: inherit;
+  box-shadow: var(--shadow-card);
+  min-height: 44px;
+  transition: transform .15s var(--spring), background .2s var(--ease);
+}
+/* 第 84 次：动作列逐项入场——展开时每个动作按 --i 序号 30ms 步进淡入+轻上移。
+   作用域锁在 .open（收起无动画）；fill 用 backwards（只在 delay 期压住首帧，
+   结束后释放 transform，:active 的 scale 按压态不被 keyframes 拦住）。
+   收起仍走容器 .18s 过渡——退场快于入场。 */
+#quickDock.open .qd-action {
+  animation: qdIn .2s var(--ease) backwards;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+@keyframes qdIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+#quickDock .qd-action .qd-ico { width: 18px; height: 18px; flex: none; }
+#quickDock .qd-action:hover { background: var(--surface-2); }
+#quickDock .qd-action:active { transform: scale(.95); }
+#quickDock .qd-action:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+/* 展开时的半透明遮罩（第 43 次：由 ::before 伪元素改为真实元素 #qdMask）。
+   伪元素撑满全屏时事件 target 是宿主元素本身，无法与「点 dock 自身」区分，
+   导致点遮罩收不起来；真实元素才能单独挂 click。 */
+#quickDock .qd-mask {
+  position: fixed; inset: 0; z-index: -1;
+  background: rgba(51, 48, 43, .28);
+  visibility: hidden; opacity: 0;
+  transition: opacity .18s var(--ease), visibility .18s;
+}
+#quickDock.open .qd-mask { visibility: visible; opacity: 1; }
+
+@media (min-width: 980px) {
+  #quickDock { right: calc((100vw - 860px) / 2 + 16px); }
+}
+
+/* 下次喂奶参考（home.js）：横向 slim 卡，图标 + 两行文案 */
+.feed-next { display: flex; align-items: flex-start; gap: 12px; }
+.feed-next .row-ico { margin-top: 2px; }
+.feed-next b { font-size: 14px; }
+.feed-next div { font-size: 13.5px; line-height: 1.6; }
+.feed-next .hint { display: block; font-size: 12px; margin-top: 2px; }
+
+/* 体温高温值提示色（temp.js）： danger 同源，不做告警横幅（U-25，提示就医走 warn-box） */
+.temp-high { color: var(--danger); font-weight: 700; }
+
+/* 大数字 + 尺滑杆（第 41 次，对标 Cali 录入范式） */
+.ruler {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px 12px; background: var(--surface-2);
+}
+.ruler-num { text-align: center; line-height: 1.05; margin-bottom: 10px; position: relative; }
+.ruler-num b {
+  font-size: 46px; font-weight: 700; color: var(--primary-text);
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; letter-spacing: -.5px;
+  display: inline-block;
+}
+/* 数字直输层（第 102 次，OP-GAP-01）：
+   盖在大数字上的透明 number 输入框——默认 opacity:0 不干扰滑杆点击与视觉，
+   聚焦时 .ruler-num.editing 让它显形并把大数字让位。
+   这样「想精确填 90ml」不必点 ＋ 十八次（奶量滑杆 step=5）。 */
+.ruler-num-in {
+  position: absolute; left: 50%; top: 0; transform: translateX(-50%);
+  width: 100%; max-width: 100%; height: 100%;
+  font-size: 40px; font-weight: 700; text-align: center;
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
+  color: var(--primary-text); background: var(--surface-2);
+  border: 1px solid var(--primary); border-radius: var(--radius-xs);
+  padding: 0 4px; margin: 0; opacity: 0; pointer-events: auto;
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.ruler-num-in::-webkit-outer-spin-button,
+.ruler-num-in::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.ruler-num-in:focus { outline: none; opacity: 1; }
+.ruler-num.editing b { opacity: 0; }
+.ruler-num.editing .ruler-num-in { opacity: 1; }
+/* 数字 bump（第 44 次）：值变化时轻微放大回弹，让「改了」可感知。
+   JS 侧 120ms 节流；reduced-motion 下全局 animation:none 自动降级。 */
+.ruler-num b.bump { animation: numBump .28s var(--spring); }
+@keyframes numBump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+.ruler-num b.dim { opacity: .4; }
+.ruler-num i { font-style: normal; font-size: 14px; color: var(--muted); margin-left: 5px; }
+.ruler-track { position: relative; height: 38px; }
+/* 刻度由 Util.rulerTicks 画出（按 min/max/step 真实计算），不再用等距条纹 */
+.ruler-ticks { position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; }
+.ruler-ticks .rt { position: absolute; top: 6px; bottom: 16px; transform: translateX(-50%); }
+.ruler-ticks .rt s {
+  display: block; width: 1.5px; height: 14px; margin: 0 auto;
+  background: var(--border); text-decoration: none;
+}
+.ruler-ticks .rt em {
+  display: block; margin-top: 3px; font-style: normal;
+  font-size: 10px; color: var(--muted); white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ruler-range {
+  position: absolute; inset: 0; width: 100%; height: 38px; margin: 0;
+  -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer;
+}
+.ruler-range:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
+/* 按住拖动时 thumb 加粗发光（第 44 次）：给出「抓住了」的视觉确认 */
+.ruler-range:active::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--surface), 0 0 0 6px var(--primary); }
+.ruler-range:active::-moz-range-thumb { box-shadow: 0 0 0 3px var(--surface), 0 0 0 6px var(--primary); }
+.ruler-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 5px; height: 38px; border-radius: 2.5px;
+  background: var(--primary); border: none;
+  box-shadow: 0 0 0 3px var(--surface), 0 0 0 4.5px var(--primary);
+}
+.ruler-range::-moz-range-thumb {
+  width: 5px; height: 38px; border-radius: 2.5px;
+  background: var(--primary); border: none;
+  box-shadow: 0 0 0 3px var(--surface), 0 0 0 4.5px var(--primary);
+}
+.ruler-btns { display: flex; justify-content: space-between; margin-top: 8px; }
 
 
 /* ============================================================
@@ -647,12 +1487,28 @@ body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-weak: rgba(159,1
 }
 .cal-nav button:hover { background: var(--primary-weak); color: var(--primary-text); }
 .cal-nav button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+/* 第 94 次：周历默认只显示最近七天——展开/收起整月的切换按钮（居中细字轻入口，
+   不与卡内其它按钮抢注意力；箭头随展开态翻转） */
+.cal-toggle {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  width: 100%; margin: 0 0 4px; padding: 7px 0;
+  border: none; background: transparent; color: var(--muted);
+  font-family: inherit; font-size: 12.5px; cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background .2s var(--ease), color .2s var(--ease);
+}
+.cal-toggle:hover { background: var(--surface-2); color: var(--text); }
+.cal-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.cal-toggle .cal-chev { display: inline-block; font-size: 11px; line-height: 1; transition: transform .25s var(--spring); }
+.cal-toggle[aria-expanded="true"] .cal-chev { transform: rotate(180deg); }
 .cal-week, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
 .cal-week { margin-bottom: 4px; }
-.cal-week span { text-align: center; font-size: 11px; color: var(--muted); padding: 4px 0; }
+/* 第 92 次：字号随格子放大（宽屏格约 118px，固定 11/13px 偏小） */
+.cal-week span { text-align: center; font-size: clamp(11px, 1.6vw, 13px); color: var(--muted); padding: 4px 0; }
 .cal-cell {
   position: relative; aspect-ratio: 1 / 1; border: none; background: transparent;
-  border-radius: 14px; cursor: pointer; font-family: inherit; font-size: 13px;
+  border-radius: var(--radius-md); cursor: pointer; font-family: inherit;
+  font-size: clamp(13px, 2.2vw, 17px);
   color: var(--text); display: flex; align-items: center; justify-content: center;
   transition: background .2s var(--ease), color .2s var(--ease), transform .15s var(--spring);
 }
@@ -660,7 +1516,7 @@ body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-weak: rgba(159,1
 .cal-cell:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 .cal-cell:hover:not(.is-empty) { background: var(--surface-2); }
 .cal-cell.is-today { font-weight: 700; box-shadow: inset 0 0 0 1.5px var(--primary); }
-.cal-cell.is-sel { background: var(--primary); color: #fff; font-weight: 700; }
+.cal-cell.is-sel { background: var(--primary-fill); color: var(--on-primary); font-weight: 700; }
 .cal-cell.is-sel .cal-dot { background: #fff; }
 .cal-dots { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); display: flex; gap: 3px; align-items: center; }
 .cal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--tile, var(--primary)); flex: none; }
@@ -669,6 +1525,9 @@ body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-weak: rgba(159,1
 .day-list { list-style: none; padding: 0; margin: 0; }
 .day-list li { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 13.5px; border-bottom: 1px solid var(--border); }
 .day-list li:last-child { border-bottom: none; }
+/* 第 95 次（用户反馈）：明细行显示记录的时间戳——几点记的一眼可读；
+   无时刻来源的记录（里程碑/疫苗等纯日期项）不占位。 */
+.day-list .dl-time { font-size: 11.5px; color: var(--muted); flex: none; min-width: 36px; font-variant-numeric: tabular-nums; }
 .day-list .ico { width: 17px; height: 17px; color: var(--primary); flex: none; }
 .day-list li[data-accent] .ico { color: var(--tile, var(--primary)); }
 .day-list .dl-label { color: var(--muted); flex: none; width: 38px; }
@@ -679,9 +1538,35 @@ body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-weak: rgba(159,1
 
 /* ---------- 设置：开关行 ---------- */
 .row-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
+/* 滑动开关（第 44 次）：原生 17px checkbox 触控面太小且无状态过渡。
+   纯 CSS 实现（input 是替换元素不能用 ::before，改用 background-position 移动旋钮）：
+   44×26 药丸 + 弹簧滑动；勾选态整条轨道变主色（对卡面 3.56:1 ≥3 ✓），
+   旋钮带 --border-input 描边环保证在浅色轨道上可辨（≈3.3:1 ≥3 ✓）。 */
+.row-switch input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none;
+  width: 44px; height: 26px; flex: none; margin: 0; padding: 0;
+  border: 1px solid var(--border-input); border-radius: 999px;
+  background-color: var(--surface-2);
+  background-image: radial-gradient(circle at center,
+    var(--surface-solid) 0 7.5px, var(--border-input) 7.5px 8.5px, transparent 9px);
+  background-repeat: no-repeat;
+  background-size: 20px 20px;
+  background-position: 2px center;          /* 关：旋钮居左 */
+  cursor: pointer;
+  transition: background-position .25s var(--spring),
+              background-color .25s var(--ease), border-color .25s var(--ease);
+}
+.row-switch input[type="checkbox"]:checked {
+  background-color: var(--primary);
+  border-color: var(--primary);
+  background-position: calc(100% - 22px) center; /* 开：旋钮居右（padding-box 内 42-20+2） */
+}
+.row-switch input[type="checkbox"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .row-switch label { margin: 0; flex: 1 1 auto; font-size: var(--fs-body); color: var(--text); }
 .row-switch .hint { flex: 1 1 auto; margin: 0; }
-.row-switch input[type="checkbox"] { width: 22px; height: 22px; flex: none; accent-color: var(--primary); cursor: pointer; }
+/* 第 44 次：原 22px checkbox 样式已被上方滑动开关取代（勿回填——旧规则写在
+   新规则之后会以同特异性覆盖宽高，把开关压回小方块） */
+.row-switch input[type="checkbox"]:disabled { opacity: .5; cursor: not-allowed; }
 
 
 /* ============================================================
@@ -690,9 +1575,23 @@ body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-weak: rgba(159,1
 .page-head { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 16px; }
 .page-head h1 { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 700; margin: 0; }
 .page-head p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
-.cal-page { max-width: 560px; margin: 0 auto; }
+/* 第 92 次（月历适配宽高）：去掉 560px 限宽——此前宽屏下月历卡比同页其它卡
+   窄一截（.view 默认 640 / 宽屏 860），用户反馈「月历总是很窄不适配宽高」。
+   卡片保持与同页其它卡同宽。
+   第 93 次（网格封顶）：用户澄清「整个铺的太大」——全宽下格子放大到约 110px、
+   月历占满整屏，太大的是**月历本体**而非卡片。月份头/星期行/格子限宽 460px
+   居中，格子封顶约 63px。
+   第 95 次（用户反馈：周历块拉长适应屏幕宽）：默认视图只剩周历条+当日明细，
+   460px 封顶反而让七天空洞——周历条与当日明细移出限宽组，跟随卡片撑满；
+   展开整月后网格三段仍保持 460 居中，两侧布局互不影响。 */
+.cal-page { margin: 0 auto; }
+.cal-head, .cal-week, .cal-grid {
+  max-width: 460px; margin-left: auto; margin-right: auto;
+}
 
 .mod-head { display: flex; align-items: center; gap: var(--space-sm); margin: 0 0 var(--space-md); }
+/* 第 95 次：返回按钮已收进 sticky 顶栏（不再 fixed 悬浮），模块页无需再让位——
+   原 body.in-module .view { padding-top: 40px } 随旧按钮一并移除 */
 .mod-head-ico {
   width: 30px; height: 30px; padding: 8px; border-radius: 999px; box-sizing: content-box;
   display: inline-flex; align-items: center; justify-content: center;
@@ -705,24 +1604,56 @@ body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-weak: rgba(159,1
 /* ============================================================
    桌面端响应式
    ============================================================ */
+/* 桌面悬停设备：细滚动条融入奶油底（触屏设备保持原生覆盖式滚动条，不受影响） */
+@media (hover: hover) and (pointer: fine) {
+  html { scrollbar-width: thin; scrollbar-color: rgba(122, 114, 104, .35) transparent; }
+  body.dark { scrollbar-color: rgba(255, 255, 255, .22) transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(122, 114, 104, .30); border-radius: 999px;
+    border: 3px solid transparent; background-clip: content-box;
+  }
+  body.dark ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .20); border: 3px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  /* 第 53 次：桌面 hover 流光——一道高光斜掠过磁贴（仅精确指针设备）。
+     只动 transform 的入场即走式动画，移开即灭；reduced-motion 全局关闭后
+     伪元素停在 opacity 0，不可见。 */
+  .record-tile::after {
+    content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 55%;
+    background: linear-gradient(105deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, .38) 50%, rgba(255, 255, 255, 0) 100%);
+    transform: translateX(-130%) skewX(-18deg);
+    opacity: 0; pointer-events: none;
+  }
+  .record-tile:hover::after { opacity: 1; animation: tileSheen .85s var(--ease); }
+}
+@keyframes tileSheen {
+  from { transform: translateX(-130%) skewX(-18deg); }
+  to { transform: translateX(305%) skewX(-18deg); }
+}
+
 @media (min-width: 980px) {
-  .view, .app-header, .tabbar { max-width: 860px; }
-  .record-grid { grid-template-columns: repeat(4, 1fr); }
+  .view, .app-header { max-width: 860px; } /* 底栏已改 max-content 自适应宽，不再需要宽屏上限 */
+  /* 第 56 次：磁贴已是单列信息行，宽屏只放宽呼吸感；统计卡（日期记录页）回 auto-fit */
+  .record-grid { gap: 12px; }
+  /* 桌面宽度充裕，统计卡回到 auto-fit：3/4/5 张都尽量单行铺开 */
+  .stat-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
   .home-greet h1 { font-size: 26px; }
-  .home-sky { height: 200px; }
+  /* 第 64 次：固定高改 min-height（问候卡并入知识句后内容变高，固定高+overflow:hidden 会裁切）
+     第 80 次：大日期撤下，宽屏天空回到统一 min-height */
+  .home-sky { min-height: 232px; }
 }
 
 /* ============================================================
    超窄屏适配（<360px：iPhone SE 第一代 / 折叠屏外屏 / 分屏半屏）
-   缩小页面留白与磁贴内边距，磁贴保持 2 列不换行成 1 列（避免过长）。
+   缩小页面留白与行内边距；模块记录已是单列信息行，无需多列断点。
    ============================================================ */
 @media (max-width: 359px) {
   .view { padding: 14px 12px calc(88px + env(safe-area-inset-bottom)); }
   .card { padding: 16px; }
-  .home-sky { margin: calc(-14px - 64px - var(--sat)) -12px 12px; height: 160px; }
-  .record-grid { grid-template-columns: repeat(2, 1fr); gap: var(--space-xs); }
-  .record-tile { padding: 13px; }
-  .stat-row { grid-template-columns: repeat(2, 1fr); }
+  .home-sky { margin: calc(-14px - 64px - var(--sat)) -12px 12px; min-height: 190px; }
+  /* 第 91 次：seam 过渡带已删除，窄屏定位覆盖规则随之退役 */
+  .record-tile { padding: 10px 12px; gap: 10px; }
+  .stat-row, .stat-row[data-n="3"], .stat-row[data-n="5"], .stat-row[data-n="6"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mod-grid { grid-template-columns: repeat(2, 1fr); }
   .seg-btn { padding: 9px 10px; font-size: 13px; }
   .cal-nav button { width: 32px; height: 32px; }
@@ -732,10 +1663,10 @@ body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-weak: rgba(159,1
    触屏适配：取消「粘住」的 hover 态
    ============================================================ */
 @media (hover: none) {
-  .card:hover, .record-tile:hover, .home-avatar:hover, .mod-item:hover,
+  .record-tile:hover, .home-avatar:hover, .mod-item:hover,
   .btn:hover, .btn-mini:hover, .theme-toggle:hover,
   .seg-btn:hover, .tab:hover, .list li:hover { transform: none; }
-  .card:hover, .record-tile:hover {
+  .record-tile:hover {
     background: var(--surface); border-color: var(--border); box-shadow: var(--shadow-card);
   }
   .list li:hover {
@@ -761,7 +1692,7 @@ body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-weak: rgba(159,1
   color: var(--primary);
 }
 .ico-sm { width: 16px; height: 16px; }
-.card h2 .ico { color: var(--primary); width: 18px; height: 18px; vertical-align: -0.28em; margin-right: 7px; }
+/* 第 60 次：卡片标题不再挂装饰图标（.card h2 .ico 规则随 icon 移除一并退役） */
 
 .illo {
   display: block; width: 100%; max-width: 160px; height: auto;
@@ -795,7 +1726,10 @@ body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-weak: rgba(159,1
 
 /* 进入动画：卡片错落淡入（弹性） */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(12px); }
+  /* 第 96 次（原生手感·方向性进场）：水平位移交给 --enter-x（showTab 按导航方向注入：
+     前进从右 18px 滑入、返回从左 -18px、平级页签 0 纯上浮）。CSS 变量 Chrome 49+/
+     iOS 9.3+/X5 内核全支持，动画仍只动 transform+opacity（合成器层，60fps）。 */
+  from { opacity: 0; transform: translate3d(var(--enter-x, 0px), 12px, 0); }
   to { opacity: 1; transform: none; }
 }
 .view-enter > *, .view--enter > * { animation: fadeUp .35s var(--spring) both; }
@@ -820,5 +1754,226 @@ body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-weak: rgba(159,1
    ============================================================ */
 .remind-card { border-left: 3px solid var(--warn); }
 .remind-list li { cursor: pointer; }
-.remind-list li:active { transform: scale(.98); }
+.remind-list li:active { background: var(--primary-weak); transform: none; }
 
+/* ============================================================
+   第 80 次（宝宝档案）：设置页宝宝列表。行复用 .card .list 去壳样式
+   （透明行+分隔线），头像 40px 圆裁；「当前」用弱色底轻标记。
+   ============================================================ */
+.baby-list li { cursor: pointer; box-shadow: none; } /* 行内有头像标识，不再叠分色左条 */
+.baby-list li[data-baby-active] { background: var(--primary-weak); }
+.baby-list li:active { background: var(--primary-weak); transform: none; }
+.baby-ava {
+  flex: none; width: 40px; height: 40px; border-radius: 50%;
+  object-fit: cover; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-2); color: var(--primary-text); margin-right: 12px;
+}
+.baby-ava-fallback .ico { width: 20px; height: 20px; }
+.baby-list .li-main b { font-size: 14.5px; }
+.baby-list .baby-sub { display: block; font-style: normal; font-size: 12px; color: var(--muted); margin-top: 1px; }
+.baby-badge {
+  flex: none; font-size: 11px; font-weight: 700; line-height: 1;
+  color: var(--primary-text); background: var(--surface);
+  border: 1px solid var(--primary-weak); border-radius: 999px; padding: 4px 8px;
+}
+.baby-ops { flex: none; display: flex; gap: 6px; margin-left: 4px; }
+.baby-ops .btn-mini { min-height: 36px; padding: 6px 12px; font-size: 12.5px; }
+
+/* ============================================================
+   备份相关（研究报告 U-30 / U-42）：
+   - .backup-line：首页底部中性状态行，不是按钮、不是 CTA、无强调色，整行可点。
+   - .notice-banner：持续性静默风险的强提示卡，不自动消失、可延迟关闭、不阻断操作。
+   ============================================================ */
+.backup-line {
+  display: flex; align-items: center; gap: 8px;
+  margin: var(--space-md) 0 var(--space-lg);
+  padding: 6px 4px;
+  font-size: 12.5px; line-height: 1.5;
+  color: var(--muted); /* 曾误用不存在的 --text-dim/--text-muted 回退到硬编码灰，已归一到 --muted 并纳入对比度回归 */
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+  transition: background .18s var(--spring);
+}
+.backup-line .ico { width: 14px; height: 14px; flex: none; opacity: .75; }
+.backup-line:hover { background: var(--surface, rgba(0,0,0,.03)); }
+.backup-line:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.notice-banner { border-left: 3px solid var(--warn); }
+.notice-banner h2 { display: flex; align-items: center; gap: 6px; }
+.notice-banner h2 .ico { width: 18px; height: 18px; }
+.notice-banner .row { margin-top: var(--space-sm); }
+.notice-banner .row .btn { flex: 1; }
+
+/* ============================================================
+   回顾卡（calendar.js / U-26）与告别卡（settings.js / U-03）：
+   平静呈现——不用红色、不用进度条、不用「连续天数」；
+   回顾只拿用户自己的数据自比，告别卡不设任何挽留话术。
+   ============================================================ */
+.review-card { border-left: 3px solid var(--primary); }
+.review-card p { line-height: 1.7; }
+.review-card .row { margin-top: var(--space-sm); }
+.review-card .row .btn { width: 100%; }
+
+.farewell-card { border-left: 3px solid var(--primary); }
+.farewell-card h2 { display: flex; align-items: center; gap: 6px; }
+.farewell-card h2 .ico { width: 18px; height: 18px; }
+.farewell-card p { line-height: 1.7; }
+.farewell-card .btn { margin-top: 6px; }
+
+/* ============================================================
+   成长时间轴（calendar.js / U-27）：纯本地生成，只用灰调线与柔色点，
+   不做「超前/落后」着色，避免把时间轴读成评分表。
+   ============================================================ */
+.timeline-card .timeline { list-style: none; margin: 0; padding: 0; }
+.timeline-card .timeline li {
+  position: relative; display: flex; align-items: flex-start; gap: 8px;
+  padding: 8px 0 8px 16px; border-left: 2px solid var(--border);
+}
+.timeline-card .timeline li:last-child { border-left-color: transparent; }
+.timeline-card .tl-dot {
+  position: absolute; left: -6px; top: 14px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--primary-weak); border: 2px solid var(--primary);
+}
+.timeline-card .tl-date { flex: none; width: 88px; font-size: 12.5px; color: var(--muted); padding-top: 2px; }
+.timeline-card .tl-text { flex: 1 1 auto; min-width: 0; font-size: 14px; line-height: 1.5; }
+.timeline-card .tl-text i { display: block; font-style: normal; font-size: 12.5px; color: var(--muted); }
+
+/* ============================================================
+   U-08 触控目标 44×44（取 WCAG 2.2 SC 2.5.5 AAA，高于 SC 2.5.8 AA 的 24×24）：
+   抱娃单手 + 碎片化睡眠下操作精度差，所有可点元素给足最小命中面积。
+   只加下限，不放大视觉——图标仍按原尺寸绘制，多出来的部分是热区。
+   ============================================================ */
+/* 第 92 次：.cal-cell 移出 44px 触控清单——min-height 与 aspect-ratio:1/1 冲突
+   （窄屏格宽约 41px 被 min-height 拉成 41×44 长方形，月历「不适配宽高」的成因之一）；
+   41px 触控目标仍可接受，格子恢复正方形自适应 */
+.btn, .seg-btn, .icon-btn, .quick-btn, .tab, .cal-nav button { min-height: 44px; }
+.icon-btn, .cal-nav button { min-width: 44px; }
+
+/* ============================================================
+   U-09 夜间（22:00–06:00，body.is-night）：压低动效强度与强调色饱和度，
+   减少深夜看屏的唤醒成本。禁止全屏白底弹窗由 .modal 卡片式实现保证。
+   ============================================================ */
+body.is-night .notice-banner,
+body.is-night .review-card,
+body.is-night .farewell-card { filter: saturate(.85); }
+body.is-night .seg-btn.active .ico,
+body.is-night .progress-bar,
+body.is-night .view-enter > *,
+body.is-night .view-enter .stat-num { animation-duration: .01ms !important; }
+body.is-night .btn { transition: none; }
+body.is-night .btn:active { transform: none; }
+
+/* ============================================================
+   第 87 次（P1 情境3）：深夜降档（body.dark.deep-night，23:00–05:00）——
+   暗色 surface 再压一档亮度。深夜瞳孔放大，暗色主题的「正常亮度」
+   在被窝里也会晃眼；只动背景/表面与页面底色 token，不动文字色，
+   contrast_check 验证过的配色对仍在同一套 token 上成立。
+   ============================================================ */
+body.dark.deep-night {
+  --bg-grad: linear-gradient(170deg, #1B1815 0%, #1E1A17 55%, #1B1815 100%);
+  /* 第 105 次：本块压暗了 --bg-grad，必须同步压暗 --header-bg-top，
+     否则深夜 23:00–05:00 顶栏仍停在 #221E1A，与页面顶差 3.7/255，横线重现。
+     凡改 --bg-grad 的作用域都要连带改这个 token —— 这是同源约束。 */
+  --header-bg-top: #1B1815;
+  --surface: #262220;
+  --surface-solid: #2A2521;
+  --surface-2: #201C19;
+}
+
+/* ============================================================
+   第 100 次：底栏五口集中排列（body.dock-left / body.dock-right，
+   设置 · 外观 · 底栏排列）——取代第 87 次只镜像快记钮的 left-hand。
+   left/right 时：底栏变竖排胶囊固定屏幕同侧下缘，五口=首页 / 日期记录 /
+   快记＋ / 宝宝切换 / 设置；页签只留图标（竖排没文字空间）；
+   快记 FAB 隐藏（＋已在底栏，转发点击复用原逻辑），动作列改从底栏上方
+   展开（定位吃 --dock-h，由 buildTabbar 按真实胶囊高度注入）；
+   顶栏齿轮隐藏（设置已在底栏），头像保留（身份展示 + 也能开切换面板）。
+   normal 不挂类、一条规则都不吃，居中横排原样。
+   ============================================================ */
+body.dock-left .tabbar, body.dock-right .tabbar {
+  flex-direction: column; flex-wrap: nowrap;
+  overflow: visible;
+  padding: 8px 6px; gap: 2px;
+  /* 第 101 次修复：定位完全自持——不依赖覆盖 base 的 left:50%/transform 链。
+     个别内核（X5/夸克等）对 fixed + left:50% + translateX(-50%) + 覆盖的组合
+     解析异常时胶囊会整体漂出画面；四向显式声明后任何内核都只能得出同一结果。 */
+  top: auto;
+}
+body.dock-left .tabbar { left: 12px; right: auto; transform: none; }
+body.dock-right .tabbar { left: auto; right: 12px; transform: none; }
+body.dock-left .tab, body.dock-right .tab {
+  flex: 0 0 auto; min-width: 0; width: 46px; padding: 9px 0;
+}
+/* 图标-only 页签：标签藏掉（仍留在 DOM，读屏与无障碍语义不变） */
+body.dock-left .tab .tab-label, body.dock-right .tab .tab-label { display: none; }
+body.dock-left .tab .ico, body.dock-right .tab .ico { width: 22px; height: 22px; }
+/* 快记＋在竖排里给一个主色底，与普通页签拉开层级 */
+body.dock-left .tab-plus, body.dock-right .tab-plus { background: var(--primary-weak); }
+body.dock-left .tab-plus .ico, body.dock-right .tab-plus .ico { color: var(--primary-text); }
+/* 设置入口已在底栏：顶栏齿轮收掉，避免双入口 */
+body.dock-left .header-gear, body.dock-right .header-gear { display: none; }
+/* 快记 FAB 隐藏；动作列从竖排底栏上方展开，与底栏同侧对齐 */
+body.dock-left #quickDock, body.dock-right #quickDock {
+  right: auto; bottom: calc(10px + env(safe-area-inset-bottom) + var(--dock-h, 260px) + 12px);
+}
+body.dock-left #quickDock { left: 12px; }
+body.dock-right #quickDock { left: auto; right: 12px; }
+body.dock-left #quickDock .qd-fab, body.dock-right #quickDock .qd-fab { display: none; }
+body.dock-left #quickDock .qd-actions { align-items: flex-start; }
+/* 第 101 次修复：toast 避让——toast 居中且默认可宽达全屏减 32px，
+   dock 模式下左右两侧被竖排胶囊占据，长提示（如「已切左手模式…」）
+   会盖住胶囊按钮约 2.5s。收窄 max-width 留出两侧胶囊区，不再重叠。 */
+body.dock-left #toastRoot, body.dock-right #toastRoot { max-width: calc(100vw - 148px); }
+/* 第 101 次审查修复：横屏矮屏（vh≈390）下动作列若仍从胶囊上方纵向展开
+   （bottom≈268px + 列高≈230px），前几项会溢出画面顶部。改从胶囊朝屏幕
+   中心一侧水平展开、bottom 与胶囊对齐，两行 wrap 后高约 100px，稳在画面内。 */
+@media (orientation: landscape) {
+  body.dock-left #quickDock, body.dock-right #quickDock {
+    bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+  body.dock-left #quickDock { left: 84px; right: auto; }   /* 胶囊右缘 72px + 12px */
+  body.dock-right #quickDock { left: auto; right: 84px; }
+  body.dock-left #quickDock .qd-actions, body.dock-right #quickDock .qd-actions {
+    flex-direction: row; flex-wrap: wrap; align-items: flex-start;
+    justify-content: flex-start; margin-bottom: 0;
+    max-width: min(62vw, 440px);
+  }
+  body.dock-right #quickDock .qd-actions { justify-content: flex-end; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .seg-btn.active .ico, .view-enter > *, .view-enter .stat-num, .progress-bar { animation-duration: .01ms !important; }
+}
+
+
+
+/* 第 103 次（OP-GAP-03）：全局字号倍率。
+   起因是第七版审计的缺口——--fs-* 五个变量早已齐备（:root line 57-61），
+   但没有设置项；小宝记评论原话是「能不能调整页面字体大小……可以和家里长辈一起看」。
+
+   为什么覆盖变量就够：实测 styles.css 里 font-size 的硬编码 px 计数为 0，
+   全部引用 var(--fs-*)，所以这里改一次，全站字号一起变，不存在漏网的硬编码。
+
+   为什么加 !important：本文件里 body 字号的消费方有 13 处（含 .row-switch label、
+   .hint、.stat-num 等自带声明的元素），特异性参差不齐；统一 !important 是本项目
+   既有风格（见 --dock-h、下方动效压降段），也让这条覆盖的优先级是确定的。
+
+   档位刻意只到 1.3：再大就会挤破滑杆大数字（.ruler-num b 46px）与磁贴单列布局，
+   1.3 是「长辈能看清」与「不破版式」之间的实测折中。 */
+body.fs-lg {
+  --fs-display: 39px !important;
+  --fs-title: 22px !important;
+  --fs-h2: 18px !important;
+  --fs-body: 17px !important;
+  --fs-sm: 15px !important;
+}
+body.fs-xl {
+  --fs-display: 44px !important;
+  --fs-title: 25px !important;
+  --fs-h2: 21px !important;
+  --fs-body: 20px !important;
+  --fs-sm: 17px !important;
+}
+/* 滑杆大数字是绝对尺寸（46px），不跟 --fs-*；字号放大时同步放大，
+   否则会出现「大字配小数字」的割裂感。 */
+body.fs-lg .ruler-num b { font-size: 53px !important; }
+body.fs-xl .ruler-num b { font-size: 60px !important; }
