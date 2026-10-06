@@ -17,6 +17,38 @@
 
   var current = 'home';
 
+  /* 第 116 次（真机实测：iOS 添加到桌面后顶部一条白色渐变 + 顶栏元素挤成一团）：
+     独立模式（PWA 添加到桌面）下，env(safe-area-inset-top) 本身已包含 iOS 状态栏高度，
+     CSS 若再叠加 10px 基础内边距就是「安全区算两遍」——顶栏被撑高 126px，
+     头像/齿轮/日期全被推到状态栏下方（用户说的「挤到一起」），
+     且状态栏裸露区没有过渡层，浮出一条白色渐变（用户说的「白色渐变」）。
+
+     这里把独立模式标记写进 --sat-standalone，CSS 据此决定要不要那10px。
+     判定三条（任一命中即算独立模式）：
+       1. matchMedia('(display-mode: standalone)')  —— 标准 PWA 桌面图标
+       2. matchMedia('(display-mode: fullscreen)')   —— iOS Safari 自定义全屏
+       3. navigator.standalone                        —— iOS 旧内核（iOS 6~10）
+     标签页模式（微信内置浏览器、Safari 首次打开、Chrome 标签页）三条全不命中，
+     保持原有 10px 基础内边距 + env() 的行为不变。
+     display-mode 还能监听（从浏览器标签「添加到主屏幕」后热切换），
+     切回标签页时恢复 10px，无需刷新。 */
+  function syncStandalone() {
+    try {
+      var root = document.documentElement;
+      var mqStandalone = global.matchMedia && global.matchMedia('(display-mode: standalone)');
+      var mqFullscreen = global.matchMedia && global.matchMedia('(display-mode: fullscreen)');
+      var isStandalone = !!global.navigator.standalone ||
+        !!(mqStandalone && mqStandalone.matches) || !!(mqFullscreen && mqFullscreen.matches);
+      root.style.setProperty('--sat-standalone', isStandalone ? '1' : '0');
+      /* 老内核无 addEventListener('change') 时静默跳过：首帧已写对，不影响显示 */
+      if (mqStandalone && mqStandalone.addEventListener) {
+        mqStandalone.addEventListener('change', syncStandalone);
+      } else if (mqStandalone && mqStandalone.addListener) {
+        mqStandalone.addListener(syncStandalone); /* Safari 13- */
+      }
+    } catch (e) { /* 极旧内核：CSS 回落默认值 0，仍是原来的10px + env() 行为 */ }
+  }
+
   /* 第 100 次：底栏五口排列模式。normal=居中横排（默认）/ left=左下竖排 / right=右下竖排。
      存储只存字符串，这里统一收口读取；无效值一律回落 normal。 */
   function handMode() {
@@ -130,7 +162,18 @@
   function syncHeader() {
     var header = document.querySelector('.app-header');
     if (!header) return;
-    if (current !== 'home') { header.classList.add('is-scrolled'); return; }
+    /* 第 117 次：区分「首页滚动后」与「模块页」——两者曾共用 is-scrolled，
+       但顶栏雾化的前提完全不同：
+         首页背后是天空画布，状态栏区必须留透明让天空透出（否则 59px 处硬横线）；
+         模块页背后**没有天空**，留透明就是直接露出 body 底色，
+         在 iOS 上等于把横线搬到状态栏那一行。
+       所以模块页用 is-solid（真雾化、无安全区豁免），首页滚动用 is-scrolled。 */
+    if (current !== 'home') {
+      header.classList.add('is-solid');
+      header.classList.remove('is-scrolled');
+      return;
+    }
+    header.classList.remove('is-solid');
     var y = window.pageYOffset || (document.documentElement && document.documentElement.scrollTop) || 0;
     if (y > 8) header.classList.add('is-scrolled');
     else header.classList.remove('is-scrolled');
@@ -143,6 +186,15 @@
        返回=从左收回（模块页回首页），底栏页签互切与平级跳转纯上浮。
        只动 transform+opacity；reduced-motion 下全局禁动画自动降级。 */
     var prevId = current;
+    /* 第 116 次：进入「有上一层」的模块时登记一条 history，让侧滑返回与
+       浏览器/系统返回键生效。判定只看「从顶层进更深一层」——
+       首页/日历/设置互切是平级，不登记（否则侧滑会退到另一顶层页，行为怪异）。
+       rerender 走 silent 路径且id 不变，这里由opts.silent 挡住，不会重复推栈。 */
+    var isTopLevel = (id === 'home' || id === 'calendar' || id === 'settings');
+    var wasTopLevel = (prevId === 'home' || prevId === 'calendar' || prevId === 'settings');
+    if (!(opts && opts.silent) && !isTopLevel && wasTopLevel) {
+      pushHistory(id);
+    }
     current = id;
     buildTabbar();
     var view = document.getElementById('view');
@@ -168,8 +220,7 @@
     /* 返回按钮 + 日期收起态（第 42 次）：模块页显示返回，回到首页则隐藏。
        底栏两个页签（首页/日期记录）之外的任何页，都需要一个就近的返回出口。 */
     var backBtn = document.getElementById('backBtn');
-    if (backBtn) backBtn.hidden = (id === 'home' || id === 'calendar' || id === 'settings');
-    /* 用 add/remove 而非 classList.toggle(cls, force)：测试桩的 toggle 不接受 force 参数，
+    if (backBtn) backBtn.hidden = (id === 'home' || id === 'calendar' || id === 'settings');    /* 用 add/remove 而非 classList.toggle(cls, force)：测试桩的 toggle 不接受 force 参数，
        会退化成「反转」，连续进两次同一页就把类删掉了。 */
     if (id !== 'home') document.body.classList.add('in-module');
     else document.body.classList.remove('in-module');
@@ -205,19 +256,35 @@
       bar.style.width = target;
     });
     traceStart(id); /* U-05：进入记录类模块即开始计时计点击 */
-    window.scrollTo(0, 0);
-    syncHeader(); /* 切页回到顶部，顶栏同步复位为透明 */
+    /* 第 116 次：滚动归位与恢复合并到同一处。
+       rerender 传了 restoreY，就在DOM 写完的同一帧立刻回到原位置——
+       不能像旧实现那样「先归零、等调用方下一帧再补」，那时新内容高度已变，
+       scrollTo 会撞上新的可滚动上限被静默夹断（真机实测 600 → 362/246）。
+       无 restoreY（真正的切页）仍从顶部开始，行为不变。 */
+    var restoreY = (opts && typeof opts.restoreY === 'number' && opts.restoreY > 0) ? opts.restoreY : 0;
+    window.scrollTo(0, restoreY);
+    syncHeader(); /* 切页回到顶部，顶栏同步复位为透明；restoreY 时保持已滚动态 */
+
     if (global.Glass) global.Glass.wake(); /* 折射层：重绘场景并刷新各玻璃面 */
   }
 
   /* C3（操作便捷性研究·第 32 次）：rerender 是轻操作后的原地刷新，必须保住滚动位置——
      showTab 末尾会 scrollTo(0,0)，若不恢复，待产包勾选 / 疫苗标记等列表中段操作会跳回页顶。
      真正的 Tab 切换仍从顶部开始（showTab 自身归零，这里只恢复 rerender 场景）。
-     第 51 次：rerender 同时走 silent 静默路径——轻操作只更新数据，不重播整页入场动画。 */
+     第 51 次：rerender 同时走 silent 静默路径——轻操作只更新数据，不重播整页入场动画。
+
+     第 116 次（真机实测：用户反馈「每次从模块退出都会回到最高处」）：
+     旧写法是 `showTab(...)` 内部先 scrollTo(0,0)，rerender 再在【下一帧】
+     scrollTo(0, y) 补回。实测三档真机 600px 只能回到 362/474/246 —— 不是补不回，
+     是补回的时机错了：showTab 里 view.innerHTML='' 已把旧内容清空，
+     新内容按数据重新渲染后【总高度变了】，此时 scrollTo(0,600) 会撞上新的可滚动上限，
+     浏览器静默夹到实际最大值，于是位置凭空少掉一截（列表越短丢得越多）。
+
+     正确做法：把「要恢复到哪里」传进 showTab，让它在【DOM 写完的同一帧内】
+     立刻归位，而不是等调用方下一帧再补。silent 模式才恢复；真正的切页仍从顶部开始。 */
   function rerender() {
-    var y = window.pageYOffset || 0;
-    showTab(current, { silent: true });
-    window.scrollTo(0, y);
+    var y = window.pageYOffset || (document.documentElement && document.documentElement.scrollTop) || 0;
+    showTab(current, { silent: true, restoreY: y });
   }
 
   /* U-09：夜间交互要做唤醒成本控制。
@@ -987,6 +1054,15 @@
 
   function init() {
     Storage.load();
+    /* 第 116 次：独立模式标记必须在【首屏渲染前】写入。
+       晚于 buildTabbar()/首屏 showTab() 就会让首帧用错的内边距画一遍顶栏，
+       用户看到「先挤后松」的跳变。放在 init 最开头，与 Storage.load() 同级。 */
+    syncStandalone();
+    /* 第 116 次：绑定边缘侧滑返回。必须早于首次 showTab('home')——
+       绑定后 historyDepth 从 0 起，首页不响应侧滑（没有上一层），
+       与 iOS「在根页面不触发侧滑」一致。 */
+    bindSwipeBack();
+
     /* 第 74 次（G1）：损坏自愈后的告知——此前 _corruptRecovered 只置位、无消费方。
        toast 只在恢复后的第一次启动弹出（corruptNoticeShown 设置键），
        设置页「数据与备份」的常驻状态行兜底，保证知情权不依赖一次性提示。 */
@@ -1019,7 +1095,12 @@
     var backBtn = document.getElementById('backBtn');
     if (backBtn) {
       backBtn.innerHTML = icon('back');
-      backBtn.addEventListener('click', function () { showTab('home'); });
+      /* 第 116 次：返回按钮改走 popHistory —— 与侧滑、系统返回键同一条出口。
+         旧写法是 showTab('home')，会留下一条悬空 history 记录，
+         导致按一次返回后，再按系统返回又「弹回」刚才那个模块。 */
+      backBtn.addEventListener('click', function () {
+        if (!popHistory()) showTab('home');
+      });
     }
     /* 全局左上角宝宝头像（第 80 次重设计）：显示当前宝宝照片（未上传回落插画），
        多宝宝家庭点按即循环切换，单宝宝点按进设置（保持旧出口）。
@@ -1082,6 +1163,173 @@
       label: '去备份',
       onClick: function () { showTab('settings'); }
     });
+  }
+
+  /* ================= 第 116 次：边缘侧滑返回 + history 集成 =================
+     真机实测反馈「没有侧滑返回」。根因有二，都不是样式问题：
+       ① 导航是纯 showTab() 单页切换，全程没碰过 history ——
+          浏览器/系统因此不知道「还有上一层」，iOS 的边缘返回手势
+          在 PWA standalone 里默认根本不触发；
+       ② 应用内也没有任何手势实现。
+     修法：把「进模块」登记成一条 history 记录，并在屏幕左缘加边缘滑动监听：
+       - 左缘起手（起点 x < 24px）横向拖动时，实时跟手平移当前内容；
+       - 拖过阈值（宽度 22% 或速度 > 0.5px/ms）判定为返回；
+       - 松手后带动画归位，并让 #view 的进场动画反向淡出（不是瞬间跳），
+         观感与 iOS 原生一致；
+       - 右侧不做镜像：左缘返回是系统约定，右侧留给系统手势，避免双端打架。
+     约束：
+       - 只在「有上一层」（从首页/日历/设置进模块）时才允许侧滑，
+         否则侧滑会退到空状态；
+       - 模块内滚动时才响应，列表滚到中间时侧滑容易误触——
+         这里不做复杂判断，只要求起手 x 落在最左24px 窄带内，
+         已经是 iOS 的通行做法（列表内横向滚动不冲突，因为它们不贴左缘起手）；
+       - passive:false + preventDefault 才会拦得住页面横向跟随，
+         竖直方向不拦截，避免影响正常滚动。 */
+
+  var SWIPE_EDGE = 24;      /* 起手区宽度（px）：仅屏幕最左侧这一条窄带 */
+  var SWIPE_RATIO = 0.22;   /* 位移阈值：视口宽的 22% */
+  var SWIPE_VEL = 0.5;      /* 速度阈值（px/ms），甩得够快就过 */
+  var SWIPE_MAX = 0.88;     /* 最多跟到视口 88%，留一点底不飞出去 */
+  var historyDepth = 0;     /* 已登记的模块层级（回到 0 时侧滑不再响应） */
+  var swipeActive = false;
+  var swipeId = null;
+  var swipeStartX = 0, swipeStartY = 0, swipeStartT = 0, swipeLastX = 0, swipeLastT = 0;
+  var swipeVel = 0;
+  var swipeFired = false;   /* 是否已触发返回（避免一次手势跳两屏） */
+
+  /** 登记一次「进入模块」：把当前页写进 history，再在下一层写一个占位。
+      popstate 触发时回到上一层，浏览器的前进/后退也随之可用。 */
+  function pushHistory(id) {
+    if (!global.history || !global.history.pushState) return;
+    try {
+      global.history.pushState({ baoma: 1, id: id }, '');
+      historyDepth++;
+    } catch (e) { /* 极端内核禁pushState：侧滑降级为「只回到首页」 */ }
+  }
+
+  /** 退出当前模块：把 historyDepth 减到 0，并回退一条 history。
+      侧滑与顶部返回按钮共用这个出口，保证两条路径行为一致。 */
+  function popHistory() {
+    if (historyDepth <= 0) return false;
+    historyDepth--;
+    try {
+      if (global.history && global.history.go) global.history.go(-1);
+      else showTab('home');
+    } catch (e) { showTab('home'); }
+    return true;
+  }
+
+  /** 跟手动画：x 是已拖动的像素，d=是否已判定为返回（决定是否回弹）。 */
+  function animateSwipe(x, dismissing) {
+    var view = document.getElementById('view');
+    if (!view) return;
+    try {
+      if (dismissing) {
+        view.style.transition = 'transform .22s cubic-bezier(.32,.72,0,1), opacity .22s linear';
+        view.style.transform = 'translateX(' + x + 'px)';
+        view.style.opacity = String(Math.max(0.4, 1 - x / window.innerWidth));
+      } else {
+        view.style.transition = 'transform .22s cubic-bezier(.32,.72,0,1)';
+        view.style.transform = 'translateX(' + x + 'px)';
+        view.style.opacity = '1';
+      }
+    } catch (e) { /* 极旧内核无 style.transform：放弃跟手，功能不受影响 */ }
+  }
+
+  function clearSwipeStyles() {
+    var view = document.getElementById('view');
+    if (!view) return;
+    try {
+      view.style.transition = '';
+      view.style.transform = '';
+      view.style.opacity = '';
+    } catch (e) { /* 同上 */ }
+  }
+
+  function onSwipeStart(e) {
+    if (historyDepth <= 0) return;                /* 没有上一层，不响应 */
+    if (swipeActive) return;
+    var t = e.touches && e.touches[0];
+    if (!t) return;
+    var vw = window.innerWidth || 1;
+    if (t.clientX > SWIPE_EDGE && t.clientX < vw - SWIPE_EDGE) return; /* 只认左右最外侧窄带 */
+    swipeActive = true;
+    swipeFired = false;
+    swipeId = t.identifier != null ? t.identifier : 0;
+    swipeStartX = swipeLastX = t.clientX;
+    swipeStartY = t.clientY;
+    swipeStartT = swipeLastT = Date.now();
+    swipeVel = 0;
+  }
+
+  function onSwipeMove(e) {
+    if (!swipeActive) return;
+    var t = null;
+    if (e.touches) {
+      for (var i = 0; i < e.touches.length; i++) {
+        if ((e.touches[i].identifier != null ? e.touches[i].identifier : 0) === swipeId) { t = e.touches[i]; break; }
+      }
+    }
+    if (!t) return;
+    var dx = t.clientX - swipeStartX;
+    var dy = t.clientY - swipeStartY;
+    /* 竖直分量明显更大 → 判定为页面滚动，不拦截（让原生滚动正常跑） */
+    if (!swipeFired && Math.abs(dy) > Math.abs(dx) * 1.2 && Math.abs(dy) > 12) { swipeActive = false; return; }
+    if (dx <= 0) { swipeActive = false; clearSwipeStyles(); return; } /* 只处理右滑（从左缘往右拖） */
+
+    var now = Date.now();
+    var dt = Math.max(1, now - swipeLastT);
+    swipeVel = (t.clientX - swipeLastX) / dt;
+    swipeLastX = t.clientX; swipeLastT = now;
+
+    var vw = window.innerWidth || 1;
+    var x = Math.min(dx, vw * SWIPE_MAX);
+    if (e.cancelable) e.preventDefault();
+    swipeFired = true;
+    animateSwipe(x, false);
+  }
+
+  function onSwipeEnd() {
+    if (!swipeActive) return;
+    swipeActive = false;
+    var vw = window.innerWidth || 1;
+    var now = Date.now();
+    var total = now - swipeStartT;
+    var dx = swipeLastX - swipeStartX;
+    var passed = dx >= vw * SWIPE_RATIO || (swipeVel >= SWIPE_VEL && dx >= 48);
+    if (passed) {
+      /* 判定为返回：整屏推出去 → 切回首页 → 清掉跟手样式
+         （showTab 会重建 #view 的内容，旧节点上的 transform 自然失效） */
+      animateSwipe(vw, true);
+      if (global.history && global.history.go) {
+        try { global.history.go(-1); } catch (err) { showTab('home'); }
+        historyDepth = Math.max(0, historyDepth - 1);
+      } else {
+        showTab('home');
+      }
+      setTimeout(clearSwipeStyles, 240);
+    } else {
+      /* 没过阈值：回弹到原位 */
+      animateSwipe(0, false);
+      setTimeout(clearSwipeStyles, 240);
+    }
+    return total;
+  }
+
+  function bindSwipeBack() {
+    try {
+      document.addEventListener('touchstart', onSwipeStart, { passive: true });
+      document.addEventListener('touchmove', onSwipeMove, { passive: false });
+      document.addEventListener('touchend', onSwipeEnd, { passive: true });
+      document.addEventListener('touchcancel', onSwipeEnd, { passive: true });
+    } catch (e) { /* 不支持 touch 的环境（如桌面内核）不绑，功能自然缺席 */ }
+    /* 浏览器/系统返回（安卓物理返回键、桌面后退按钮、iOS 侧滑在支持时）
+       走 popstate 回到首页，与侧滑共用同一条出口。 */
+    try {
+      global.addEventListener('popstate', function () {
+        if (current !== 'home') { historyDepth = Math.max(0, historyDepth - 1); showTab('home'); }
+      });
+    } catch (e) { /* 忽略 */ }
   }
 
   if (document.readyState === 'loading') {

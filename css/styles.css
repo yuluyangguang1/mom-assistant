@@ -96,8 +96,30 @@
   --space-lg: 20px;
 
   /* 安全区：刘海机型顶部状态栏高度。顶栏内边距与首页天空负 margin 共用，
-     二者必须同步，否则刘海机上天空顶不到顶栏背后会露出底色断痕。 */
+     二者必须同步，否则刘海机上天空顶不到顶栏背后会露出底色断痕。
+
+     第 116 次（真机实测：iOS 添加到桌面后顶部出现白色渐变 + 顶栏元素挤成一团）：
+     根因不是「安全区没算」，而是「算了两遍」——
+     `black-translucent` + `viewport-fit=cover` 下，iOS 独立模式的
+     env(safe-area-inset-top) 本身【已经包含】状态栏高度（iPhone 14 Pro 实测 59px），
+     而 padding 又额外加了 10px，于是顶栏 padding-top = 69px。
+     后果有两个：
+       ① 顶栏盒子高 126px，其中 69px 是空白，头像/齿轮/日期全被推到状态栏下方，
+          视觉上就是「顶部的模块挤到一起」；
+       ② iOS 把状态栏区域按 body 背景（此处是 --bg-grad 奶油白）铺底，
+          顶栏自身的雾化层从 69px 才开始渲染，59px 裸露区没有任何过渡，
+          于是状态栏下方出现一条白色渐变带（Chrome 同样把顶部挤拢）。
+
+     修法：standalone 下不再叠加额外 padding，只保留 env() 本身；
+     非 standalone（微信/Safari 首次打开，此时 env() 可能为 0）仍给 10px 基础内边距，
+     靠 --sat-standalone 开关区分。iOS 状态栏文字颜色由
+     apple-mobile-web-app-status-bar-style 决定，与本 padding 无关。 */
   --sat: env(safe-area-inset-top, 0px);
+  /* 独立模式（PWA 添加到桌面 / display:standalone）标记：js 依据
+     matchMedia('(display-mode: standalone)') 或 iOS navigator.standalone 写入。
+     1=独立模式（env() 已含状态栏，不再加基础内边距）；缺省=浏览器标签页模式。 */
+  --sat-standalone: 0;
+  --sat-pad: calc(10px + var(--sat) * (1 - var(--sat-standalone)));
 
   --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
 }
@@ -187,7 +209,7 @@ body {
   position: sticky; top: 0; z-index: 30;
   display: flex; align-items: center; justify-content: space-between;
   max-width: 640px; margin: 0 auto;
-  padding: calc(10px + var(--sat)) 16px 10px;
+  padding: var(--sat-pad) 16px 10px;
   background: transparent; border-bottom: 1px solid transparent; box-shadow: none;
   user-select: none;
   transition: background .25s var(--ease), border-color .25s var(--ease), box-shadow .25s var(--ease);
@@ -208,18 +230,59 @@ body {
      夜间色板是冷紫（night top = 70,74,112）且 alpha 自动升到 .128，
      页面顶被推向冷紫，而顶栏还停在暖奶油，色系反而拉得更开。
 
-     所以这里必须复刻 body 的两层结构：
-       第 1 层 = ambient 色温层（与 body 完全同源，同样随色温呼吸）
-       第 2 层 = 雾化渐变（底色取 --header-bg-top，62% 后淡出到透明）
-     两层的淡出曲线都压在同一区段，保证下缘「一起」消失而不是先后错位。 */
+     第 117 次（真机像素实测，**这条线终于定位到具体坐标**）：
+     沿顶栏下缘逐行采样亮度，抓到最大跳变在 **cssY=59.5→60.0，
+     亮度 201 → 243，Δ=42/255** —— 一道硬分界，不是渐变。
+     59px 正是 iPhone 14 Pro 的 env(safe-area-inset-top)。
+
+     所以真凶不是「色系不匹配」，而是**渐变曲线在安全区边界被截断**：
+     两层雾化都是「0%~62% 全不透明，62%~100% 淡出」，62% × 67px ≈ 41.5px。
+     于是 41.5~59px 这段被奶油白 --header-bg-top 压住（冷紫被盖成 243），
+     而 0~41.5px 仍是冷紫 199 —— 两段在 41.5px 处硬接，视觉就是那条横线。
+     换句话说：**状态栏所在的那一段被涂成了不透明色，和它上方的天空脱节了**。
+
+     修法：让雾化层在【整个安全区高度内】保持完全透明，
+     天空画布从视口 0px 起就透出来，与上下连续；从安全区底部才开始雾化。
+     用 --sat-pad 作为分界（它与顶栏 padding 同步，独立模式 10px、
+     标签页模式 10+env），并用 calc 做百分比与像素的混合换算。
+
+     为什么不能只调 62% 这个百分比：顶栏盒高随内容变（模块页标题更高、
+     字号放大时更高），62% 是相对值，安全区是绝对值，两者不同源，
+     改百分比只会在另一种盒高下把线挪到别处。这里统一用 --sat-pad 换算。
+
+     两层的色标必须【逐档对齐】，否则层间又会出现新的错位台阶：
+       0% 透明 → var(--hdr-safe) 透明 → (+18%) 实 → 72% 实 → 100% 透明
+     爬升偏移（18%）与实色段终点（72%）两个数值两层必须相同 ——
+     qa_test 的「第 105 次横线回归锁」就是逐档比对这两个数值的。 */
+  --hdr-safe: var(--sat-pad, 10px);
+  background:
+    linear-gradient(180deg,
+      rgba(var(--sky-ambient-top, 255, 255, 255), 0) 0%,
+      rgba(var(--sky-ambient-top, 255, 255, 255), 0) var(--hdr-safe),
+      rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1))) calc(var(--hdr-safe) + 18%),
+      rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1))) 72%,
+      rgba(var(--sky-ambient-top, 255, 255, 255), 0) 100%),
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--header-bg-top) 0%, transparent) 0%,
+      color-mix(in srgb, var(--header-bg-top) 0%, transparent) var(--hdr-safe),
+      var(--header-bg-top) calc(var(--hdr-safe) + 18%),
+      var(--header-bg-top) 72%,
+      color-mix(in srgb, var(--header-bg-top) 0%, transparent) 100%);
+  border-bottom-color: transparent;
+  box-shadow: none;
+}
+/* 第 117 次：模块页顶栏 —— 背后没有天空画布，不能留安全区豁免，
+   否则透明段直接露 body 底色，横线只是从 59px 挪到 0px。
+   这里从 0% 起就是实色，只保留下缘的雾化淡出（原第 95 次的行为）。 */
+.app-header.is-solid {
   background:
     linear-gradient(180deg,
       rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1))) 0%,
-      rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1))) 62%,
+      rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1))) 68%,
       rgba(var(--sky-ambient-top, 255, 255, 255), 0) 100%),
     linear-gradient(180deg,
       var(--header-bg-top) 0%,
-      var(--header-bg-top) 62%,
+      var(--header-bg-top) 68%,
       color-mix(in srgb, var(--header-bg-top) 0%, transparent) 100%);
   border-bottom-color: transparent;
   box-shadow: none;
@@ -424,6 +487,29 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .seg-btn.active { background: var(--primary-weak); color: var(--primary-text); border-color: var(--primary); font-weight: 600; }
 /* 分段切换确认感：激活时图标轻微弹跳（spring），契合奶油风的 Q 弹 */
 .seg-btn.active .ico { animation: segPop .35s var(--spring); }
+
+/* 第 116 次：消耗品常用模板 chips（sp-tpl）
+   复用 .seg-btn 的视觉语言（药丸 + 描边 + 主色弱底），只是不用 flex:1 撑满，
+   按内容宽度排列并允许换行——模板数量随品类变（1~6 项），撑满会在 6 项时挤成两行空格。 */
+.sp-tpl { margin-bottom: var(--space-md); }
+.sp-tpl-hint {
+  font-size: 12.5px; color: var(--muted); margin-bottom: var(--space-xs);
+}
+.sp-tpl-row { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.sp-tpl-btn {
+  flex: 0 0 auto;
+  /* 触屏最小命中区：正文 13px + 左右 12px 内边距，触控目标 ≥44px 高由
+     padding 9px×2 + line-height 撑到约 36px；再补 min-height 逼近 44px 下限。 */
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface-2); color: var(--text);
+  font-size: 13.5px; font-family: inherit; cursor: pointer;
+  transition: background .2s var(--ease), border-color .2s var(--ease), transform .2s var(--spring);
+}
+.sp-tpl-btn:hover { border-color: var(--primary); background: var(--primary-weak); }
+.sp-tpl-btn:active { transform: scale(.95); }
+.sp-tpl-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* 首次引导（O 系列）：身份 / 性别按钮更大更好点按 */
 .seg-lg .seg-btn { flex: 1 1 auto; padding: 12px 10px; font-size: 15px; }
@@ -744,8 +830,19 @@ body.dark .list li .li-num.sup-ok  { color: #8FCDB2; }
      宽度 max-content 居中（100vw-24px 兜底防窄屏溢出）。 */
   position: fixed; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 10;
   transform: translateX(-50%);
-  display: flex; overflow-x: auto;
-  width: max-content; max-width: calc(100vw - 24px);
+  display: flex;
+  /* 第 117 次（真机：底栏右侧页签点不动）：**移除 overflow-x: auto**。
+     第 116 次为了防溢出给它加了横向滚动 + overscroll-behavior-x:contain +
+     -webkit-overflow-scrolling:touch，这在真机上是**有害的**：
+     ① iOS上 overflow-x:auto 的容器会把边缘 15~20px 判为「可横向滚动区」，
+        手指按下先被容器吃掉做滚动尝试，点击事件根本不到页签；
+     ② overscroll-behavior-x:contain 进一步阻止滚动冒泡，命中彻底丢失。
+     这是「看得见但点不动」的隐形杀手——桌面 elementFromPoint 完全测不出。
+     改为：容器不滚（overflow 可见），溢出改由 .tab 的 min-width 44px 硬下限
+     + max-width 88px 省略号 +容器 max-width 收窄三者共同保证。 */
+  width: max-content; max-width: calc(100vw - 40px);
+  /* 页签的溢出防溢出护栏（替代原先的容器横向滚动）——见 .tab 规则注释。 */
+  flex-wrap: nowrap;
   background: color-mix(in srgb, var(--surface) 74%, transparent);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   backdrop-filter: blur(20px) saturate(180%);
@@ -767,13 +864,36 @@ body.dark .tabbar {
 }
 .tab {
   position: relative;
-  flex: 1 0 auto; min-width: 52px; padding: 10px 8px 8px;
+  /* 第 116 次（真机：底栏右侧页签点不动）：
+     min-width 从 52px 降到 44px（44 是 Apple HIG 最小触控目标）。
+     第 117 次修正第 116 批的**自我矛盾**：本规则上一行写了 min-width:44px，
+     下一行又写 min-width:0 —— 后者直接覆盖前者，44px 根本没生效。
+     加上 flex:1 1 auto（允许收缩），页签多时 flex 基准被压到 0，
+     三个页签 + 快捷槽位在真机上被压成 40~50px 宽、且 .tab 声明的
+     padding 8px 横向内边距也被内容挤压 —— 视觉上「看得见」，
+     实际可点区域缩到极窄，手指按下时命中的是邻居。
+     这正是用户说的「拉到最底部后三个模块右边点不动」。
+
+     正确写法：min-width 保持 44px 硬下限（不覆盖），
+     收缩交给 max-width + span 省略号，溢出交给容器 overflow-x。
+     flex 用 0 1 auto（不许 flex 基准归零，只允许在 min-width 之上轻微收缩）。 */
+  flex: 0 1 auto; min-width: 44px; padding: 10px 8px 8px;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   border: none; background: none; border-radius: 999px;
   font-size: var(--fs-sm); color: var(--muted); cursor: pointer;
   font-family: inherit; font-weight: 500; line-height: 1.1;
+  /* 第 116 次：长标题省略而非撑宽——快捷入口模块名可达 7 字，
+     不截断会把整条底栏顶出视口（真机表现：右边的按钮点不到）。 */
+  max-width: 88px;
+  /* 第 117 次：可点区域的高度下限也必须显式给——不能靠padding 撑。
+     .tab-slot 的 padding 是 10px 14px 8px，普通 .tab 是 10px 8px 8px，
+     高度都够，但一旦文字换行/字号放大就不可控。44px 是Apple HIG 下限，
+     也是 WCAG 2.5.8 目标尺寸的最低档。 */
+  min-height: 44px;
   transition: background .2s var(--ease), color .2s var(--ease), transform .2s var(--spring);
 }
+.tab > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .tab .ico { width: 20px; height: 20px; color: var(--muted); margin: 0; }
 .tab-label { font-size: 11px; }
 .tab:hover { color: var(--text); }
@@ -789,6 +909,12 @@ body.dark .tabbar {
 /* 第 97 次：右侧自定义快捷槽位——与前两页签区分（描边 + 主色弱底 + 主色图标），
    点按直达设置里选定的常用模块；不显示时底栏维持两页签。 */
 .tab-slot {
+  /* 第 117 次：原padding 是 10px 14px 8px（左右比普通页签宽 3px），
+     但没写 min-width，所以继承了 .tab 的 min-width:44px —— 槽位标题
+     可达 7 字（「待产包」实测 69px宽），在 max-width:88px 内被截断，
+     真正压到手指的是 span 的省略号宽度，左侧图标区反而成了主要目标。
+     真机表现：槽位在底栏最右，手指按右边时命中的是胶囊内边距或溢出区。
+     修法：明确 min-height 44px（与 .tab 一致），不靠 padding 撑高度。 */
   flex: 0 0 auto; margin-left: 6px; padding: 10px 14px 8px;
   border: 1px solid var(--border); background: var(--primary-weak);
 }
@@ -931,8 +1057,16 @@ body.dark .tabbar {
 .home-sky {
   position: relative; overflow: hidden;
   /* 向上突破 .view 内边距并继续上移到顶栏背后，透明顶栏浮在天空上。
-     额外减去 --sat：刘海机型顶栏更高，天空要同步再上移，否则顶部露底色。 */
-  margin: calc(-18px - 64px - var(--sat)) -16px 14px;
+     第 117 次（真机：滚到最顶时天空/日期/问候卡看不见）：
+     原式减去的是 --sat，但 padding 已在上一个批次改成 --sat-pad，
+     两者在独立模式下不再相等 —— 刘海机--sat=59px 而 --sat-pad=10px，
+     于是天空多上移了 49px。实测 iPhone 14 Pro：
+       margin-top = -141px、天空总高 216px、视口内只露 160px；
+       问候卡 top=44px，而顶栏盒高 67px → 卡片上半被顶栏压住；
+       日期行与 h1 一起被遮，滚到顶只看到一片空白天空。
+     修法：**必须与顶栏用同一个变量**（--sat-pad），两者永远同步。
+     顶栏长高多少，天空就跟着上移多少，头像行与日期行始终同行。 */
+  margin: calc(-18px - 64px - var(--sat-pad)) -16px 14px;
   /* 第 47 次（修重叠）：原 height:216px 固定 + 大日期/问候卡两块 absolute 硬定位
      （top:66 / bottom:14），系统字号放大或问候文案偏高时两块相加超过 216px 就互相压住。
      改为 flex 纵向流：日期在上、问候卡 margin-top:auto 沉底，中间自然拉开；
@@ -941,7 +1075,7 @@ body.dark .tabbar {
   display: flex; flex-direction: column; align-items: stretch;
   /* 第 64 次：padding-top 66px → calc(10px + var(--sat))——日期上移到顶栏行
      （与 .app-header 的 padding 同值，首行与头像齐平），天空主体让给弧线 */
-  padding: calc(10px + var(--sat)) 18px 14px; box-sizing: border-box;
+  padding: var(--sat-pad) 18px 14px; box-sizing: border-box;
   /* 静态渐变兜底：即使画布未加载也是白天色板的样子（与 sky.js 的 day 三停一致，而非空白）。
      第 90 次：末档改为 #FDF9F4（旧冷白值退场），与 --bg-grad 首档同色（修问候卡下方白色条） */
   /* 第 91 次：末档透明——与画布同样把底边交还页面真实背景，兜底模式也不出横带 */
@@ -1899,8 +2033,19 @@ body.dock-left .tabbar, body.dock-right .tabbar {
      解析异常时胶囊会整体漂出画面；四向显式声明后任何内核都只能得出同一结果。 */
   top: auto;
 }
-body.dock-left .tabbar { left: 12px; right: auto; transform: none; }
-body.dock-right .tabbar { left: auto; right: 12px; transform: none; }
+/* 第 116 次（真机实测：底栏靠边的按钮在手机上点不到）：
+   12px 边距在真机上不够——竖排胶囊贴边时，最外侧按钮的外缘正好落在
+   iOS/Android 的屏幕边缘手势区（返回手势/下拉刷新区），
+   系统手势会先吃掉这一下的touch，页面收不到 click，表现就是「右边几个点不到」。
+   边距提到 20px，命中区完整落在手势区之外。
+   同时把底部抬到 16px：iPhone 有home 指示条（sab 34px），
+   贴底那一个按钮的下缘会压到指示条上，同样吃掉点击。 */
+body.dock-left .tabbar { left: 20px; right: auto; transform: none; }
+body.dock-right .tabbar { left: auto; right: 20px; transform: none; }
+body.dock-left .tabbar, body.dock-right .tabbar {
+  bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
 body.dock-left .tab, body.dock-right .tab {
   flex: 0 0 auto; min-width: 0; width: 46px; padding: 9px 0;
 }

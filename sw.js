@@ -9,7 +9,7 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v77';
+var CACHE = 'baoma-static-v79';
 
 var ASSETS = [
   './',
