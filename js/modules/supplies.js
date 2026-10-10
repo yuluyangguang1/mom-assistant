@@ -31,6 +31,65 @@
   var CATS = ['纸尿裤', '奶粉', '清洁', '辅食', '维D/药品', '衣物', '玩具', '出行', '其他'];
   var UNITS = ['包', '罐', '瓶', '盒', '袋', '件', '个', '支'];
 
+  /* 第 116 次（真机实测：消耗品要逐字手输太麻烦，没有模板可选）：
+     按品类给一组常用物品，点一下即填「名称 + 单位 + 大致可用天数 + 数量」。
+     依据与约束：
+     - 只填【品类专属的默认】，不填价格。价格是每家每次的真实决策，猜不得；
+       留着让用户自己敲，比给个错数字再改更省事。
+     - 可用天数是「这一件大概能用多久」的经验值，填错也能直接在输入框改，
+       它的作用是让新增表单在多数情况下【一次都不用动数字】。
+     - 每类不超过 6 项，全部是母婴场景里真的高频复购的东西；
+       刻意不给「其他」类配模板——那一类本来就没有可猜的默认值。
+     - 模板是纯前端常量，不落库、不计入数据版本。 */
+  var TEMPLATES = {
+    '纸尿裤': [
+      { n: '纸尿裤 NB', u: '包', d: 30, q: 1 },
+      { n: '纸尿裤 S', u: '包', d: 30, q: 1 },
+      { n: '纸尿裤 M', u: '包', d: 30, q: 1 },
+      { n: '纸尿裤 L', u: '包', d: 30, q: 1 },
+      { n: '拉拉裤 M', u: '包', d: 25, q: 1 },
+      { n: '拉拉裤 L', u: '包', d: 25, q: 1 }
+    ],
+    '奶粉': [
+      { n: '1段奶粉', u: '罐', d: 30, q: 1 },
+      { n: '2段奶粉', u: '罐', d: 30, q: 1 },
+      { n: '3段奶粉', u: '罐', d: 30, q: 1 }
+    ],
+    '清洁': [
+      { n: '湿巾', u: '包', d: 30, q: 1 },
+      { n: '云柔巾', u: '包', d: 60, q: 1 },
+      { n: '婴儿洗衣液', u: '瓶', d: 45, q: 1 },
+      { n: '护臀膏', u: '支', d: 90, q: 1 },
+      { n: '爽身粉', u: '瓶', d: 60, q: 1 },
+      { n: '消毒湿巾', u: '包', d: 30, q: 1 }
+    ],
+    '辅食': [
+      { n: '高铁米粉', u: '盒', d: 45, q: 1 },
+      { n: '果泥', u: '袋', d: 20, q: 1 },
+      { n: '宝宝面条', u: '袋', d: 40, q: 1 }
+    ],
+    '维D/药品': [
+      { n: '维生素D滴剂', u: '支', d: 30, q: 1 },
+      { n: '钙剂', u: '支', d: 30, q: 1 },
+      { n: '体温计', u: '个', d: 0, q: 1 }
+    ],
+    '衣物': [
+      { n: '和尚服', u: '件', d: 60, q: 3 },
+      { n: '连体衣', u: '件', d: 60, q: 3 },
+      { n: '口水巾', u: '个', d: 90, q: 5 }
+    ],
+    '玩具': [
+      { n: '牙胶', u: '个', d: 120, q: 1 },
+      { n: '布书', u: '本', d: 0, q: 1 }
+    ],
+    '出行': [
+      { n: '安全座椅', u: '个', d: 0, q: 1 },
+      { n: '婴儿背带', u: '个', d: 0, q: 1 },
+      { n: '便携餐椅', u: '个', d: 0, q: 1 }
+    ],
+    '其他': []
+  };
+
   /* 档位阈值：剩余天数 <=3 提醒补货，<=7 提示快用完。硬编码但语义明确。 */
   var LOW_DAYS = 3;
   var MID_DAYS = 7;
@@ -91,7 +150,7 @@
   /**
    * 新增或累加一件消耗品。查重命中时**不新增行**：
    *   - 库存 qty 累加
-   *   - 可用天数按「新购一批」累加（沿用参考实现的 ava���Days 语义）
+   *   - 可用天数按「新购一批」累加（沿用参考实现的 availDays 语义）
    *   - 价格历史追加一条
    * 返回 { item, merged }，merged=true 表示这次是并入已有行。
    */
@@ -274,12 +333,24 @@
 
       /* 新增表单 */
       html += '<div class="card"><h2>记一件消耗品</h2>';
+
+      /* 第 116 次：常用模板。放在名称输入框【之前】——
+         先点模板省掉打字，点不到模板再用下面的手输，顺序不能反。
+         模板只填名称/单位/可用天数/数量，不碰价格（价格每次都不同，猜不得）。 */
+      html += '<div class="sp-tpl" id="spTplBox">'
+        + '<div class="sp-tpl-hint">选一个省打字（价格还是自己填）</div><div class="sp-tpl-row" id="spTplRow">';
+      (TEMPLATES[CATS[0]] || []).forEach(function (t, i) {
+        html += '<button class="sp-tpl-btn" type="button" data-tpl="' + i + '">' + Util.escapeHtml(t.n) + '</button>';
+      });
+      html += '</div></div>';
+
       html += '<label>名称<input type="text" id="spName" placeholder="如：纸尿裤 L码"></label>';
       html += '<label>类别<select id="spCat">';
       CATS.forEach(function (c) {
         html += '<option value="' + c + '">' + c + '</option>';
       });
       html += '</select></label>';
+
       html += '<div class="row2">';
       html += '<label>购买日期<input type="date" id="spDate" value="' + Util.todayISO() + '"></label>';
       html += '<label>价格（元）<input type="number" id="spPrice" step="0.01" min="0" inputmode="decimal"></label>';
@@ -364,6 +435,68 @@
         };
         catSel.addEventListener('change', refreshHint);
         refreshHint();
+      }
+
+      /* 第 116 次：模板交互。
+         - 切类别 → 重绘模板行（不同品类的常用物不一样）
+         - 点模板 → 填名称/单位/可用天数/数量，并聚焦到价格框（下一步只剩填价格）
+         刻意不填价格：价格每家每次都不同，猜错比不填更糟。
+         填完给一次 toast，让用户确知「已填好，接下来只剩价格」。 */
+      var tplRow = view.querySelector('#spTplRow');
+      var tplBox = view.querySelector('#spTplBox');
+
+      function paintTemplates() {
+        if (!tplRow || !catSel) return;
+        var items = TEMPLATES[catSel.value] || [];
+        if (!items.length) {
+          /* 「其他」类无模板：整块隐藏，不留一块空白占位 */
+          if (tplBox) tplBox.style.display = 'none';
+          return;
+        }
+        if (tplBox) tplBox.style.display = '';
+        tplRow.innerHTML = items.map(function (t, i) {
+          return '<button class="sp-tpl-btn" type="button" data-tpl="' + i + '">' + Util.escapeHtml(t.n) + '</button>';
+        }).join('');
+      }
+
+      if (tplRow && catSel) {
+        /* 换类别时重绘：整体换掉行内节点，事件用委托挂在行上，不逐个重绑 */
+        catSel.addEventListener('change', paintTemplates);
+        tplRow.addEventListener('click', function (ev) {
+          var btn = ev.target.closest ? ev.target.closest('[data-tpl]') : null;
+          if (!btn) return;
+          var items = TEMPLATES[catSel.value] || [];
+          var t = items[parseInt(btn.getAttribute('data-tpl'), 10)];
+          if (!t) return;
+          var nameEl = view.querySelector('#spName');
+          var unitEl = view.querySelector('#spUnit');
+          var availEl = view.querySelector('#spAvail');
+          var qtyEl = view.querySelector('#spQty');
+          if (nameEl) nameEl.value = t.n;
+          /* 单位下拉未必含模板单位（如「本」不在 UNITS 里）：不静默丢，
+             找不到就补一个 option 选中，保证「填了就是那个单位」 */
+          if (unitEl) {
+            var found = false;
+            for (var i = 0; i < unitEl.options.length; i++) {
+              if (unitEl.options[i].value === t.u) { found = true; break; }
+            }
+            if (!found) {
+              var op = document.createElement('option');
+              op.value = t.u; op.textContent = t.u;
+              unitEl.appendChild(op);
+            }
+            unitEl.value = t.u;
+          }
+          /* 可用天数 0 = 耐用品（安全座椅/体温计），不占天数，模板里已按0 给 */
+          if (availEl) availEl.value = t.d > 0 ? t.d : '';
+          if (qtyEl) qtyEl.value = t.q || 1;
+          var priceEl = view.querySelector('#spPrice');
+          if (priceEl) { priceEl.focus(); }
+          if (global.Util && Util.toast) {
+            Util.toast('已填好「' + t.n + '」，填个价格就能存', 'ok');
+          }
+        });
+        paintTemplates();
       }
 
       /* ---------- 事件 ---------- */

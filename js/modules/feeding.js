@@ -236,7 +236,7 @@
                 + '<svg class="nf-ring" viewBox="0 0 48 48" width="44" height="44" aria-hidden="true">'
                 + '<circle cx="24" cy="24" r="20" fill="none" stroke="var(--border)" stroke-width="4"/>'
                 + '<circle cx="24" cy="24" r="20" fill="none" stroke="var(--tile, var(--primary))" stroke-width="4" stroke-linecap="round" stroke-dasharray="' + nfC.toFixed(1) + '" stroke-dashoffset="' + (nfC * (1 - nfPct)).toFixed(1) + '" transform="rotate(-90 24 24)"/>'
-                + '<text x="24" y="28.5" text-anchor="middle" font-size="12" font-weight="600" fill="currentColor">' + (nfDays + 1) + '/4</text>'
+                + '<text x="24" y="28.5" text-anchor="middle" style="font-size:calc(12px * var(--fs-mul, 1))" font-weight="600" fill="currentColor">' + (nfDays + 1) + '/4</text>'
                 + '</svg>'
                 + '<p class="hint"><b>「' + Util.escapeHtml(solidIntro(lastNew)) + '」引入第 ' + (nfDays + 1) + ' 天</b>——观察期内建议不再引入第二种新食材，留意皮疹、呕吐、腹泻；都正常即可继续引入。</p></div></div>';
             }

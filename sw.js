@@ -9,7 +9,9 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v77';
+var CACHE = 'baoma-static-v84';
+/* v84（第 123 次）：home.js 直接记录第二批（瓶喂/亲喂/吸奶步进卡）、styles.css
+   步进器样式。v83（第 122 次）为尿布/睡眠直接记录。凡触碰过的缓存文件随版本重新下发。 */
 
 var ASSETS = [
   './',

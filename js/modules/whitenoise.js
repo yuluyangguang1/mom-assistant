@@ -31,10 +31,22 @@
   var MINUTES = [10, 20, 30, 0]; /* 0 = 不限时（显式选择，且带提示） */
 
   /* ---------------- 音频引擎（状态活在页面里，不产生任何网络请求） ---------------- */
-  var engine = { ctx: null, src: null, gain: null, playing: false };
+  var engine = { ctx: null, src: null, gain: null, playing: false, pending: null };
 
   function AudioCtx() { return global.AudioContext || global.webkitAudioContext || null; }
   function audioSupported() { return !!AudioCtx(); }
+  /* 第 116 次：iOS 判定（用于「侧边静音拨片」提示）。
+     老 iOS UA 含 iPhone/iPad/iPod；新 iPadOS 报Macintosh，靠 maxTouchPoints 区分。
+     不参与任何逻辑分支，只决定要不要显示那段排查提示。 */
+  function isIOS() {
+    try {
+      var ua = (global.navigator && global.navigator.userAgent) || '';
+      if (/iPhone|iPad|iPod/i.test(ua)) return true;
+      if (/Macintosh/i.test(ua) && global.navigator && global.navigator.maxTouchPoints > 1) return true;
+    } catch (e) {}
+    return false;
+  }
+
 
   /** 生成 4 秒可循环噪音缓冲：白 = 均匀随机；粉 / 棕 = 对白噪音做不同频率加权 */
   function noiseBuffer(ctx, type) {
@@ -88,48 +100,143 @@
     } catch (e) { engine.gain.gain.value = value; }
   }
 
-  /** 开始播放（必须由用户点击触发——浏览器要求音频需手势才能出声） */
+  /** 开始播放（必须由用户点击触发——浏览器要求音频需手势才能出声）
+
+      第 116 次（真机实测：手机上哄睡白噪音没有声音）：
+      旧实现是 `ctx.resume()` 不等它resolve 就直接往下建节点、src.start(0)，
+      桌面内核（state 直接 running）看不出问题，但 iOS Safari /微信 X5 上
+      resume() 是异步的，且在「非用户手势栈内」调用会被忽略或被系统挂起——
+      结果 ctx 停在 suspended，src 已经 start 了却永远不会推进 currentTime，
+      听感就是「按了没声音」，而界面状态却显示在播放（撒谎）。
+
+      修法三件事：
+        1. resume() 的 Promise 必须等（用 then 续做），且只在手势栈内首次触发；
+        2. 监听 statechange，若 resume 失败/仍suspended，走 resumeGated() 再试一次
+           （iOS 允许在后续任意用户手势里解锁）；
+        3. 状态落库改为「确认 running 才写 playing=true」，避免界面撒谎；
+           失败时返回 false，调用方负责 toast 提示。 */
   function start(type, volume, minutes, linkSleep) {
     var AC = AudioCtx();
     if (!AC) return false;
     stopEngine(true);
     var ctx = engine.ctx || new AC();
     engine.ctx = ctx;
-    if (ctx.state === 'suspended' && ctx.resume) { try { ctx.resume(); } catch (e) {} }
 
-    var src = ctx.createBufferSource();
-    src.buffer = noiseBuffer(ctx, type);
-    src.loop = true;
-    var gain = ctx.createGain();
-    gain.gain.value = 0;
-    src.connect(gain);
-    gain.connect(ctx.destination);
-    try { src.start(0); } catch (e) { return false; }
+    /* 第 116 次二次修正（真机复测仍无声后）：节点链必须在【手势调用栈内同步建好】，
+       不能等 resume() 的 Promise 兑现再建。
+       原因：iOS 的规则是「音频图必须在用户手势的那一次调用里构建并启动」，
+       resume() 只是把已建好的图解锁。若把 createBufferSource/createGain/
+       start() 推迟到 .then 回调里执行，那个回调已不在手势栈内，
+       iOS 会判定为「非手势发起的音频」而静默拒绝 —— 状态显示 running，
+       实际仍然没声音（本批第一次修复正是踩了这个坑）。
+
+       所以顺序必须是：同步建图 → 同步 start(0) → 再调 resume 解锁。
+       gain 保持 0，靠 resume 兑现后的斜坡淡入；解锁前听不到声音，
+       但图已就绪，resume 一成功立刻出声。 */
+    var src = null, gain = null;
+    try {
+      src = ctx.createBufferSource();
+      src.buffer = noiseBuffer(ctx, type);
+      src.loop = true;
+      gain = ctx.createGain();
+      gain.gain.value = 0;/* 解锁前先静音，resume 兑现后淡入 */
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      src.start(0);
+    } catch (e) { return false; }
 
     engine.src = src;
     engine.gain = gain;
     engine.playing = true;
-    fadeTo(gainOf(volume), 3); /* 渐入 3 秒：避免突然出声惊到刚睡着的宝宝 */
+    engine.pending = { type: type, volume: volume, minutes: minutes, linkSleep: linkSleep };
 
-    var d = Storage.get();
-    d.whitenoise = {
-      playing: true, type: type, volume: volume, minutes: minutes,
-      until: minutes > 0 ? (Date.now() + minutes * 60000) : null,
-      linkSleep: !!linkSleep
+    /* 解锁：已在 running 直接淡入；suspended 则等 resume 兑现再淡入。
+       两种情况都【不】重建节点，只动增益。 */
+    function fadeIn() {
+      /* 守卫：用户可能「点开始 → 立刻点停止」，此时 engine.playing 已是false。
+         若不查这一下，resume 稍后兑现会把已停的声音又淡入回来，
+         表现为「明明按了停止，声音却停不下来」。 */
+      if (!engine.playing) return false;
+      if (ctx.state === 'running') {
+        engine.pending = null;
+        fadeTo(gainOf(volume), 3);
+        writeState(true, type, volume, minutes, linkSleep);
+        if (global.Util && Util.toast) Util.toast('白噪音已开始播放', 'ok');
+        return true;
+      }
+      resumeGated();
+      return false;
+    }
+
+    if (ctx.state === 'running') { fadeIn(); return true; }
+
+    try {
+      var p = ctx.resume();
+      if (p && p.then) {
+        p.then(function () { fadeIn(); })['catch'](function () { resumeGated(); });
+      }
+    } catch (e) { /* 同步抛：留给 resumeGated 在后续手势里再试 */ }
+    resumeGated();
+    return true; /* 已发起（等resume 兑现后 writeState 才会写 playing=true） */
+  }
+
+  /** 在后续任意用户手势里再试解锁（iOS 的标准解锁路径）。
+      注册一次性监听，resume 成功后：摘监听 + 把待定的播放真正启动（淡入 + 落库）。
+      第 116 次：pending 里的参数就是为此存在 —— 图已建好，只差「解锁 + 淡入」。 */
+  function resumeGated() {
+    var unlock = function () {
+      var ctx = engine.ctx;
+      if (!ctx) return;
+      try { if (ctx.state !== 'running' && ctx.resume) ctx.resume(); } catch (e) {}
+      if (ctx.state === 'running') {
+        document.removeEventListener('touchstart', unlock, true);
+        document.removeEventListener('click', unlock, true);
+        /* 同fadeIn 的守卫：已停止就别把 pending 消费掉，更不能淡入 */
+        var pd = engine.playing ? engine.pending : null;
+        if (pd && engine.gain) {
+          engine.pending = null;
+          fadeTo(gainOf(pd.volume), 3);
+          writeState(true, pd.type, pd.volume, pd.minutes, pd.linkSleep);
+        } else {
+          engine.pending = null;
+        }
+      }
     };
+    try {
+      document.addEventListener('touchstart', unlock, true);
+      document.addEventListener('click', unlock, true);
+    } catch (e) { /* 无 addEventListener 的老内核：靠上面的同步 resume */ }
+  }
+
+  /** 播放状态落库：只有 ctx 真的 running 才记 playing=true（避免界面撒谎） */
+  function writeState(playing, type, volume, minutes, linkSleep) {
+    var d = Storage.get();
+    if (playing) {
+      d.whitenoise = {
+        playing: true, type: type, volume: volume, minutes: minutes,
+        until: minutes > 0 ? (Date.now() + minutes * 60000) : null,
+        linkSleep: !!linkSleep
+      };
+    } else if (d.whitenoise) {
+      d.whitenoise.playing = false;
+      d.whitenoise.until = null;
+    }
     Storage.save();
 
     /* W-05 联动：一次点击同时开始哄睡计时（若当前没有计时在进行） */
-    if (linkSleep && !d.openSleep) {
+    if (playing && linkSleep && !d.openSleep) {
       d.openSleep = { id: Util.uid(), start: Util.nowLocal(), pausedMs: 0, pauseStart: null };
       Storage.save();
     }
-    return true;
   }
 
   function stopEngine(immediate) {
     if (!engine.playing) return;
     engine.playing = false;
+    /* 第 116 次：清掉待定播放参数。
+       否则「点开始 → 立刻点停止 → 此时 resume 才兑现」会让 pending 里的
+       参数复活，把已停止的音频又淡入回来（用户听到停不下来的声音）。 */
+    engine.pending = null;
     var src = engine.src, gain = engine.gain;
     engine.src = null;
     if (gain && !immediate) {
@@ -204,6 +311,16 @@
           ? '正在播放：' + typeName(wn.type) + (rem != null ? '，还有约 ' + rem + ' 分钟自动关闭' : '，当前设为不限时')
           : '未播放') + '</p>';
         html += '<p class="hint">声音在本机实时生成：不下载音频文件、不联网、飞行模式也能用。</p>';
+        /* 第 116 次（真机实测：手机上按了没声音）：iOS 上最常见的两个非代码原因，
+           用户无从判断是哪个，必须主动说出来而不是让用户反复试。
+           ① 侧边静音拨片处于静音位时，Web Audio 走的是「遵从静音键」通道，出不来声；
+           ② iOS 媒体音量已调到 0 或锁屏打断了音频会话。 */
+        if (isIOS()) {
+          html += '<p class="hint">iPhone 没声音？先确认两件事：'
+            + '① 侧边静音拨片不在静音位（拨片朝上）；'
+            + '② 锁屏后音频会被系统暂停，回到本页面再点一次开始播放即可。'
+            + '外放没声音时，改用耳机或开免提再试。</p>';
+        }
         html += '<button class="btn ' + (wn.playing ? '' : 'btn-primary') + '" id="wnToggle" type="button">'
           + (wn.playing ? '停止播放' : '开始播放') + '</button>';
       }
@@ -338,6 +455,13 @@
   Modules.whitenoise._audioSupported = audioSupported;
   Modules.whitenoise.resetStaleState = resetStaleState;
   Modules.whitenoise._stop = stop;
+  /* 第 116 次：测试入口。让 qa 能真正驱动「resume → 建节点 → start → 写库」
+     这条路径并观察 AudioContext 状态，而不是只能对源码做正则断言——
+     本批的核心修复（等 resume）恰恰是运行时行为，静态断言验证不了它。
+     前缀下划线与既有 _stop / _audioSupported 一致，属内部接口，不进 UI。 */
+  Modules.whitenoise._startForTest = start;
+  Modules.whitenoise._ctxState = function () { return engine.ctx ? engine.ctx.state : null; };
+  Modules.whitenoise._engine = engine;
 
   /* 页面被隐藏 / 关闭时清掉「播放中」标记：音频会随页面结束，状态不该留成谎言 */
   global.addEventListener('pagehide', function () { resetStaleState(); });

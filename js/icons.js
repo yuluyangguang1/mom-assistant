@@ -125,6 +125,17 @@
       '<path d="M14 6.5l4 4"/>',
     'chevron-right':
       '<path d="M9 6l6 6-6 6"/>',
+    /* 第 118 次（对标 Cali · 首页收敛）：两个新图标键。
+       search —— 首页/「全部功能」页顶部的搜索入口 + 搜索页的输入行；
+       grid   —— 首页底部的「全部功能」入口（四宫格 = 家当总览，比 list 更贴语义）。 */
+    search:
+      '<circle cx="11" cy="11" r="6.2"/>' +
+      '<path d="M15.7 15.7 20 20"/>',
+    grid:
+      '<rect x="4" y="4" width="7" height="7" rx="2"/>' +
+      '<rect x="13" y="4" width="7" height="7" rx="2"/>' +
+      '<rect x="4" y="13" width="7" height="7" rx="2"/>' +
+      '<rect x="13" y="13" width="7" height="7" rx="2"/>',
     back: /* 返回箭头（第 95 次：顶栏返回按钮改圆形图标，与设置齿轮同语言） */
       '<path d="M15 6l-6 6 6 6"/>',
     calendar:

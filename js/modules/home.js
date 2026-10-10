@@ -4,6 +4,9 @@
  * 左上角宝宝头像在全局 header（点击进设置）。
  * 主体：模块记录单条信息行（第 56 次起；今日概览数字卡已迁日期记录页）。
  * 每日记录日历已独立为底部「日期记录」整页，不在首页内嵌。
+ * 第 120 次：布局编辑（对标第五批 Cali 组件画布）——settings.homeLayout
+ * 手动策展接管自动策展（阶段筛选+收敛），编辑模式/组件目录/大小两档/长按拖动，
+ * 数据层见文件中部「布局数据层」块；纪律：删除≠隐藏能力（目录可加回+全部功能兜底）。
  */
 (function (global) {
   'use strict';
@@ -261,41 +264,218 @@
          扩到「最近一次」。原写法在跨天时 lastToday 返回 null，磁贴一律退化成
          「暂无今日」，第 1 批那个 P0 成果在跨天回访（回访失败的主场景）下整个消失。
          今天记过时 lastAnySum 内部走原有分支，字面输出与改前完全一致——不回归。 */
-      var feedSum = lastAnySum(d.feedings, 'start', sumNow) || '暂无今日';
-      var diaperSum = lastAnySum(d.diapers, 'time', sumNow) || '暂无今日';
+      var feedRaw = lastAnySum(d.feedings, 'start', sumNow);
+      var diaperRaw = lastAnySum(d.diapers, 'time', sumNow);
+      var feedSum = feedRaw || '暂无今日';
+      var diaperSum = diaperRaw || '暂无今日';
 
       /* 第 58 次（走查）：badge 只保留「状态词」（计时中/临近）——单条信息行右侧
          摘要已含全部数字（今日 N 次 / 第 N 周 / 已备 N%），数字角标与文字完全重复，
          属视觉冗余；状态词是摘要表达不了的信息，保留。 */
       var tiles = [
-        { id: 'feeding', stages: ['baby'], name: '喂养', accent: 'feeding', sum: feedSum, badge: '' },
-        { id: 'diaper', stages: ['baby'], name: '尿布', accent: 'diaper', sum: diaperSum, badge: '' },
-        { id: 'sleep', stages: ['baby'], name: '睡眠', accent: 'sleep', sum: osTile ? ('计时中 · 已 ' + Util.fmtDuration(openElapsedMs(osTile))) : ((lastLongestH != null ? ('昨夜最长连续 ' + lastLongestH.toFixed(1) + ' 小时') : '暂无') + sleepWake), badge: osTile ? '计时中' : '' },
-        { id: 'whitenoise', stages: ['baby'], name: '哄睡白噪音', accent: 'sleep', sum: noiseInfo },
-        { id: 'growth', stages: ['baby'], name: '生长', accent: 'growth', sum: weightRecent ? ('最近 ' + weightRecent.weightKg + ' kg') : '暂无' },
-        { id: 'vaccine', stages: ['baby'], name: '疫苗', accent: 'vaccine', sum: vaxInfo, badge: vaxBadge },
-        { id: 'meds', stages: ['baby', 'pregnancy'], name: '吃药/维D', accent: 'meds', sum: medsToday ? ('今日 ' + medsToday + ' 次') : '暂无今日', badge: '' },
-        { id: 'milestone', stages: ['baby'], name: '里程碑', accent: 'milestone', sum: msRecent ? msRecent.title : '暂无' },
-        { id: 'period', stages: ['baby'], name: '经期', accent: 'period', sum: periodInfo },
-        { id: 'mood', stages: ['baby', 'pregnancy'], name: '妈妈情绪', accent: 'mood', sum: moodSum },
-        { id: 'pregnancy', stages: ['pregnancy'], name: '孕期', accent: 'pregnancy', sum: wk !== null ? ('第 ' + wk + ' 周') : '未设置', badge: '' },
-        { id: 'packing', stages: ['pregnancy'], name: '待产包', accent: 'packing', sum: pk.length ? ('已备 ' + pkPct + '%') : '未开始', badge: '' },
-        { id: 'contraction', stages: ['pregnancy'], name: '宫缩', accent: 'contraction', sum: ocTile ? ('计时中 · 已 ' + Util.fmtDuration(openElapsedMs(ocTile))) : (contraToday ? ('今日 ' + contraToday + ' 次') : '暂无今日'), badge: ocTile ? '计时中' : '' }
+        /* 第 118 次（首页收敛 · 空状态三态）：每个 tile 显式带两个布尔字段，
+           不靠比对 sum 文案（文案一改就崩）。
+             guide:true  = 引导型。没有数据也要留在原地教用户怎么开始 → 永远渲染。
+             empty:true  = 当前无数据。回顾型（"上次 X / 今天 X 次"）无数据只是噪声，
+                           收敛开启时被过滤掉；引导型不受 empty 影响。
+           计时进行中的 tile（sleep/contraction）empty 恒为 false —— 进行中的状态不能被藏掉。 */
+        { id: 'feeding', stages: ['baby'], name: '喂养', accent: 'feeding', sum: feedSum, badge: '', empty: !feedRaw },
+        { id: 'diaper', stages: ['baby'], name: '尿布', accent: 'diaper', sum: diaperSum, badge: '', empty: !diaperRaw },
+        { id: 'sleep', stages: ['baby'], name: '睡眠', accent: 'sleep', sum: osTile ? ('计时中 · 已 ' + Util.fmtDuration(openElapsedMs(osTile))) : ((lastLongestH != null ? ('昨夜最长连续 ' + lastLongestH.toFixed(1) + ' 小时') : '暂无') + sleepWake), badge: osTile ? '计时中' : '', empty: (!osTile && lastLongestH == null) },
+        { id: 'whitenoise', stages: ['baby'], name: '哄睡白噪音', accent: 'sleep', sum: noiseInfo, guide: true, empty: false },
+        { id: 'growth', stages: ['baby'], name: '生长', accent: 'growth', sum: weightRecent ? ('最近 ' + weightRecent.weightKg + ' kg') : '暂无', empty: !weightRecent },
+        { id: 'vaccine', stages: ['baby'], name: '疫苗', accent: 'vaccine', sum: vaxInfo, badge: vaxBadge, guide: true, empty: false },
+        { id: 'meds', stages: ['baby', 'pregnancy'], name: '吃药/维D', accent: 'meds', sum: medsToday ? ('今日 ' + medsToday + ' 次') : '暂无今日', badge: '', guide: true, empty: !medsToday },
+        { id: 'milestone', stages: ['baby'], name: '里程碑', accent: 'milestone', sum: msRecent ? msRecent.title : '暂无', empty: !msRecent },
+        { id: 'period', stages: ['baby'], name: '经期', accent: 'period', sum: periodInfo, empty: (!ongoing && !periods.length) },
+        { id: 'mood', stages: ['baby', 'pregnancy'], name: '妈妈情绪', accent: 'mood', sum: moodSum, empty: !moodToday },
+        { id: 'pregnancy', stages: ['pregnancy'], name: '孕期', accent: 'pregnancy', sum: wk !== null ? ('第 ' + wk + ' 周') : '未设置', badge: '', guide: true, empty: wk === null },
+        { id: 'packing', stages: ['pregnancy'], name: '待产包', accent: 'packing', sum: pk.length ? ('已备 ' + pkPct + '%') : '未开始', badge: '', guide: true, empty: !pk.length },
+        { id: 'contraction', stages: ['pregnancy'], name: '宫缩', accent: 'contraction', sum: ocTile ? ('计时中 · 已 ' + Util.fmtDuration(openElapsedMs(ocTile))) : (contraToday ? ('今日 ' + contraToday + ' 次') : '暂无今日'), badge: ocTile ? '计时中' : '', guide: true, empty: (!ocTile && !contraToday) }
       ];
       if (wk !== null) {
-        tiles.push({ id: 'fetal', stages: ['pregnancy'], name: '胎动', accent: 'fetal', sum: fetalToday ? ('今日 ' + fetalToday + ' 次') : '暂无今日', badge: '' });
+        tiles.push({ id: 'fetal', stages: ['pregnancy'], name: '胎动', accent: 'fetal', sum: fetalToday ? ('今日 ' + fetalToday + ' 次') : '暂无今日', badge: '', empty: !fetalToday });
       }
-      tiles.push({ id: 'temp', stages: ['baby', 'pregnancy'], name: '体温', accent: 'temp', sum: tempTodayMax != null ? ('今日最高 ' + tempTodayMax + '°C') : '暂无今日' });
-      tiles.push({ id: 'finance', stages: ['baby', 'pregnancy'], name: '记账', accent: 'finance', sum: monthSum ? ('本月 ' + fmtMoney(monthSum)) : '本月无' });
+      tiles.push({ id: 'temp', stages: ['baby', 'pregnancy'], name: '体温', accent: 'temp', sum: tempTodayMax != null ? ('今日最高 ' + tempTodayMax + '°C') : '暂无今日', guide: true, empty: tempTodayMax == null });
+      tiles.push({ id: 'finance', stages: ['baby', 'pregnancy'], name: '记账', accent: 'finance', sum: monthSum ? ('本月 ' + fmtMoney(monthSum)) : '本月无', empty: !monthSum });
       /* 第 107 次：消耗品。摘要复用模块自己的低库存判定（渲染期派生，不写库）。 */
       var supSum = (global.Modules && Modules.supplies && typeof Modules.supplies._summary === 'function')
         ? Modules.supplies._summary(d.supplies) : '';
-      tiles.push({ id: 'supplies', stages: ['baby'], name: '消耗品', accent: 'supplies', sum: supSum, badge: '' });
+      tiles.push({ id: 'supplies', stages: ['baby'], name: '消耗品', accent: 'supplies', sum: supSum, badge: '', guide: true, empty: !supSum });
 
       /* 磁贴按阶段排序（对标报告 P1）：孕早期 tools 前置 / 育儿期喂养尿布前置，
          其余按固定次序殿后——同样的 14/15 个磁贴，第一眼先看到当前阶段最常用的。
          第 43 次：阶段优先取用户在引导/设置里的显式选择（App.stageOf），
          未选时才回落到客观数据（孕周可推 / 宝宝已出生）。 */
+      /* 第 120 次：全部磁贴构建完后的名字/分色快照——目录弹层渲染被删组件的行时用
+         （画布不画被删磁贴，但目录仍需名字与图标色；本阶段未构建出的模块不进目录） */
+      var TILE_NAME = {}; var TILE_ACCENT = {};
+      tiles.forEach(function (t) { TILE_NAME[t.id] = t.name; TILE_ACCENT[t.id] = t.accent; });
+
+      /* 第 121 次：卡组件对象（tile-like，_card 标记）。
+         自动模式（无布局无编辑）下这些对象不进渲染——卡片走上面的原位 HTML；
+         布局/编辑分支把它们并入 tiles，与磁贴混排。 */
+      var cardTiles = [];
+      if (feedNextReady()) cardTiles.push({ id: 'feednext', _card: true, name: CARDS_META['feednext'].name, icon: CARDS_META['feednext'].icon });
+      if (growthSparkReady()) cardTiles.push({ id: 'growthspark', _card: true, name: CARDS_META['growthspark'].name, icon: CARDS_META['growthspark'].icon });
+      /* 第 122 次：直接记录组件——条件永远成立（随时可记），与 last-* 同纪律：
+         不进默认画布基线，目录常驻等用户挑（否则首次编辑物化会塞两张记录卡进首页）。 */
+      cardTiles.push({ id: 'rec-diaper', _card: true, name: CARDS_META['rec-diaper'].name, icon: CARDS_META['rec-diaper'].icon });
+      cardTiles.push({ id: 'rec-sleep', _card: true, name: CARDS_META['rec-sleep'].name, icon: CARDS_META['rec-sleep'].icon });
+      /* 第 123 次：瓶喂/亲喂/吸奶直接记录卡——同 122 次纪律（不进基线、目录常驻）。 */
+      ['rec-bottle', 'rec-breast', 'rec-pump'].forEach(function (rid) {
+        cardTiles.push({ id: rid, _card: true, name: CARDS_META[rid].name, icon: CARDS_META[rid].icon });
+      });
+      var nowMs121 = Date.now();
+      LAST_DEFS_IDS.forEach(function (cid) {
+        var def = LAST_DEFS[cid];
+        var last = lastAny(d[def.list] || [], def.key, nowMs121);
+        var meta = CARDS_META[cid];
+        cardTiles.push({
+          id: cid, _card: true, name: meta.name, icon: meta.icon,
+          _last: last ? {
+            txt: dayLabel(last, sumNow) + ' ' + hmOf(last) + ' · ' + gapText(nowMs121 - last.getTime()),
+            detail: (last && d[def.list]) ? (function () {
+              var key = def.key, best = null;
+              (d[def.list] || []).forEach(function (r) {
+                if (!r || !r[key]) return;
+                var t2 = new Date(r[key]).getTime();
+                if (!t2 || isNaN(t2) || t2 > nowMs121) return;
+                if (!best || t2 > new Date(best[key]).getTime()) best = r;
+              });
+              return best ? def.detail(best) : '';
+            })() : ''
+          } : null
+        });
+      });
+      /* 第 122 次：直接记录组件工厂（render 作用域闭包，与 feedNextHTML 同模式）。
+         数据 shape 与 diaper.js / sleep.js 落库完全同源（同字段、同 save 流程、
+         同撤销 toast（尿布 C2）/时长 toast（睡眠 C1）语义）——只把入口搬进画布，
+         不新造数据、不另写一套字段。编辑模式内嵌按钮 disabled（编辑 ≠ 误记录，
+         与「编辑模式 data-go 跳过」同一和解方式）。 */
+      function recDiaperHTML(extraCls, badges) {
+        var today = Util.todayISO();
+        var cnt = (d.diapers || []).filter(function (r) { return r.time && r.time.slice(0, 10) === today; }).length;
+        var dis = editing ? ' disabled' : '';
+        return '<div class="card canvas-card' + extraCls + '" data-cid="rec-diaper"><h2>记尿布</h2>'
+          + '<div class="rec-keys">'
+          + '<button class="quick-btn" data-reccd="pee" type="button"' + dis + '>' + icon('pee') + '尿</button>'
+          + '<button class="quick-btn" data-reccd="poop" type="button"' + dis + '>' + icon('poop') + '便</button>'
+          + '<button class="quick-btn" data-reccd="both" type="button"' + dis + '>' + icon('diaper') + '尿+便</button>'
+          + '</div>'
+          + '<p class="hint">今天已记 ' + cnt + ' 次</p>' + badges + '</div>';
+      }
+      function recSleepHTML(extraCls, badges) {
+        var dis = editing ? ' disabled' : '';
+        var os = d.openSleep;
+        var html = '<div class="card canvas-card' + extraCls + '" data-cid="rec-sleep"><h2>睡眠计时</h2>';
+        if (os && os.start) {
+          var ms = Date.now() - new Date(os.start).getTime()
+            - ((os.pausedMs || 0) + (os.pauseStart ? Date.now() - os.pauseStart : 0));
+          html += '<p class="rec-running">' + Util.fmtDuration(Math.max(0, ms)) + '</p>'
+            + '<div class="rec-keys"><button class="btn" data-recsl="end" type="button"' + dis + '>结束睡眠</button></div>';
+        } else {
+          html += '<div class="rec-keys"><button class="btn" data-recsl="start" type="button"' + dis + '>开始睡眠</button></div>'
+            + '<p class="hint">在首页直接开始计时，不用先进睡眠页。</p>';
+        }
+        return html + badges + '</div>';
+      }
+
+      /* 第 123 次：瓶喂/亲喂/吸奶直接记录卡（render 作用域闭包）。
+         数据 shape 与 feeding.js #fSave 落库逐字同源（十二字段全量写，
+         不走快记捷径）；校验文案与 feeding.js 一致；步进状态存
+         Modules.home._recState（会话内瞬时）。 */
+      function recState(k, dflt) {
+        Modules.home._recState = Modules.home._recState || {};
+        if (!Modules.home._recState[k]) Modules.home._recState[k] = dflt;
+        return Modules.home._recState[k];
+      }
+      function recBottleHTML(extraCls, badges) {
+        var st = recState('bottle', { kind: 'bottle', amount: 60 });
+        var dis = editing ? ' disabled' : '';
+        return '<div class="card canvas-card' + extraCls + '" data-cid="rec-bottle"><h2>瓶喂</h2>'
+          + '<div class="rec-seg" role="group" aria-label="奶的种类">'
+          + '<button class="rec-seg-btn' + (st.kind === 'bottle' ? ' active' : '') + '" data-recbk="bottle" type="button"' + dis + '>母乳</button>'
+          + '<button class="rec-seg-btn' + (st.kind === 'formula' ? ' active' : '') + '" data-recbk="formula" type="button"' + dis + '>配方奶</button>'
+          + '</div>'
+          + '<div class="rec-stepper">'
+          + '<button class="rec-step" data-recstep="bottle:-10" type="button"' + dis + ' aria-label="减少 10 毫升">−10</button>'
+          + '<b class="rec-num">' + st.amount + '<i>mL</i></b>'
+          + '<button class="rec-step" data-recstep="bottle:10" type="button"' + dis + ' aria-label="增加 10 毫升">+10</button>'
+          + '</div>'
+          + '<div class="rec-keys"><button class="btn" data-recf="bottle" type="button"' + dis + '>记录瓶喂</button></div>'
+          + badges + '</div>';
+      }
+      function recBreastHTML(extraCls, badges) {
+        var st = recState('breast', { L: 0, R: 0 });
+        var dis = editing ? ' disabled' : '';
+        return '<div class="card canvas-card' + extraCls + '" data-cid="rec-breast"><h2>亲喂</h2>'
+          + '<div class="rec-stepper">'
+          + '<button class="rec-step" data-recstep="breast.L:-1" type="button"' + dis + ' aria-label="左侧减少 1 分钟">−1</button>'
+          + '<b class="rec-num">左 ' + st.L + '<i>分</i></b>'
+          + '<button class="rec-step" data-recstep="breast.L:1" type="button"' + dis + ' aria-label="左侧增加 1 分钟">+1</button>'
+          + '</div>'
+          + '<div class="rec-stepper">'
+          + '<button class="rec-step" data-recstep="breast.R:-1" type="button"' + dis + ' aria-label="右侧减少 1 分钟">−1</button>'
+          + '<b class="rec-num">右 ' + st.R + '<i>分</i></b>'
+          + '<button class="rec-step" data-recstep="breast.R:1" type="button"' + dis + ' aria-label="右侧增加 1 分钟">+1</button>'
+          + '</div>'
+          + '<div class="rec-keys"><button class="btn" data-recf="breast" type="button"' + dis + '>记录亲喂</button></div>'
+          + badges + '</div>';
+      }
+      function recPumpHTML(extraCls, badges) {
+        var st = recState('pump', { L: 0, R: 0, ml: 0 });
+        var dis = editing ? ' disabled' : '';
+        return '<div class="card canvas-card' + extraCls + '" data-cid="rec-pump"><h2>吸奶</h2>'
+          + '<div class="rec-stepper">'
+          + '<button class="rec-step" data-recstep="pump.L:-1" type="button"' + dis + ' aria-label="左侧减少 1 分钟">−1</button>'
+          + '<b class="rec-num">左 ' + st.L + '<i>分</i></b>'
+          + '<button class="rec-step" data-recstep="pump.L:1" type="button"' + dis + ' aria-label="左侧增加 1 分钟">+1</button>'
+          + '</div>'
+          + '<div class="rec-stepper">'
+          + '<button class="rec-step" data-recstep="pump.R:-1" type="button"' + dis + ' aria-label="右侧减少 1 分钟">−1</button>'
+          + '<b class="rec-num">右 ' + st.R + '<i>分</i></b>'
+          + '<button class="rec-step" data-recstep="pump.R:1" type="button"' + dis + ' aria-label="右侧增加 1 分钟">+1</button>'
+          + '</div>'
+          + '<div class="rec-stepper">'
+          + '<button class="rec-step" data-recstep="pump.ml:-10" type="button"' + dis + ' aria-label="奶量减少 10 毫升">−10</button>'
+          + '<b class="rec-num">' + st.ml + '<i>mL</i></b>'
+          + '<button class="rec-step" data-recstep="pump.ml:10" type="button"' + dis + ' aria-label="奶量增加 10 毫升">+10</button>'
+          + '</div>'
+          + '<div class="rec-keys"><button class="btn" data-recf="pump" type="button"' + dis + '>记录吸奶</button></div>'
+          + badges + '</div>';
+      }
+
+      /* 编辑角标（磁贴/卡共用同构 HTML；非编辑模式零节点） */
+      function editBadges(t) {
+        if (!editing) return '';
+        return '<span class="tile-del" data-del="' + t.id + '" role="button" tabindex="0" aria-label="删除 ' + t.name + ' 组件">' + icon('trash') + '</span>'
+          + '<span class="tile-size" data-size="' + t.id + '" role="button" tabindex="0" aria-label="切换 ' + t.name + ' 大小，当前' + (t._sz === 's' ? '半宽' : '整排') + '">' + (t._sz === 's' ? '半宽' : '整排') + '</span>';
+      }
+      /* 卡组件 → HTML（画布模式专用；自动模式不经过这里）。
+         占位卡（_ph：items 里有、本轮条件不满足）必须先于真卡工厂分支——
+         工厂在条件不满足时返回空串，会把占位卡整个吞掉。 */
+      function cardHTML(t) {
+        var cls = ' canvas-card' + (t._sz === 's' ? ' sz-s' : ' sz-l');
+        if (t._ph) {
+          return '<div class="card' + cls + '"><h2>' + t.name + '</h2>'
+            + '<p class="hint">暂无可显示的内容，满足条件后自动出现。</p>' + editBadges(t) + '</div>';
+        }
+        if (t.id === 'feednext') return feedNextHTML(cls, editBadges(t));
+        if (t.id === 'growthspark') return growthSparkHTML(cls, editBadges(t));
+        if (t.id === 'rec-diaper') return recDiaperHTML(cls, editBadges(t));
+        if (t.id === 'rec-sleep') return recSleepHTML(cls, editBadges(t));
+        if (t.id === 'rec-bottle') return recBottleHTML(cls, editBadges(t));
+        if (t.id === 'rec-breast') return recBreastHTML(cls, editBadges(t));
+        if (t.id === 'rec-pump') return recPumpHTML(cls, editBadges(t));
+        var body = t._last
+          ? '<p>' + t._last.txt + '</p>' + (t._last.detail ? '<p class="hint">最近一次：' + t._last.detail + '</p>' : '')
+          : '<p class="hint">暂无记录。记一条就能在这里看到「多久没做了」。</p>';
+        return '<div class="card canvas-card' + cls + '" data-cid="' + t.id + '" data-go="' + t.id.replace('last-', '') + '"'
+          + ' role="button" tabindex="0" aria-label="' + t.name + '"><h2>' + t.name + '</h2>' + body
+          + editBadges(t) + '</div>';
+      }
+
       var stage = (global.App && typeof App.stageOf === 'function') ? App.stageOf(d)
         : ((wk !== null) ? 'pregnancy' : ((bd && ageDays !== null && ageDays >= 0) ? 'baby' : 'none'));
       /* 第 48 次（磁贴按阶段筛选）：光排序不够——用户反馈「选了身份还是全部都出现」。
@@ -304,16 +484,103 @@
          ① 计时进行中的磁贴永远保留——进行中的状态不能被藏掉（C4 的本意）；
          ② 设置 · 当前阶段里可关掉筛选（tilesByStage=false），全部显示。
          阶段无法判定（'none'，仅缺 App.stageOf 的理论分支）时不过滤。 */
+      /* 第 118 次（首页收敛）：记录本屏是否丢过模块——阶段筛选丢过、或收敛丢过，
+         都要在网格下方挂「全部功能」入口，保证一个入口都不丢。 */
+      /* 第 120 次（首页布局编辑 · 对标第五批）：手动布局接管判定。
+         homeLayout 有效 → 顺序/大小/增删全部由用户布局决定（阶段筛选与收敛退位）；
+         编辑模式 → 画布展示全量模块（被删的不画，目录可加回）；
+         其余情况走原有自动管线（阶段筛选 + 收敛 + 截取前 8），行为逐行未动。 */
+      var editing = !!Modules.home._edit;
+      var ORDER = STAGE_ORDER[(stage === 'pregnancy') ? 'pregnancy' : 'baby'];
+      var layout = Modules.home._layoutNormalize(d.settings.homeLayout, UNIVERSE());
+      var tileDropped = false;
+      if (editing) {
+        var seenC = {}; var canvasIds = [];
+        /* 画布基线（第 121 次）：用户布局优先；没编辑过 = 条件卡在前（对应自动模式
+           里卡片在网格上方的视觉现状）+ 阶段序。注意基线只含**自动模式就在渲染的卡**
+           （feednext/growthspark）——last-* 不进默认基线：它们是「可添加组件」，
+           在目录里等用户挑；否则首次编辑物化会把 5 张距上次卡全塞进首页
+           （画布即物化基线，第 120 次的「所见即所得」纪律）。 */
+        var builtCardIds = cardTiles.filter(function (c) {
+          return c.id === 'feednext' || c.id === 'growthspark';
+        }).map(function (c) { return c.id; });
+        var baseIds = layout
+          ? layout.items.map(function (it) { return it.id; })
+          : builtCardIds.concat(ORDER.slice());
+        baseIds.forEach(function (id) {
+          if (!seenC[id] && (!layout || layout.removed.indexOf(id) < 0)) { seenC[id] = 1; canvasIds.push(id); }
+        });
+        UNIVERSE().forEach(function (id) {
+          /* 卡组件只跟随 items，不殿后（第 122 次扩展到 rec 系列）：
+             last / rec 都是「可添加组件」，目录常驻；条件卡不在本轮构建时
+             也不进画布（零惊吓）。 */
+          if (LAST_DEFS_IDS.indexOf(id) >= 0) return;
+          if (CARDS_META[id] && builtCardIds.indexOf(id) < 0) return;
+          if (!seenC[id] && (!layout || layout.removed.indexOf(id) < 0)) { seenC[id] = 1; canvasIds.push(id); }
+        });
+        var cmap = {};
+        tiles.forEach(function (t) { cmap[t.id] = t; });
+        cardTiles.forEach(function (c) { cmap[c.id] = c; });
+        if (layout) {
+          /* items 里有、本轮条件不满足的条件卡 → 画布渲染占位（可删可排序；
+             条件满足时自动恢复真卡。last-* 总有对象，不在此列） */
+          layout.items.forEach(function (it) {
+            if (!cmap[it.id] && CARDS_META[it.id] && LAST_DEFS_IDS.indexOf(it.id) < 0) {
+              cmap[it.id] = { id: it.id, _card: true, _ph: true, name: CARDS_META[it.id].name, icon: CARDS_META[it.id].icon };
+            }
+          });
+        }
+        tiles = canvasIds.filter(function (id) { return cmap[id]; }).map(function (id) {
+          var t = cmap[id];
+          var it = layout && layout.items.filter(function (x) { return x.id === id; })[0];
+          t._sz = it ? it.size : 'l';
+          return t;
+        });
+        if (layout && layout.removed.length) tileDropped = true;
+        Modules.home._canvasIds = canvasIds;
+      } else if (layout) {
+        tiles = Modules.home._layoutApply(tiles.concat(cardTiles), layout);
+        if (layout.removed.length) tileDropped = true;
+      } else {
       if (d.settings.tilesByStage !== false && (stage === 'pregnancy' || stage === 'baby')) {
+        var stageBefore = tiles.length;
         tiles = tiles.filter(function (t) {
           if (t.stages.indexOf(stage) >= 0) return true;
           return (t.id === 'contraction' && ocTile) || (t.id === 'sleep' && osTile);
         });
+        if (tiles.length < stageBefore) tileDropped = true;
       }
-      var ORDER = (stage === 'pregnancy')
-        ? ['pregnancy', 'fetal', 'contraction', 'packing', 'mood', 'period', 'feeding', 'diaper', 'sleep', 'whitenoise', 'growth', 'vaccine', 'meds', 'milestone', 'temp', 'finance']
-        : ['feeding', 'diaper', 'sleep', 'whitenoise', 'mood', 'temp', 'growth', 'vaccine', 'meds', 'milestone', 'period', 'contraction', 'pregnancy', 'packing', 'finance', 'supplies'];
+      /* 第 118 次（首页收敛 · 三态）：默认开启（homeConverge !== false）。
+         先过滤掉「回顾型 && empty」的噪声磁贴（引导型永远留下），
+         再按 ORDER 排序后截取前 8 个高频磁贴；被截掉的模块不会丢——
+         它们全在「全部功能」页里，网格下方固定挂一个入口兜住。
+         第 119 次措辞修正：本段「关闭时逐字等价」只针对磁贴逻辑成立——
+         新增的 .home-search 搜索入口（下方）是全局动作、不属收敛范围，
+         无条件渲染；.alltools-entry 则受 converge && tileDropped 双闸门，
+         关闭收敛时连入口也不出现。
+
+         第 118 次（冷启动保护）：一条「回顾型」记录都还没有时，跳过 empty 过滤。
+         理由：全空的首页上这些磁贴不是噪声，而是「你可以记什么」的功能地图；
+         此刻把它们清空，新用户第一眼只剩一个空壳。一旦有任何回顾型数据落库，
+         过滤即生效、收起噪声。截取前 8 个在任何情况下都照常执行——
+         所以冷启动首屏依旧是收敛后的短列表，不违反「首屏 6–8 个」的裁定。
+         （既有的「孕期缺胎动 / 育儿期喂养前置」用例正是全空冷启动场景，
+          这条保护让它们继续成立；详见交付说明。） */
+      var converge = d.settings.homeConverge !== false;
+      if (converge) {
+        var hasReviewData = tiles.some(function (t) { return !t.guide && !t.empty; });
+        if (hasReviewData) {
+          var convBefore = tiles.length;
+          tiles = tiles.filter(function (t) { return t.guide || !t.empty; });
+          if (tiles.length < convBefore) tileDropped = true;
+        }
+      }
       tiles.sort(function (a, b) { return ORDER.indexOf(a.id) - ORDER.indexOf(b.id); });
+      if (converge && tiles.length > 8) {
+        tiles = tiles.slice(0, 8);
+        tileDropped = true;
+      }
+      } /* ── 第 120 次：else（自动管线）结束 ── */
 
       var html = '';
       /* 知识文案（对标 Cali「小知识」，对标报告 A2）：孕期按孕周分段、宝宝按月龄分段。
@@ -382,6 +649,16 @@
 
       /* 主体（单列） */
       html += '<div class="home-main">';
+      /* 第 118 次（首页搜索入口）：放在 .home-main 最前面、紧贴问候卡下方——
+         理由：① 搜索是跨模块的全局动作，语义上属于「页头」，应在所有卡片之前，
+         用户进首页第一眼就能看到；② 它带 data-go="search"，会被下方统一的
+         [data-go] 点击绑定接管（这段 HTML 在绑定之前就写进了 innerHTML）；
+         ③ 放在 .record-grid 之前，不会挤进「模块记录」网格、也不干扰网格用例。
+         icon('search') 由主理人在 icons.js 新增；未定义时 icon() 返回空串，不崩。 */
+      html += '<button class="home-search" data-go="search" type="button">'
+        + '<span class="si-ico">' + icon('search') + '</span>'
+        + '<span>搜索记录、里程碑、用品…</span>'
+        + '</button>';
       /* 第 91 次：底边过渡带已删除——融合改由画布自身淡出为透明完成
          （sky.js fadeBottomOut），交界处即页面真实背景，日夜零横带。 */
 
@@ -416,8 +693,11 @@
          磁贴改单列横条后每条直接显示今日摘要，数字卡与磁贴重复，不再在此渲染。 */
 
       /* 下次喂奶参考（对标 Cali 首页预测卡）：最近 48h ≥2 次喂养时，按自己的平均间隔正面预测；
-         过点不催——「按需喂养就好」（U-25）。只在育儿阶段出现。 */
-      if (bd && ageDays !== null && ageDays >= 0 && ageDays <= 730) {
+         过点不催——「按需喂养就好」（U-25）。只在育儿阶段出现。
+         第 121 次：抽成 HTML 工厂——自动模式在原位调用（extraCls/badges 缺省，
+         输出与改前逐字节一致），布局/编辑模式以卡组件身份在网格循环里调用。 */
+      function feedNextHTML(extraCls, badges) {
+        if (!(bd && ageDays !== null && ageDays >= 0 && ageDays <= 730)) return '';
         var feedWin = d.feedings.filter(function (r) { return r.start && (Date.now() - new Date(r.start).getTime()) < 48 * 3600000; })
           .sort(function (a, b) { return new Date(a.start) - new Date(b.start); });
         if (feedWin.length >= 2) {
@@ -428,21 +708,42 @@
           var diffMin = Math.round((nextMs - Date.now()) / 60000);
           var nd = new Date(Math.max(nextMs, Date.now()));
           var hhmm = (nd.getHours() < 10 ? '0' : '') + nd.getHours() + ':' + (nd.getMinutes() < 10 ? '0' : '') + nd.getMinutes();
-          html += '<div class="card feed-next"><span class="row-ico">' + icon('bottle') + '</span><div>'
+          return '<div class="card feed-next' + (extraCls || '') + '"><span class="row-ico">' + icon('bottle') + '</span><div>'
             + '<b>下次喂奶参考</b><br>'
             + (diffMin >= 0
               ? '按最近 ' + feedWin.length + ' 次的节奏，大约 ' + hhmm + ' 前后。'
               : '比预计晚了 ' + (-diffMin) + ' 分钟——按需喂养就好，不用看表。')
-            + '<i class="hint">间隔按你自己的记录估算，仅供参考。</i></div></div>';
+            + '<i class="hint">间隔按你自己的记录估算，仅供参考。</i></div>' + (badges || '') + '</div>';
         }
+        return '';
+      }
+      html += feedNextHTML();
+      /* 条件满足判定（供 cardTiles 构建；与工厂同一口径，双遍历成本可忽略） */
+      function feedNextReady() {
+        if (!(bd && ageDays !== null && ageDays >= 0 && ageDays <= 730)) return false;
+        var n = 0;
+        (d.feedings || []).forEach(function (r) {
+          if (r.start && (Date.now() - new Date(r.start).getTime()) < 48 * 3600000) n++;
+        });
+        return n >= 2;
+      }
+      function growthSparkReady() {
+        if (!bd) return false;
+        var wN = 0, hN = 0;
+        (d.growth || []).forEach(function (r) {
+          if (r.date) { if (r.weightKg != null) wN++; if (r.heightCm != null) hN++; }
+        });
+        return wN >= 2 || hN >= 2;
       }
 
-      /* 生长速览卡（对标报告 P2 sparkline）：有生日 + ≥2 次测量时，给体重/身高的最新值与迷你趋势 */
-      var growthAll = (d.growth || []).filter(function (r) { return r.date; })
-        .sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
-      var wPts = growthAll.filter(function (r) { return r.weightKg != null; });
-      var hPts = growthAll.filter(function (r) { return r.heightCm != null; });
-      if (bd && (wPts.length >= 2 || hPts.length >= 2)) {
+      /* 生长速览卡（对标报告 P2 sparkline）：有生日 + ≥2 次测量时，给体重/身高的最新值与迷你趋势
+         第 121 次：同 feedNextHTML 抽成工厂（自动模式逐字节等价，画布模式带画布类）。 */
+      function growthSparkHTML(extraCls, badges) {
+        var growthAll = (d.growth || []).filter(function (r) { return r.date; })
+          .sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+        var wPts = growthAll.filter(function (r) { return r.weightKg != null; });
+        var hPts = growthAll.filter(function (r) { return r.heightCm != null; });
+        if (!(bd && (wPts.length >= 2 || hPts.length >= 2))) return '';
         function spark(vals) {
           var W = 120, H = 30, pad = 3;
           var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
@@ -456,35 +757,66 @@
           return '<svg class="spark" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true">'
             + '<polyline points="' + pts + '"/><circle cx="' + last[0] + '" cy="' + last[1] + '" r="2.5"/></svg>';
         }
-        html += '<div class="card"><h2>生长速览</h2><div class="gs-row">';
+        var inner = '<h2>生长速览</h2><div class="gs-row">';
         if (wPts.length >= 2) {
-          html += '<div class="gs-cell"><span class="gs-lbl">体重（最近 ' + wPts.length + ' 次）</span>'
+          inner += '<div class="gs-cell"><span class="gs-lbl">体重（最近 ' + wPts.length + ' 次）</span>'
             + '<span class="gs-val">' + wPts[wPts.length - 1].weightKg + ' kg</span>'
             + spark(wPts.map(function (r) { return r.weightKg; })) + '</div>';
         }
         if (hPts.length >= 2) {
-          html += '<div class="gs-cell"><span class="gs-lbl">身长（最近 ' + hPts.length + ' 次）</span>'
+          inner += '<div class="gs-cell"><span class="gs-lbl">身长（最近 ' + hPts.length + ' 次）</span>'
             + '<span class="gs-val">' + hPts[hPts.length - 1].heightCm + ' cm</span>'
             + spark(hPts.map(function (r) { return r.heightCm; })) + '</div>';
         }
-        html += '</div><p class="hint">看趋势不看单次；点「生长」磁贴可看百分位曲线。</p></div>';
+        inner += '</div><p class="hint">看趋势不看单次；点「生长」磁贴可看生长曲线。</p>';
+        return '<div class="card' + (extraCls || '') + '">' + inner + (badges || '') + '</div>';
       }
+      html += growthSparkHTML();
 
       /* 模块记录（第 56 次：单条信息行；第 57 次随用户反馈改左右结构）——
          每行：icon + 名称（左）+ 记录信息（右）+ 今日角标 + ›。
          名称与信息同一行左右分布，不再上下两行堆叠。 */
-      html += '<h2 class="section-title">模块记录</h2><div class="record-grid">';
+      /* 第 120 次：段头挂「编辑首页」入口（对标 Cali 顶栏 +/✓，收敛为段头文字钮——
+         不动顶栏与天空，回归风险最小）。编辑中变为「完成」。 */
+      html += '<div class="sec-head"><h2 class="section-title">模块记录</h2>'
+        + (editing ? '<button class="home-edit-btn" id="homeSheetOpen" type="button">' + icon('plus') + '添加组件</button>' : '')
+        + '<button class="home-edit-btn" id="homeEdit" type="button">'
+        + (editing ? icon('check') + '完成' : icon('edit') + '编辑首页') + '</button></div>';
+      html += '<div class="record-grid' + (layout ? ' is-custom' : '') + (editing ? ' is-editing' : '') + '">';
       tiles.forEach(function (t) {
-        html += '<button class="record-tile" data-accent="' + t.accent + '" data-go="' + t.id + '" type="button">'
+        /* 第 121 次：卡组件与磁贴混排（画布模式）；自动模式 tiles 里没有卡对象 */
+        if (t._card) { html += cardHTML(t); return; }
+        html += '<button class="record-tile' + ((layout || editing) ? (t._sz === 's' ? ' sz-s' : ' sz-l') : '') + '" data-accent="' + t.accent + '" data-go="' + t.id + '" type="button">'
           + '<span class="rt-ico">' + icon(t.id) + '</span>'
           + '<span class="rt-name">' + t.name + '</span>'
           + '<span class="rt-sum">' + t.sum + '</span>'
           + (t.badge ? '<span class="rt-badge">' + t.badge + '</span>' : '')
           /* 第 58 次：› 文本字符换成项目统一的线性 SVG（chevron-right） */
           + '<span class="rt-arrow" aria-hidden="true">' + icon('chevron-right') + '</span>'
+          /* 第 120 次：编辑角标——删除与大小切换（文本钮而非拖拽把手：
+             触摸拖拽改大小在 iOS 上是第 116/117 批级别的踩坑区，按钮一等公民更稳）。
+             第 121 次：抽为 editBadges()，磁贴与卡组件共用同构 HTML。 */
+          + editBadges(t)
           + '</button>';
       });
       html += '</div>';
+
+      /* 第 118 次（首页收敛）：「全部功能」入口。仅在收敛开启、且本屏确实丢过模块
+         （阶段筛选或收敛截取）时渲染——关掉收敛即彻底回到改动前，连入口也不出现。
+         图标用 icon('grid')（主理人在 icons.js 新增；未定义时返回空串，不崩）。
+         它带 data-go="alltools"，由下方统一的 [data-go] 绑定接管，且此 HTML 在绑定前已写入。
+         N = 全部功能页的模块总数：优先读 alltools 的目录（生产环境已注册），
+         未注册（如 QA 沙箱未加载 alltools.js）时用同一份清单长度的常量兜底。 */
+      if (tileDropped && (editing || layout || converge)) {
+        var alltoolsN = (global.Modules && Modules.alltools && Modules.alltools._modules
+          && Modules.alltools._modules.length) ? Modules.alltools._modules.length : 19;
+        html += '<button class="alltools-entry" data-go="alltools" type="button">'
+          + '<span class="ti-ico">' + icon('grid') + '</span>'
+          + '<span class="ti-name">全部功能</span>'
+          + '<span class="ti-count">' + alltoolsN + ' 项</span>'
+          + '<span class="rt-arrow" aria-hidden="true">' + icon('chevron-right') + '</span>'
+          + '</button>';
+      }
 
       /* U-34 容量近上限：强提示常驻（不自动消失、可延迟关闭、不阻断当前操作、带立即导出出口）。
          阈值是设计判断（报告未给具体上限），文案只陈述事实与代价，不做任何安全承诺（U-37）。 */
@@ -515,12 +847,53 @@
         + '<span>所有数据仅存本机浏览器，不联网、不共享。' + backupTxt + '</span></div>';
       html += '</div>'; /* /.home-main */
 
+      /* 第 120 次：添加组件目录（对标 Cali「添加组件」弹层，采纳减配——
+         双尺寸预览页不做，目录行直接加，加完在画布上切大小）。
+         可加 = 宇宙里不在画布上的 id（被删组件 + 本阶段没建出的模块）。
+         名字取自本轮已构建磁贴（TILE_NAME），构建条件未满足的模块不出现——
+         目录如实反映「现在能加什么」。 */
+      if (editing && Modules.home._sheet) {
+        var inCanvas = {};
+        (Modules.home._canvasIds || []).forEach(function (id) { inCanvas[id] = 1; });
+        html += '<div class="home-sheet" id="homeSheet" role="dialog" aria-label="添加组件"><div class="home-sheet-panel">'
+          + '<div class="hs-head"><b>添加组件</b>'
+          + '<button class="home-edit-btn" id="homeSheetClose" type="button">' + icon('check') + '完成</button></div>'
+          + '<input class="sheet-search" id="sheetSearch" type="text" placeholder="搜索组件" aria-label="搜索组件">'
+          + '<div class="sheet-list">';
+        var addedRow = false;
+        UNIVERSE().forEach(function (id) {
+          if (inCanvas[id]) return;
+          var nm = TILE_NAME[id]; var ic = id; var ac = (TILE_ACCENT[id] || id);
+          if (CARDS_META[id]) {
+            /* 第 121 次：卡组件进目录。条件卡（feednext/growthspark）只在条件满足
+               （本轮已构建出卡对象）时列出——目录如实反映「现在能加什么」；
+               last-* 条件永远成立（无数据时卡上显示空态引导记录，其价值正在于此），
+               cmap 里总有对象。 */
+            if (!cmap[id]) return;
+            nm = CARDS_META[id].name; ic = CARDS_META[id].icon;
+          }
+          if (!nm) return;
+          addedRow = true;
+          html += '<button class="sheet-row" data-add="' + id + '" data-name="' + nm + '" data-accent="' + ac + '" type="button">'
+            + '<span class="rt-ico">' + icon(ic) + '</span>'
+            + '<span class="rt-name">' + nm + '</span>'
+            + '<span class="rt-arrow" aria-hidden="true">' + icon('chevron-right') + '</span></button>';
+        });
+        if (!addedRow) html += '<p class="hint" style="padding:14px 4px">全部组件都在首页上了。</p>';
+        html += '</div>'
+          + '<div class="row"><button class="btn" id="homeLayoutReset" type="button">恢复默认布局</button></div>'
+          + '</div></div>';
+      }
+
       view.innerHTML = html;
 
       /* 模块记录 / 提醒列表 → 对应模块。
          第 58 次（走查）：提醒 li 有 tabindex=0 + role=button 却只绑了 click——
-         键盘 Enter/Space 无效（a11y 缺口）。button 原生支持，li 补键盘触发。 */
+         键盘 Enter/Space 无效（a11y 缺口）。button 原生支持，li 补键盘触发。
+         第 120 次：编辑模式下磁贴导航停用（画布上的点击只服务增删/排序），
+         data-go 导航绑定跳过 record-tile；完成编辑后恢复。 */
       Array.prototype.forEach.call(view.querySelectorAll('[data-go]'), function (b) {
+        if (editing && b.classList && (b.classList.contains('record-tile') || b.classList.contains('canvas-card'))) return;
         b.addEventListener('click', function () { global.App.showTab(b.getAttribute('data-go')); });
         if (b.tagName === 'LI') {
           b.addEventListener('keydown', function (e) {
@@ -553,10 +926,377 @@
         global.App.showTab('growth');
       });
 
+      /* ── 第 120 次：编辑模式交互绑定 ── */
+      var editBtn = view.querySelector('#homeEdit');
+      if (editBtn) editBtn.addEventListener('click', function () {
+        Modules.home._edit = !Modules.home._edit;
+        if (!Modules.home._edit) Modules.home._sheet = false;
+        global.App.rerender();
+      });
+      if (editing) {
+        var sheetOpen = view.querySelector('#homeSheetOpen');
+        if (sheetOpen) sheetOpen.addEventListener('click', function () { Modules.home._sheet = true; global.App.rerender(); });
+        var sheetClose = view.querySelector('#homeSheetClose');
+        if (sheetClose) sheetClose.addEventListener('click', function () { Modules.home._sheet = false; global.App.rerender(); });
+        var layoutReset = view.querySelector('#homeLayoutReset');
+        if (layoutReset) layoutReset.addEventListener('click', function () { Modules.home._editReset(); });
+        Array.prototype.forEach.call(view.querySelectorAll('[data-del]'), function (b) {
+          b.addEventListener('click', function (e) {
+            if (e && e.stopPropagation) e.stopPropagation();
+            Modules.home._editDel(b.getAttribute('data-del'));
+          });
+        });
+        Array.prototype.forEach.call(view.querySelectorAll('[data-size]'), function (b) {
+          b.addEventListener('click', function (e) {
+            if (e && e.stopPropagation) e.stopPropagation();
+            Modules.home._editSize(b.getAttribute('data-size'));
+          });
+        });
+        Array.prototype.forEach.call(view.querySelectorAll('[data-add]'), function (b) {
+          b.addEventListener('click', function () { Modules.home._editAdd(b.getAttribute('data-add')); });
+        });
+        var sheetSearch = view.querySelector('#sheetSearch');
+        if (sheetSearch) sheetSearch.addEventListener('input', function () {
+          var q = (sheetSearch.value || '').trim().toLowerCase();
+          Array.prototype.forEach.call(view.querySelectorAll('.sheet-row'), function (r) {
+            var nm = (r.getAttribute('data-name') || '').toLowerCase();
+            r.style.display = (!q || nm.indexOf(q) >= 0) ? '' : 'none';
+          });
+        });
+        bindDrag(view);
+      }
+
+      /* 长按拖动排序（编辑模式专用）。设计取舍：
+         ① long-press 350ms 起手——普通点按（删/切大小）绝不误触发拖动；
+         ② .is-editing .record-tile { touch-action:none } —— 不用 passive 监听
+            大战，浏览器层面就不再吞 pointermove 去做滚动（第 116/117 批教训：
+            iOS 触摸判定重灾区，能用 CSS 声明解决的绝不 JS 硬扛）；
+         ③ 拖动中只重排 DOM（insertBefore），松手才 _editOrder 落库一次重绘，
+            不在 pointermove 里走全量 render（那会拆掉正在拖的节点）；
+         ④ 移动阈值 10px 内视为点按，超限未长按成功则整个作废。 */
+      function bindDrag(view) {
+        var grid = view.querySelector('.record-grid.is-editing');
+        if (!grid) return;
+        var rows = Array.prototype.slice.call(grid.querySelectorAll('.record-tile, .canvas-card'));
+        var cur = null, timer = null, dragging = false, sx = 0, sy = 0;
+        function endDrag(save) {
+          clearTimeout(timer);
+          if (cur) { cur.classList.remove('dragging'); cur = null; }
+          if (save && dragging) {
+            var now = Array.prototype.map.call(grid.querySelectorAll('.record-tile, .canvas-card'), function (r) {
+              return r.getAttribute('data-cid') || r.getAttribute('data-go');
+            });
+            Modules.home._editOrder(now);
+          }
+          dragging = false;
+        }
+        rows.forEach(function (row) {
+          row.addEventListener('pointerdown', function (e) {
+            if (dragging || cur) return;
+            cur = row; sx = e.clientX; sy = e.clientY; dragging = false;
+            /* 隐式指针捕获：松手发生在网格外也能在 grid 上收到 pointerup
+               （touch 天生捕获；鼠标不捕获时 pointerup 会丢在别处，拖拽态卡死） */
+            if (row.setPointerCapture && e.pointerId !== undefined) {
+              try { row.setPointerCapture(e.pointerId); } catch (err) { /* 老内核忽略 */ }
+            }
+            timer = setTimeout(function () { dragging = true; row.classList.add('dragging'); }, 350);
+          });
+        });
+        grid.addEventListener('pointermove', function (e) {
+          if (!cur) return;
+          if (!dragging) {
+            if (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10) endDrag(false);
+            return;
+          }
+          if (e.cancelable && e.preventDefault) e.preventDefault();
+          var over = document.elementFromPoint ? document.elementFromPoint(e.clientX, e.clientY) : null;
+          while (over && !(over.classList && (over.classList.contains('record-tile') || over.classList.contains('canvas-card'))) && over !== grid) {
+            over = over.parentNode;
+          }
+          if (over && over !== grid && over !== cur && over.parentNode === grid) {
+            var r2 = over.getBoundingClientRect();
+            var before = e.clientY < r2.top + r2.height / 2;
+            if (before && cur !== over.previousSibling) grid.insertBefore(cur, over);
+            else if (!before && cur !== over.nextSibling) grid.insertBefore(cur, over.nextSibling);
+          }
+        });
+        grid.addEventListener('pointerup', function () { endDrag(true); });
+        grid.addEventListener('pointercancel', function () { endDrag(false); });
+      }
+
+      /* 第 122 次：直接记录组件绑定。数据路径与 diaper.js/sleep.js 同源：
+         同 rec 字段、同 Storage.save() 判定、同撤销 toast（尿布 C2 单手误触高发）、
+         同时长 toast（睡眠 C1 计时类带时长）。 */
+      Array.prototype.forEach.call(view.querySelectorAll('[data-reccd]'), function (b) {
+        b.addEventListener('click', function () {
+          var rec = { id: Util.uid(), type: b.getAttribute('data-reccd'), time: Util.todayISO() + Util.nowLocal().slice(10), note: null };
+          d.diapers.push(rec);
+          if (Storage.save()) {
+            Util.toast('已记录', 'ok', { label: '撤销', onClick: function () {
+              for (var i = d.diapers.length - 1; i >= 0; i--) {
+                if (d.diapers[i].id === rec.id) { d.diapers.splice(i, 1); break; }
+              }
+              Storage.save(); global.App.rerender(); Util.toast('已撤销', 'ok');
+            } });
+          }
+          global.App.rerender();
+        });
+      });
+      var recSlStart = view.querySelector('[data-recsl="start"]');
+      if (recSlStart) recSlStart.addEventListener('click', function () {
+        d.openSleep = { id: Util.uid(), start: Util.nowLocal(), pausedMs: 0, pauseStart: null };
+        Storage.save(); global.App.rerender();
+      });
+      var recSlEnd = view.querySelector('[data-recsl="end"]');
+      if (recSlEnd) recSlEnd.addEventListener('click', function () {
+        var os2 = d.openSleep;
+        if (!os2 || !os2.start) return;
+        var end = Date.now();
+        var paused = (os2.pausedMs || 0) + (os2.pauseStart ? end - os2.pauseStart : 0);
+        var totalMs = end - new Date(os2.start).getTime() - paused;
+        d.sleeps.push({ id: os2.id, start: os2.start, end: Util.nowLocal(), pausedMs: paused, note: null, wakings: null, longestMin: null });
+        d.openSleep = null;
+        if (Storage.save()) Util.toast('已记录：睡眠 ' + Util.fmtDuration(Math.max(0, totalMs)), 'ok');
+        global.App.rerender();
+      });
+
+      /* 第 123 次：瓶喂/亲喂/吸奶绑定。rec 十二字段与 feeding.js #fSave 全量同源；
+         校验文案逐字一致（warn 不落库）；撤销链同 C2；记录成功后步进状态重置。 */
+      Array.prototype.forEach.call(view.querySelectorAll('[data-recstep]'), function (b) {
+        b.addEventListener('click', function () {
+          var spec = b.getAttribute('data-recstep').split(':');
+          var delta = parseInt(spec[1], 10);
+          var parts = spec[0].split('.');
+          var st = Modules.home._recState;
+          if (!st[parts[0]]) return;
+          var field = parts[1] || 'amount';
+          st[parts[0]][field] = Math.max(0, (st[parts[0]][field] || 0) + delta);
+          global.App.rerender();
+        });
+      });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-recbk]'), function (b) {
+        b.addEventListener('click', function () {
+          var st = Modules.home._recState;
+          if (st.bottle) { st.bottle.kind = b.getAttribute('data-recbk'); global.App.rerender(); }
+        });
+      });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-recf]'), function (b) {
+        b.addEventListener('click', function () {
+          var kind = b.getAttribute('data-recf');
+          var st = Modules.home._recState[kind] || {};
+          var rec = {
+            id: Util.uid(),
+            type: kind,
+            start: Util.todayISO() + Util.nowLocal().slice(10),
+            durationMin: null, durationL: null, durationR: null,
+            amount: null, amountBm: null, amountFm: null,
+            side: null, note: null, newFood: null, dish: null, ing: null, steps: null
+          };
+          if (kind === 'bottle') {
+            if (!st.amount) { Util.toast('请至少设置母乳或配方奶的量', 'warn'); return; }
+            rec.amount = st.amount;
+            if (st.kind === 'formula') rec.amountFm = st.amount; else rec.amountBm = st.amount;
+          } else {
+            if (kind === 'breast' && !st.L && !st.R) { Util.toast('请至少设置左侧或右侧的时长', 'warn'); return; }
+            if (kind === 'pump' && !st.L && !st.R && !st.ml) { Util.toast('请至少设置时长或奶量', 'warn'); return; }
+            rec.durationL = st.L || null;
+            rec.durationR = st.R || null;
+            rec.durationMin = (st.L || 0) + (st.R || 0) || null;
+            rec.side = (st.L && st.R) ? 'both' : (st.L ? 'left' : (st.R ? 'right' : null));
+            if (kind === 'pump') rec.amount = st.ml || null;
+          }
+          d.feedings.push(rec);
+          if (Storage.save()) {
+            Util.toast('已记录', 'ok', { label: '撤销', onClick: function () {
+              for (var i = d.feedings.length - 1; i >= 0; i--) {
+                if (d.feedings[i].id === rec.id) { d.feedings.splice(i, 1); break; }
+              }
+              Storage.save(); global.App.rerender(); Util.toast('已撤销', 'ok');
+            } });
+          }
+          Modules.home._recState[kind] = null; /* 下次 render 由 recState 重置回默认 */
+          global.App.rerender();
+        });
+      });
+
       /* 启动天空（离开首页时 canvas 被移除，循环自动停止） */
       var canvas = view.querySelector('#skyCanvas');
       if (global.Sky && canvas) global.Sky.mount(canvas);
     }
+  };
+
+  /* ============================================================
+     第 120 次（首页布局编辑 · 对标第五批 Cali 组件画布）：布局数据层
+     settings.homeLayout = { v:1, items:[{id,size}], removed:[id] }
+       size: 'l'=整排卡 / 's'=一排两个；null = 自动策展（阶段筛选 + 收敛）。
+     两层关系：自动策展是默认；用户在编辑模式做过任何增删/排序/改大小，
+     homeLayout 即接管（用户自己就是策展人），「恢复默认布局」随时退回。
+     纪律：删除 ≠ 隐藏能力——被删组件从目录可加回，「全部功能」兜底入口照挂。
+     存储只新增 settings.homeLayout 一个键（形状校验见 storage.js），DATA_VERSION 不动。
+     ============================================================ */
+  /* 阶段 ORDER 抽到模块级：render 的自动排序与编辑画布共用同一份（单一来源）。
+     数组内容与第 48 次以来的两份 ORDER 逐字一致，只换了存放位置。 */
+  var STAGE_ORDER = {
+    pregnancy: ['pregnancy', 'fetal', 'contraction', 'packing', 'mood', 'period', 'feeding', 'diaper', 'sleep', 'whitenoise', 'growth', 'vaccine', 'meds', 'milestone', 'temp', 'finance'],
+    baby: ['feeding', 'diaper', 'sleep', 'whitenoise', 'mood', 'temp', 'growth', 'vaccine', 'meds', 'milestone', 'period', 'contraction', 'pregnancy', 'packing', 'finance', 'supplies']
+  };
+  /* 组件宇宙：两阶段 ORDER 的并集（17 个 id，含跨阶段的 fetal/supplies），
+     再并上第 121 次的卡组件 id。布局校验以它为准——布局里只允许出现真的存在的组件 id。 */
+  function UNIVERSE() {
+    return STAGE_ORDER.pregnancy.concat(STAGE_ORDER.baby.filter(function (id) {
+      return STAGE_ORDER.pregnancy.indexOf(id) < 0;
+    })).concat(CARD_IDS);
+  }
+  /* ============================================================
+     第 121 次（回顾组件化 · 对标第五批 Cali 组件画布第二期）：
+     首页固定卡迁入布局画布，成为与磁贴平权的可排序/可删/可调大小的组件。
+       feednext     下次喂奶参考（原固定卡，条件：育儿期 + 48h ≥2 次喂养）
+       growthspark  生长速览（原固定卡，条件：有生日 + ≥2 次测量）
+       last-*       「距上次」组件（可挑工具：Cali 的「选一个工具生成距上次卡」
+                    直接展开为多个目录条目——每个 id 自带参数，与扁平布局天然兼容）
+     纪律：
+     · 自动模式（无布局）下卡片仍走原位渲染，输出与改前逐字节一致——老用户零感知；
+     · 布局/编辑模式下卡片进网格与磁贴混排（_layoutApply 对卡不殿后：
+       items 里没有的卡不该突然出现在末尾——「殿后」只服务新模块不隐身的目标）；
+     · 条件不满足的卡在布局模式下不渲染（条件恢复自动回来），编辑画布上渲染
+       占位卡（可删可排序），目录如实只在条件满足时列出——不显示空壳（冷启动保护延续）；
+     · last-* 无数据时显示「暂无记录」空态而非消失——它的价值正是引导去记录。
+     ============================================================ */
+  var CARD_IDS = ['feednext', 'growthspark', 'last-feeding', 'last-diaper', 'last-sleep', 'last-growth', 'last-temp', 'rec-diaper', 'rec-sleep', 'rec-bottle', 'rec-breast', 'rec-pump'];
+  var CARDS_META = {
+    'feednext': { name: '下次喂奶参考', icon: 'bottle' },
+    'growthspark': { name: '生长速览', icon: 'growth' },
+    /* 第 122 次：直接记录组件——画布内即记即走（对标第五批 Cali）。 */
+    'rec-diaper': { name: '记尿布', icon: 'diaper' },
+    'rec-sleep': { name: '睡眠计时', icon: 'sleep' },
+    /* 第 123 次：直接记录第二批——瓶喂/亲喂/吸奶（对标报告 §7.4 第 3 条跟进项）。 */
+    'rec-bottle': { name: '瓶喂', icon: 'feeding' },
+    'rec-breast': { name: '亲喂', icon: 'breast' },
+    'rec-pump': { name: '吸奶', icon: 'pump' },
+    'last-feeding': { name: '距上次喂奶', icon: 'feeding' },
+    'last-diaper': { name: '距上次尿布', icon: 'diaper' },
+    'last-sleep': { name: '距上次睡眠', icon: 'sleep' },
+    'last-growth': { name: '距上次测量', icon: 'growth' },
+    'last-temp': { name: '距上次体温', icon: 'temp' }
+  };
+  /* 距上次卡的数据源定义：list=数据键，key=时间字段，detail=明细行（取最新一条渲染）。
+     时间口径统一走 lastAny + gapText + dayLabel（与磁贴摘要同源，只描述中性事实不催促）。 */
+  var LAST_DEFS = {
+    'last-feeding': { list: 'feedings', key: 'start', detail: function (r) { return (r && r.amount != null) ? (r.amount + ' mL') : ''; } },
+    'last-diaper': { list: 'diapers', key: 'time', detail: function () { return ''; } },
+    'last-sleep': { list: 'sleeps', key: 'start', detail: function () { return ''; } },
+    'last-growth': { list: 'growth', key: 'date', detail: function (r) { return (r && r.weightKg != null) ? (r.weightKg + ' kg') : ((r && r.heightCm != null) ? (r.heightCm + ' cm') : ''); } },
+    'last-temp': { list: 'temps', key: 'time', detail: function (r) { return (r && r.value != null) ? (r.value + '°C') : ''; } }
+  };
+  var LAST_DEFS_IDS = ['last-feeding', 'last-diaper', 'last-sleep', 'last-growth', 'last-temp'];
+  function editStage(d) {
+    return (global.App && typeof App.stageOf === 'function' && App.stageOf(d)) || 'baby';
+  }
+  /* 布局归一化：raw（可能是坏数据/旧数据）→ 严格形状，或 null（= 自动策展）。
+     与 storage.js 白名单互补：那层防落库，这层防内存中其它来源的脏对象。 */
+  Modules.home._layoutNormalize = function (raw, universe) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !Array.isArray(raw.items)) return null;
+    var uni = {};
+    (universe || []).forEach(function (id) { uni[id] = 1; });
+    var items = []; var seen = {};
+    raw.items.forEach(function (it) {
+      if (it && uni[it.id] && !seen[it.id]) {
+        seen[it.id] = 1;
+        items.push({ id: it.id, size: (it.size === 's') ? 's' : 'l' });
+      }
+    });
+    var removed = []; var seenR = {};
+    (Array.isArray(raw.removed) ? raw.removed : []).forEach(function (id) {
+      if (uni[id] && !seenR[id]) { seenR[id] = 1; removed.push(id); }
+    });
+    return (items.length || removed.length) ? { items: items, removed: removed } : null;
+  };
+  /* 应用布局：items 顺序优先（带各自 size），宇宙里其余未被删的模块按原顺序殿后
+     （新模块自动出现在末尾，不会因为用户存过布局而永远隐身）。
+     第 121 次：卡组件（_card）不殿后——items 里没有的卡不该突然出现在末尾，
+     「殿后」只服务「新磁贴模块不隐身」这一个目标；last-* 只跟随 items。 */
+  Modules.home._layoutApply = function (tilesAll, layout) {
+    var map = {}; var out = [];
+    tilesAll.forEach(function (t) { map[t.id] = t; t._sz = 'l'; });
+    layout.items.forEach(function (it) {
+      if (map[it.id]) { map[it.id]._sz = it.size; out.push(map[it.id]); delete map[it.id]; }
+    });
+    tilesAll.forEach(function (t) {
+      if (map[t.id] && layout.removed.indexOf(t.id) < 0 && !t._card) out.push(t);
+    });
+    return out;
+  };
+  /* 纯函数：items 数组内移动一个元素（拖动排序的内核，DOM 无关可测） */
+  Modules.home._layoutMove = function (items, from, to) {
+    if (from < 0 || from >= items.length || to < 0 || to >= items.length || from === to) return items.slice();
+    var arr = items.slice();
+    var moved = arr.splice(from, 1)[0];
+    arr.splice(to, 0, moved);
+    return arr;
+  };
+  /* 第 123 次：直接记录卡的步进状态（会话内瞬时，不落库——与 _edit 同性质）。
+     每张卡独立：bottle {kind,amount} / breast {L,R} / pump {L,R,ml}。
+     记录成功后重置回默认（下次进来从默认值开始，不残留上次数字）。 */
+  Modules.home._recState = {};
+
+  /* 编辑模式状态（会话内瞬时，不落库；进入编辑由 #homeEdit 按钮切换） */
+  Modules.home._edit = false;
+  Modules.home._sheet = false;
+  /* 最近一次 render 的画布 id 序（编辑模式的物化基线；仅供编辑处理器读取） */
+  Modules.home._canvasIds = null;
+  /* 物化：把「没编辑过」的用户变成一份完整布局——基线 = 编辑画布当前 id 序
+     （画布即用户在编辑模式里看到的样子，物化结果与所见一致，零惊吓），
+     全部整排起步。此后增删/排序/改大小都在这份布局上做增量。 */
+  Modules.home._ensureLayout = function () {
+    var d = Storage.get();
+    var hl = Modules.home._layoutNormalize(d.settings.homeLayout, UNIVERSE());
+    if (hl) return hl;
+    var ids = (Modules.home._canvasIds && Modules.home._canvasIds.length)
+      ? Modules.home._canvasIds.slice()
+      : STAGE_ORDER[editStage(d)].slice();
+    var items = []; var seen = {};
+    ids.forEach(function (id) { if (!seen[id]) { seen[id] = 1; items.push({ id: id, size: 'l' }); } });
+    return { items: items, removed: [] };
+  };
+  function withLayout(fn) {
+    var hl = Modules.home._ensureLayout();
+    fn(hl);
+    var d = Storage.get();
+    d.settings.homeLayout = (hl.items.length || hl.removed.length) ? hl : null;
+    Storage.save();
+    global.App.rerender();
+  }
+  /* 编辑处理器：每次变更立即落库（项目 C2「静默保存」惯例），随后重绘。
+     处理器直接暴露给 QA——沙箱里 querySelector 是空壳，事件链测不到，
+     与 _todayStats 同一先例：测的就是线上这段代码本身。 */
+  Modules.home._editDel = function (id) { withLayout(function (hl) {
+    hl.items = hl.items.filter(function (it) { return it.id !== id; });
+    if (hl.removed.indexOf(id) < 0) hl.removed.push(id);
+  }); };
+  Modules.home._editAdd = function (id) { withLayout(function (hl) {
+    hl.removed = hl.removed.filter(function (x) { return x !== id; });
+    if (!hl.items.some(function (it) { return it.id === id; })) hl.items.push({ id: id, size: 'l' });
+  }); };
+  Modules.home._editSize = function (id) { withLayout(function (hl) {
+    var it = null;
+    hl.items.forEach(function (x) { if (x.id === id) it = x; });
+    if (it) it.size = (it.size === 's') ? 'l' : 's';
+    else hl.items.push({ id: id, size: 's' });
+  }); };
+  Modules.home._editOrder = function (ids) { withLayout(function (hl) {
+    var pos = {};
+    ids.forEach(function (id, i) { if (pos[id] === undefined) pos[id] = i; });
+    var inHl = hl.items.filter(function (it) { return pos[it.id] !== undefined; });
+    var rest = hl.items.filter(function (it) { return pos[it.id] === undefined; });
+    inHl.sort(function (a, b) { return pos[a.id] - pos[b.id]; });
+    hl.items = inHl.concat(rest);
+  }); };
+  Modules.home._editReset = function () {
+    var d = Storage.get();
+    d.settings.homeLayout = null;
+    Modules.home._sheet = false;
+    Storage.save();
+    global.App.rerender();
   };
 
   /* 第 56 次（单条信息行）：今日概览数字卡迁往「日期记录」页。

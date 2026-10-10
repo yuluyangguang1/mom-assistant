@@ -1,7 +1,9 @@
 ﻿/**
  * growth.js - 称重 / 生长曲线
- * 记录体重/身高/头围；按 WHO/CDC 标准中位数近似计算百分位（简化插值）；
+ * 记录体重/身高/头围；曲线对照 WHO 标准中位数（简化插值，只画趋势不输出判定）；
  * 支持早产儿矫正月龄（Fenton 近似）；强调"看趋势不看单次"。
+ * 第 119 次：删除逐条百分位 P 值——它是「相对标准的位置判定」，触碰
+ * 「不做达标线」红线，且原实现（固定 SD 系数 + 正态近似）精度不足，属虚假精度。
  */
 (function (global) {
   'use strict';
@@ -24,17 +26,16 @@
       head: [33.9, 36.8, 38.6, 39.9, 41.0, 41.9, 42.6, 43.9, 44.8, 45.5, 46.1, 46.8, 47.2, 47.6, 48.3, 48.9, 49.4, 49.8, 50.1, 50.3]
     }
   };
-  // 相对标准差系数（用于由中位数估算离散度）
-  var SD = { weight: 0.12, length: 0.035, head: 0.030 };
+  /* 第 119 次：删除了原 SD 系数表 + normCdf + percentile —— 它们只服务于
+     「逐条记录输出整数百分位 P 值」。两个问题：
+       ① 纪律：P 值 = 把个体数值量化成相对 WHO 标准的位置判定，正是本项目
+          「不做达标线、不给百分位判定」红线（U-25/U-37）的典型形态；
+       ② 精度：用固定相对离散系数（体重 12%/身长 3.5%/头围 3%）跨全月龄估 SD，
+          且真实生长数据有偏（这正是 WHO 用 LMS 参数的原因），输出整数 P 值属
+          虚假精度——实现与 knowledge.js 引用的 WS/T 423 标准脱节。
+     保留：增长曲线 + WHO 中位数虚线（趋势是客观事实，不是判定）。 */
 
-  function normCdf(z) {
-    var t = 1 / (1 + 0.2316419 * Math.abs(z));
-    var d = 0.3989423 * Math.exp(-z * z / 2);
-    var p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
-    return z > 0 ? 1 - p : p;
-  }
-
-  // 线性插值取某月龄的中位数
+  // 线性插值取某月龄的中位数（曲线用）
   function interp(arr, age) {
     if (age <= MONTHS[0]) return arr[0];
     if (age >= MONTHS[MONTHS.length - 1]) return arr[arr.length - 1];
@@ -45,15 +46,6 @@
       }
     }
     return arr[arr.length - 1];
-  }
-
-  function percentile(metric, sex, ageMonths, value) {
-    var sexK = (sex === 'girl') ? 'girl' : 'boy';
-    var med = interp(WHO[sexK][metric], ageMonths);
-    if (!med) return null;
-    var sd = med * SD[metric];
-    var z = (value - med) / sd;
-    return Math.round(normCdf(z) * 100);
   }
 
   function correctedAge(baby, ageMonths) {
@@ -92,7 +84,7 @@
       html += '<label id="lblGest">出生孕周（周）<input type="number" id="bGest" min="22" max="39" value="' + (baby.birthGestWeeks || 36) + '"></label>';
       html += '<button class="btn" id="bSave">保存宝宝信息</button>';
       if (baby.birthDate) html += '<button type="button" class="btn-mini" id="bCollapse">收起</button>';
-      html += '<p class="hint">生长曲线按 WHO/CDC 标准中位数近似计算百分位，仅供趋势参考。</p></div>';
+      html += '<p class="hint">生长曲线对照 WHO 标准中位数（虚线），仅供趋势参考——看趋势、看长期，单次数值不必焦虑；不构成医疗建议。</p></div>';
       }
 
       /* 记录一次测量：大数字 + 尺滑杆（第 41 次，对标 Cali 录入范式）。
@@ -130,21 +122,24 @@
 
       var recs = d.growth.slice().sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
       if (recs.length) {
-        html += '<div class="card"><h2>记录与百分位</h2><ul class="list">';
+        /* 第 119 次：不再逐条输出百分位 P 值（原「体重 8.2kg P63」）。
+           两个原因：① P 值 = 把个体数值量化成相对 WHO 标准的位置判定，正是
+           项目「不做达标线、不给百分位判定」红线（U-25/U-37）的典型形态；
+           ② 原实现用固定 SD 系数跨全月龄近似离散度，输出整数 P 值属虚假精度。
+           这里只保留客观事实（日期 / 月龄 / 测量值）；与标准的对比趋势看下方
+           曲线（WHO 中位数虚线 vs 宝宝实线），那才是趋势，不是判定。 */
+        html += '<div class="card"><h2>生长记录</h2><ul class="list">';
         recs.slice().reverse().forEach(function (r) {
           var age = baby.birthDate ? Util.daysBetween(baby.birthDate, r.date) / 30.44 : (r.ageMonths || 0);
           var cAge = correctedAge(baby, age);
-          var pw = r.weightKg != null ? percentile('weight', baby.sex, cAge, r.weightKg) : null;
-          var ph = r.heightCm != null ? percentile('length', baby.sex, cAge, r.heightCm) : null;
-          var pc = r.headCm != null ? percentile('head', baby.sex, cAge, r.headCm) : null;
-          /* 第 76 次（D 线）：行改「左日期+月龄 / 右三指标百分位」双列 */
+          /* 第 76 次（D 线）：行改「左日期+月龄 / 右三指标数值」双列 */
           html += '<li><span class="row-ico">' + icon('growth') + '</span>'
             + '<span class="li-main"><b>' + Util.fmtDate(r.date) + '</b><br><small>' + age.toFixed(1) + '月'
             + (baby.preterm ? ' · 矫正' + cAge.toFixed(1) + '月' : '') + '</small></span>'
             + '<span class="li-sub li-sub-wrap">'
-            + (r.weightKg != null ? '体重 ' + r.weightKg + 'kg P' + (pw != null ? pw : '-') + '<br>' : '')
-            + (r.heightCm != null ? '身长 ' + r.heightCm + 'cm P' + (ph != null ? ph : '-') + '<br>' : '')
-            + (r.headCm != null ? '头围 ' + r.headCm + 'cm P' + (pc != null ? pc : '-') : '')
+            + (r.weightKg != null ? '体重 ' + r.weightKg + 'kg<br>' : '')
+            + (r.heightCm != null ? '身长 ' + r.heightCm + 'cm<br>' : '')
+            + (r.headCm != null ? '头围 ' + r.headCm + 'cm' : '')
             + '</span>'
             + '<button class="icon-btn" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
         });
@@ -157,7 +152,7 @@
         html += '<div id="gChartBox">' + growthChart(recs, baby, 'weight') + '</div>';
         html += '<p class="warn">看趋势、看长期，单次数值不必焦虑。曲线为简化近似，非严格医学评估。</p></div>';
       } else {
-        html += '<div class="card"><p class="hint">还没有测量记录。记录后可显示百分位与趋势曲线。</p></div>';
+        html += '<div class="card"><p class="hint">还没有测量记录。记录后可显示趋势曲线。</p></div>';
       }
 
       /* 第 59 次：医学提示（遵医嘱） */
@@ -313,8 +308,8 @@
       '<line x1="' + pad + '" y1="' + pad + '" x2="' + pad + '" y2="' + (H - pad) + '" stroke="#999"></line>' +
       '<path d="' + medPath + '" stroke="#3a9a7a" fill="none" stroke-dasharray="4 3"></path>' +
       '<path d="' + babyPath + '" stroke="#2f6fed" fill="none"></path>' + dots +
-      '<text x="' + (W - pad) + '" y="' + (H - 6) + '" font-size="9" text-anchor="end" fill="#666">月龄→</text>' +
-      '<text x="4" y="' + (pad + 8) + '" font-size="9" fill="#666">↑' + METRIC_UNIT[metric] + '</text>' +
-      '</svg><p class="hint">虚线：WHO ' + METRIC_NAME[metric] + '中位数曲线；实线：宝宝' + METRIC_NAME[metric] + '。</p>';
+      '<text x="' + (W - pad) + '" y="' + (H - 6) + '" style="font-size:calc(9px * var(--fs-mul, 1))" text-anchor="end" fill="#666">月龄→</text>' +
+      '<text x="4" y="' + (pad + 8) + '" style="font-size:calc(9px * var(--fs-mul, 1))" fill="#666">↑' + METRIC_UNIT[metric] + '</text>' +
+      '</svg><p class="hint">虚线：WHO ' + METRIC_NAME[metric] + '中位数曲线；实线：宝宝' + METRIC_NAME[metric] + '，仅供趋势参考。</p>';
   }
 })(window);
