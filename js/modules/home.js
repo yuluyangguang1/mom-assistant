@@ -994,12 +994,20 @@
           row.addEventListener('pointerdown', function (e) {
             if (dragging || cur) return;
             cur = row; sx = e.clientX; sy = e.clientY; dragging = false;
-            /* 隐式指针捕获：松手发生在网格外也能在 grid 上收到 pointerup
-               （touch 天生捕获；鼠标不捕获时 pointerup 会丢在别处，拖拽态卡死） */
-            if (row.setPointerCapture && e.pointerId !== undefined) {
-              try { row.setPointerCapture(e.pointerId); } catch (err) { /* 老内核忽略 */ }
-            }
-            timer = setTimeout(function () { dragging = true; row.classList.add('dragging'); }, 350);
+            var pid = e.pointerId;
+            /* 第 124 次修复：捕获必须延迟到拖动真正成立（350ms 计时器里）。
+               原写法在 pointerdown 就 setPointerCapture——按 Pointer Events 规范，
+               显式捕获会把后续 click 的目标也改判到捕获元素（磁贴行本身），
+               于是「删除/大小」角标的 click 永远落不到自己头上（编辑模式
+               又屏蔽了磁贴的 data-go）→ 点什么都没反应，「编辑不动」。
+               拖动开始时才捕获：拖动中松手在网格外也能收到 pointerup；
+               普通点按（<350ms）零捕获，click 按真实目标派发。 */
+            timer = setTimeout(function () {
+              dragging = true; row.classList.add('dragging');
+              if (row.setPointerCapture && pid !== undefined) {
+                try { row.setPointerCapture(pid); } catch (err) { /* 老内核忽略 */ }
+              }
+            }, 350);
           });
         });
         grid.addEventListener('pointermove', function (e) {
