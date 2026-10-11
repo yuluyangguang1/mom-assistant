@@ -591,9 +591,21 @@
       html += '<div class="card">';
       var MODES = [['time', '跟随时间'], ['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']];
       var curMode = (s.settings.themeMode) || ((s.settings.themeAuto !== false) ? 'time' : (s.settings.theme === 'dark' ? 'dark' : 'light'));
-      html += '<span class="lbl-text">主题</span><div class="seg theme-seg" id="sThemeSeg">'
+      /* 第 118 次（外观区对标 Cali「外观」页）：文字 seg 换成微缩 UI 预览卡——
+         每张卡用几个 <i> 画出「彩色 chips + 条 + 行」的极简缩样，底色与 chips
+         的彩色/灰阶由 theme-card--X 修饰类在 CSS 侧区分（此处只输出类名与结构，
+         不写任何样式）。仍保留 data-theme-mode，交互与 App.setTheme 不变；
+         active / aria-pressed 由 curMode 在同一处算出，render 后天然同步。 */
+      html += '<span class="lbl-text">主题</span><div class="theme-cards" id="sThemeSeg">'
         + MODES.map(function (m) {
-          return '<button type="button" class="seg-btn' + (curMode === m[0] ? ' active' : '') + '" data-theme-mode="' + m[0] + '">' + m[1] + '</button>';
+          var act = (curMode === m[0]);
+          return '<button type="button" class="theme-card theme-card--' + m[0] + (act ? ' active' : '') + '" data-theme-mode="' + m[0] + '" aria-pressed="' + (act ? 'true' : 'false') + '">'
+            + '<span class="tc-view">'
+            + '<i class="tc-chip"></i><i class="tc-chip"></i><i class="tc-chip"></i>'
+            + '<i class="tc-bar"></i><i class="tc-line"></i>'
+            + '</span>'
+            + '<span class="tc-name">' + m[1] + '</span>'
+            + '</button>';
         }).join('')
         + '</div>';
       html += '<p class="hint">「跟随时间」= 本地 22:00–06:00 自动暗色并压低动效；「跟随系统」跟设备设置。'
@@ -608,6 +620,27 @@
         }).join('')
         + '</div>';
       html += '<p class="hint">调大后全站文字一起放大（含记录明细与提示文字），方便和家里长辈一起看。只改显示，不动任何记录。</p>';
+      /* 第 118 次：字号样张——用当前档位实时显示「大数字 + 正文」两行，直接暴露
+         「display 与 body 同比例放大（比例没被改善）」这个已知缺陷（CSS 侧正在解耦，
+         这行正好把它可视化出来）。全部走 var(--fs-display) / var(--fs-body)，不写死 px。 */
+      html += '<div class="fs-sample">'
+        + '<span class="fss-display">28</span>'
+        + '<span class="fss-body">宝宝今天喝得很好，这是正文的样子</span>'
+        + '</div>';
+      /* 第 118 次：高对比模式（opt-in）——给卡片加一圈更明显的描边、并把模块淡色底提亮，
+         面向色觉障碍 / 老年晶状体黄化；读写走 App.hcMode() / App.setHcMode()（缺则回落关）。 */
+      var hcOn = (global.App && typeof global.App.hcMode === 'function') ? global.App.hcMode() : false;
+      html += '<div class="row-switch"><label for="sHcMode">高对比模式</label>'
+        + '<input type="checkbox" id="sHcMode"' + (hcOn ? ' checked' : '') + '></div>';
+      html += '<p class="hint">开启后给卡片加一圈更明显的描边、并把模块淡色底提亮，'
+        + '让它在色觉障碍或老年晶状体黄化下也能分清。给别人用、或觉得界面“太素”时可关掉。</p>';
+      /* 第 118 次：首页只显示常用（默认开）——落盘 settings.homeConverge 后重渲染，
+         首页据此只留当前阶段最常用模块，其余收进「全部功能」。 */
+      var convOn = s.settings.homeConverge !== false;
+      html += '<div class="row-switch"><label for="sHomeConverge">首页只显示常用</label>'
+        + '<input type="checkbox" id="sHomeConverge"' + (convOn ? ' checked' : '') + '></div>';
+      html += '<p class="hint">开启后首页只留当前阶段最常用的几个模块，其余全部收进首页底部的「全部功能」；'
+        + '没记过的模块不再占位。关掉就恢复全部磁贴。</p>';
       html += '<div class="row-switch"><label for="sRefract">真实玻璃折射</label>' +
         '<input type="checkbox" id="sRefract"' + (s.settings.realRefraction !== false ? ' checked' : '') + '></div>';
       html += '<p class="hint">开启后，玻璃卡片会折射背后的背景（更逼真的液态玻璃）。低端设备若出现卡顿可关闭。</p>';
@@ -947,6 +980,11 @@
         b.addEventListener('click', function () {
           var v = b.getAttribute('data-font-scale');
           global.App.setFontScale(v);
+          /* 第 118 次：字号样张引用的 --fs-display / --fs-body 随 body 类变化，
+             CSS 变量一改即刷新；沿用上面这套「回调里即时更新」的既有做法，
+             再显式触发一次重排，保证样张与 seg 同步（不整页重渲染，避免闪屏）。 */
+          var fsSample = view.querySelector('.fs-sample');
+          if (fsSample) { void fsSample.offsetHeight; }
           Array.prototype.forEach.call(view.querySelectorAll('#sFontSeg .seg-btn'), function (x) {
             x.classList.remove('active');
           });
@@ -986,6 +1024,26 @@
         global.App.rerender();
       });
 
+      /* 第 118 次：高对比开关——沿用 sRefract / sHaptic 同一套「取元素 + change」绑定，
+         只调用 App.setHcMode（内部已负责写 Storage.save() 与切 body.hc 类）。 */
+      var hc = view.querySelector('#sHcMode');
+      if (hc) hc.addEventListener('change', function () {
+        if (global.App && typeof global.App.setHcMode === 'function') global.App.setHcMode(hc.checked);
+        Util.toast(hc.checked ? '已开启高对比模式' : '已关闭高对比模式', 'ok');
+      });
+
+      /* 第 118 次：首页只显示常用——落盘后重渲染，首页据此收敛磁贴（与 sTileFilter 同范式）。 */
+      var conv = view.querySelector('#sHomeConverge');
+      if (conv) conv.addEventListener('change', function () {
+        var st = Storage.get();
+        st.settings.homeConverge = conv.checked;
+        Storage.save();
+        Util.toast(conv.checked ? '首页只显示常用模块' : '首页恢复显示全部磁贴', 'ok');
+        /* 第 119 次：补存在性守卫——上一行 setHcMode 的调用就是带守卫的，
+           同一处理范式不应一条有守卫一条裸调（QA 沙箱缺 App 时会抛错）。 */
+        if (global.App && typeof global.App.rerender === 'function') global.App.rerender();
+      });
+
       var refr = view.querySelector('#sRefract');
       if (refr) refr.addEventListener('change', function () {
         var st = Storage.get();
@@ -1014,7 +1072,12 @@
         var v = t.getAttribute('data-hand-mode');
         var st = Storage.get();
         st.settings.handMode = v;
-        st.settings.leftHand = (v === 'left'); /* 旧字段同步写，只读旧字段的代码语义不破 */
+        /* 第 119 次：删除了原「旧字段 leftHand 同步写」那行死代码。
+           它是死写入：leftHand 不在 sanitize() 白名单里（storage.js 逐键白名单），
+           save() 落盘后下次 load 就被丢掉；且全仓没有任何代码读这个字段——
+           唯一引用是 storage.js 的「导入旧备份时把旧布尔值迁移为 handMode=left」，
+           那是读外部数据，不是读这里的写入。原注释声称「只读旧字段的代码语义不破」
+           并不成立。真实现役字段是上一行的 handMode（三值枚举）。 */
         Storage.save();
         if (global.App && typeof App.applyTheme === 'function') App.applyTheme();
         if (global.App && typeof App.buildTabbar === 'function') App.buildTabbar();

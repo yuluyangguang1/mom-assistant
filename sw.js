@@ -9,7 +9,22 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v79';
+var CACHE = 'baoma-static-v87';
+/* v87（第 126 次修复）：styles.css 编辑态角标点不动——.record-tile 基线
+   overflow:hidden 把 top:-9px/right:-9px 的删除角标裁到只剩可见 18×18
+   （实测可见面积 47.9%），elementFromPoint 证实「角标中心点落空、仅内缩区命中」，
+   用户凭直觉点中心必然点不动。修法：编辑态放开裁剪（overflow:visible）+
+   角标 ::before 扩命中区到 44×44（Apple HIG 下限）；浏览态维持 hidden 不变。
+   真机 CDP 触摸实测：删除/切大小/拖动排序三项全部生效，314 QA + 398 对比度零回归。
+   v86（第 125 次修复）：① util.js/reminders.js 日期函数——纯日期串与日期时间串
+   混用差一天（中国时区即复现），统一到本地日历日口径；② sw 预缓存补齐
+   alltools.js / search.js（第 118 次加入 index.html 时漏登记）；③ home.js
+   编辑态拖拽 pointerup 只绑 grid 导致指针移出网格松手时拖动卡死；
+   ④ homeLayout 的 removed 与 items 冲突时已删组件仍显示。
+   v85（第 124 次修复）：home.js 编辑模式拖拽捕获时序——pointerdown 即捕获导致
+   click 被改判到磁贴行，删除/大小角标点不动；改为拖动成立（350ms）时才捕获。
+   v84（第 123 次）：home.js 直接记录第二批（瓶喂/亲喂/吸奶步进卡）、styles.css
+   步进器样式。凡触碰过的缓存文件随版本重新下发。 */
 
 var ASSETS = [
   './',
@@ -50,7 +65,9 @@ var ASSETS = [
   'js/modules/period.js',
   'js/modules/pregnancy.js',
   'js/modules/supplies.js',
-  'js/modules/mood.js'
+  'js/modules/mood.js',
+  'js/modules/alltools.js',
+  'js/modules/search.js'
 ];
 
 self.addEventListener('install', function (e) {

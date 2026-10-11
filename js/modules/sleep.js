@@ -315,7 +315,11 @@
      ============================================================ */
   function wakeGaps(sleeps, opts) {
     opts = opts || {};
-    var days = opts.days || 7;
+    /* 第 125 次：原 `opts.days || 7` 会把调用方显式传入的 0 吞成 7。
+       下方 `if (days > 0 ...)` 分支说明「传 0 = 不限天数」是本接口本意，
+       与 `|| 7` 直接冲突（0 被改写后就永远不会走那条分支）。
+       改用显式 null 判断，只在「未传」时套默认 7。 */
+    var days = (opts.days == null) ? 7 : opts.days;
     var done = (sleeps || []).filter(function (s) { return s && s.start && s.end; })
       .sort(function (a, b) { return new Date(a.start) - new Date(b.start); });
     var out = [];
@@ -338,7 +342,8 @@
 
   /* 清醒间隔的自身历史区间（U-24：只用近 N 天自己的数据） */
   function wakeGapSummary(sleeps, days) {
-    var ds = days || 7;
+    /* 第 125 次：同上，`days || 7` 吞 0；显式判断只在未传时兜底。 */
+    var ds = (days == null) ? 7 : days;
     var gs = wakeGaps(sleeps, { days: ds });
     if (!gs.length) return null;
     var vs = gs.map(function (g) { return g.minutes; }).sort(function (a, b) { return a - b; });

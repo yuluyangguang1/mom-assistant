@@ -52,15 +52,39 @@
       return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + hm;
     },
 
-    /** 两个日期（或日期时间）相差天数 b - a */
+    /** 两个日期（或日期时间）相差天数 b - a
+        第 125 次修复：旧实现直接 `new Date(a)` / `new Date(b)` 相减——
+        当一端是纯日期串 'YYYY-MM-DD'（按 UTC 午夜解析）而另一端带时分
+        （按本地解析）时，中国时区（UTC+8）下同一天会算成 1 天：
+          daysBetween('2026-10-11', '2026-10-11T23:00:00') === 1  ← 应为 0
+        影响面极广（提醒「还有 N 天」/ 备份天数 / 经期天数 / 疫苗剩余）；
+        且对 UTC 负偏移时区，纯日期串还会整体差一天。
+        修法：先把两端都归一化到【本地日历日的零点】，再做天数差——
+        语义回到「日历日之差」，与调用方的直觉（同一个日历日 = 0 天）一致。
+        纯日期串按本地零点解析（不再走 UTC），负偏移时区问题同时消除。 */
+    _dayStart: function (x) {
+      if (x == null || x === '') return null;
+      var s = String(x);
+      /* 纯日期 'YYYY-MM-DD'：按本地零点构造，避开 UTC 解析 */
+      var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.slice(0, 10));
+      if (m && s.length <= 10) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+      var d = (x instanceof Date) ? x : new Date(x);
+      if (isNaN(d.getTime())) return null;
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    },
     daysBetween: function (a, b) {
-      var da = new Date(a), db = new Date(b);
-      return Math.round((db.getTime() - da.getTime()) / 86400000);
+      var da = this._dayStart(a), db = this._dayStart(b);
+      if (da === null || db === null) return 0; /* 坏数据不抛错，差值为 0 */
+      return Math.round((db - da) / 86400000);
     },
 
-    /** 在 iso 日期上加 n 天（n 可为负） */
+    /** 在 iso 日期上加 n 天（n 可为负）
+        第 125 次修复：改为本地零点构造 + 本地取值，不用 new Date('YYYY-MM-DD')
+        （那是 UTC 午夜，UTC 负偏移时区下会差一天）。 */
     addDays: function (iso, n) {
-      var d = new Date(iso);
+      var base = this._dayStart(iso);
+      if (base === null) return '';
+      var d = new Date(base);
       d.setDate(d.getDate() + n);
       return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     },

@@ -17,6 +17,12 @@
 
   var current = 'home';
 
+  /* 模块 id → 图标键：多数模块的图标键就等于自身 id，个别不同名。
+     第 118 次补 alltools（页面图标记为 grid 四宫格）与 whitenoise（图标键是 noise，
+     此前调 icon('whitenoise') 拿不到图、页头留一个空槽）。
+     与 modules/alltools.js 里的 ICON_KEY 口径必须一致。 */
+  var ICON_KEY = { alltools: 'grid', whitenoise: 'noise' };
+
   /* 第 116 次（真机实测：iOS 添加到桌面后顶部一条白色渐变 + 顶栏元素挤成一团）：
      独立模式（PWA 添加到桌面）下，env(safe-area-inset-top) 本身已包含 iOS 状态栏高度，
      CSS 若再叠加 10px 基础内边距就是「安全区算两遍」——顶栏被撑高 126px，
@@ -189,7 +195,12 @@
     /* 第 116 次：进入「有上一层」的模块时登记一条 history，让侧滑返回与
        浏览器/系统返回键生效。判定只看「从顶层进更深一层」——
        首页/日历/设置互切是平级，不登记（否则侧滑会退到另一顶层页，行为怪异）。
-       rerender 走 silent 路径且id 不变，这里由opts.silent 挡住，不会重复推栈。 */
+       rerender 走 silent 路径且id 不变，这里由opts.silent 挡住，不会重复推栈。
+
+       第 118 次：alltools（全部功能）与 search（全局搜索）**刻意不算顶层**。
+       它们是从首页推入的子页，必须走「非顶层」这条分支才能同时拿到
+       两件事——① 被 pushHistory 登记（侧滑/返回键可退回首页）
+       ② 顶栏显示返回按钮。把它们当顶层会让用户进得去出不来。 */
     var isTopLevel = (id === 'home' || id === 'calendar' || id === 'settings');
     var wasTopLevel = (prevId === 'home' || prevId === 'calendar' || prevId === 'settings');
     if (!(opts && opts.silent) && !isTopLevel && wasTopLevel) {
@@ -200,8 +211,11 @@
     var view = document.getElementById('view');
     view.innerHTML = '';
     /* 模块页「分色身份」：给记录类模块页打 data-accent，让列表/图标/标题继承其柔彩色；
-       首页（多模块聚合）与日历（自带 per-row 分色）必须清除，避免串色。 */
-    if (id === 'home' || id === 'calendar') view.removeAttribute('data-accent');
+       首页（多模块聚合）与日历（自带 per-row 分色）必须清除，避免串色。
+       第 118 次：alltools / search 也清除——它们不是"某个模块"，
+       页内每个磁贴自带 data-accent（.tool-item），页级再挂一个无对应 [data-accent] 规则的
+       值只会让页头的 --tile 走 fallback、颜色与页内磁贴对不上。 */
+    if (id === 'home' || id === 'calendar' || id === 'alltools' || id === 'search') view.removeAttribute('data-accent');
     else view.setAttribute('data-accent', id);
     try {
       Modules[id].render(view);
@@ -214,7 +228,7 @@
       var head = document.createElement('div');
       head.className = 'mod-head';
       head.setAttribute('data-accent', id);
-      head.innerHTML = '<span class="mod-head-ico">' + icon(id) + '</span><h1>' + Util.escapeHtml(Modules[id].title) + '</h1>';
+      head.innerHTML = '<span class="mod-head-ico">' + icon(ICON_KEY[id] || id) + '</span><h1>' + Util.escapeHtml(Modules[id].title) + '</h1>';
       view.insertBefore(head, view.firstChild);
     }
     /* 返回按钮 + 日期收起态（第 42 次）：模块页显示返回，回到首页则隐藏。
@@ -348,6 +362,10 @@
     /* 第 103 次（OP-GAP-03）：字号倍率。与上面三处同款处理——
        add/remove 而非 toggle(force)，因为 QA 桩的 toggle 不吃 force 会退化成反转。 */
     applyFontScale();
+    /* 第 118 次（对标 Cali）：高对比模式。同款 add/remove。
+       放在 applyTheme 里是因为它要与主题同生命周期——虽然不是"主题"，
+       但用户心智里它属于外观，且主题切换（跟随时间自动变暗）时不该丢掉它。 */
+    applyHcMode();
     /* 顶栏主题按钮已移除（第 40 次）：入口在「设置 · 外观」，这里不再更新按钮文案 */
     if (global.Glass) global.Glass.setTheme(); /* 折射场景需随主题重绘背景渐变 */
   }
@@ -365,12 +383,21 @@
     applyTheme();
   }
 
-  /* 第 103 次（OP-GAP-03）：全局字号倍率。挂 body 类，CSS 侧覆盖 --fs-* 五个变量。
+  /* 第 103 次（OP-GAP-03）建，第 118 次（对标 Cali）修正：全局字号倍率。
+     挂 body 类，CSS 侧改 --fs-mul 一个倍率变量，全站 calc(Npx * var(--fs-mul)) 一起缩。
+
      为什么走 body 类而不直接改 style.fontSize：直接改根元素字号会与 body 自身的
-     font-size 声明打架，且不作用于 px 单位的图标与滑杆尺寸；覆盖 CSS 变量则是
-     「所有引用 var(--fs-*) 的地方一起变」，而 styles.css 里 font-size 无一处硬编码 px
-     （实测：硬编码 font-size 计数 0），所以变量一改全站生效、无漏网。
-     三档：normal=原样、lg=1.15、xl=1.3。非法值回落 normal。 */
+     font-size 声明打架，且不作用于 px 单位的图标与滑杆尺寸。
+
+     ⚠ 一个必须留档的纠正：旧注释在这里写着「styles.css 里 font-size 无一处硬编码 px
+     （实测计数 0），所以变量一改全站生效、无漏网」。**这句话是假的**，而且已经假了三轮。
+     第 118 次真实计数：显式 font-size 93 处，只有 13 处引用 var(--fs-*)。
+     也就是说第 103 次上线后，「字号三档」其实只对继承 body 的文字生效，
+     所有写死 12/12.5/13px 的提示、徽标、摘要、日期纹丝不动 ——
+     对祖辈用户来说这是一个「点了没反应」的开关。第 118 次已把 93 处全部改成
+     calc(Npx * var(--fs-mul))，本注释的陈述才第一次为真。
+
+     三档：normal=原样、lg=1.15、xl=1.33。非法值回落 normal。 */
   var FONT_SCALES = ['normal', 'lg', 'xl'];
 
   function fontScale() {
@@ -393,6 +420,36 @@
     Storage.get().settings.fontScale = v;
     Storage.save();
     applyFontScale();
+  }
+
+  /* 第 118 次（对标 Cali · opt-in 无障碍）：高对比模式 body.hc。
+     为谁做：色觉障碍、老年晶状体黄化（蓝光被吸收后彩度感知衰减）——
+     这正是本项目「含祖辈」的目标人群，不是边缘需求。
+
+     为什么做成开关而不是默认开：默认态的模块淡底靠 ΔE76（色相/彩度）分离，
+     正常人一眼分开；但这一档用户对彩度不敏感，需要**明度**分离兜底，
+     而明度分离会把每张磁贴推成"近白重底 + 重描边"，整体气质从柔和变硬朗，
+     不适合强加给所有人。所以默认关。
+
+     为什么挂 <body> 类而不是 <html>：与 applyFontScale / dock-left 同款，
+     QA 桩可以直接断言 body.classList，不必碰根元素。
+
+     ⚠ 暗色下这个类**仍会挂上**，但 CSS 里高对比段全部写成 body.hc:not(.dark)，
+     所以暗色下它实际不生效 —— 这是刻意的：暗色需要另一套"提高彩度透明度"的取值，
+     本轮未算，宁可开关无效也不要把页面弄坏（见 styles.css 该段注释）。 */
+  function hcMode() {
+    return Storage.get().settings.hcMode === true;
+  }
+
+  function applyHcMode() {
+    if (hcMode()) document.body.classList.add('hc');
+    else document.body.classList.remove('hc');
+  }
+
+  function setHcMode(on) {
+    Storage.get().settings.hcMode = (on === true);
+    Storage.save();
+    applyHcMode();
   }
 
   /* ---------------- 阶段（孕期 / 育儿期）判定 ----------------
@@ -862,6 +919,8 @@
     setTheme: setTheme, /* 设置 · 外观 的主题切换（auto/light/dark） */
     setFontScale: setFontScale, /* 设置 · 外观 · 字号（normal/lg/xl，第 103 次） */
     fontScale: fontScale, /* 供 QA 断言当前档位 */
+    hcMode: hcMode, /* 设置 · 外观 · 高对比模式（第 118 次，opt-in） */
+    setHcMode: setHcMode,
     _bindQuickDock: buildQuickDock, /* QA：重置缓存桩后重绑 dock（幂等，同元素不叠加） */
     metricsSummary: metricsSummary,
     _countRecords: countRecords, /* QA：导入差异预览的计数函数（导出前确认共用） */

@@ -19,10 +19,18 @@
     if (isNaN(t)) return null;
     return Math.max(0, (now - t) / 3600000);
   }
+  /* 第 125 次：日期工具改为复用 Util 的同名函数。
+     原此处各持一份私有实现，与 util.js 是两套口径——util.js 修了
+     「纯日期串 vs 日期时间串混用差一天」后，不一起改就会出现两套日期语义
+     （本文件此前对 `daysBetween(isoOf(x), new Date(now))` 同样错一天）。
+     统一到 Util 单一真源；Util 未加载时（理论上不会，index.html 里 util.js
+     在前）回落到原实现，保证不抛错。 */
   function daysBetween(a, b) {
+    if (window.Util && Util.daysBetween) return Util.daysBetween(a, b);
     return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
   }
   function addDays(iso, n) {
+    if (window.Util && Util.addDays) return Util.addDays(iso, n);
     var d = new Date(iso);
     d.setDate(d.getDate() + n);
     return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);

@@ -43,6 +43,9 @@
       settings: {
         theme: 'light', privacyAccepted: false, baby: null, realRefraction: true,
         lastExportISO: null, backupSnoozeISO: null, exportNoticeShown: false, capSnoozeISO: null,
+        /* 第 120 次（首页布局编辑）：null = 自动策展（阶段筛选 + 收敛，改动前行为）；
+           用户在编辑模式改过之后才落 { v:1, items:[{id,size}], removed:[id] }。 */
+        homeLayout: null,
         /* U-09：夜间（22:00–06:00）自动进入暗色；用户手动切主题会置为 false */
         themeAuto: true,
         /* 首次引导与身份（O 系列）：只存身份与称呼，不采集姓名/手机号/邮箱 */
@@ -175,6 +178,50 @@
       /* 第 80 次（宝宝档案）：当前宝宝 id + 一次性迁移标记（随导入导出带走） */
       if (typeof s.activeBabyId === 'string' || s.activeBabyId === null) base.settings.activeBabyId = s.activeBabyId;
       if (typeof s.babiesSeeded === 'boolean') base.settings.babiesSeeded = s.babiesSeeded;
+
+      /* ───── 第 118 次（对标 Cali）：补齐白名单漏键 ─────────────────────────
+         本函数是**手写的逐键白名单**：没写进这里的键，读回来就被整段丢掉。
+         而下面五个键的写入方一直存在（app.js 的 setFontScale / setTheme / setStage、
+         设置页的 homeConverge、本轮的 hcMode），却从来没进过白名单 ——
+         后果不是"报错"，是**静默失效**：设置看起来保存成功（Storage.save 确实写了），
+         下次启动 load→sanitize 一过就没了。用户视角是「我明明调过，重开又变回去」。
+
+         值得一提：本函数里 handMode 的注释早就写着「该字段当时未入白名单，本就不落盘」
+         —— 说明作者知道这个坑，只是逐个踩。这次一次性补齐，并加了往返断言
+         （qa_test.js「设置白名单往返」）防止再漏。
+
+         类型校验口径与各自消费方保持一致：
+           themeMode  四值枚举（app.js themeMode() 只认这四个，非法回落 'time'）
+           stage      'pregnancy' | 'baby' | null（null 合法 = 未选择，回落客观判定）
+           fontScale  'normal' | 'lg' | 'xl'（app.js FONT_SCALES）
+           homeConverge / hcMode  布尔（缺省语义由消费方给：首页收敛默认开、高对比默认关） */
+      if (s.themeMode === 'time' || s.themeMode === 'system' || s.themeMode === 'light' || s.themeMode === 'dark') {
+        base.settings.themeMode = s.themeMode;
+      }
+      if (s.stage === 'pregnancy' || s.stage === 'baby' || s.stage === null) base.settings.stage = s.stage;
+      if (s.fontScale === 'normal' || s.fontScale === 'lg' || s.fontScale === 'xl') base.settings.fontScale = s.fontScale;
+      if (typeof s.homeConverge === 'boolean') base.settings.homeConverge = s.homeConverge;
+      if (typeof s.hcMode === 'boolean') base.settings.hcMode = s.hcMode;
+      /* 第 120 次（首页布局编辑）：homeLayout 白名单——不只放行，还要形状校验。
+         id 只认小写字母/数字短串（与模块 id 同域），size 只认 s/l，
+         条目数设上限（items ≤ 24 / removed ≤ 40），坏数据宁可丢弃不进内存。
+         items 与 removed 全空等价于没编辑过 → 回落 null（自动策展）。 */
+      if (s.homeLayout && typeof s.homeLayout === 'object' && !Array.isArray(s.homeLayout)) {
+        var hlItems = [];
+        (Array.isArray(s.homeLayout.items) ? s.homeLayout.items : []).slice(0, 24).forEach(function (it) {
+          if (it && typeof it.id === 'string' && /^[a-z][a-z0-9-]{1,15}$/.test(it.id)
+            && (it.size === 's' || it.size === 'l')
+            && !hlItems.some(function (x) { return x.id === it.id; })) {
+            hlItems.push({ id: it.id, size: it.size });
+          }
+        });
+        var hlRemoved = [];
+        (Array.isArray(s.homeLayout.removed) ? s.homeLayout.removed : []).slice(0, 40).forEach(function (id) {
+          if (typeof id === 'string' && /^[a-z][a-z0-9-]{1,15}$/.test(id) && hlRemoved.indexOf(id) < 0) hlRemoved.push(id);
+        });
+        base.settings.homeLayout = (hlItems.length || hlRemoved.length)
+          ? { v: 1, items: hlItems, removed: hlRemoved } : null;
+      }
     }
     ARRAY_KEYS.forEach(function (k) {
       if (Array.isArray(raw[k])) {
