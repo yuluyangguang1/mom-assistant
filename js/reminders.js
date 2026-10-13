@@ -168,10 +168,21 @@
     });
     if (dueSoon) return {
       accent: 'vaccine', go: 'vaccine', remLevel: 1,
+      /* 第 131 次（P0-b）：即便走「即将应种」分支，也带上逾期计数——
+         磁贴角标「待补 N 剂」要的是 backlog 全量，与提醒卡展示哪条无关。 */
+      pendingCount: overdueN,
       text: dueSoon.name + dueSoon.dose + (daysBetween(todayISO, dueSoon.dueISO) === 0 ? ' 今天应种。' : ' ' + daysBetween(todayISO, dueSoon.dueISO) + ' 天后应种。')
     };
     if (overdueN) return {
       accent: 'vaccine', go: 'vaccine', remLevel: 2,
+      /* 第 129 次：标记 stale（陈旧待办）+ pendingLabel（单行汇总用的短标签）。
+         对标 Cali——逾期在 Cali 只以 VaccineReminderPlan.pendingCount 这个计数存在，
+         服务磁贴角标与本机通知，HomeWidgetSnapshot 里根本没有 reminder 字段。
+         Web 端没有系统推送，不能彻底消失（否则用户找不到入口），但不再以
+         整段文案占首屏：合并成一行「待补」汇总，详情进疫苗页看。
+         第 131 次（P0-b）：pendingCount 同时喂首页疫苗磁贴角标
+         （home.js 读 Reminders._pendingCounts，与本规则同源取数）。 */
+      stale: true, pendingCount: overdueN, pendingLabel: '疫苗 ' + overdueN + ' 剂',
       /* 逾期超过 30 天时补出实际天数：家长需要知道拖了多久，
          但仍只陈述事实并把决定权交回（建议咨询门诊），不催、不吓。 */
       text: '有 ' + overdueN + ' 剂疫苗已逾期'
@@ -204,12 +215,17 @@
       var dl = daysBetween(todayISO, dueSoon.dueISO);
       return {
         accent: 'vaccine', go: 'vaccine', remLevel: 1,
+        pendingCount: overdueN, /* 第 131 次（P0-b）：同 ruleVaccine——backlog 全量 */
         text: '儿保体检：' + dueSoon.name + (dl === 0 ? ' 参考时间就是今天，记得预约。' : ' ' + dl + ' 天后到期，可以预约了。')
       };
     }
     if (overdueN) {
       return {
         accent: 'vaccine', go: 'vaccine', remLevel: 2,
+        /* 第 129 次：同 ruleVaccine——过期儿保节点是「预约一次门诊」的事，
+           不是今天能打勾的待办，与疫苗逾期合并为同一行待补汇总。
+           第 131 次（P0-b）：pendingCount 供首页磁贴角标同源取数。 */
+        stale: true, pendingCount: overdueN, pendingLabel: '儿保体检 ' + overdueN + ' 次',
         text: '有 ' + overdueN + ' 次儿保体检已过参考时间'
           + (overdueWorst > 30 ? '（最久一次已过 ' + overdueWorst + ' 天）' : '')
           + '，建议尽快带宝宝体检。'
@@ -218,13 +234,23 @@
     return null;
   }
 
-  /* 维 D 习惯：近 3 天有服药记录（说明在规律喂）但今天还没有 → 温和提醒 */
+  /* 维 D 习惯：近 3 天有服药记录（说明在规律喂）但今天还没有 → 温和提醒
+     第 131 次（P1-a）：「今天」改照护日口径（dayStart 可配，默认 0 = 公历日）——
+     6:00 起始时，凌晨喂的维 D 仍算「今天喂过」，不会一大早弹「还没喂」。
+     Util 未加载时（理论上不会，index.html 里 util.js 在前）回落本地日历日，
+     与改前逐字节等价。 */
   function ruleMeds(d, now) {
     var meds = d.meds || [];
     if (!meds.length) return null;
-    var todayISO = new Date(now);
-    todayISO = todayISO.getFullYear() + '-' + ('0' + (todayISO.getMonth() + 1)).slice(-2) + '-' + ('0' + todayISO.getDate()).slice(-2);
-    var hasToday = meds.some(function (r) { return (r.time || '').slice(0, 10) === todayISO; });
+    var DS = (window.Util && Util.dayStartHour) ? Util.dayStartHour(d) : 0;
+    var nd = new Date(now);
+    var dayNow = (window.Util && Util.dayKeyOf) ? Util.dayKeyOf(nd, DS)
+      : nd.getFullYear() + '-' + ('0' + (nd.getMonth() + 1)).slice(-2) + '-' + ('0' + nd.getDate()).slice(-2);
+    function sameDay(iso) {
+      if (window.Util && Util.dayKeyOf) return Util.dayKeyOf(iso, DS) === dayNow;
+      return (iso || '').slice(0, 10) === dayNow;
+    }
+    var hasToday = meds.some(function (r) { return sameDay(r.time); });
     if (hasToday) return null;
     var cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 3);
     var recent = meds.some(function (r) { return r.time && new Date(r.time) >= cutoff; });
@@ -317,6 +343,13 @@
         /* 过期越久越该看一眼，但仍是「可以对照」而非「该担心」——
            发育进程有个体差异，医学判断交给儿保医生，这里只负责别忘了。 */
         remLevel: over >= 2 ? 2 : 1,
+        /* 第 129 次：过期 ≥2 个月的对照项并入待补汇总行（stale）。
+           过期 <2 个月仍是完整卡片——那是「最近该做」的事。
+           第 131 次（P0-b）：过期时带 pendingCount:1，首页里程碑磁贴
+           据此显示「待对照」角标（与疫苗磁贴同一套 pendingCount 机制）。 */
+        stale: over >= 2 ? true : false,
+        pendingCount: over >= 2 ? 1 : 0,
+        pendingLabel: '发育对照 ' + m + ' 月龄',
         text: (over > 0 ? m + ' 月龄的发育观察期已过 ' + over + ' 个月，' : m + ' 月龄到了，')
           + '还没有对照过。想到再标就行，不用一次做完。'
       };
@@ -325,7 +358,8 @@
   }
 
   /* 胎动（孕 28 周起每天数）：有孕周且今天一条都没记时温和提醒一次；
-     数胎动方法因医嘱而异，文案不给「达标线」（U-25），只提示留意。 */
+     数胎动方法因医嘱而异，文案不给「达标线」（U-25），只提示留意。
+     第 131 次（P1-a）：「今天」改照护日口径（同 ruleMeds）。 */
   function ruleFetal(d, now) {
     var pg = d.pregnancy || {};
     var base = pg.lmp || pg.dueDate;
@@ -333,9 +367,13 @@
     if (!base) return null;
     var days = daysBetween(base, new Date(now));
     if (days < 28 * 7) return null; /* 一般孕 28 周起才数，早了不打扰 */
+    var DS = (window.Util && Util.dayStartHour) ? Util.dayStartHour(d) : 0;
     var nowD = new Date(now);
-    var t = nowD.getFullYear() + '-' + ('0' + (nowD.getMonth() + 1)).slice(-2) + '-' + ('0' + nowD.getDate()).slice(-2);
-    var todayN = (d.fetal || []).filter(function (r) { return isoOf(r.time) === t; }).length;
+    var t = (window.Util && Util.dayKeyOf) ? Util.dayKeyOf(nowD, DS)
+      : nowD.getFullYear() + '-' + ('0' + (nowD.getMonth() + 1)).slice(-2) + '-' + ('0' + nowD.getDate()).slice(-2);
+    var todayN = (d.fetal || []).filter(function (r) {
+      return (window.Util && Util.dayKeyOf) ? Util.dayKeyOf(r.time, DS) === t : isoOf(r.time) === t;
+    }).length;
     if (todayN > 0) return null;
     return {
       accent: 'fetal', go: 'fetal',
@@ -374,11 +412,65 @@
           return d !== 0 ? d : a.i - b.i;
         })
         .map(function (o) { return o.x; });
-      return out.slice(0, MAX_REMINDERS);
+
+      /* ------------------------------------------------------------------
+         第 129 次：陈旧待办合并为单行「待补」汇总（对标 Cali 首屏设计）。
+
+         问题（2026-10-13 用户实测首屏）：疫苗 17 剂逾期（最久 712 天）、
+         儿保 7 次过参考时间（705 天）、发育观察期已过 20 个月——三条
+         level 2 提醒把首页提醒卡占满。它们共同点是**今天不可能完成**
+         （补种 17 剂要跑门诊、对照发育不是一次点完的），于是会永久
+         挂在首页，把「此刻可做」的提醒（维D没喂、尿布间隔、今天应种）
+         全部挤出屏幕——「什么都紧急」= 什么都不紧急。
+
+         Cali 的做法（Mac 侧逆向实证）：HomeWidgetSnapshot 的字段是
+         activeBaby/accessState/stage/appearance/activeSession/directRecordSessions/
+         recents/today/careSummary/pregnancy/postpartum/tools——**没有 reminder**。
+         逾期信息只以 VaccineReminderPlan.pendingCount 这个「计数」存在，
+         服务磁贴角标与本机通知（VaccineReminderPlanner.plans(...) → 提醒日期）。
+
+         Web 端没有系统推送，不能照搬「彻底移出」——那会让用户找不到入口
+         （第 109 次特意加了「不静默消失」的口径）。折中：stale 项合并成
+         **一行**待补汇总，数字与入口都在，正文空间还给此刻提醒。
+         总数仍受 MAX_REMINDERS 约束（汇总行也占一格）。 */
+      var stale = out.filter(function (x) { return x.stale; });
+      var budget = MAX_REMINDERS - (stale.length ? 1 : 0);
+      var fresh = out.filter(function (x) { return !x.stale; }).slice(0, budget);
+      if (stale.length) {
+        fresh.unshift({
+          accent: stale[0].accent, go: stale[0].go,
+          remLevel: 2, stale: true, pending: true,
+          items: stale.map(function (x) { return { label: x.pendingLabel, go: x.go }; }),
+          /* 「待补」而非「逾期 N 天」：只陈述事实，不催不吓（沿用 U-25 口径） */
+          text: '待补：' + stale.map(function (x) { return x.pendingLabel; }).join(' · ')
+        });
+      }
+      return fresh;
     },
     /* 导出给 QA 驱动：规则内部细节不外露，只暴露常量与规则条数 */
     _MAX: MAX_REMINDERS,
     _ruleCount: function () { return RULES.length; },
+    /* 第 131 次（P0-b · 对标 Cali VaccineReminderPlan.pendingCount）：
+       陈旧待办计数——首页磁贴角标的数据源（疫苗「待补 N 剂」/
+       里程碑「待对照」）。与提醒卡同源：直接跑同三条规则读
+       pendingCount，不另写一套统计（两套口径是这个项目反复踩的坑）。
+       儿保体检没有独立磁贴，其计数只进待补汇总行，这里也返回
+       （home.js 暂不消费，留给后续磁贴/统计复用）。 */
+    _pendingCounts: function (d, now) {
+      now = now || Date.now();
+      d = d || {};
+      var out = { vaccine: 0, checkup: 0, milestone: 0 };
+      function grab(rule, key) {
+        try {
+          var hit = rule(d, now);
+          if (hit && hit.pendingCount) out[key] = hit.pendingCount;
+        } catch (e) {}
+      }
+      grab(ruleVaccine, 'vaccine');
+      grab(ruleCheckup, 'checkup');
+      grab(ruleMilestone, 'milestone');
+      return out;
+    },
     _rules: RULES
   };
 

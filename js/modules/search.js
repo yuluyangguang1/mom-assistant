@@ -67,9 +67,10 @@
   var MOOD_LV = { 1: '很低落', 2: '有点低', 3: '一般', 4: '不错', 5: '很好' };
   var MOOD_TAG = { sleep: '睡眠不足', feed: '喂养困难', body: '身体不适', family: '家庭矛盾', work: '事务压力' };
 
-  /* 索引缓存：render 时构建一次。结构 [{ key, title, go, icon, rows: [row] }]。
-     row = { title, sub, text, sortKey } */
-  var INDEX = null;
+  /* 索引结构 [{ key, title, go, icon, rows: [row] }]，row = { title, sub, text, sortKey }。
+     第 127 次：原先挂模块级并注释成「缓存」，但 render 每次都会重建（rerender 也触发），
+     缓存名不副实；且模块级变量易被误读为「跨渲染复用」——那会读到过期数据。
+     改为 render 内局部变量：作用域即生命周期，名实相符。 */
 
   /* ---------------- 通用小工具（ES5） ---------------- */
 
@@ -534,7 +535,7 @@
     checkups: buildCheckups, babies: buildBabies
   };
 
-  /** render 时调用一次：把全部记录读取成内存索引（缓存在 INDEX） */
+  /** render 时调用一次：把全部记录读取成内存索引（结果存 render 的局部 INDEX） */
   function buildIndex(d) {
     var groups = [];
     for (var i = 0; i < GROUPS.length; i++) {
@@ -628,8 +629,9 @@
     render: function (view) {
       var d = Storage.get();
 
-      /* 建立一次索引并缓存；后续输入只过滤，不重建 */
-      INDEX = buildIndex(d);
+      /* 每次进入本页（含 rerender）重建索引，保证反映最新数据；
+         同一次渲染期间输入只过滤、不复建（paint 闭包捕获本局部变量）。 */
+      var INDEX = buildIndex(d);
 
       var html = ''
         + '<div class="search-bar">'

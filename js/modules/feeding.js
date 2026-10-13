@@ -146,6 +146,53 @@
     return solidName(r);
   }
 
+  /* ============================================================
+     第 131 次（P1-b · 对标 Cali FeedingInsightSeries / WeeklyFeedingSummary /
+     BottleMilkSource）：近 7 日瓶喂洞察。
+     ------------------------------------------------------------
+     抄 Cali 的三件事，不抄的也写明：
+       · weeklyTotal / dailyAverage——周总量与日均（Caliber 的
+         FeedingInsightSeries 同名字段），只对**有量的记录**算：
+         瓶喂/奶粉有 ml，亲喂没有量，吸奶不是宝宝摄入——都不硬凑数；
+       · hasMixedBottleSources——混合奶源提示（这周同时用了母乳瓶喂
+         与配方奶时提醒标注，回头才分得清）；
+       · 不抄 ProjectedBreastMilkInsightSeries（预测型 UI）：那需要
+         吸奶量反推摄入模型，我们没有也不该编（U-25 不下结论）。
+     口径：滚动 7×24 小时窗口（与「下次喂奶参考」的 48h 窗口同风格）；
+     日均按「有瓶喂记录的天数」摊，不按 7 天摊——只记了 3 天时
+     除以 7 会凭空说成「喝得少」。参照只来自用户自己的记录（U-24）。
+     ============================================================ */
+  function insight7d(d, now) {
+    now = now || Date.now();
+    var cut = now - 7 * 86400000;
+    var win = (d.feedings || []).filter(function (r) {
+      return r.start && new Date(r.start).getTime() >= cut;
+    });
+    var bottle = win.filter(function (r) { return r.type === 'bottle' || r.type === 'formula'; });
+    var breastN = win.filter(function (r) { return r.type === 'breast'; }).length;
+    /* 卡是「瓶喂洞察」：瓶喂 <2 次不出卡——纯亲喂家庭摆一排 0 ml
+       统计数是噪声不是洞察（亲喂没有量，第 131 次起明说不进统计）。 */
+    if (bottle.length < 2) return null;
+    var total = 0, bmMl = 0, fmMl = 0, days = {};
+    bottle.forEach(function (r) {
+      /* 新数据：amountBm/amountFm 分源；旧数据只有 amount——无法分源时
+         整体计母乳（第 43 次之前的记录瓶喂只有母乳一种，这个回落不失真）。 */
+      var bm = r.amountBm || 0, fm = r.amountFm || 0;
+      if (!bm && !fm && r.amount) bm = r.amount;
+      bmMl += bm; fmMl += fm; total += bm + fm;
+      days[Util.fmtDate(r.start)] = 1;
+    });
+    var dayN = Object.keys(days).length;
+    return {
+      total: total,
+      avg: dayN ? Math.round(total / dayN) : 0,
+      days: dayN,
+      count: bottle.length,
+      breastN: breastN,
+      mixed: bmMl > 0 && fmMl > 0
+    };
+  }
+
   Modules.feeding = {
     id: 'feeding',
     title: '喂养',
@@ -159,9 +206,16 @@
     _solidName: solidName,
     /* 第 110 次：导出「引入项」提取函数，观察期卡与 QA 共用同一口径 */
     _solidIntro: solidIntro,
+    /* 第 131 次（P1-b）：导出近 7 日瓶喂洞察纯函数供 QA 驱动
+       （与 _parseIng 同一先例：测的就是线上这段代码本身） */
+    _insight7d: insight7d,
     render: function (view) {
       var d = Storage.get();
       var today = Util.todayISO();
+      /* 第 131 次（P1-a）：「今日概览」走照护日口径（dayStart 可配，默认 0 = 公历日），
+         与首页喂养磁贴同源；下方保存时的真实时间戳仍用 today（记录必须存真实时刻）。 */
+      var DS = Util.dayStartHour(d);
+      var dayNow = Util.dayKeyOf(new Date(), DS);
       var html = '';
 
       /* C7 补记：从日历空日跳转过来时带一次性日期覆盖（App.pendingDate，读取即消费）。
@@ -174,7 +228,7 @@
       }
 
       /* 今日统计 + 母乳换边建议（放最上面，一眼看到） */
-      var feedToday = d.feedings.filter(function (r) { return (r.start || '').slice(0, 10) === today; });
+      var feedToday = d.feedings.filter(function (r) { return Util.dayKeyOf(r.start, DS) === dayNow; });
       var sorted = d.feedings.slice().sort(function (a, b) { return new Date(b.start) - new Date(a.start); });
       var latest = sorted[0];
       var lastBreast = sorted.filter(function (r) { return r.type === 'breast' && r.side; })[0];
@@ -206,6 +260,26 @@
         html += '<p class="hint">今天还没有喂养记录。</p>';
       }
       html += '</div>';
+
+      /* 第 131 次（P1-b）：近 7 日瓶喂洞察卡（对标 Cali FeedingInsightSeries）。
+         位置刻意放在「今日概览」之后、「快速记录」之前：先看趋势再记录，
+         与 Cali 首页 insights 卡同秩序。数据不够（<2 次瓶喂且 <2 次亲喂）
+         时整卡不渲染——不摆空壳（第 118 次冷启动保护的同一条纪律）。 */
+      var ins = insight7d(d);
+      if (ins) {
+        html += '<div class="card"><h2>近 7 日瓶喂</h2><div class="stat-row">';
+        html += '<div class="stat"><span class="stat-num">' + ins.total + '<i class="stat-unit">ml</i></span><span class="stat-lbl">周总量</span></div>';
+        html += '<div class="stat"><span class="stat-num">' + ins.avg + '<i class="stat-unit">ml</i></span><span class="stat-lbl">日均（' + ins.days + ' 天有记）</span></div>';
+        html += '<div class="stat"><span class="stat-num">' + ins.count + '<i class="stat-unit">次</i></span><span class="stat-lbl">瓶喂次数</span></div>';
+        html += '</div>';
+        if (ins.mixed) {
+          html += '<p class="hint">这一周瓶喂同时用了<b>母乳和配方奶</b>——记录时记得标注，回头才分得清各喝了多少。</p>';
+        }
+        var hints = [];
+        if (ins.breastN) hints.push('另记了亲喂 ' + ins.breastN + ' 次（亲喂没有量，不进上面的统计）');
+        hints.push('只统计你自己记的数，不设目标值——和你自己比就好。');
+        html += '<p class="hint">' + hints.join('；') + '。</p></div>';
+      }
 
       /* 第 69 次（B3）：喂养参考 + 辅食观察期。知识句全部来自 Knowledge 底座
          （scope 'feeding'，官方数字：辅食频次 CNS-2022 / 维D·观察期 SY-2023），
@@ -260,7 +334,7 @@
       var ftimer = d.feedingTimer || null;
       if (ftimer) {
         var ftMs = Math.max(0, Date.now() - new Date(ftimer.start).getTime());
-        var ftCrossDay = (ftimer.start || '').slice(0, 10) !== Util.todayISO();
+        var ftCrossDay = Util.dayKeyOf(ftimer.start, DS) !== dayNow; /* 第 131 次（P1-a）：跨的是照护日 */
         html += '<div class="backfill-note"><p class="hint"><b>计时中</b> · 从 ' + Util.fmtDateTime(ftimer.start)
           + ' 开始，已 ' + Util.fmtDuration(ftMs) + (ftCrossDay ? '（不是这一次喂的？可取消）' : '') + '</p>'
           + '<div class="row"><button type="button" class="btn btn-primary" id="ftEnd">结束并填入时长</button>'

@@ -25,6 +25,10 @@
     render: function (view) {
       var d = Storage.get();
       var today = Util.todayISO();
+      /* 第 131 次（P1-a）：「今日共换」走照护日口径（dayStart 可配，默认 0 = 公历日）；
+         补记的日期戳仍是公历日（backfill || today，记录必须存真实时刻）。 */
+      var DS = Util.dayStartHour(d);
+      var dayNow = Util.dayKeyOf(new Date(), DS);
       var html = '';
 
       /* C7 补记：一次性日期覆盖（App.pendingDate，读取即消费） */
@@ -44,7 +48,7 @@
       html += '</div></div>';
 
       /* 今日小结 */
-      var todayList = (d.diapers || []).filter(function (r) { return (r.time || '').slice(0, 10) === today; });
+      var todayList = (d.diapers || []).filter(function (r) { return Util.dayKeyOf(r.time, DS) === dayNow; });
       var peeN = todayList.filter(function (r) { return r.type === 'pee' || r.type === 'both'; }).length;
       var poopN = todayList.filter(function (r) { return r.type === 'poop' || r.type === 'both'; }).length;
       var latest = (d.diapers || []).slice().sort(function (a, b) { return new Date(b.time) - new Date(a.time); })[0];

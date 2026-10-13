@@ -37,6 +37,17 @@
   /* 对象型字段（嵌套容器） */
   var OBJECT_KEYS = ['pregnancy', 'prenatal', 'packing', 'finance', 'vaccines', 'checkups', 'metrics'];
 
+  /* 第 127 次（安全）：宝宝照片必须是**严格的 base64 dataURL**。
+     原先只查 'data:image/' 前缀 —— 前缀校验挡不住「属性闭合逃逸」：
+     payload 形如 `data:image/png" onerror="…` 同样通过前缀检查，再被裸拼进
+     innerHTML（app.js:493/510、settings.js:535、home.js:645 四处）即成为可执行注入。
+     已用真实浏览器 CDP 实证（顶栏头像启动即渲染，导入恶意备份刷新即执行）。
+     这里同时收紧 MIME 白名单与负载字符集，从源头杜绝引号/尖括号进入 photo。 */
+  var PHOTO_RE = /^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/;
+  function validPhoto(v) {
+    return typeof v === 'string' && v.length <= 300000 && PHOTO_RE.test(v);
+  }
+
   function defaultData() {
     return {
       version: DATA_VERSION,
@@ -83,7 +94,13 @@
         periodRelactDismissed: false, periodE4Seen: null,
         /* 第 80 次（宝宝档案）：多宝宝支持——activeBabyId 指向 babies 中的当前宝宝；
            babiesSeeded 是 v2→v3 一次性迁移标记（从旧 settings.baby 播种第一个档案）。 */
-        activeBabyId: null, babiesSeeded: false
+        activeBabyId: null, babiesSeeded: false,
+        /* 第 131 次（P1-a · 对标 Cali DailyCareRecapBuilder 的 dayStart）：
+           照护日起始小时（0–12），0 = 公历日 00:00 起（默认，改动前行为）。
+           只影响「今日/昨夜」的记录计数与归属（首页磁贴、各页今日统计、
+           维D/胎动的今日判定）；疫苗剂次、预产期等日历日语义不受影响。
+           纯新增键、默认值即旧行为，故 DATA_VERSION 不动、无需迁移。 */
+        dayStart: 0
       },
       /* 第 80 次（宝宝档案）：宝宝档案列表 { id, name, photo, birthDate }。
          photo 是本机压缩后的 dataURL（util.pickPhoto 统一压到 288px JPEG）。 */
@@ -140,7 +157,24 @@
       var s = raw.settings;
       if (s.theme === 'dark' || s.theme === 'light') base.settings.theme = s.theme;
       if (typeof s.privacyAccepted === 'boolean') base.settings.privacyAccepted = s.privacyAccepted;
-      if (s.baby && typeof s.baby === 'object') base.settings.baby = s.baby;
+      /* 第 127 次（安全）：settings.baby 此前是「原样赋值、零字段校验」——而它的字段
+         会落进 HTML 属性（growth.js:84 的 value="…birthGestWeeks…"）与打印报告，
+         是照片之外的**第二条注入通道**（导入 crafted 备份即可触发）。
+         这里对齐 babies 的做法逐字段清洗；保留原字段集（name/nickname/sex/
+         sexUnknown/birthDate/preterm/birthGestWeeks），越界值置空但**不丢弃对象**，
+         避免影响既有的「无档案时回落 settings.baby」兼容路径。 */
+      if (s.baby && typeof s.baby === 'object' && !Array.isArray(s.baby)) {
+        var sb = s.baby;
+        if (typeof sb.name === 'string') sb.name = sb.name.slice(0, 24);
+        if (typeof sb.nickname === 'string') sb.nickname = sb.nickname.slice(0, 24);
+        if (typeof sb.birthDate === 'string' && !/^\d{4}-\d{2}-\d{2}$/.test(sb.birthDate)) sb.birthDate = null;
+        if (sb.sex !== 'girl' && sb.sex !== 'boy') sb.sex = null;
+        sb.sexUnknown = sb.sexUnknown === true;
+        sb.preterm = sb.preterm === true;
+        sb.birthGestWeeks = (typeof sb.birthGestWeeks === 'number' && sb.birthGestWeeks >= 22 && sb.birthGestWeeks <= 43)
+          ? Math.round(sb.birthGestWeeks) : null;
+        base.settings.baby = sb;
+      }
       if (typeof s.realRefraction === 'boolean') base.settings.realRefraction = s.realRefraction;
       if (typeof s.lastExportISO === 'string') base.settings.lastExportISO = s.lastExportISO;
       if (typeof s.backupSnoozeISO === 'string') base.settings.backupSnoozeISO = s.backupSnoozeISO;
@@ -202,6 +236,13 @@
       if (s.fontScale === 'normal' || s.fontScale === 'lg' || s.fontScale === 'xl') base.settings.fontScale = s.fontScale;
       if (typeof s.homeConverge === 'boolean') base.settings.homeConverge = s.homeConverge;
       if (typeof s.hcMode === 'boolean') base.settings.hcMode = s.hcMode;
+      /* 第 131 次（P1-a）：dayStart 白名单——0–12 的整数小时（设置页只提供
+         0/4/6 三档，这里放宽到整数小时，导入的手改备份也收）；
+         非法值不进内存，消费方 Util.dayStartHour 回落 0 = 公历日。 */
+      if (typeof s.dayStart === 'number' && s.dayStart >= 0 && s.dayStart <= 12
+        && Math.floor(s.dayStart) === s.dayStart) {
+        base.settings.dayStart = s.dayStart;
+      }
       /* 第 120 次（首页布局编辑）：homeLayout 白名单——不只放行，还要形状校验。
          id 只认小写字母/数字短串（与模块 id 同域），size 只认 s/l，
          条目数设上限（items ≤ 24 / removed ≤ 40），坏数据宁可丢弃不进内存。
@@ -283,7 +324,7 @@
       return {
         id: b.id.slice(0, 24),
         name: (typeof b.name === 'string' && b.name.trim()) ? b.name.trim().slice(0, 12) : '宝宝',
-        photo: (typeof b.photo === 'string' && b.photo.indexOf('data:image/') === 0 && b.photo.length <= 300000) ? b.photo : null,
+        photo: validPhoto(b.photo) ? b.photo : null,
         birthDate: (typeof b.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.birthDate)) ? b.birthDate : null
       };
     });
@@ -408,7 +449,7 @@
       var b = {
         id: 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
         name: (typeof opts.name === 'string' && opts.name.trim()) ? opts.name.trim().slice(0, 12) : '宝宝',
-        photo: (typeof opts.photo === 'string' && opts.photo.indexOf('data:image/') === 0) ? opts.photo : null,
+        photo: validPhoto(opts.photo) ? opts.photo : null,
         birthDate: (typeof opts.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(opts.birthDate)) ? opts.birthDate : null
       };
       this.data.babies.push(b);
@@ -449,7 +490,7 @@
     setActiveBabyPhoto: function (dataURL) {
       var b = this.activeBaby();
       if (!b) return false;
-      b.photo = (typeof dataURL === 'string' && dataURL.indexOf('data:image/') === 0 && dataURL.length <= 300000) ? dataURL : null;
+      b.photo = validPhoto(dataURL) ? dataURL : null;
       this.save();
       return true;
     },

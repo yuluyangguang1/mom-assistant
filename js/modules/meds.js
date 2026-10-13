@@ -16,6 +16,10 @@
     render: function (view) {
       var d = Storage.get();
       var today = Util.todayISO();
+      /* 第 131 次（P1-a）：「今日已服」走照护日口径（dayStart 可配，默认 0 = 公历日）；
+         补记的日期戳仍是公历日（记录必须存真实时刻）。 */
+      var DS = Util.dayStartHour(d);
+      var dayNow = Util.dayKeyOf(new Date(), DS);
       var html = '';
 
       /* C7 补记：一次性日期覆盖（App.pendingDate，读取即消费） */
@@ -39,7 +43,7 @@
       html += '</div>';
 
       /* 今日小结 */
-      var todayList = (d.meds || []).filter(function (r) { return (r.time || '').slice(0, 10) === today; });
+      var todayList = (d.meds || []).filter(function (r) { return Util.dayKeyOf(r.time, DS) === dayNow; });
       html += '<div class="card"><h2>今日小结</h2>';
       if (todayList.length) {
         var names = {};

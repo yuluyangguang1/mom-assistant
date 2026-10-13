@@ -89,6 +89,55 @@
       return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     },
 
+    /* ============================================================
+       第 131 次（P1-a · 对标 Cali DailyCareRecapBuilder 的 dayStart）：
+       「日起始时刻」——照护日不必从公历 00:00 起算。
+       ------------------------------------------------------------
+       问题（用户 10-13 实测首屏时暴露的「距上次两套语义」）：
+       睡眠口径是「凌晨入睡算前一晚」（nightKeyOf，6 点阈值，GAP-01），
+       而喂养/尿布/吃药一律按公历日算「今日」——凌晨 00:30 记的一笔
+       喂养算「今天」，同一时刻的一觉却算「昨夜」。对 23 点睡、
+       早上 6 点前爬起来喂奶的家长，「今日次数」在半夜里是反直觉的。
+       Cali 的对策：DailyCareRecapBuilder 接收可配的 dayStart，
+       全部「今日/昨夜」统计按它归属。
+
+       落地口径：
+       · settings.dayStart = 照护日起始小时（0–12），缺省 0 = 公历日，
+         与既有行为逐字节一致（老用户与全部测试零感知）；
+       · dayKeyOf 只回答「这条记录算哪天」：纯日期串（生长/里程碑
+         按日记的）本身就是日键，原样返回，绝不被挪前一天；
+       · 只改【记录计数/归属】（首页磁贴、各页「今日」统计、
+         ruleMeds/ruleFetal 的今日判定）；疫苗剂次、预产期、备份
+         天数等日历日语义不动——门诊与预约认的是公历日。
+       · 睡眠的 nightKeyOf 保持 6 点固定阈值：「夜」是领域概念，
+         不随照护日设置漂移（dayStart=6 时两者自然重合）。
+       ============================================================ */
+    /** 照护日起始小时（0 = 公历日 00:00 起）。非法值回落 0。 */
+    dayStartHour: function (d) {
+      var v = d && d.settings && d.settings.dayStart;
+      return (typeof v === 'number' && v >= 0 && v <= 12 && Math.floor(v) === v) ? v : 0;
+    },
+    /** 时间戳所属「照护日」键（yyyy-mm-dd）。
+        x 可为 'yyyy-mm-dd'（原样返回）、'yyyy-mm-ddThh:mm:ss' 或 Date。
+        本地时刻早于 dayStart → 归前一天（dayStart=0 时永不触发，
+        与 todayISO() 逐字节一致）。 */
+    dayKeyOf: function (x, dayStart) {
+      var ds = (typeof dayStart === 'number' && dayStart > 0 && dayStart <= 12) ? dayStart : 0;
+      if (x == null || x === '') return '';
+      if (!(x instanceof Date)) {
+        var s = String(x);
+        /* 纯日期串 = 日键，原样返回；但必须严格形如 yyyy-mm-dd。
+           恰好 10 字符的脏串（如 'not-a-date'）不能原样变成日键——
+           那会让记录永远匹配不上「今日」，统计静默少一笔。
+           非严格串落到下方 Date 解析，解析不了返回 ''。 */
+        if (s.length <= 10 && /^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      }
+      var dt = (x instanceof Date) ? x : new Date(x);
+      if (isNaN(dt.getTime())) return '';
+      var iso = dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate());
+      return (ds > 0 && dt.getHours() < ds) ? this.addDays(iso, -1) : iso;
+    },
+
     /** 毫秒时长 -> 人类可读（x小时y分 / y分） */
     fmtDuration: function (ms) {
       if (ms == null || isNaN(ms) || ms < 0) return '0分';

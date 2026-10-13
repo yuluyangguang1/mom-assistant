@@ -2,6 +2,14 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <!-- 第 127 次（安全 · 纵深防御）：内容安全策略。
+       纯静态、无后端、无第三方资源，故 default-src 锁到 'self' 即可；
+       style-src 必须保留 'unsafe-inline'——全站大量内联 style= 属性（icons.js 36 处等）
+       与打印窗口的内联 <style> 都依赖它。
+       附带收益：script-src 'self'（不含 'unsafe-inline'）会连带禁用内联事件处理器，
+       为「属性闭合逃逸」型注入再上一道锁（本轮已从源头修掉，这里作为兜底）。
+       注意：本行必须在任何外部资源之前声明，且已针对 file:// 双击场景实测。 -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
   <!-- viewport：允许捏合缩放（WCAG 1.4.4）；输入框已是 16px，不会触发 iOS 聚焦自动放大 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>宝妈助手</title>

@@ -41,7 +41,7 @@
       html += '</div>';
 
       html += '<div class="card"><h2>最近几次</h2>';
-      var list = d.contractions.slice().sort(function (a, b) { return new Date(a.start) - new Date(b.start); });
+      var list = (d.contractions || []).slice().sort(function (a, b) { return new Date(a.start) - new Date(b.start); });
       if (list.length) {
         html += '<ul class="list">';
         for (var i = 0; i < list.length; i++) {
@@ -102,7 +102,7 @@
       });
 
       function exportTimeline(json) {
-        var arr = d.contractions.slice().sort(function (a, b) { return new Date(a.start) - new Date(b.start); });
+        var arr = (d.contractions || []).slice().sort(function (a, b) { return new Date(a.start) - new Date(b.start); });
         if (json) {
           Util.download('宫缩时间线_' + Util.todayISO() + '.json', JSON.stringify(arr, null, 2), 'application/json');
         } else {

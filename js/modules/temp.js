@@ -17,6 +17,10 @@
     render: function (view) {
       var d = Storage.get();
       var today = Util.todayISO();
+      /* 第 131 次（P1-a）：「今日小结」走照护日口径（dayStart 可配，默认 0 = 公历日）——
+         凌晨量的体温算前一天，和喂养/睡眠同一把尺子。 */
+      var DS = Util.dayStartHour(d);
+      var dayNow = Util.dayKeyOf(new Date(), DS);
       var html = '';
 
       html += '<div class="warn-box"><p>这里只帮你记录体温变化，<b>不能替代医疗判断</b>。' +
@@ -31,7 +35,7 @@
       html += '<button class="btn btn-primary" id="tSave">保存</button></div>';
 
       /* 今日小结 */
-      var todayList = (d.temps || []).filter(function (r) { return (r.time || '').slice(0, 10) === today; });
+      var todayList = (d.temps || []).filter(function (r) { return Util.dayKeyOf(r.time, DS) === dayNow; });
       /* 第 89 次（审计 B4）：值缺失/非法的记录不上数值位（导入坏文件不渲染 undefined°C） */
       function okV(v) { return typeof v === 'number' && isFinite(v); }
       var vList = todayList.filter(function (r) { return okV(r.value); });

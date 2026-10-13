@@ -490,7 +490,7 @@
     if (!av) return;
     var b = (Storage.activeBaby) ? Storage.activeBaby() : null;
     if (b && b.photo) {
-      av.innerHTML = '<img class="ha-photo" src="' + b.photo + '" alt="">';
+      av.innerHTML = '<img class="ha-photo" src="' + Util.escapeHtml(b.photo) + '" alt="">';
     } else {
       av.innerHTML = (global.illo ? illo('avatar') : '');
     }
@@ -507,7 +507,7 @@
     var cur = s.settings.activeBabyId;
     var rows = babies.map(function (b) {
       var ava = b.photo
-        ? '<img src="' + b.photo + '" alt="">'
+        ? '<img src="' + Util.escapeHtml(b.photo) + '" alt="">'
         : '<span class="sheet-ava">' + Util.escapeHtml((b.name || '宝').charAt(0)) + '</span>';
       return '<li><button type="button" class="sheet-row' + (b.id === cur ? ' active' : '') + '" data-pick="' + b.id + '">'
         + ava

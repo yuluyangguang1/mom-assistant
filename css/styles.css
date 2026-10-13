@@ -469,7 +469,7 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 
 .btn-mini {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: var(--fs-sm); padding: 8px 16px; min-height: 40px; box-sizing: border-box; /* 第 72 次：触控目标 33→40px（疫苗已体检/改日期等高频标记按钮） */
+  font-size: var(--fs-sm); padding: 8px 16px; min-height: 44px; min-width: 44px; box-sizing: border-box; /* 第 128 次：触控目标 40→44px（第 72 次 33→40 未到 U-08 下限；疫苗已体检/改日期等高频标记按钮；min-width 兜住 ± 微调按钮的 43.7px 窄项） */
   border: 1px solid var(--border); border-radius: 999px;
   background: var(--surface); color: var(--muted); cursor: pointer;
   transition: background .2s var(--ease), color .2s var(--ease);
@@ -554,9 +554,10 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .sp-tpl-row { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
 .sp-tpl-btn {
   flex: 0 0 auto;
-  /* 触屏最小命中区：正文 13px + 左右 12px 内边距，触控目标 ≥44px 高由
-     padding 9px×2 + line-height 撑到约 36px；再补 min-height 逼近 44px 下限。 */
-  min-height: 38px;
+  /* 触屏最小命中区：正文 13px + 左右 12px 内边距。
+     第 128 次：min-height 38→44px——注释曾写着「逼近 44px 下限」却停在 38，
+     U-08（WCAG 2.2 SC 2.5.5 AAA）要求 44×44，这次补上。 */
+  min-height: 44px;
   padding: 8px 12px;
   border: 1px solid var(--border); border-radius: 999px;
   background: var(--surface-2); color: var(--text);
@@ -592,8 +593,10 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .fetal-hero .hint { margin: 0; }
 .fetal-add { width: 100%; margin: 4px 0 10px; padding: 15px 20px; font-size: calc(16px * var(--fs-mul)); font-weight: 600; }
 
-/* 日历周历条（对标 Cali 记录页，报告 P0-A）：所选日期所在周，点哪天看/记哪天 */
-.week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 12px; }
+/* 日历周历条（对标 Cali 记录页，报告 P0-A）：所选日期所在周，点哪天看/记哪天。
+   第 128 次：gap 4→1px——实测格宽 41.7px 低于 U-08 的 44 宽下限；
+   默认态背景透明，1px 间距肉眼几乎无差，选中/悬停底色相邻呈分段控件观感。 */
+.week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; margin-bottom: 12px; }
 .week-strip button, .week-strip .ws-cell {
   border: none; background: none; padding: 7px 0 8px;
   display: flex; flex-direction: column; align-items: center; gap: 3px;
@@ -625,7 +628,8 @@ input[type="range"] { width: 100%; accent-color: var(--primary); margin-top: 8px
 .ds-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .ds-title { font-size: calc(13px * var(--fs-mul)); color: var(--muted); }
 .ds-label { font-size: calc(14.5px * var(--fs-mul)); font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
-.ds-opt { margin: 2px 0 6px; font-size: calc(13.5px * var(--fs-mul)); color: var(--muted); }
+.ds-opt { margin: 2px 0 6px; font-size: calc(13.5px * var(--fs-mul)); color: var(--muted);
+  min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center; } /* 第 128 次：23→44px（U-08 下限；label 整行可点） */
 .ds-dual { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; }
 .ds-m-label { font-size: calc(12.5px * var(--fs-mul)); color: var(--muted); white-space: nowrap; }
 .date-slider[data-off="1"] .ds-range { opacity: .35; }
@@ -872,6 +876,13 @@ body.dark .list li .li-num.sup-ok  { color: #8FCDB2; }
 .chart text { fill: var(--muted); }
 .chart path:nth-of-type(1) { stroke: var(--ok); }
 .chart path:nth-of-type(2) { stroke: var(--primary); }
+/* 第 128 次：label 原来只有文字宽 × 25.8px 高——行（.list li）已有 64px 触控下限，
+   但点击区没铺满，点行内空白处不生效。label 改为撑满剩余宽度且 ≥44px 高，
+   整行（除删除键外）都是勾选热区。 */
+.pack-item label {
+  display: flex; align-items: center; flex: 1 1 auto; min-width: 0;
+  min-height: 44px; box-sizing: border-box; cursor: pointer;
+}
 .pack-item.done label { text-decoration: line-through; color: var(--muted); }
 
 
@@ -1207,6 +1218,12 @@ body.dark .home-sky::after {
 /* 问候卡文字（第 63 次）：浅面深字，正文用 --muted（对比度由卡面保证，
    不再靠 text-shadow 硬撑） */
 .home-greet h1 { font-size: calc(20px * var(--fs-mul)); font-weight: 700; margin: 0 0 2px; letter-spacing: .01em; color: var(--text); }
+/* 第 131 次（P0-a）：问候卡 5 行收 3 行——身份与阶段合并进 h1 一行。
+   .hg-sub = 行内副标题（月龄/孕周），规格与改前的独立 <p> 副标题一致
+   （13px/常规字重/弱化色）；h1 自身补单行省略：长称呼 + 长阶段串
+   不折行、不撑高问候卡（hero 高度恒定的老纪律不变）。 */
+.home-greet h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.home-greet h1 .hg-sub { font-size: calc(13px * var(--fs-mul)); font-weight: 400; color: var(--muted); letter-spacing: 0; }
 /* 第 77 次：品牌 LOGO 头像位——44px 圆角方块，与磁贴圆角语言一致 */
 .home-greet .home-logo {
   flex: 0 0 auto; width: 44px; height: 44px;
@@ -1571,6 +1588,7 @@ body.hc:not(.dark) .list li { box-shadow: inset 4px 0 0 0 var(--tile, var(--prim
   flex: 1; padding: 11px 0; border-radius: var(--radius-sm);
   border: 1px solid var(--border); background: var(--surface-2);
   color: var(--text); font-size: calc(13px * var(--fs-mul)); font-family: inherit; cursor: pointer;
+  min-height: 44px; box-sizing: border-box; /* 第 128 次：padding 撑到 41px，补 min-height 到 U-08 下限 44 */
 }
 .mood-lv button.active {
   background: var(--tile-weak); border-color: var(--tile);
@@ -1794,7 +1812,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
    不与卡内其它按钮抢注意力；箭头随展开态翻转） */
 .cal-toggle {
   display: flex; align-items: center; justify-content: center; gap: 5px;
-  width: 100%; margin: 0 0 4px; padding: 7px 0;
+  width: 100%; margin: 0 0 4px; padding: 7px 0; min-height: 44px; box-sizing: border-box; /* 第 128 次：30→44px（U-08 下限） */
   border: none; background: transparent; color: var(--muted);
   font-family: inherit; font-size: calc(12.5px * var(--fs-mul)); cursor: pointer;
   border-radius: var(--radius-md);
@@ -1840,7 +1858,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 
 
 /* ---------- 设置：开关行 ---------- */
-.row-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
+.row-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; min-height: 44px; box-sizing: border-box; } /* 第 128 次：行高 36/38→44px（U-08 下限；整行含标签都是点击区） */
 /* 滑动开关（第 44 次）：原生 17px checkbox 触控面太小且无状态过渡。
    纯 CSS 实现（input 是替换元素不能用 ::before，改用 background-position 移动旋钮）：
    44×26 药丸 + 弹簧滑动；勾选态整条轨道变主色（对卡面 3.56:1 ≥3 ✓），
@@ -2065,6 +2083,37 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 .remind-list li:active { background: var(--primary-weak); transform: none; }
 
 /* ============================================================
+   第 129 次：陈旧待办汇总行（对标 Cali 首屏设计）
+
+   Cali 的逾期信息只以 VaccineReminderPlan.pendingCount 这个「计数」存在，
+   服务磁贴角标与本机通知——HomeWidgetSnapshot 里没有 reminder 字段，
+   首屏正文只放「此刻可做」的活跃会话 / 今日摘要 / 最近记录。
+
+   Web 端无系统推送，汇总行必须保留可点入口（第 109 次「不静默消失」口径），
+   但视觉降噪：压掉 .list li 的 64px 行高与卡片阴影，改为单行紧凑条，
+   弱化文字色 + 右侧箭头。首屏空间还给此刻提醒（维D/尿布间隔/今天应种）。
+   触控目标仍守 U-08：min-height 44px，整行可点。
+   ============================================================ */
+.remind-list li.is-pending {
+  min-height: calc(44px * var(--fs-mul));
+  padding: 6px 10px 6px 12px;
+  background: var(--surface-2);
+  box-shadow: inset 3px 0 0 0 var(--warn);
+  font-size: calc(13px * var(--fs-mul));
+  color: var(--muted);
+}
+.remind-list li.is-pending > span:not(.row-ico):not(.rt-arrow) {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.remind-list li.is-pending .row-ico { flex: none; opacity: .65; }
+.remind-list li.is-pending .row-ico .ico { width: 16px; height: 16px; }
+.remind-list li.is-pending .rt-arrow { flex: none; color: var(--muted); }
+.remind-list li.is-pending .rt-arrow .ico { width: 14px; height: 14px; }
+/* 注意：不给普通提醒行加 flex 规则——它们沿用 .list li 的 space-between 两端对齐，
+   第 129 次只动汇总行，不改普通行的既有排版。 */
+
+/* ============================================================
    第 80 次（宝宝档案）：设置页宝宝列表。行复用 .card .list 去壳样式
    （透明行+分隔线），头像 40px 圆裁；「当前」用弱色底轻标记。
    ============================================================ */
@@ -2150,6 +2199,16 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
    U-08 触控目标 44×44（取 WCAG 2.2 SC 2.5.5 AAA，高于 SC 2.5.8 AA 的 24×24）：
    抱娃单手 + 碎片化睡眠下操作精度差，所有可点元素给足最小命中面积。
    只加下限，不放大视觉——图标仍按原尺寸绘制，多出来的部分是热区。
+
+   第 128 次（A1+A2 触摸目标补齐）：07 号报告实测冷启动 29.0% / 普通日 27.4%
+   的可点元素 <44px，假阳性排查后真不达标 99 个。此前白名单只覆盖 6 个类，
+   「规矩立了没落地」——.sp-tpl-btn 注释自称「逼近 44 下限」实际只给 38px、
+   .btn-mini 第 72 次停在 40px。本轮把缺口类全部补齐（各自规则处有 第 128 次 标注）：
+     .btn-mini 40→44 · .sp-tpl-btn 38→44 · .mood-lv button 41→44
+     .week-strip button 宽 41.7→44+（gap 4→1px）· .cal-toggle 30→44
+     .row-switch 行 36/38→44 · .search-input 38.4→44 · .home-edit-btn 28→44
+     .ds-opt 行 23→44 · .pack-item label 25.8→铺满 64px 行
+   复测探针：_probe/touch_128_verify.js（10 类逐元素量宽×高对表 44×44）。
    ============================================================ */
 /* 第 92 次：.cal-cell 移出 44px 触控清单——min-height 与 aspect-ratio:1/1 冲突
    （窄屏格宽约 41px 被 min-height 拉成 41×44 长方形，月历「不适配宽高」的成因之一）；
@@ -2462,7 +2521,7 @@ body.fs-xl {
    - 清掉浏览器默认外观，并隐藏原生「×」（我们自带 .sb-clear）。 */
 .search-input {
   flex: 1 1 auto; min-width: 0;
-  margin: 0; padding: 8px 0;
+  margin: 0; padding: 8px 0; min-height: 44px; box-sizing: border-box; /* 第 128 次：38.4→44px（U-08 下限） */
   border: none; background: transparent;
   outline: none; -webkit-appearance: none; appearance: none;
   color: var(--text); font-family: inherit; line-height: 1.4;
@@ -2631,7 +2690,8 @@ body.fs-xl {
 .sec-head .section-title { margin-right: auto; }
 .home-edit-btn {
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border);
+  padding: 5px 12px; min-height: 44px; min-width: 44px; box-sizing: border-box; /* 第 128 次：28→44px（U-08 下限） */
+  border-radius: 999px; border: 1px solid var(--border);
   background: var(--surface-solid); color: var(--muted);
   font-size: calc(12.5px * var(--fs-mul)); font-weight: 600; cursor: pointer;
   font-family: inherit; white-space: nowrap;
