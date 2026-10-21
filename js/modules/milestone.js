@@ -163,7 +163,7 @@
         });
         html += '</ul>';
       } else {
-        html += '<div class="empty-state"><p>还没有记录</p><span class="hint">宝宝的每个「第一次」都值得留下。</span></div>';
+        html += '<div class="empty-state"><span class="es-ico">' + icon('milestone') + '</span><p>还没有记录</p><span class="hint">宝宝的每个「第一次」都值得留下。</span></div>';
       }
       html += '</div>';
 

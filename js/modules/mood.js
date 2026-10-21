@@ -123,7 +123,7 @@
         });
         html += '</ul>';
       } else {
-        html += '<div class="empty-state"><p>还没有情绪记录</p><span class="hint">想记的时候记一笔就好，不记也没关系。</span></div>';
+        html += '<div class="empty-state"><span class="es-ico">' + icon('mood') + '</span><p>还没有情绪记录</p><span class="hint">想记的时候记一笔就好，不记也没关系。</span></div>';
       }
       html += '</div>';
 

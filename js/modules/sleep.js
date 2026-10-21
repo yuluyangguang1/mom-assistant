@@ -141,7 +141,7 @@
         });
         html += '</ul>';
       } else {
-        html += '<div class="empty-state"><p>暂无</p><span class="hint">记第一觉后，这里会有作息与夜醒统计。</span></div>';
+        html += '<div class="empty-state"><span class="es-ico">' + icon('sleep') + '</span><p>暂无</p><span class="hint">记第一觉后，这里会有作息与夜醒统计。</span></div>';
       }
       html += '</div>';
 

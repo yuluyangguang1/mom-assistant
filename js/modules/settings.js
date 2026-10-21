@@ -396,6 +396,14 @@
       var last = s.settings.lastExportISO;
       var backupInfo = last ? ('上次备份：' + last) : '还没有备份过数据';
       html += '<p class="hint">' + Util.escapeHtml(backupInfo) + (last ? '' : '，强烈建议现在导出一次。') + '</p>';
+      /* 第 142 次：备份提醒从首页搬到这里（用户反馈「别放首页」）。
+         阈值与文案由 Reminders.backupHint 单点维护（>14 天才提示），
+         设置页只负责呈现，不再复制一份判断。 */
+      var bh = (global.Reminders && typeof Reminders.backupHint === 'function')
+        ? Reminders.backupHint(s, Date.now()) : null;
+      if (bh && bh.text) {
+        html += '<p class="hint backfill-note">' + Util.escapeHtml(bh.text) + ' 导出一次只需几秒，文件存在手机里就是兜底。</p>';
+      }
       /* 第 74 次（G1）：损坏自愈备份的常驻状态行——启动 toast 只弹一次，这里保证长期可见。
          只展示、不给删除入口：误删备份等于烧掉唯一的找回通道，需要时由交接人手工处理。 */
       var cbInfo = Storage.corruptBackupInfo ? Storage.corruptBackupInfo() : null;
@@ -413,7 +421,10 @@
       html += '<p class="hint">「妈妈情绪」的记录同属敏感健康数据，一并包含在导出文件里，请同样注意存放位置；'
         + '它只存在本机，没有任何统计或上报。</p>';
       html += '<button class="btn" id="sImport">导入全部数据（JSON）</button>';
-      html += '<p class="hint">导入会覆盖当前全部数据，请确认。</p>';
+      /* 第 127 次（安全 · 来源提示）：结构由 sanitize 收敛、字段已全渲染点转义，
+         残余风险只剩「数据污染」——导入他人文件等于把对方内容写进本机记录。 */
+      html += '<p class="hint">导入会覆盖当前全部数据，请确认。'
+        + '请只导入你自己导出的备份文件——导入来路不明的文件会把对方的内容写进你的记录。</p>';
       /* 持久存储申请：可申请、可被浏览器拒绝、不构成保证（U-36） */
       html += '<hr class="sep">';
       html += '<p class="hint" id="sPersistInfo">浏览器持久存储：检测中…</p>';
@@ -425,7 +436,7 @@
 
       /* CSV 导出（Excel 可读，带 BOM）+ 打印报告（儿保体检给医生看） */
       html += '<div class="card"><h2>导出与打印</h2>';
-      html += '<div class="row"><select id="sCsvModule" style="flex:1">'
+      html += '<div class="row"><select id="sCsvModule" aria-label="选择要导出 CSV 的模块" style="flex:1">'
         + '<option value="feedings">喂养记录</option><option value="sleeps">睡眠记录</option>'
         + '<option value="diapers">尿布记录</option><option value="meds">吃药/维D记录</option>'
         + '<option value="growth">生长记录</option><option value="milestones">里程碑</option>'
@@ -447,7 +458,7 @@
         + '不行就保存为 PNG。全程在本机绘制，照片与记录不出这台设备。</p></div>';
       html += '</details>';
 
-      html += sgOpen('settings', '数据与统计', '各模块记录数 / 本机占用 / 记录成本自测');
+      html += sgOpen('settings', '数据与统计', '各模块记录数 / 日的起始 / 本机占用 / 记录成本自测');
       /* 数据统计：各模块记录数一目了然，导出前确认数据完整 */
       var stats = Storage.stats();
       html += '<div class="card"><h2>数据统计</h2><ul class="kv">';
@@ -467,6 +478,24 @@
         html += '<p class="hint">升级前快照：本机保留 ' + Storage.snapshotCount() + ' 份（仅用于版本升级失败时回滚）。</p>';
       }
       html += '</div>';
+
+      /* 第 131 次（P1-a · 对标 Cali DailyCareRecapBuilder 的 dayStart）：
+         「日起始时刻」——凌晨记的喂养算今天还是昨天，从此自己说了算。
+         默认 0:00（公历日）与既有行为完全一致；选 6:00 后，睡眠的
+         「昨夜」口径与喂养/尿布的「今日」口径重合，半夜喂奶不再
+         一笔算今天、一笔算昨天。疫苗剂次/预产期等认公历日，不受影响。 */
+      var DAY_STARTS = [['0', '0:00 公历日'], ['4', '4:00'], ['6', '6:00']];
+      var curDs = String(Util.dayStartHour(s));
+      html += '<div class="card"><h2>日的起始</h2>';
+      html += '<span class="lbl-text">每天从几点开始算</span><div class="seg seg-wrap2" id="sDayStartSeg">'
+        + DAY_STARTS.map(function (m) {
+          return '<button type="button" class="seg-btn' + (curDs === m[0] ? ' active' : '') + '" data-day-start="' + m[0] + '">' + m[1] + '</button>';
+        }).join('')
+        + '</div>';
+      html += '<p class="hint">决定「今日 / 昨夜」从几点算起：默认 0:00 就是公历日；'
+        + '选 6:00 后，凌晨 0–6 点记的喂养和睡眠都归前一天——和「凌晨入睡算前一晚」的睡眠口径对齐，'
+        + '半夜喂奶不会再一笔算今天、一笔算昨天。只改首页与各页的今日统计；'
+        + '疫苗剂次、预产期、备份天数认公历日，不受影响。</p></div>';
 
       /* U-05：把「单次记录 ≤2 次点击、≤1 秒」做成可核查的验收指标，数据只在本机 */
       var m = (global.App && typeof App.metricsSummary === 'function') ? App.metricsSummary() : null;
@@ -532,7 +561,7 @@
         html += '<ul class="list baby-list" id="sBabyList">';
         babies.forEach(function (b) {
           var isAct = b.id === actId;
-          var ava = b.photo ? ('<img class="baby-ava" src="' + b.photo + '" alt="">')
+          var ava = b.photo ? ('<img class="baby-ava" src="' + Util.escapeHtml(b.photo) + '" alt="">')
             : '<span class="baby-ava baby-ava-fallback">' + icon('pregnancy') + '</span>';
           var sub = b.birthDate ? ('生日 ' + b.birthDate) : '未设置生日';
           html += '<li data-baby-id="' + Util.escapeHtml(b.id) + '" role="button" tabindex="0"'
@@ -1044,6 +1073,24 @@
         if (global.App && typeof global.App.rerender === 'function') global.App.rerender();
       });
 
+      /* 第 131 次（P1-a）：日起始时刻——落盘后重渲染，首页磁贴与各页「今日」
+         统计随即按新口径归属（与 sHomeConverge 同范式：改完立刻看得见）。 */
+      var dsSeg = view.querySelector('#sDayStartSeg');
+      if (dsSeg) dsSeg.addEventListener('click', function (e) {
+        var t = e.target;
+        while (t && t !== dsSeg && !(t.getAttribute && t.getAttribute('data-day-start') != null)) t = t.parentNode;
+        if (!t || t === dsSeg) return;
+        var v = parseInt(t.getAttribute('data-day-start'), 10);
+        if (isNaN(v)) return;
+        var st = Storage.get();
+        st.settings.dayStart = v;
+        Storage.save();
+        Array.prototype.forEach.call(dsSeg.querySelectorAll('.seg-btn'), function (x) { x.classList.remove('active'); });
+        t.classList.add('active');
+        Util.toast(v === 0 ? '已按公历日计算今日' : '今日从 ' + v + ':00 开始算——凌晨的记录归前一天', 'ok');
+        global.App.rerender();
+      });
+
       var refr = view.querySelector('#sRefract');
       if (refr) refr.addEventListener('change', function () {
         var st = Storage.get();
@@ -1183,16 +1230,20 @@
         var baby = (d.settings && d.settings.baby) || {};
         var w = global.open('', '_blank');
         if (!w) { Util.toast('浏览器拦截了弹窗，请允许后重试', 'error'); return; }
+        /* 第 127 次（安全）：本页 HTML 走 w.document.write 拼装，凡来自记录/导入的字段
+           必须先转义——sanitize 只校验记录「是对象」，不校验字段值，导入 crafted 备份
+           即可把 <img onerror> 之类带进这一页（新窗口与主文档同源，可访问 opener）。 */
+        var esc = Util.escapeHtml;
         var body = '<h1>宝宝成长报告</h1><p class="sub">宝妈助手 · 生成于 ' + Util.nowLocal().slice(0, 16).replace('T', ' ') + '</p>';
-        body += '<h2>宝宝信息</h2><p>性别：' + (baby.sex === 'girl' ? '女' : (baby.sex === 'boy' ? '男' : '未设置'))
-          + ' ｜ 出生日期：' + (baby.birthDate || '未设置')
-          + (baby.preterm ? ' ｜ 早产（孕 ' + (baby.birthGestWeeks || '?') + ' 周）' : '') + '</p>';
+        body += '<h2>宝宝信息</h2><p>性别：' + esc(baby.sex === 'girl' ? '女' : (baby.sex === 'boy' ? '男' : '未设置'))
+          + ' ｜ 出生日期：' + esc(baby.birthDate || '未设置')
+          + (baby.preterm ? ' ｜ 早产（孕 ' + esc(baby.birthGestWeeks || '?') + ' 周）' : '') + '</p>';
         var gr = (d.growth || []).slice().sort(function (a, b) { return (a.date || '').localeCompare(b.date || ''); });
         body += '<h2>生长记录（' + gr.length + ' 次）</h2>';
         if (gr.length) {
           body += '<table><tr><th>日期</th><th>体重 kg</th><th>身长 cm</th><th>头围 cm</th></tr>';
           gr.forEach(function (r) {
-            body += '<tr><td>' + r.date + '</td><td>' + (r.weightKg || '') + '</td><td>' + (r.heightCm || '') + '</td><td>' + (r.headCm || '') + '</td></tr>';
+            body += '<tr><td>' + esc(r.date) + '</td><td>' + esc(r.weightKg || '') + '</td><td>' + esc(r.heightCm || '') + '</td><td>' + esc(r.headCm || '') + '</td></tr>';
           });
           body += '</table>';
         } else body += '<p>暂无记录</p>';
@@ -1202,7 +1253,7 @@
           var doneN = plan.filter(function (it) { return done[it.key]; }).length;
           body += '<h2>疫苗接种（' + doneN + '/' + plan.length + ' 剂）</h2><table><tr><th>剂次</th><th>应种</th><th>接种日期</th></tr>';
           plan.forEach(function (it) {
-            body += '<tr><td>' + it.name + it.dose + '</td><td>' + it.dueISO + '</td><td>' + (done[it.key] || '未接种') + '</td></tr>';
+            body += '<tr><td>' + esc(it.name) + esc(it.dose) + '</td><td>' + esc(it.dueISO) + '</td><td>' + esc(done[it.key] || '未接种') + '</td></tr>';
           });
           body += '</table>';
         }
@@ -1231,7 +1282,20 @@
           + '.sub,.foot{color:#888;font-size:12px}@media print{body{margin:0}}</style></head><body>' + body + '</body></html>');
         w.document.close();
         w.focus();
-        setTimeout(function () { w.print(); }, 300);
+        /* 第 127 次：原先固定 300ms 唤起打印，数据量大 / 弱机上可能页面还没渲染完
+           就弹打印框。改为等新窗口 load；若 readyState 已是 complete 则立即打，
+           另留 800ms 兜底（极端情况下 load 不触发也不至于永远打不出来）。 */
+        (function firePrint() {
+          var fired = false;
+          var go = function () {
+            if (fired) return;
+            fired = true;
+            try { w.focus(); w.print(); } catch (e) {}
+          };
+          if (w.document.readyState === 'complete') { go(); return; }
+          w.addEventListener('load', go);
+          setTimeout(go, 800);
+        })();
       });
     }
   };

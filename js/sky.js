@@ -281,7 +281,14 @@
         top: scaleC(pal.top, DARK_K), mid: scaleC(pal.mid, DARK_K), bottom: scaleC(pal.bottom, DARK_K),
         night: pal.night, warm: pal.warm, glowX: pal.glowX, dark: 1
       };
-      p.bottom = lerpC(p.bottom, DARK_PAGE, 0.45);
+      /* 第 142 次（夜间天空与页面融合）：原来只把「底」朝页面拉 0.45，
+         顶部与中部仍是纯冷紫 —— 暗色下就是「一块紫天 + 一片暖褐地面」，
+         用户反馈的分裂感。现在三段都往 DARK_PAGE 拉，且越往下拉得越多
+         （顶 0.18 / 中 0.34 / 底 0.62）：既保住夜空该有的冷调，
+         又让整块天空落在同一个暖炭色温家族里，接缝只剩明暗差、没有色相差。 */
+      p.top = lerpC(p.top, DARK_PAGE, 0.18);
+      p.mid = lerpC(p.mid, DARK_PAGE, 0.34);
+      p.bottom = lerpC(p.bottom, DARK_PAGE, 0.62);
       return p;
     }
     var nowFn = (opts && opts.hour != null)
@@ -538,7 +545,13 @@
        夜板在中段泛灰）。透明化后任何色板/主题/时段都不可能再出现横带。 */
     function fadeBottomOut() {
       ctx.globalCompositeOperation = 'destination-out';
-      var fg = ctx.createLinearGradient(0, H * 0.72, 0, H);
+      /* 第 145 次（夜间天空与页面仍有断层）：淡出原来一直拖到画布最底（100%），
+         而问候卡是「沉底」布局（margin-top:auto + 天空 padding-bottom 14px），
+         卡片底边恒定在 H-14。于是卡片下方那 14px 里，画布还剩约 23% 的紫 ——
+         正好是唯一露在卡片外的一段，看起来就是一条紫色→棕色的急转。
+         现在把擦除终点提前到 88%：渐变只映射 0.72~0.88，88% 之后保持全透明，
+         淡出整个发生在卡片背后；卡片下方露出的直接就是页面底色。 */
+      var fg = ctx.createLinearGradient(0, H * 0.72, 0, H * 0.88);
       /* 第 92 次：加 S 曲线中间档——线性 alpha 人眼感知中段偏陡，暗色板与暗页
          亮度差大时过渡带里会显出「赶」。三档近似平滑曲线，交界更绵。 */
       fg.addColorStop(0, 'rgba(0,0,0,0)');

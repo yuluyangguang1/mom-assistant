@@ -49,6 +49,13 @@
     { key: 'mood',        title: '妈妈情绪', go: 'mood',        icon: 'mood' },
     { key: 'fetal',       title: '胎动',     go: 'fetal',       icon: 'fetal' },
     { key: 'temp',        title: '体温',     go: 'temp',        icon: 'temp' },
+    /* 第 132 次：新增六个模块的检索分组 */
+    { key: 'jaundice',    title: '黄疸',     go: 'jaundice',    icon: 'jaundice' },
+    { key: 'bath',        title: '洗澡',     go: 'bath',        icon: 'bath' },
+    { key: 'swim',        title: '游泳',     go: 'swim',        icon: 'swim' },
+    { key: 'sun',         title: '日晒',     go: 'sun',         icon: 'sun' },
+    { key: 'water',       title: '饮水',     go: 'water',       icon: 'water' },
+    { key: 'supplement',  title: '补剂',     go: 'supplement',  icon: 'supplement' },
     { key: 'supplies',    title: '消耗品',   go: 'supplies',    icon: 'supplies' },
     { key: 'finance',     title: '记账',     go: 'finance',     icon: 'finance' },
     { key: 'pregnancy',   title: '孕期',     go: 'pregnancy',   icon: 'pregnancy' },
@@ -67,9 +74,10 @@
   var MOOD_LV = { 1: '很低落', 2: '有点低', 3: '一般', 4: '不错', 5: '很好' };
   var MOOD_TAG = { sleep: '睡眠不足', feed: '喂养困难', body: '身体不适', family: '家庭矛盾', work: '事务压力' };
 
-  /* 索引缓存：render 时构建一次。结构 [{ key, title, go, icon, rows: [row] }]。
-     row = { title, sub, text, sortKey } */
-  var INDEX = null;
+  /* 索引结构 [{ key, title, go, icon, rows: [row] }]，row = { title, sub, text, sortKey }。
+     第 127 次：原先挂模块级并注释成「缓存」，但 render 每次都会重建（rerender 也触发），
+     缓存名不副实；且模块级变量易被误读为「跨渲染复用」——那会读到过期数据。
+     改为 render 内局部变量：作用域即生命周期，名实相符。 */
 
   /* ---------------- 通用小工具（ES5） ---------------- */
 
@@ -330,6 +338,108 @@
     return rows;
   }
 
+  /* 第 132 次（补 6 个模块）：洗澡 / 游泳 / 日晒 / 饮水 / 黄疸 / 补剂。
+     与各自模块的展示字段保持同源，保证「界面上看到的都搜得到」。 */
+  function buildBath(d) {
+    var rows = [];
+    var list = arr(d.baths);
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      if (!r || typeof r !== 'object') continue;
+      rows.push({
+        title: r.minutes ? ('洗澡 ' + r.minutes + ' 分钟') : '洗澡',
+        sub: [fmt(r.time), txt(r.note)].filter(Boolean).join(' · '),
+        text: makeText([r.minutes, r.time, r.note, '洗澡', '浴']),
+        sortKey: ts(r.time)
+      });
+    }
+    return rows;
+  }
+
+  function buildSwim(d) {
+    var rows = [];
+    var list = arr(d.swims);
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      if (!r || typeof r !== 'object') continue;
+      rows.push({
+        title: r.minutes ? ('游泳 ' + r.minutes + ' 分钟') : '游泳',
+        sub: [fmt(r.time), txt(r.note)].filter(Boolean).join(' · '),
+        text: makeText([r.minutes, r.time, r.note, '游泳']),
+        sortKey: ts(r.time)
+      });
+    }
+    return rows;
+  }
+
+  function buildSun(d) {
+    var rows = [];
+    var list = arr(d.suns);
+    var AREA = { face: '面部', limbs: '四肢', all: '全身', hip: '臀部' };
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      if (!r || typeof r !== 'object') continue;
+      var area = AREA[r.area] || '';
+      rows.push({
+        title: '日晒' + (r.minutes ? ' ' + r.minutes + ' 分钟' : ''),
+        sub: [fmt(r.time), area, txt(r.note)].filter(Boolean).join(' · '),
+        text: makeText([r.minutes, r.time, r.note, area, '日晒', '晒太阳']),
+        sortKey: ts(r.time)
+      });
+    }
+    return rows;
+  }
+
+  function buildWater(d) {
+    var rows = [];
+    var list = arr(d.waters);
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      if (!r || typeof r !== 'object') continue;
+      rows.push({
+        title: (r.ml != null) ? (r.ml + ' ml') : '饮水',
+        sub: [fmt(r.time), txt(r.note)].filter(Boolean).join(' · '),
+        text: makeText([r.ml, r.time, r.note, '饮水', '喝水']),
+        sortKey: ts(r.time)
+      });
+    }
+    return rows;
+  }
+
+  function buildJaundice(d) {
+    var rows = [];
+    var list = arr(d.jaundices);
+    var SITE = { forehead: '额头', cheek: '脸颊', chest: '胸口' };
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      if (!r || typeof r !== 'object') continue;
+      var u = (r.unit === 'umol') ? ' µmol/L' : ' mg/dL';
+      rows.push({
+        title: (r.value != null) ? ('黄疸 ' + r.value + u) : '黄疸',
+        sub: [fmt(r.time), SITE[r.site] || '', txt(r.note)].filter(Boolean).join(' · '),
+        text: makeText([r.value, r.time, r.note, SITE[r.site], '黄疸', '测黄']),
+        sortKey: ts(r.time)
+      });
+    }
+    return rows;
+  }
+
+  function buildSupplement(d) {
+    var rows = [];
+    var list = arr(d.supplements);
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      if (!r || typeof r !== 'object') continue;
+      rows.push({
+        title: txt(r.name) || '补剂',
+        sub: [fmt(r.time), txt(r.dose), txt(r.note)].filter(Boolean).join(' · '),
+        text: makeText([r.name, r.dose, r.time, r.note, '补剂', '营养品']),
+        sortKey: ts(r.time)
+      });
+    }
+    return rows;
+  }
+
   function buildSupplies(d) {
     var rows = [];
     var list = arr(d.supplies);
@@ -529,12 +639,15 @@
     contraction: buildContraction, growth: buildGrowth, meds: buildMeds,
     milestone: buildMilestone, obs: buildObs, period: buildPeriod, mood: buildMood,
     fetal: buildFetal, temp: buildTemp, supplies: buildSupplies,
+    /* 第 132 次 */
+    jaundice: buildJaundice, bath: buildBath, swim: buildSwim,
+    sun: buildSun, water: buildWater, supplement: buildSupplement,
     finance: buildFinance,
     pregnancy: buildPregnancy, packing: buildPacking, vaccine: buildVaccine,
     checkups: buildCheckups, babies: buildBabies
   };
 
-  /** render 时调用一次：把全部记录读取成内存索引（缓存在 INDEX） */
+  /** render 时调用一次：把全部记录读取成内存索引（结果存 render 的局部 INDEX） */
   function buildIndex(d) {
     var groups = [];
     for (var i = 0; i < GROUPS.length; i++) {
@@ -628,13 +741,14 @@
     render: function (view) {
       var d = Storage.get();
 
-      /* 建立一次索引并缓存；后续输入只过滤，不重建 */
-      INDEX = buildIndex(d);
+      /* 每次进入本页（含 rerender）重建索引，保证反映最新数据；
+         同一次渲染期间输入只过滤、不复建（paint 闭包捕获本局部变量）。 */
+      var INDEX = buildIndex(d);
 
       var html = ''
         + '<div class="search-bar">'
         + '<span class="sb-ico">' + ic('search') + '</span>'
-        + '<input id="searchInput" class="search-input" type="search" '
+        + '<input id="searchInput" class="search-input" type="search" aria-label="搜索记录、里程碑、用品" '
         + 'placeholder="搜索记录、里程碑、用品…" autocomplete="off">'
         + '<button class="sb-clear" type="button" aria-label="清空" hidden>×</button>'
         + '</div>'

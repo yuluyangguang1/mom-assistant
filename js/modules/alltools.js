@@ -39,6 +39,14 @@
         { id: 'meds', name: '吃药/维D' },
         { id: 'milestone', name: '里程碑' },
         { id: 'temp', name: '体温' },
+        /* 第 132 次（对标 Cali 21 工具补缺）：六个新模块在「全部功能」里必须有入口——
+           首页磁贴走「有数据才出现」的收敛策略，新模块的发现路径就靠这一页。 */
+        { id: 'jaundice', name: '黄疸' },
+        { id: 'bath', name: '洗澡' },
+        { id: 'swim', name: '游泳' },
+        { id: 'sun', name: '日晒' },
+        { id: 'water', name: '饮水' },
+        { id: 'supplement', name: '补剂' },
         { id: 'mood', name: '妈妈情绪' },
         { id: 'finance', name: '记账' },
         { id: 'supplies', name: '消耗品' },

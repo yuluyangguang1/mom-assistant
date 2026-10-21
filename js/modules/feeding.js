@@ -146,6 +146,53 @@
     return solidName(r);
   }
 
+  /* ============================================================
+     第 131 次（P1-b · 对标 Cali FeedingInsightSeries / WeeklyFeedingSummary /
+     BottleMilkSource）：近 7 日瓶喂洞察。
+     ------------------------------------------------------------
+     抄 Cali 的三件事，不抄的也写明：
+       · weeklyTotal / dailyAverage——周总量与日均（Caliber 的
+         FeedingInsightSeries 同名字段），只对**有量的记录**算：
+         瓶喂/奶粉有 ml，亲喂没有量，吸奶不是宝宝摄入——都不硬凑数；
+       · hasMixedBottleSources——混合奶源提示（这周同时用了母乳瓶喂
+         与配方奶时提醒标注，回头才分得清）；
+       · 不抄 ProjectedBreastMilkInsightSeries（预测型 UI）：那需要
+         吸奶量反推摄入模型，我们没有也不该编（U-25 不下结论）。
+     口径：滚动 7×24 小时窗口（与「下次喂奶参考」的 48h 窗口同风格）；
+     日均按「有瓶喂记录的天数」摊，不按 7 天摊——只记了 3 天时
+     除以 7 会凭空说成「喝得少」。参照只来自用户自己的记录（U-24）。
+     ============================================================ */
+  function insight7d(d, now) {
+    now = now || Date.now();
+    var cut = now - 7 * 86400000;
+    var win = (d.feedings || []).filter(function (r) {
+      return r.start && new Date(r.start).getTime() >= cut;
+    });
+    var bottle = win.filter(function (r) { return r.type === 'bottle' || r.type === 'formula'; });
+    var breastN = win.filter(function (r) { return r.type === 'breast'; }).length;
+    /* 卡是「瓶喂洞察」：瓶喂 <2 次不出卡——纯亲喂家庭摆一排 0 ml
+       统计数是噪声不是洞察（亲喂没有量，第 131 次起明说不进统计）。 */
+    if (bottle.length < 2) return null;
+    var total = 0, bmMl = 0, fmMl = 0, days = {};
+    bottle.forEach(function (r) {
+      /* 新数据：amountBm/amountFm 分源；旧数据只有 amount——无法分源时
+         整体计母乳（第 43 次之前的记录瓶喂只有母乳一种，这个回落不失真）。 */
+      var bm = r.amountBm || 0, fm = r.amountFm || 0;
+      if (!bm && !fm && r.amount) bm = r.amount;
+      bmMl += bm; fmMl += fm; total += bm + fm;
+      days[Util.fmtDate(r.start)] = 1;
+    });
+    var dayN = Object.keys(days).length;
+    return {
+      total: total,
+      avg: dayN ? Math.round(total / dayN) : 0,
+      days: dayN,
+      count: bottle.length,
+      breastN: breastN,
+      mixed: bmMl > 0 && fmMl > 0
+    };
+  }
+
   Modules.feeding = {
     id: 'feeding',
     title: '喂养',
@@ -159,9 +206,16 @@
     _solidName: solidName,
     /* 第 110 次：导出「引入项」提取函数，观察期卡与 QA 共用同一口径 */
     _solidIntro: solidIntro,
+    /* 第 131 次（P1-b）：导出近 7 日瓶喂洞察纯函数供 QA 驱动
+       （与 _parseIng 同一先例：测的就是线上这段代码本身） */
+    _insight7d: insight7d,
     render: function (view) {
       var d = Storage.get();
       var today = Util.todayISO();
+      /* 第 131 次（P1-a）：「今日概览」走照护日口径（dayStart 可配，默认 0 = 公历日），
+         与首页喂养磁贴同源；下方保存时的真实时间戳仍用 today（记录必须存真实时刻）。 */
+      var DS = Util.dayStartHour(d);
+      var dayNow = Util.dayKeyOf(new Date(), DS);
       var html = '';
 
       /* C7 补记：从日历空日跳转过来时带一次性日期覆盖（App.pendingDate，读取即消费）。
@@ -174,7 +228,7 @@
       }
 
       /* 今日统计 + 母乳换边建议（放最上面，一眼看到） */
-      var feedToday = d.feedings.filter(function (r) { return (r.start || '').slice(0, 10) === today; });
+      var feedToday = d.feedings.filter(function (r) { return Util.dayKeyOf(r.start, DS) === dayNow; });
       var sorted = d.feedings.slice().sort(function (a, b) { return new Date(b.start) - new Date(a.start); });
       var latest = sorted[0];
       var lastBreast = sorted.filter(function (r) { return r.type === 'breast' && r.side; })[0];
@@ -206,6 +260,26 @@
         html += '<p class="hint">今天还没有喂养记录。</p>';
       }
       html += '</div>';
+
+      /* 第 131 次（P1-b）：近 7 日瓶喂洞察卡（对标 Cali FeedingInsightSeries）。
+         位置刻意放在「今日概览」之后、「快速记录」之前：先看趋势再记录，
+         与 Cali 首页 insights 卡同秩序。数据不够（<2 次瓶喂且 <2 次亲喂）
+         时整卡不渲染——不摆空壳（第 118 次冷启动保护的同一条纪律）。 */
+      var ins = insight7d(d);
+      if (ins) {
+        html += '<div class="card"><h2>近 7 日瓶喂</h2><div class="stat-row">';
+        html += '<div class="stat"><span class="stat-num">' + ins.total + '<i class="stat-unit">ml</i></span><span class="stat-lbl">周总量</span></div>';
+        html += '<div class="stat"><span class="stat-num">' + ins.avg + '<i class="stat-unit">ml</i></span><span class="stat-lbl">日均（' + ins.days + ' 天有记）</span></div>';
+        html += '<div class="stat"><span class="stat-num">' + ins.count + '<i class="stat-unit">次</i></span><span class="stat-lbl">瓶喂次数</span></div>';
+        html += '</div>';
+        if (ins.mixed) {
+          html += '<p class="hint">这一周瓶喂同时用了<b>母乳和配方奶</b>——记录时记得标注，回头才分得清各喝了多少。</p>';
+        }
+        var hints = [];
+        if (ins.breastN) hints.push('另记了亲喂 ' + ins.breastN + ' 次（亲喂没有量，不进上面的统计）');
+        hints.push('只统计你自己记的数，不设目标值——和你自己比就好。');
+        html += '<p class="hint">' + hints.join('；') + '。</p></div>';
+      }
 
       /* 第 69 次（B3）：喂养参考 + 辅食观察期。知识句全部来自 Knowledge 底座
          （scope 'feeding'，官方数字：辅食频次 CNS-2022 / 维D·观察期 SY-2023），
@@ -259,12 +333,33 @@
          计时状态存 d.feedingTimer（跨刷新保留）；结束时长走 _pendingDur 回填一次。 */
       var ftimer = d.feedingTimer || null;
       if (ftimer) {
+        /* 第 140 次（P1-6）：计时从「一个总时长」升级为「分侧累计 + 随时换边」。
+           旧数据只有 { start }，这里一律补成新形状再读（sideStart 缺省 = start）。 */
+        var ftSide = (ftimer.side === 'right') ? 'right' : 'left';
+        var ftSideStart = ftimer.sideStart || ftimer.start;
+        var accL = typeof ftimer.accL === 'number' ? ftimer.accL : 0;
+        var accR = typeof ftimer.accR === 'number' ? ftimer.accR : 0;
+        var curMs = Math.max(0, Date.now() - new Date(ftSideStart).getTime());
         var ftMs = Math.max(0, Date.now() - new Date(ftimer.start).getTime());
-        var ftCrossDay = (ftimer.start || '').slice(0, 10) !== Util.todayISO();
-        html += '<div class="backfill-note"><p class="hint"><b>计时中</b> · 从 ' + Util.fmtDateTime(ftimer.start)
-          + ' 开始，已 ' + Util.fmtDuration(ftMs) + (ftCrossDay ? '（不是这一次喂的？可取消）' : '') + '</p>'
-          + '<div class="row"><button type="button" class="btn btn-primary" id="ftEnd">结束并填入时长</button>'
-          + '<button type="button" class="btn" id="ftCancel">取消计时</button></div></div>';
+        var ftCrossDay = Util.dayKeyOf(ftimer.start, DS) !== dayNow; /* 第 131 次（P1-a）：跨的是照护日 */
+        var lMs = accL + (ftSide === 'left' ? curMs : 0);
+        var rMs = accR + (ftSide === 'right' ? curMs : 0);
+        html += '<div class="backfill-note feed-live"><p class="hint"><b>计时中</b> · 从 ' + Util.fmtDateTime(ftimer.start)
+          + ' 开始，已 <span id="ftTotal">' + Util.fmtClock(ftMs) + '</span>' + (ftCrossDay ? '（不是这一次喂的？可取消）' : '') + '</p>'
+          + '<div class="feed-split"><span class="fs-item' + (ftSide === 'left' ? ' is-cur' : '') + '">'
+          + '左 <b id="ftL">' + Util.fmtClock(lMs) + '</b></span>'
+          + '<span class="fs-item' + (ftSide === 'right' ? ' is-cur' : '') + '">'
+          + '右 <b id="ftR">' + Util.fmtClock(rMs) + '</b></span>'
+          + '<span class="fs-now">正在喂 <b>' + (ftSide === 'left' ? '左' : '右') + '侧</b></span></div>'
+          + '<div class="row"><button type="button" class="btn" id="ftSwitch">换到' + (ftSide === 'left' ? '右' : '左') + '侧</button>'
+          + '<button type="button" class="btn btn-primary" id="ftEnd">结束</button></div>'
+          /* 第 140 次：结束时间回填——忘了按结束时的补救，不用手改时长 */
+          + '<div class="ft-back"><span class="hint">忘了按结束？按实际结束时间回填：</span>'
+          + '<button type="button" class="btn-mini" data-ftend="0">现在</button>'
+          + '<button type="button" class="btn-mini" data-ftend="5">5 分钟前</button>'
+          + '<button type="button" class="btn-mini" data-ftend="10">10 分钟前</button>'
+          + '<button type="button" class="btn-mini" data-ftend="15">15 分钟前</button></div>'
+          + '<button type="button" class="btn-mini" id="ftCancel">取消计时</button></div>';
       }
       html += '<div class="seg seg-wrap3" id="fType">';
       TYPES.forEach(function (t) {
@@ -373,7 +468,7 @@
         });
         html += '</ul>';
       } else {
-        html += '<div class="empty-state"><p>暂无</p><span class="hint">点上方表单记第一笔吧。</span></div>';
+        html += '<div class="empty-state"><span class="es-ico">' + icon('feeding') + '</span><p>暂无</p><span class="hint">点上方表单记第一笔吧。</span></div>';
       }
       html += '</div>';
 
@@ -402,7 +497,15 @@
           else rv.L = lastDurRec.durationMin;
         }
       }
-      if (pendDur != null) rv.L = pendDur; /* 计时结束回填优先 */
+      /* 第 140 次：_pendingDur 由「数字」升级为 { L, R }；旧形态仍兼容 */
+      if (pendDur != null) {
+        if (typeof pendDur === 'object') {
+          rv.L = pendDur.L || 0;
+          rv.R = pendDur.R || 0;
+        } else {
+          rv.L = pendDur;
+        }
+      }
       if (lastAmtRec) {
         if (lastAmtRec.amountBm != null) rv.Bm = lastAmtRec.amountBm;
         if (lastAmtRec.amountFm != null) rv.Fm = lastAmtRec.amountFm;
@@ -479,24 +582,80 @@
       /* P1-8 母乳计时：开始 / 结束回填 / 取消（状态跨刷新持久在 d.feedingTimer） */
       var ftStartBtn = view.querySelector('#ftStart');
       if (ftStartBtn) ftStartBtn.addEventListener('click', function () {
-        d.feedingTimer = { start: Util.nowLocal() };
+        /* 第 140 次：从「上次喂的那一侧」的对面开始（与上方换边建议同一条规则），
+           分侧累计从 0 起算。 */
+        var firstSide = (lastBreast && lastBreast.side === 'left') ? 'right'
+          : ((lastBreast && lastBreast.side === 'right') ? 'left' : 'left');
+        d.feedingTimer = {
+          start: Util.nowLocal(), side: firstSide, sideStart: Util.nowLocal(), accL: 0, accR: 0
+        };
         Storage.save(); global.App.rerender();
       });
-      var ftEndBtn = view.querySelector('#ftEnd');
-      if (ftEndBtn) ftEndBtn.addEventListener('click', function () {
+      /* 第 140 次：换边——把当前侧已用时间结算进 acc，再从另一侧重新计时 */
+      var ftSwitchBtn = view.querySelector('#ftSwitch');
+      if (ftSwitchBtn) ftSwitchBtn.addEventListener('click', function () {
         var t = d.feedingTimer; if (!t) return;
-        var mins = Math.max(1, Math.round((Date.now() - new Date(t.start).getTime()) / 60000));
+        var now = Date.now();
+        var cur = (t.side === 'right') ? 'right' : 'left';
+        var ss = new Date(t.sideStart || t.start).getTime();
+        var add = Math.max(0, now - ss);
+        if (cur === 'left') t.accL = (typeof t.accL === 'number' ? t.accL : 0) + add;
+        else t.accR = (typeof t.accR === 'number' ? t.accR : 0) + add;
+        t.side = (cur === 'left') ? 'right' : 'left';
+        t.sideStart = Util.nowLocal();
+        Storage.save(); global.App.rerender();
+      });
+      /* 第 140 次：结束（支持回填结束时间）。offsetMin = 从「现在」往前推多少分钟。 */
+      function endFeed(offsetMin) {
+        var t = d.feedingTimer; if (!t) return;
+        var endMs = Date.now() - Math.max(0, offsetMin || 0) * 60000;
+        var startMs = new Date(t.start).getTime();
+        /* 回填把结束时间推到开始之前 → 按「至少 1 分钟」兜底，不产生负数时长 */
+        if (!isFinite(endMs) || endMs <= startMs) endMs = startMs + 60000;
+        var cur = (t.side === 'right') ? 'right' : 'left';
+        var ss = new Date(t.sideStart || t.start).getTime();
+        var add = Math.max(0, endMs - ss);
+        var L = (typeof t.accL === 'number' ? t.accL : 0) + (cur === 'left' ? add : 0);
+        var R = (typeof t.accR === 'number' ? t.accR : 0) + (cur === 'right' ? add : 0);
+        /* 旧形状（只有 start）没有分侧数据：全部算到当前侧，行为与第 132 次一致 */
+        var mL = Math.round(L / 60000);
+        var mR = Math.round(R / 60000);
         d.feedingTimer = null;
         Storage.save();
-        Modules.feeding._pendingDur = mins;
-        Util.toast('已计时 ' + Util.fmtDuration(mins * 60000) + '，已填入时长，确认后点保存', 'ok');
+        Modules.feeding._pendingDur = { L: mL, R: mR };
+        var txt = '左 ' + mL + ' 分' + (mR ? ' · 右 ' + mR + ' 分' : '');
+        Util.toast('已填入 ' + txt + '，确认后点保存', 'ok');
         global.App.rerender();
+      }
+      var ftEndBtn = view.querySelector('#ftEnd');
+      if (ftEndBtn) ftEndBtn.addEventListener('click', function () { endFeed(0); });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-ftend]'), function (b) {
+        b.addEventListener('click', function () { endFeed(parseInt(b.getAttribute('data-ftend'), 10) || 0); });
       });
       var ftCancelBtn = view.querySelector('#ftCancel');
       if (ftCancelBtn) ftCancelBtn.addEventListener('click', function () {
         d.feedingTimer = null;
         Storage.save(); Util.toast('已取消计时', 'ok'); global.App.rerender();
       });
+      /* 第 140 次：分侧秒表自走。切页/结束后元素被摘除，立即 clearInterval。 */
+      var ftTotalEl = view.querySelector('#ftTotal');
+      if (ftTotalEl && typeof view.contains === 'function') {
+        var ftTick = setInterval(function () {
+          if (!view.contains(ftTotalEl)) { clearInterval(ftTick); return; }
+          var t = d.feedingTimer;
+          if (!t) { clearInterval(ftTick); return; }
+          var nowMs = Date.now();
+          var cur = (t.side === 'right') ? 'right' : 'left';
+          var add = Math.max(0, nowMs - new Date(t.sideStart || t.start).getTime());
+          var L2 = (typeof t.accL === 'number' ? t.accL : 0) + (cur === 'left' ? add : 0);
+          var R2 = (typeof t.accR === 'number' ? t.accR : 0) + (cur === 'right' ? add : 0);
+          var elL = view.querySelector('#ftL');
+          var elR = view.querySelector('#ftR');
+          if (elL) elL.textContent = Util.fmtClock(L2);
+          if (elR) elR.textContent = Util.fmtClock(R2);
+          ftTotalEl.textContent = Util.fmtClock(Math.max(0, nowMs - new Date(t.start).getTime()));
+        }, 1000);
+      }
       /* 第 43 次：侧别三选已由「左/右两根滑杆」取代，这里不再需要监听。 */
 
       view.querySelector('#fSave').addEventListener('click', function () {
@@ -618,6 +777,82 @@
             deletedText: '已删除喂养记录'
           });
         });
+      });
+    },
+
+    /* ============================================================
+       第 137 次（磁贴就地记录 · P0）：首页喂养磁贴内嵌「奶源切换 + 奶量步进 + 记录」。
+       对标 Cali 的瓶喂组件（−60mL/+ 步进，组件内即记即走）。
+       为什么只做瓶喂：亲喂要计时、辅食要填菜名 MilkSource，都不适合「点一下就走」，
+       那两个类型仍走模块页（Cali 也是把它们放在宽度更大的组件里）。
+       契约与 diaper._quickHTML/_quickBind 完全一致——同一套东西，两处模块共用。
+       奶量 30–360、步进 60：来源于 rv.Fm 的既有滑杆区间，不自造量纲。
+       ============================================================ */
+    _quickHTML: function (d) {
+      return '<div class="qk-seg" role="group" aria-label="奶源">'
+        + '<button type="button" class="qk-btn qk-src is-on" data-src="bm">母乳</button>'
+        + '<button type="button" class="qk-btn qk-src" data-src="fm">配方</button>'
+        + '</div>'
+        + '<div class="qk-amt">'
+        + '<button type="button" class="qk-btn qk-step" data-step="-60" aria-label="减 60 毫升">−</button>'
+        + '<b class="qk-num" data-qk-num>120<i>ml</i></b>'
+        + '<button type="button" class="qk-btn qk-step" data-step="60" aria-label="加 60 毫升">＋</button>'
+        + '</div>'
+        + '<button type="button" class="qk-btn qk-save">记录</button>';
+    },
+
+    _quickBind: function (root, d, done) {
+      var src = 'bm', amt = 120;
+
+      function paint() {
+        var n = root.querySelector('[data-qk-num]');
+        if (n) n.innerHTML = amt + '<i>ml</i>';
+        var on = root.querySelector('.qk-src.is-on');
+        if (on) on.classList.remove('is-on');
+        var b = root.querySelector('[data-src="' + src + '"]');
+        if (b) b.classList.add('is-on');
+      }
+
+      Array.prototype.forEach.call(root.querySelectorAll('.qk-src'), function (b) {
+        b.addEventListener('click', function (ev) {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          src = b.getAttribute('data-src');
+          paint();
+        });
+      });
+      Array.prototype.forEach.call(root.querySelectorAll('.qk-step'), function (b) {
+        b.addEventListener('click', function (ev) {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          var step = parseInt(b.getAttribute('data-step'), 10);
+          amt = Math.max(30, Math.min(360, amt + (isFinite(step) ? step : 0)));
+          paint();
+        });
+      });
+      var save = root.querySelector('.qk-save');
+      if (save) save.addEventListener('click', function (ev) {
+        if (ev && ev.stopPropagation) ev.stopPropagation();
+        /* 记录形状逐字段照抄页面内 rec（第 606–609 行的口径）：
+           amountBm/amountFm 分源，amount 是兼容旧字段的合计量。 */
+        var rec = {
+          id: Util.uid(), type: 'bottle', start: Util.nowLocal(),
+          durationMin: null, durationL: null, durationR: null,
+          amount: amt, amountBm: (src === 'bm') ? amt : null, amountFm: (src === 'fm') ? amt : null,
+          side: null, note: null, newFood: null, dish: null, ing: null, steps: null
+        };
+        d.feedings.push(rec);
+        if (Storage.save()) {
+          Util.toast('已记录瓶喂 ' + amt + ' ml', 'ok', {
+            label: '撤销',
+            onClick: function () {
+              for (var i = d.feedings.length - 1; i >= 0; i--) {
+                if (d.feedings[i].id === rec.id) { d.feedings.splice(i, 1); break; }
+              }
+              Storage.save();
+              done();
+            }
+          });
+        }
+        done();
       });
     }
   };

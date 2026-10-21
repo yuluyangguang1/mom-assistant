@@ -81,7 +81,7 @@
       html += '</div>';
       html += Util.dateSlider({ id: 'bBirth', title: '出生日期', value: baby.birthDate || '', min: Util.addDays(Util.todayISO(), -1095), max: Util.todayISO(), opt: { label: '未设置（可后补）', invert: false } });
       html += '<label class="chk"><input type="checkbox" id="bPreterm"' + (baby.preterm ? ' checked' : '') + '> 早产儿（需矫正月龄）</label>';
-      html += '<label id="lblGest">出生孕周（周）<input type="number" id="bGest" min="22" max="39" value="' + (baby.birthGestWeeks || 36) + '"></label>';
+      html += '<label id="lblGest">出生孕周（周）<input type="number" id="bGest" min="22" max="39" value="' + Util.escapeHtml(baby.birthGestWeeks || 36) + '"></label>';
       html += '<button class="btn" id="bSave">保存宝宝信息</button>';
       if (baby.birthDate) html += '<button type="button" class="btn-mini" id="bCollapse">收起</button>';
       html += '<p class="hint">生长曲线对照 WHO 标准中位数（虚线），仅供趋势参考——看趋势、看长期，单次数值不必焦虑；不构成医疗建议。</p></div>';

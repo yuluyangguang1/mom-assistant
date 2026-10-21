@@ -15,9 +15,12 @@
     render: function (view) {
       var d = Storage.get();
       var today = Util.todayISO();
+      /* 第 131 次（P1-a）：「今天数胎动」走照护日口径（dayStart 可配，默认 0 = 公历日）。 */
+      var DS = Util.dayStartHour(d);
+      var dayNow = Util.dayKeyOf(new Date(), DS);
       var html = '';
 
-      var todayList = (d.fetal || []).filter(function (r) { return (r.time || '').slice(0, 10) === today; });
+      var todayList = (d.fetal || []).filter(function (r) { return Util.dayKeyOf(r.time, DS) === dayNow; });
       var last = (d.fetal || []).slice().sort(function (a, b) { return new Date(b.time) - new Date(a.time); })[0];
 
       /* 一键计数卡：大数字主角 + 大按钮（产痛外的另一个「单手场景」） */
@@ -45,7 +48,7 @@
         });
         html += '</ul>';
       } else {
-        html += '<div class="empty-state"><p>暂无记录</p><span class="hint">宝宝动的时候点上面按钮记一次。</span></div>';
+        html += '<div class="empty-state"><span class="es-ico">' + icon('fetal') + '</span><p>暂无记录</p><span class="hint">宝宝动的时候点上面按钮记一次。</span></div>';
       }
       html += '</div>';
 
@@ -59,7 +62,7 @@
         var rec = { id: Util.uid(), time: Util.nowLocal() };
         d.fetal.push(rec);
         if (Storage.save()) {
-          Util.toast('已记录一次胎动（今天第 ' + d.fetal.filter(function (r) { return (r.time || '').slice(0, 10) === today; }).length + ' 次）', 'ok', {
+          Util.toast('已记录一次胎动（今天第 ' + d.fetal.filter(function (r) { return Util.dayKeyOf(r.time, DS) === dayNow; }).length + ' 次）', 'ok', {
             label: '撤销', onClick: function () {
               for (var i = d.fetal.length - 1; i >= 0; i--) {
                 if (d.fetal[i].id === rec.id) { d.fetal.splice(i, 1); break; }

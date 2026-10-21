@@ -68,6 +68,12 @@
 
   function buildTabbar() {
     var bar = document.getElementById('tabbar');
+    /* 第 135 次（底部胶囊 dock）：宝宝切换 / 设置 / 返回三个顶栏按钮要搬进胶囊。
+       必须在 innerHTML='' 之前取到引用——清空后它们在 DOM 里就找不到了
+       （节点对象仍由这几个变量持有，重新 append 即「搬移」，id 与既有事件绑定全部保留）。 */
+    var avEl = document.getElementById('avatarBtn');
+    var gearEl = document.getElementById('settingsBtn');
+    var backEl = document.getElementById('backBtn');
     bar.innerHTML = '';
     var hand = handMode();
     /* 第 100 次：左手/右手模式——五个入口收进一根竖排胶囊（固定屏幕同侧下缘）：
@@ -129,11 +135,17 @@
     }
     /* 正常排列：居中横排（原逻辑不动） */
     try { document.documentElement.style.setProperty('--dock-h', '0px'); } catch (e) {}
+    /* 第 135 次：胶囊最左 = 宝宝切换（原顶栏左上角头像）。 */
+    if (avEl) { avEl.classList.add('dock-btn'); bar.appendChild(avEl); }
     TABS.forEach(function (t) {
       var b = document.createElement('button');
       b.className = 'tab' + (t.id === current ? ' active' : '');
       b.type = 'button';
-      b.innerHTML = icon(t.id) + '<span>' + t.title + '</span>';
+      /* 第 141 次：底栏统一为「纯图标」——页签不再带文字。
+         文字去掉后必须补 aria-label，否则读屏只剩一个无名按钮。 */
+      b.innerHTML = icon(t.id);
+      b.setAttribute('aria-label', t.title);
+      b.setAttribute('title', t.title);
       b.setAttribute('data-tab', t.id);
       if (t.id === current) b.setAttribute('aria-current', 'page'); /* 无障碍：标记当前页签 */
       b.addEventListener('click', function () { showTab(t.id); });
@@ -152,12 +164,33 @@
       var sb = document.createElement('button');
       sb.className = 'tab tab-slot';
       sb.type = 'button';
-      sb.innerHTML = icon(slot) + '<span>' + Util.escapeHtml(Modules[slot].title) + '</span>';
+      /* 第 141 次：同页签，去文字只留图标（aria-label 原本就有） */
+      sb.innerHTML = icon(slot);
+      sb.setAttribute('title', Modules[slot].title);
       sb.setAttribute('data-tab', slot);
       sb.setAttribute('aria-label', '快捷入口：' + Modules[slot].title);
       sb.addEventListener('click', function () { showTab(slot); });
       bar.appendChild(sb);
     }
+    /* 第 135 次（底部胶囊 dock · 续）：「＋」快捷记录 + 设置 + 返回。
+       「＋」是一个转发按钮——点它去 click 隐藏的 #qdFab，复用整套开合/动作列逻辑
+       （与左手模式的 __quick 转发同源，避免再写一份状态机）。 */
+    var plus = document.createElement('button');
+    plus.className = 'tab tab-plus dock-plus';
+    plus.type = 'button';
+    plus.setAttribute('data-qd-toggle', '1');
+    plus.setAttribute('aria-label', '快速记录');
+    plus.setAttribute('title', '快速记录');
+    /* 第 141 次：＋ 去掉「快记」文字，并挪到胶囊最右（原来是 ＋ 后面还跟设置/返回） */
+    plus.innerHTML = icon('plus');
+    plus.addEventListener('click', function () {
+      var f = document.getElementById('qdFab');
+      if (f && f.click) f.click();
+    });
+    if (gearEl) { gearEl.classList.add('dock-btn'); bar.appendChild(gearEl); }
+    /* 返回在 ＋ 之前：二级页里 CSS 让「返回靠左、＋ 靠右」，DOM 顺序即视觉顺序 */
+    if (backEl) { backEl.classList.add('dock-btn'); bar.appendChild(backEl); }
+    bar.appendChild(plus);
   }
 
   /* 顶栏玻璃化策略：
@@ -177,12 +210,15 @@
     if (current !== 'home') {
       header.classList.add('is-solid');
       header.classList.remove('is-scrolled');
+      header.classList.remove('is-deep');
       return;
     }
+    /* 第 144 次：首页顶栏已改为 position:static（跟着天空滚走），
+       is-scrolled / is-deep 两套雾化对首页不再有意义——留着只会在
+       某些内核上残留类名造成困惑，这里一并清掉，只保留模块页的 is-solid。 */
     header.classList.remove('is-solid');
-    var y = window.pageYOffset || (document.documentElement && document.documentElement.scrollTop) || 0;
-    if (y > 8) header.classList.add('is-scrolled');
-    else header.classList.remove('is-scrolled');
+    header.classList.remove('is-scrolled');
+    header.classList.remove('is-deep');
   }
 
   function showTab(id, opts) {
@@ -236,6 +272,14 @@
     var backBtn = document.getElementById('backBtn');
     if (backBtn) backBtn.hidden = (id === 'home' || id === 'calendar' || id === 'settings');    /* 用 add/remove 而非 classList.toggle(cls, force)：测试桩的 toggle 不接受 force 参数，
        会退化成「反转」，连续进两次同一页就把类删掉了。 */
+    /* 第 135 次（底部胶囊 dock）：二级页收起整条胶囊，只留返回钮。
+       判据与 backBtn 完全同源——不另立一套「什么算二级页」的规则，
+       否则两处口径迟早分叉（返回钮在、胶囊不收，或反过来）。 */
+    var dockBar = document.getElementById('tabbar');
+    if (dockBar) {
+      var isSub = (id !== 'home' && id !== 'calendar' && id !== 'settings');
+      if (isSub) dockBar.classList.add('is-sub'); else dockBar.classList.remove('is-sub');
+    }
     if (id !== 'home') document.body.classList.add('in-module');
     else document.body.classList.remove('in-module');
     if (id === 'home') document.body.classList.add('in-home');
@@ -490,7 +534,7 @@
     if (!av) return;
     var b = (Storage.activeBaby) ? Storage.activeBaby() : null;
     if (b && b.photo) {
-      av.innerHTML = '<img class="ha-photo" src="' + b.photo + '" alt="">';
+      av.innerHTML = '<img class="ha-photo" src="' + Util.escapeHtml(b.photo) + '" alt="">';
     } else {
       av.innerHTML = (global.illo ? illo('avatar') : '');
     }
@@ -507,7 +551,7 @@
     var cur = s.settings.activeBabyId;
     var rows = babies.map(function (b) {
       var ava = b.photo
-        ? '<img src="' + b.photo + '" alt="">'
+        ? '<img src="' + Util.escapeHtml(b.photo) + '" alt="">'
         : '<span class="sheet-ava">' + Util.escapeHtml((b.name || '宝').charAt(0)) + '</span>';
       return '<li><button type="button" class="sheet-row' + (b.id === cur ? ' active' : '') + '" data-pick="' + b.id + '">'
         + ava
@@ -1003,9 +1047,16 @@
     qdBasket.fab = fab;
     /* 第 43 次：遮罩用真实元素，不再用 ::before 伪元素——伪元素的 target 是宿主元素本身，
        无法与「点 dock 自身」区分，导致点遮罩永远收不起。 */
-    var mask = root.querySelector('#qdMask');
+    /* 第 135 次：遮罩已移到 #app 之外（胶囊的 backdrop-filter 会为 fixed 子元素
+       创建包含块，留在里面就盖不住全屏），因此从 document 取。 */
+    var mask = document.getElementById('qdMask');
 
-    function close() { root.classList.remove('open'); fab.setAttribute('aria-expanded', 'false'); }
+    function close() {
+      root.classList.remove('open');
+      /* 第 135 次：遮罩可见性挂在 body.qd-open 上（它不再是 #quickDock 的子节点） */
+      if (document.body && document.body.classList) document.body.classList.remove('qd-open');
+      fab.setAttribute('aria-expanded', 'false');
+    }
 
     /* 第 43 次：外部关闭。遮罩用真实元素 #qdMask——旧版是 ::before 伪元素，
        撑满全屏但事件 target 是宿主 #quickDock 本身，`root.contains(e.target)` 恒为
@@ -1084,6 +1135,7 @@
           + '<span>' + Util.escapeHtml(a.label) + '</span></button>';
       }).join('');
       root.classList.add('open');
+      if (document.body && document.body.classList) document.body.classList.add('qd-open');
       fab.setAttribute('aria-expanded', 'true');
 
       var f0 = fed.rec;
@@ -1190,6 +1242,18 @@
     try {
       if (global.navigator && navigator.serviceWorker &&
           global.location && /^https?:$/.test(global.location.protocol)) {
+        /* 第 145 次（用户两次反馈「改了没生效」）：
+           sw.js 里已有 skipWaiting + clients.claim，新 SW 会立刻接管，
+           但**当前这个页面**仍然跑着旧的 CSS/JS —— 用户要刷两次才看得到改动。
+           这里补一条：检测到控制权变更（= 新版本已接管）就自动重载一次。
+           守卫两处：① 首次安装（此前没有 controller）不重载，避免白刷一次；
+                    ② 标记位防止极端情况下反复重载。 */
+        var hadController = !!navigator.serviceWorker.controller;
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          if (!hadController || global.__swReloaded) return;
+          global.__swReloaded = true;
+          if (global.location && global.location.reload) global.location.reload();
+        });
         navigator.serviceWorker.register('sw.js').catch(function () {});
       }
     } catch (e) { /* SW 不可用不影响任何功能 */ }
@@ -1206,23 +1270,17 @@
     showTab('home');
     Util.bindLongPressCopy(); /* 第 87 次：列表行长按复制该条记录（全局委托，一次绑定） */
     showOnboarding();
-    checkBackupReminder();
     maybeWeeklyReview();
   }
 
-  /* 备份提醒（第 59 次降噪）：只在「已有数据且从未导出」时，启动后温和提醒一次——
-     这是唯一不可省略的生命线状态。超过 7 天未备份不再启动弹 toast：
-     该状态由首页提醒卡条目（可随「首页提醒卡」开关整体关掉）与底部备份状态行
-     持续展示，四处同催只会让人想关掉提醒本身。每次启动最多提醒一次，不打扰。 */
-  function checkBackupReminder() {
-    var s = Storage.get();
-    if (!Storage.hasData()) return;
-    if (s.settings.lastExportISO) return;
-    Util.toast('你还没有备份过数据。建议在设置中导出备份，防止清理浏览器时丢失。', 'warn', {
-      label: '去备份',
-      onClick: function () { showTab('settings'); }
-    });
-  }
+  /* 备份提醒：**已从首页撤除**（第 145 次）。
+     第 59 次在这里放了一个「从未导出过 → 启动弹一次 toast」的提醒，
+     第 142 次按用户要求把首页底部的备份状态行与提醒卡条目都挪进了设置页，
+     但这条启动 toast 漏了 —— 它浮在底栏上方，正好压住模块磁贴
+     （实测截图里盖住了「母乳/记录」那一行），而且与用户「备份提醒别放首页」的要求相悖。
+     现在备份提示只出现在「设置 · 数据与备份」：无数据时写「还没有备份过数据，
+     强烈建议现在导出一次」，超 14 天时由 Reminders.backupHint 补一句「已 N 天未备份」。
+     安全网没有丢，只是不再在首页打扰。 */
 
   /* ================= 第 116 次：边缘侧滑返回 + history 集成 =================
      真机实测反馈「没有侧滑返回」。根因有二，都不是样式问题：

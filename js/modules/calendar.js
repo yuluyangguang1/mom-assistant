@@ -71,7 +71,7 @@
       html += '</ul>';
       html += '<p class="hint">这条线由你自己的记录自动串起来，只按时间排列，不排序「谁家更好」。</p>';
     } else {
-      html += '<div class="empty-state"><p>时间轴还是空的</p><span class="hint">记下里程碑、生长或接种之后，这里会自动串成一条线。</span></div>';
+      html += '<div class="empty-state"><span class="es-ico">' + icon('calendar') + '</span><p>时间轴还是空的</p><span class="hint">记下里程碑、生长或接种之后，这里会自动串成一条线。</span></div>';
     }
     return html + '</div>';
   }
@@ -143,7 +143,7 @@
           });
           html += '</div>';
         } else {
-          html += '<div class="empty-state"><p>今天还没有记录</p><span class="hint">回首页点任意模块记一笔吧。</span></div>';
+          html += '<div class="empty-state"><span class="es-ico">' + icon('calendar') + '</span><p>今天还没有记录</p><span class="hint">回首页点任意模块记一笔吧。</span></div>';
         }
         if (ts.sleepRange) {
           html += '<p class="hint">睡眠参照只用你自己的近 7 天区间（' + ts.sleepRange + '），不和别人比。</p>';

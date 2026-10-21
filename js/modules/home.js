@@ -13,15 +13,24 @@
   var Storage = global.Storage, Util = global.Util;
   var Modules = global.Modules = global.Modules || {};
 
+  /* 第 131 次（P1-a · 对标 Cali DailyCareRecapBuilder 的 dayStart）：
+     照护日口径——「今日从几点开始算」可在设置里配（默认 0 = 公历日）。
+     记录计数/归属一律走 careKeyOf / careDayNow；疫苗剂次、预产期、
+     备份天数等日历日语义继续用 Util.todayISO()——门诊认公历日。
+     dayStart=0 时本组函数与改前的 slice(0,10)/todayISO 逐字节等价。 */
+  function careDS() { return Util.dayStartHour(Storage.get()); }
+  function careDayNow() { return Util.dayKeyOf(new Date(), careDS()); }
+  function careKeyOf(x) { return Util.dayKeyOf(x, careDS()); }
+
   function countToday(arr, key, now) {
-    var t = now ? Util.fmtDate(now) : Util.todayISO(); /* 第 115 次：口径与 dayLabel 统一 */
-    return (arr || []).filter(function (x) { return (x[key] || '').slice(0, 10) === t; }).length;
+    var t = now ? Util.dayKeyOf(now, careDS()) : careDayNow(); /* 第 115 次：口径与 dayLabel 统一 */
+    return (arr || []).filter(function (x) { return careKeyOf(x[key]) === t; }).length;
   }
   /* 第 56 次（单条信息行）：今天最近一次的时刻（HH:MM），给磁贴摘要补充「最近几点」。
      单列横行后有空间多放一段信息，数字与时刻一起构成一眼可读的今日节奏。 */
   function lastToday(arr, key, now) {
-    var t = now ? Util.fmtDate(now) : Util.todayISO(); /* 第 115 次：口径与 dayLabel 统一 */
-    var hits = (arr || []).filter(function (x) { return (x[key] || '').slice(0, 10) === t; })
+    var t = now ? Util.dayKeyOf(now, careDS()) : careDayNow(); /* 第 115 次：口径与 dayLabel 统一 */
+    var hits = (arr || []).filter(function (x) { return careKeyOf(x[key]) === t; })
       .sort(function (a, b) { return new Date(b[key]) - new Date(a[key]); });
     if (!hits.length) return null;
     var dt = new Date(hits[0][key]);
@@ -72,9 +81,12 @@
     /* 第 115 次：now 可选。缺省仍取真实当天（生产行为不变），
        但显式传入时与 lastAnySum 的 now 保持同一口径——
        此前这里硬取 Util.todayISO()，而 lastAnySum 传了自己的 now，
-       两套「今天」打架，跨天时标签整体错一天。 */
-    var today = now ? Util.fmtDate(now) : Util.todayISO();
-    var diff = Util.daysBetween(Util.fmtDate(dt), today);
+       两套「今天」打架，跨天时标签整体错一天。
+       第 131 次（P1-a）：两侧同切换到照护日口径（dayStart 可配）——
+       记录自身也按 careKeyOf 归属，00:30 记的一笔在 6:00 起始下
+       显示「今天」而不是「昨天」。dayStart=0 时与改前逐字节等价。 */
+    var today = now ? Util.dayKeyOf(now, careDS()) : careDayNow();
+    var diff = Util.daysBetween(careKeyOf(dt), today);
     if (diff === 0) return '今天';
     if (diff === 1) return '昨天';
     if (diff === 2) return '前天';
@@ -99,6 +111,37 @@
   function isoOf(s) { return (s || '').slice(0, 10); }
   function fmtMoney(n) { return '¥' + (Math.round(n * 100) / 100); }
 
+  /* 「昨夜最长连续」= 昨夜（归属到前一夜的那一组）里单段最长连续睡眠的小时数。
+     2026-10-12 修正（第 128 次）：原实现取「start 最新的已结束睡眠」——
+     今天下午补记一段午睡，就会把写着「昨夜最长连续」的磁贴/统计顶成午睡值，
+     标错对象。改为按 sleep.js 的 lastNightRecords 归属口径取昨夜整组，
+     再取组内最长一段；两处调用（render 磁贴 + _todayStats）共用本函数。 */
+  function lastNightLongestH(d) {
+    var sleeps = (d && d.sleeps) || [];
+    var longestMin = (global.Modules && Modules.sleep && typeof Modules.sleep._longestMin === 'function')
+      ? Modules.sleep._longestMin : function (s) {
+          var w = (s.wakings == null) ? 0 : s.wakings;
+          return Math.round((new Date(s.end) - new Date(s.start) - (s.pausedMs || 0)) / 60000 / (w + 1));
+        };
+    var recs;
+    if (global.Modules && Modules.sleep && typeof Modules.sleep._lastNightRecords === 'function') {
+      recs = Modules.sleep._lastNightRecords(sleeps);
+    } else {
+      /* sleep.js 未加载时的同口径兜底（nightKeyOf：6 点前入睡归属前一天） */
+      var base = Util.addDays(Util.fmtDate(new Date()), -1);
+      recs = sleeps.filter(function (s) {
+        if (!s || !s.end) return false;
+        var st = new Date(s.start);
+        if (isNaN(st.getTime())) return false;
+        var iso = Util.fmtDate(s.start);
+        return (st.getHours() < 6 ? Util.addDays(iso, -1) : iso) === base;
+      });
+    }
+    var best = 0;
+    recs.forEach(function (s) { var v = longestMin(s); if (v > best) best = v; });
+    return best > 0 ? best / 60 : null;
+  }
+
   function pregnancyWeek(d) {
     var pg = d.pregnancy;
     if (!pg || !(pg.lmp || pg.dueDate)) return null;
@@ -118,6 +161,11 @@
     render: function (view) {
       var d = Storage.get();
       var today = Util.todayISO();
+      /* 第 131 次（P1-a）：照护日「今天」——记录计数专用。
+         与上面的 today（公历日）并存：疫苗剂次/预产期/备份天数等
+         日历日语义继续用 today，两条线不混用（睡笔记的是「时刻」，
+         门诊预约认的是「日期」，本来就不该同一把尺子）。 */
+      var dayNow = careDayNow();
 
       /* 问候语 */
       /* 称呼取自首次引导里选的身份 / 称呼（O 系列）：只影响问候语，不做任何用户画像。
@@ -128,23 +176,28 @@
       var who = (cg && cg.name) ? cg.name : roleWord;
       var greetWho = who ? ('你好，' + who) : '你好';
       /* P2 动态问候落地：优先宝宝月龄（产后），其次孕周 + 预产期倒计时；数据都没有才用通用文案。
-         只动副标题（greetSub），h1 的身份问候逻辑与既有测试保持不变。 */
-      var greetSub = '今天也要好好照顾自己和宝宝。';
+         只动副标题（greetSub），h1 的身份问候逻辑与既有测试保持不变。
+         第 131 次（P0-a）：副标题从独立一行并入 h1 行内（.hg-sub），
+         文案同步收敛为事实核心——用户 10-13 实测首屏点名
+         「日期/身份/月龄/星座/提示占太多行，这里也是」，
+         对标 Cali HomeWidgetBaby（activeBaby + stage 两要素）：
+         首屏只放「今天是谁、什么阶段」，情感句与装饰前缀让位。 */
+      var greetSub = '好好照顾自己和宝宝';
       var bd = (d.settings.baby && d.settings.baby.birthDate) || null;
       var ageDays = bd ? Util.daysBetween(bd, today) : null;
       var dl = dueLeft(d);
       if (ageDays !== null && ageDays >= 0 && ageDays <= 730) {
-        if (ageDays >= 294) greetSub = '宝宝 ' + Math.floor(ageDays / 30.44) + ' 个月大了，继续好好记录。';
-        else if (ageDays >= 1) greetSub = '宝宝出生第 ' + ageDays + ' 天，辛苦啦。';
-        else greetSub = '欢迎新生命，享受这段时光。';
+        if (ageDays >= 294) greetSub = '宝宝 ' + Math.floor(ageDays / 30.44) + ' 个月大了';
+        else if (ageDays >= 1) greetSub = '宝宝出生第 ' + ageDays + ' 天';
+        else greetSub = '欢迎新生命';
       } else if (dl !== null) {
         if (dl > 0) {
           var wkNow = pregnancyWeek(d);
           greetSub = (wkNow !== null ? '孕 ' + wkNow + ' 周 · ' : '')
-            + '距离预产期还有 ' + dl + ' 天，记得好好休息。';
+            + '距预产期 ' + dl + ' 天';
         }
-        else if (dl >= -30) greetSub = '宝宝正在来到你身边，加油。';
-        else greetSub = '欢迎新生命，享受这段时光。';
+        else if (dl >= -30) greetSub = '宝宝正在来到你身边';
+        else greetSub = '欢迎新生命';
       }
 
       /* 模块记录摘要 */
@@ -156,15 +209,9 @@
       var feedToday = countToday(d.feedings, 'start');
       var diaperToday = countToday(d.diapers, 'time');
       var contraToday = countToday(d.contractions, 'start');
-      var sleepRecent = (d.sleeps || []).filter(function (s) { return s.end; })
-        .sort(function (a, b) { return new Date(b.start) - new Date(a.start); })[0];
-      /* U-17：首页主指标用「昨夜最长连续」而非总时长；U-24：参照只用近 7 天自己的区间 */
-      var longestMin = (global.Modules && Modules.sleep && typeof Modules.sleep._longestMin === 'function')
-        ? Modules.sleep._longestMin : function (s) {
-            var w = (s.wakings == null) ? 0 : s.wakings;
-            return Math.round((new Date(s.end) - new Date(s.start) - (s.pausedMs || 0)) / 60000 / (w + 1));
-          };
-      var lastLongestH = sleepRecent ? (longestMin(sleepRecent) / 60) : null;
+      /* 第 128 次：昨夜最长连续改走共享口径（昨夜整组取最长一段），
+         不再取「start 最新的已结束睡眠」——午睡会把磁贴顶成错值。 */
+      var lastLongestH = lastNightLongestH(d);
       var weightRecent = (d.growth || []).slice()
         .sort(function (a, b) { return new Date(b.date) - new Date(a.date); })[0];
       var wk = pregnancyWeek(d);
@@ -202,18 +249,32 @@
         else { vaxInfo = '全部完成'; }
       }
 
+      /* 第 131 次（P0-b · 对标 Cali VaccineReminderPlan.pendingCount）：
+         逾期计数上文磁贴角标。Cali 的 HomeWidgetSnapshot 字段里没有任何
+         reminder——逾期只以 pendingCount 这个「计数」存在，喂磁贴角标与
+         本机通知。Web 端没有系统通知，磁贴角标就是它的落点：
+         即使用户关掉首页提醒卡（U-04），疫苗磁贴仍显示「待补 N 剂」，
+         不静默消失（第 109 次口径）。计数与提醒卡同源——都走
+         Reminders._pendingCounts，不另写一套统计（否则又会两套口径）。
+         儿保体检没有独立磁贴（与疫苗同页同入口），留在待补汇总行里；
+         里程碑有自己的磁贴，过期未对照时给它「待对照」角标。 */
+      var pendN = (global.Reminders && typeof Reminders._pendingCounts === 'function')
+        ? Reminders._pendingCounts(d) : null;
+      if (pendN && pendN.vaccine > 0) vaxBadge = '待补 ' + pendN.vaccine + ' 剂';
+      var msBadge = (pendN && pendN.milestone) ? '待对照' : '';
+
       var medsToday = countToday(d.meds, 'time');
       var msRecent = (d.milestones || []).slice()
         .sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); })[0];
       /* 妈妈情绪（第 66 次 · F 线）：今日最近一次档位词；与宝宝记录同权重的「记录你自己」入口 */
-      var moodToday = (d.moods || []).filter(function (r) { return (r.time || '').slice(0, 10) === today; })
+      var moodToday = (d.moods || []).filter(function (r) { return careKeyOf(r.time) === dayNow; })
         .sort(function (a, b) { return new Date(b.time) - new Date(a.time); })[0];
       var MOOD_LV = { 1: '很低落', 2: '有点低', 3: '一般', 4: '不错', 5: '很好' };
       var moodSum = moodToday ? ('今天 ' + (MOOD_LV[moodToday.level] || '已记录')) : '暂无今日';
       /* 胎动（对标 Cali 补齐）：只在有孕周时出现——磁贴与统计都跟阶段走 */
       var fetalToday = countToday(d.fetal, 'time');
       /* 体温（第 38 次补齐）：磁贴显示今日最高 */
-      var tempTodayList = (d.temps || []).filter(function (r) { return (r.time || '').slice(0, 10) === today; });
+      var tempTodayList = (d.temps || []).filter(function (r) { return careKeyOf(r.time) === dayNow; });
       var tempTodayMax = tempTodayList.length
         ? Math.max.apply(null, tempTodayList.map(function (r) { return r.value; }))
         : null;
@@ -286,9 +347,9 @@
         { id: 'growth', stages: ['baby'], name: '生长', accent: 'growth', sum: weightRecent ? ('最近 ' + weightRecent.weightKg + ' kg') : '暂无', empty: !weightRecent },
         { id: 'vaccine', stages: ['baby'], name: '疫苗', accent: 'vaccine', sum: vaxInfo, badge: vaxBadge, guide: true, empty: false },
         { id: 'meds', stages: ['baby', 'pregnancy'], name: '吃药/维D', accent: 'meds', sum: medsToday ? ('今日 ' + medsToday + ' 次') : '暂无今日', badge: '', guide: true, empty: !medsToday },
-        { id: 'milestone', stages: ['baby'], name: '里程碑', accent: 'milestone', sum: msRecent ? msRecent.title : '暂无', empty: !msRecent },
+        { id: 'milestone', stages: ['baby'], name: '里程碑', accent: 'milestone', sum: msRecent ? msRecent.title : '暂无', badge: msBadge, empty: !msRecent },
         { id: 'period', stages: ['baby'], name: '经期', accent: 'period', sum: periodInfo, empty: (!ongoing && !periods.length) },
-        { id: 'mood', stages: ['baby', 'pregnancy'], name: '妈妈情绪', accent: 'mood', sum: moodSum, empty: !moodToday },
+        { id: 'mood', stages: ['baby', 'pregnancy'], name: '妈妈情绪', accent: 'mood', sum: moodSum, guide: true, empty: !moodToday },
         { id: 'pregnancy', stages: ['pregnancy'], name: '孕期', accent: 'pregnancy', sum: wk !== null ? ('第 ' + wk + ' 周') : '未设置', badge: '', guide: true, empty: wk === null },
         { id: 'packing', stages: ['pregnancy'], name: '待产包', accent: 'packing', sum: pk.length ? ('已备 ' + pkPct + '%') : '未开始', badge: '', guide: true, empty: !pk.length },
         { id: 'contraction', stages: ['pregnancy'], name: '宫缩', accent: 'contraction', sum: ocTile ? ('计时中 · 已 ' + Util.fmtDuration(openElapsedMs(ocTile))) : (contraToday ? ('今日 ' + contraToday + ' 次') : '暂无今日'), badge: ocTile ? '计时中' : '', guide: true, empty: (!ocTile && !contraToday) }
@@ -296,12 +357,61 @@
       if (wk !== null) {
         tiles.push({ id: 'fetal', stages: ['pregnancy'], name: '胎动', accent: 'fetal', sum: fetalToday ? ('今日 ' + fetalToday + ' 次') : '暂无今日', badge: '', empty: !fetalToday });
       }
-      tiles.push({ id: 'temp', stages: ['baby', 'pregnancy'], name: '体温', accent: 'temp', sum: tempTodayMax != null ? ('今日最高 ' + tempTodayMax + '°C') : '暂无今日', guide: true, empty: tempTodayMax == null });
+      tiles.push({ id: 'temp', stages: ['baby', 'pregnancy'], name: '体温', accent: 'temp', sum: tempTodayMax != null ? ('今日最高 ' + tempTodayMax + '°C') : '暂无今日', guide: false, empty: tempTodayMax == null });
       tiles.push({ id: 'finance', stages: ['baby', 'pregnancy'], name: '记账', accent: 'finance', sum: monthSum ? ('本月 ' + fmtMoney(monthSum)) : '本月无', empty: !monthSum });
       /* 第 107 次：消耗品。摘要复用模块自己的低库存判定（渲染期派生，不写库）。 */
       var supSum = (global.Modules && Modules.supplies && typeof Modules.supplies._summary === 'function')
         ? Modules.supplies._summary(d.supplies) : '';
-      tiles.push({ id: 'supplies', stages: ['baby'], name: '消耗品', accent: 'supplies', sum: supSum, badge: '', guide: true, empty: !supSum });
+      tiles.push({ id: 'supplies', stages: ['baby'], name: '消耗品', accent: 'supplies', sum: supSum, badge: '', guide: false, empty: !(d.supplies || []).length });
+
+      /* 第 132 次（对标 Cali 21 工具补缺）：洗澡 / 游泳 / 日晒 / 饮水 / 黄疸 / 补剂。
+         一律 guide:false + empty:!有数据 —— 沿用第 118 次的首屏收敛纪律：
+         没数据就不占位（不把首屏塞满低频模块），入口由「全部功能」页兜底；
+         一旦记过就自动出现在磁贴网格里。 */
+      var mon132 = Util.todayISO().slice(0, 7);
+      function cnt132(arr, scope) {
+        return (arr || []).filter(function (r) {
+          if (!r || !r.time) return false;
+          return scope === 'month'
+            ? String(r.time).slice(0, 7) === mon132
+            : careKeyOf(r.time) === careDayNow();
+        }).length;
+      }
+      function sum132(arr, key) {
+        return (arr || []).reduce(function (s, r) {
+          if (!r || !r.time) return s;
+          if (careKeyOf(r.time) !== careDayNow()) return s;
+          var v = r[key];
+          return s + (typeof v === 'number' && isFinite(v) ? v : 0);
+        }, 0);
+      }
+      var bathM = cnt132(d.baths, 'month');
+      var swimM = cnt132(d.swims, 'month');
+      var sunMin = sum132(d.suns, 'minutes');
+      var waterMl = sum132(d.waters, 'ml');
+      var jaunLast = (d.jaundices || []).slice()
+        .filter(function (r) { return r && typeof r.value === 'number' && isFinite(r.value); })
+        .sort(function (a, b) { return new Date(b.time) - new Date(a.time); })[0];
+      var supPlans = (d.supplementPlans || []).filter(function (p) { return p && p.active !== false; });
+      var supNeed = supPlans.reduce(function (s, p) {
+        return s + ((typeof p.perDay === 'number' && p.perDay > 0) ? p.perDay : 1);
+      }, 0);
+      var supDone = 0;
+      supPlans.forEach(function (p) {
+        var per = (typeof p.perDay === 'number' && p.perDay > 0) ? p.perDay : 1;
+        var n = (d.supplements || []).filter(function (r) {
+          if (!r || careKeyOf(r.time) !== careDayNow()) return false;
+          return r.planId ? (r.planId === p.id) : (r.name === p.name);
+        }).length;
+        supDone += Math.min(per, n);
+      });
+
+      tiles.push({ id: 'jaundice', stages: ['baby'], name: '黄疸', accent: 'jaundice', sum: jaunLast ? (jaunLast.value + ' ' + (jaunLast.unit === 'umol' ? 'µmol/L' : 'mg/dL')) : '暂无', badge: '', guide: false, empty: !jaunLast });
+      tiles.push({ id: 'bath', stages: ['baby'], name: '洗澡', accent: 'bath', sum: bathM ? ('本月 ' + bathM + ' 次') : '暂无', badge: '', guide: false, empty: !bathM });
+      tiles.push({ id: 'swim', stages: ['baby'], name: '游泳', accent: 'swim', sum: swimM ? ('本月 ' + swimM + ' 次') : '暂无', badge: '', guide: false, empty: !swimM });
+      tiles.push({ id: 'sun', stages: ['baby'], name: '日晒', accent: 'sun', sum: sunMin ? ('今日 ' + sunMin + ' 分钟') : '暂无今日', badge: '', guide: false, empty: !sunMin });
+      tiles.push({ id: 'water', stages: ['baby'], name: '饮水', accent: 'water', sum: waterMl ? ('今日 ' + waterMl + ' ml') : '暂无今日', badge: '', guide: false, empty: !waterMl });
+      tiles.push({ id: 'supplement', stages: ['baby'], name: '补剂', accent: 'supplement', sum: supNeed ? ('今日 ' + supDone + '/' + supNeed) : '未设计划', badge: supNeed && supDone < supNeed ? '待打卡' : '', guide: false, empty: !supNeed && !(d.supplements || []).length });
 
       /* 磁贴按阶段排序（对标报告 P1）：孕早期 tools 前置 / 育儿期喂养尿布前置，
          其余按固定次序殿后——同样的 14/15 个磁贴，第一眼先看到当前阶段最常用的。
@@ -354,8 +464,8 @@
          不新造数据、不另写一套字段。编辑模式内嵌按钮 disabled（编辑 ≠ 误记录，
          与「编辑模式 data-go 跳过」同一和解方式）。 */
       function recDiaperHTML(extraCls, badges) {
-        var today = Util.todayISO();
-        var cnt = (d.diapers || []).filter(function (r) { return r.time && r.time.slice(0, 10) === today; }).length;
+        var dayNow = careDayNow(); /* 第 131 次（P1-a）：与磁贴同口径 */
+        var cnt = (d.diapers || []).filter(function (r) { return careKeyOf(r.time) === dayNow; }).length;
         var dis = editing ? ' disabled' : '';
         return '<div class="card canvas-card' + extraCls + '" data-cid="rec-diaper"><h2>记尿布</h2>'
           + '<div class="rec-keys">'
@@ -452,6 +562,27 @@
         return '<span class="tile-del" data-del="' + t.id + '" role="button" tabindex="0" aria-label="删除 ' + t.name + ' 组件">' + icon('trash') + '</span>'
           + '<span class="tile-size" data-size="' + t.id + '" role="button" tabindex="0" aria-label="切换 ' + t.name + ' 大小，当前' + (t._sz === 's' ? '半宽' : '整排') + '">' + (t._sz === 's' ? '半宽' : '整排') + '</span>';
       }
+      /* 第 137 次（磁贴就地记录 · P0）：带内嵌控件的磁贴。
+
+         ⚠ 必须是 <div> 不能是 <button>：button 里不允许再嵌 button（HTML 非法），
+         而且外层 button 的点击会吃掉内层控件，用户根本点不到。
+         所以拆成两半——左半 .rt-open 才带 data-go（复用全页统一的 [data-go] 绑定，点它进模块页），
+         右半 .rt-quick 交给模块自己的 _quickBind 绑定。两半各有明确的触摸区域，
+         不存在「点了放大镜却弹出面板」这种张冠李戴。 */
+      function quickTileHTML(t, quickHtml) {
+        return '<div class="record-tile is-quick" data-accent="' + t.accent + '" data-quick="' + t.id + '">'
+          + '<button class="rt-open" data-go="' + t.id + '" type="button" '
+          + 'aria-label="打开' + Util.escapeHtml(t.name) + '">'
+          + '<span class="rt-ico">' + icon(t.id) + '</span>'
+          + '<span class="rt-name">' + Util.escapeHtml(t.name) + '</span>'
+          + '<span class="rt-sum">' + Util.escapeHtml(t.sum) + '</span>'
+          + (t.badge ? '<span class="rt-badge">' + Util.escapeHtml(t.badge) + '</span>' : '')
+          + '<span class="rt-arrow" aria-hidden="true">' + icon('chevron-right') + '</span>'
+          + '</button>'
+          + '<div class="rt-quick">' + quickHtml + '</div>'
+          + '</div>';
+      }
+
       /* 卡组件 → HTML（画布模式专用；自动模式不经过这里）。
          占位卡（_ph：items 里有、本轮条件不满足）必须先于真卡工厂分支——
          工厂在条件不满足时返回空串，会把占位卡整个吞掉。 */
@@ -571,17 +702,26 @@
          （既有的「孕期缺胎动 / 育儿期喂养前置」用例正是全空冷启动场景，
           这条保护让它们继续成立；详见交付说明。） */
       var converge = d.settings.homeConverge !== false;
-      if (converge) {
-        var hasReviewData = tiles.some(function (t) { return !t.guide && !t.empty; });
-        if (hasReviewData) {
-          var convBefore = tiles.length;
-          tiles = tiles.filter(function (t) { return t.guide || !t.empty; });
-          if (tiles.length < convBefore) tileDropped = true;
-        }
+      var HOME_CAP = 8;
+      if (converge && tiles.length > HOME_CAP) {
+        /* 第 142 次修复（用户报：点快捷记录后有些卡片消失）：
+           旧规则是「一旦有任何数据，就把所有空磁贴删掉」——
+           冷启动 8 个 → 记一次尿布后只剩 5 个，喂奶/睡眠/成长当场消失，
+           用户会以为功能没了。根因是把「收敛」实现成了硬过滤，而不是限额。
+           现在改为**限额择优**：固定 8 个名额，有数据的（和引导型）优先占位，
+           空磁贴补足剩余名额，再按 ORDER 排序展示。
+           效果：磁贴总数稳定，只有「超出 8 个的部分」才会被收起——
+           记录行为不再导致界面结构突变。 */
+        var filled = tiles.filter(function (t) { return t.guide || !t.empty; });
+        var blanks = tiles.filter(function (t) { return !t.guide && t.empty; });
+        var keep = filled.slice(0, HOME_CAP);
+        if (keep.length < HOME_CAP) keep = keep.concat(blanks.slice(0, HOME_CAP - keep.length));
+        if (keep.length < tiles.length) tileDropped = true;
+        tiles = keep;
       }
       tiles.sort(function (a, b) { return ORDER.indexOf(a.id) - ORDER.indexOf(b.id); });
-      if (converge && tiles.length > 8) {
-        tiles = tiles.slice(0, 8);
+      if (converge && tiles.length > HOME_CAP) {
+        tiles = tiles.slice(0, HOME_CAP);
         tileDropped = true;
       }
       } /* ── 第 120 次：else（自动管线）结束 ── */
@@ -627,13 +767,17 @@
 
       /* 顶部天空背景 + 问候（第 43 次）：日期并入问候卡首行（第 80 次重设计，
          用户点名「日期放在你好前，今天是几号什么节」），天空整幅让给天色与弧线。
-         模块页日期仍用 index.html 的 #modDate 小徽标。 */
+         模块页日期仍用 index.html 的 #modDate 小徽标。
+         第 131 次（P0-a）：问候卡 5 行收成 3 行——日期 / 身份+阶段（副标题
+         并入 h1 行内 .hg-sub，单行省略）/ 小知识（星座属龙前缀保留在知识行，
+         不再单独占位）。h1 仍先渲染 dateAt < h1At 的既有次序（测试锚点）。 */
       var nowD = new Date();
       var DOW = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-      /* 第 80 次：问候卡头像位从品牌 LOGO 换成当前宝宝的照片——
-         设置 · 宝宝档案里上传/切换，未上传时回落品牌 LOGO（PWA/favicon 同源图）。 */
-      var actBaby = (Storage.activeBaby) ? Storage.activeBaby() : null;
-      var avaSrc = (actBaby && actBaby.photo) ? actBaby.photo : 'assets/icon-192.png';
+      /* 第 134 次（用户裁定）：撤掉问候卡左侧的 44px 头像位。
+         理由：顶栏左上角已经有同一个头像按钮（.home-avatar，点它进设置/切换宝宝），
+         hero 里再放一张是重复入口；而且它把「19」这个大日期往右挤了 56px，
+         大数字的视觉重心被压偏。头像能力本身没减——顶栏那个还在。
+         随之删除 actBaby / avaSrc 两个变量（此前只服务这一个 <img>）。 */
       /* 日期行：今天是 M月D日 周X · 节日（节日来自农历+公历+母亲/父亲节，纯本地计算） */
       var fest = (Util.festivalOf) ? Util.festivalOf(nowD) : null;
       html += '<section class="home-sky">'
@@ -642,11 +786,21 @@
            天空保留云/星/色板/环境光，问候卡直接叠在天空上不再被日轮穿插。 */
         + '<div class="sky-veil"></div>'
         + '<div class="home-greet">'
-        + '<img class="home-logo" src="' + avaSrc + '" alt="" width="44" height="44">'
         + '<div class="hg-body">'
-        + '<p class="hg-date">今天是' + (nowD.getMonth() + 1) + '月' + nowD.getDate() + '日 ' + DOW[nowD.getDay()]
-        + (fest ? ' · <b class="hg-fest">' + Util.escapeHtml(fest) + '</b>' : '') + '</p>'
-        + '<h1>' + Util.escapeHtml(greetWho) + '</h1><p>' + Util.escapeHtml(greetSub) + '</p>'
+        /* 第 133 次（对齐 Cali · 大日期 hero）：原来这一行是「今天是10月19日 周一」13px 弱化字，
+           信息全但视觉重量为零。Cali 的做法是把「日」做成页面最大的字（390 宽下约 76px），
+           月份与星期降为它旁边的小字——日期本身就是首页的主角。
+           这里保留 .hg-date 这个类（第 80 次的「日期并入问候卡」结论不变、仍在天空内），
+           只把内部结构改成「小字月/周 + 大数字日」，CSS 侧 .hg-date 的 muted 规则继续生效。 */
+        + '<p class="hg-date"><b class="hg-day">' + nowD.getDate() + '</b>'
+        + '<span class="hg-date-meta">' + (nowD.getMonth() + 1) + '月 · ' + DOW[nowD.getDay()]
+        + (fest ? ' · <b class="hg-fest">' + Util.escapeHtml(fest) + '</b>' : '') + '</span></p>'
+        /* 第 131 次（P0-a）：身份与阶段合并一行——副标题作 h1 行内 span
+           （.hg-sub：13px/常规字重/弱化色），整行单行省略；
+           greetSub 为空串（理论不可达，三分支都有默认值）时不渲染 span。 */
+        + '<h1>' + Util.escapeHtml(greetWho)
+        + (greetSub ? '<span class="hg-sub"> · ' + Util.escapeHtml(greetSub) + '</span>' : '')
+        + '</h1>'
         + (know ? '<p class="know-hint">' + Util.escapeHtml(know) + '</p>' : '')
         + '</div></div>'
         + '</section>';
@@ -663,6 +817,56 @@
         + '<span class="si-ico">' + icon('search') + '</span>'
         + '<span>搜索记录、里程碑、用品…</span>'
         + '</button>';
+
+      /* 第 133 次 Phase 2（对齐 Cali · 上次 X 双列卡）：
+         Cali 首页在日期下方是「上次喂奶 | 上次尿布」两列小卡——一个值 + 一句相对时间，
+         回答的是「现在要不要再来一次」。我们原来只有磁贴右侧那句
+         「最近 08:30 · 今日 2 次」，扫读成本高，且被其他模块挤在后面。
+         这里只读不写；两类都没记录时整块不渲染（不摆空壳，延续第 118 次冷启动保护）。 */
+      var lf = (d.feedings || []).filter(function (r) { return r && r.start; })
+        .sort(function (a, b) { return new Date(b.start) - new Date(a.start); })[0];
+      var ld = (d.diapers || []).filter(function (r) { return r && r.time; })
+        .sort(function (a, b) { return new Date(b.time) - new Date(a.time); })[0];
+      if (lf || ld) {
+        var nowMs2 = sumNow.getTime();
+        /* 卡里只需要「2 小时前」这种短说法：gapText 的「距今 X」前缀在
+           「上次喂奶」标题下是重复信息，这里剥掉；不足 1 分钟说「刚刚」。 */
+        function gapShort(ms) {
+          var g = gapText(ms);
+          return (g === '不到 1 分钟') ? '刚刚' : g.replace('距今 ', '') + '前';
+        }
+        var FT = { breast: '母乳', bottle: '奶瓶', formula: '奶粉', pump: '吸奶', solid: '辅食' };
+        var DT = { pee: '尿', poop: '便', both: '尿+便' };
+        var feedVal = '—', feedGap = '';
+        if (lf) {
+          feedVal = FT[lf.type] || '喂养';
+          var amt = (lf.type === 'bottle' || lf.type === 'formula' || lf.type === 'pump')
+            ? (lf.amountFm || lf.amount) : null;
+          if (amt) {
+            feedVal += ' · ' + amt + 'mL';
+          } else if (lf.type === 'breast') {
+            var sp = [];
+            if (lf.durationL) sp.push('左 ' + lf.durationL + ' 分');
+            if (lf.durationR) sp.push('右 ' + lf.durationR + ' 分');
+            if (sp.length) feedVal += ' · ' + sp.join(' ');
+          }
+          feedGap = gapShort(Math.max(0, nowMs2 - new Date(lf.start).getTime()));
+        }
+        var diaVal = ld ? (DT[ld.type] || '换尿布') : '—';
+        var diaGap = ld ? gapShort(Math.max(0, nowMs2 - new Date(ld.time).getTime())) : '';
+        html += '<div class="home-last2">'
+          + '<button class="hl2" data-accent="feeding" data-go="feeding" type="button">'
+          + '<span class="hl2-head">' + icon('feeding') + '上次喂奶</span>'
+          + '<b class="hl2-val">' + Util.escapeHtml(feedVal) + '</b>'
+          + '<span class="hl2-gap">' + Util.escapeHtml(feedGap || '还没有记录') + '</span>'
+          + '</button>'
+          + '<button class="hl2" data-accent="diaper" data-go="diaper" type="button">'
+          + '<span class="hl2-head">' + icon('diaper') + '上次尿布</span>'
+          + '<b class="hl2-val">' + Util.escapeHtml(diaVal) + '</b>'
+          + '<span class="hl2-gap">' + Util.escapeHtml(diaGap || '还没有记录') + '</span>'
+          + '</button>'
+          + '</div>';
+      }
       /* 第 91 次：底边过渡带已删除——融合改由画布自身淡出为透明完成
          （sky.js fadeBottomOut），交界处即页面真实背景，日夜零横带。 */
 
@@ -676,9 +880,16 @@
         if (rems.length) {
           html += '<div class="card remind-card"><h2>提醒</h2><ul class="list remind-list">';
           rems.forEach(function (r) {
-            html += '<li data-accent="' + r.accent + '" data-go="' + r.go + '" role="button" tabindex="0">'
+            /* 第 129 次：pending 行（陈旧待办汇总）走紧凑单行样式 is-pending——
+               图标、文案、点击目标都在，但不占完整卡片的高度与视觉重量。 */
+            html += '<li' + (r.pending ? ' class="is-pending"' : '')
+              + ' data-accent="' + r.accent + '" data-go="' + r.go + '" role="button" tabindex="0">'
               + '<span class="row-ico">' + icon(r.accent === 'finance' ? 'export' : r.accent) + '</span>'
-              + '<span>' + r.text + '</span></li>';
+              + '<span>' + r.text + '</span>'
+              /* 汇总行补一个右侧箭头，明示「点进去看详情」；普通提醒行不加，
+                 避免一屏里出现多个箭头竞争注意力。 */
+              + (r.pending ? '<span class="rt-arrow" aria-hidden="true">' + icon('chevron-right') + '</span>' : '')
+              + '</li>';
           });
           html += '</ul></div>';
         }
@@ -786,10 +997,42 @@
         + (editing ? '<button class="home-edit-btn" id="homeSheetOpen" type="button">' + icon('plus') + '添加组件</button>' : '')
         + '<button class="home-edit-btn" id="homeEdit" type="button">'
         + (editing ? icon('check') + '完成' : icon('edit') + '编辑首页') + '</button></div>';
+      /* 第 118 次（首页收敛）：「全部功能」入口。仅在收敛开启、且本屏确实丢过模块
+         （阶段筛选或收敛截取）时渲染——关掉收敛即彻底回到改动前，连入口也不出现。
+         图标用 icon('grid')（主理人在 icons.js 新增；未定义时返回空串，不崩）。
+         它带 data-go="alltools"，由下方统一的 [data-go] 绑定接管，且此 HTML 在绑定前已写入。
+         N = 全部功能页的模块总数：优先读 alltools 的目录（生产环境已注册），
+         未注册（如 QA 沙箱未加载 alltools.js）时用同一份清单长度的常量兜底。
+         第 128 次（导航优化，10-11 实测后拍板）：入口从磁贴网格**之后**上移到网格**之前**——
+         实测它在网格后位于文档 ≈924px（冷启动）/ ≈1154px（普通日），视口 844px，
+         要滚 1.1–1.4 屏才够得着，而它是「一个入口都不丢」的唯一枢纽。
+         上移后首屏磁贴区上方即可见；不动第 118 次「底栏 2 页签」裁定。 */
+      if (tileDropped && (editing || layout || converge)) {
+        var alltoolsN = (global.Modules && Modules.alltools && Modules.alltools._modules
+          && Modules.alltools._modules.length) ? Modules.alltools._modules.length : 19;
+        html += '<button class="alltools-entry" data-go="alltools" type="button">'
+          + '<span class="ti-ico">' + icon('grid') + '</span>'
+          + '<span class="ti-name">全部功能</span>'
+          + '<span class="ti-count">' + alltoolsN + ' 项</span>'
+          + '<span class="rt-arrow" aria-hidden="true">' + icon('chevron-right') + '</span>'
+          + '</button>';
+      }
+
       html += '<div class="record-grid' + (layout ? ' is-custom' : '') + (editing ? ' is-editing' : '') + '">';
+      var quickTiles = [];   /* 第 137 次：本页要绑定的就地记录磁贴（id 列表） */
       tiles.forEach(function (t) {
         /* 第 121 次：卡组件与磁贴混排（画布模式）；自动模式 tiles 里没有卡对象 */
         if (t._card) { html += cardHTML(t); return; }
+        /* 第 137 次（磁贴就地记录 · P0）：模块暴露 _quickHTML 时，磁贴内嵌记录控件，
+           点一下即落库、带撤销——不必再进模块页走一遍表单。
+           仅自动模式生效：布局编辑/画布模式下磁贴要能被拖动改大小，内嵌控件会抢触摸，
+           所以那两种模式仍渲染普通磁贴（功能不丢，只是没有就地记录）。 */
+        var qmod = (layout || editing) ? null : (global.Modules[t.id] || null);
+        if (qmod && typeof qmod._quickHTML === 'function' && typeof qmod._quickBind === 'function') {
+          html += quickTileHTML(t, qmod._quickHTML(d));
+          quickTiles.push(t.id);
+          return;
+        }
         html += '<button class="record-tile' + ((layout || editing) ? (t._sz === 's' ? ' sz-s' : ' sz-l') : '') + '" data-accent="' + t.accent + '" data-go="' + t.id + '" type="button">'
           + '<span class="rt-ico">' + icon(t.id) + '</span>'
           + '<span class="rt-name">' + t.name + '</span>'
@@ -805,22 +1048,6 @@
       });
       html += '</div>';
 
-      /* 第 118 次（首页收敛）：「全部功能」入口。仅在收敛开启、且本屏确实丢过模块
-         （阶段筛选或收敛截取）时渲染——关掉收敛即彻底回到改动前，连入口也不出现。
-         图标用 icon('grid')（主理人在 icons.js 新增；未定义时返回空串，不崩）。
-         它带 data-go="alltools"，由下方统一的 [data-go] 绑定接管，且此 HTML 在绑定前已写入。
-         N = 全部功能页的模块总数：优先读 alltools 的目录（生产环境已注册），
-         未注册（如 QA 沙箱未加载 alltools.js）时用同一份清单长度的常量兜底。 */
-      if (tileDropped && (editing || layout || converge)) {
-        var alltoolsN = (global.Modules && Modules.alltools && Modules.alltools._modules
-          && Modules.alltools._modules.length) ? Modules.alltools._modules.length : 19;
-        html += '<button class="alltools-entry" data-go="alltools" type="button">'
-          + '<span class="ti-ico">' + icon('grid') + '</span>'
-          + '<span class="ti-name">全部功能</span>'
-          + '<span class="ti-count">' + alltoolsN + ' 项</span>'
-          + '<span class="rt-arrow" aria-hidden="true">' + icon('chevron-right') + '</span>'
-          + '</button>';
-      }
 
       /* U-34 容量近上限：强提示常驻（不自动消失、可延迟关闭、不阻断当前操作、带立即导出出口）。
          阈值是设计判断（报告未给具体上限），文案只陈述事实与代价，不做任何安全承诺（U-37）。 */
@@ -836,19 +1063,10 @@
           + '<button class="btn" id="capLater" type="button">3 天后再说</button></div></div>';
       }
 
-      /* 第 59 次（降噪）：U-42「从未备份强提示卡」撤下——它与启动 toast、提醒卡、
-         备份状态行四处同时轰炸，用户反馈「提醒框太多」。备份提醒收敛为一处：
-         提醒卡条目（reminders.js ruleBackup，可随「首页提醒卡」开关整体关掉）；
-         首页底部保留中性的备份状态行（是状态不是催促，点击可顺手导出）。 */
-
-      /* U-30 首页底部中性备份状态行：不是按钮、不是 CTA、整行可点触发快捷导出（默认可迁移 JSON） */
-      var lastExport = d.settings.lastExportISO;
-      var daysSince = lastExport ? Util.daysBetween(lastExport, today) : null;
-      var backupTxt = lastExport
-        ? (daysSince === 0 ? '今天已导出备份' : '上次备份：' + daysSince + ' 天前') + '（点击可再导出）'
-        : '从未备份（点击可导出一份）';
-      html += '<div class="backup-line" id="backupLine" role="button" tabindex="0">' + icon('export')
-        + '<span>所有数据仅存本机浏览器，不联网、不共享。' + backupTxt + '</span></div>';
+      /* 第 142 次（用户反馈：备份提醒别放首页）：原来的底部备份状态行整条撤下，
+         备份相关的信息与入口统一收敛到「设置 · 数据与备份」——
+         首页是「今天要做什么」的地方，备份是「以防万一」的事，不属于首屏。
+         提醒卡里的 ruleBackup 也一并从 RULES 移除，否则只是换个位置继续催。 */
       html += '</div>'; /* /.home-main */
 
       /* 第 120 次：添加组件目录（对标 Cali「添加组件」弹层，采纳减配——
@@ -891,6 +1109,17 @@
 
       view.innerHTML = html;
 
+      /* 第 137 次：就地记录绑定。必须在 view.innerHTML = html 之后——
+         控件在 innerHTML 赋值前进不了文档，querySelector 会拿到 null
+         （实测踩过：绑定写在赋值前，三个尿布按钮一个都点不动）。
+         done() 统一走 App.rerender()——落库后首页刷新，「今日 N 次」与「距上次」立刻跟上。 */
+      quickTiles.forEach(function (id) {
+        var m = global.Modules[id];
+        if (!m || typeof m._quickBind !== 'function') return;
+        var box = view.querySelector('[data-quick="' + id + '"]');
+        if (box) m._quickBind(box, d, function () { global.App.rerender(); });
+      });
+
       /* 模块记录 / 提醒列表 → 对应模块。
          第 58 次（走查）：提醒 li 有 tabindex=0 + role=button 却只绑了 click——
          键盘 Enter/Space 无效（a11y 缺口）。button 原生支持，li 补键盘触发。
@@ -906,15 +1135,11 @@
         }
       });
 
-      /* 首页底部备份状态行 → 快捷导出（可迁移格式 JSON） */
-      var bkLine = view.querySelector('#backupLine');
-      function quickExport() { if (global.App && typeof App.exportAll === 'function') App.exportAll(); }
-      if (bkLine) {
-        bkLine.addEventListener('click', quickExport);
-        bkLine.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); quickExport(); } });
-      }
       /* U-34 容量近上限强提示卡：立即导出 / 延迟 3 天（不自动消失，可再次触发） */
       var capNow = view.querySelector('#capExport');
+      /* 第 142 次：quickExport 原先是备份状态行的私有函数，状态行撤走后
+         容量提示卡（#capExport）仍要用它——提升为页面级函数，别再删。 */
+      function quickExport() { if (global.App && typeof App.exportAll === 'function') App.exportAll(); }
       if (capNow) capNow.addEventListener('click', quickExport);
       var capBannerEl = view.querySelector('#capLater');
       if (capBannerEl) capBannerEl.addEventListener('click', function () {
@@ -1188,10 +1413,17 @@
      存储只新增 settings.homeLayout 一个键（形状校验见 storage.js），DATA_VERSION 不动。
      ============================================================ */
   /* 阶段 ORDER 抽到模块级：render 的自动排序与编辑画布共用同一份（单一来源）。
-     数组内容与第 48 次以来的两份 ORDER 逐字一致，只换了存放位置。 */
+     第 128 次（候选 5+1 落产线，2026-10-11 实测后拍板）：两份 ORDER 改「每日必做优先」——
+     育儿期 喂养/尿布/睡眠/吃药/情绪 前置到前五位，消耗品/宫缩/孕期/待产包殿后；
+     孕期 mood/meds 提前，period 殿后。实测：冷启动 8→8（增吃药/维D、移体温）、
+     普通日 8→7（增妈妈情绪、移体温/消耗品）、孕期两态逐格零变化。 */
   var STAGE_ORDER = {
-    pregnancy: ['pregnancy', 'fetal', 'contraction', 'packing', 'mood', 'period', 'feeding', 'diaper', 'sleep', 'whitenoise', 'growth', 'vaccine', 'meds', 'milestone', 'temp', 'finance'],
-    baby: ['feeding', 'diaper', 'sleep', 'whitenoise', 'mood', 'temp', 'growth', 'vaccine', 'meds', 'milestone', 'period', 'contraction', 'pregnancy', 'packing', 'finance', 'supplies']
+    pregnancy: ['pregnancy', 'fetal', 'contraction', 'packing', 'mood', 'meds', 'feeding', 'diaper', 'sleep', 'whitenoise', 'growth', 'vaccine', 'milestone', 'temp', 'period', 'finance',
+      /* 第 132 次：六个新模块一律殿后。它们是低频/阶段性模块（黄疸只在新生儿期、
+         日晒游泳是季节性），不该挤掉「每日必做」的位置；等真实使用数据出来再调。 */
+      'jaundice', 'bath', 'swim', 'sun', 'water', 'supplement'],
+    baby: ['feeding', 'diaper', 'sleep', 'meds', 'mood', 'whitenoise', 'growth', 'vaccine', 'milestone', 'temp', 'period', 'finance', 'supplies', 'contraction', 'pregnancy', 'packing',
+      'jaundice', 'bath', 'swim', 'sun', 'water', 'supplement']
   };
   /* 组件宇宙：两阶段 ORDER 的并集（17 个 id，含跨阶段的 fetal/supplies），
      再并上第 121 次的卡组件 id。布局校验以它为准——布局里只允许出现真的存在的组件 id。 */
@@ -1368,13 +1600,16 @@
      注意：必须在 Modules.home 对象字面量之后赋值（模块加载即执行）。 */
   Modules.home._todayStats = function (d) {
     var today = Util.todayISO();
+    /* 第 131 次（P1-a）：今日计数走照护日口径（与首页磁贴同源），
+        孕周/待产包等日历日语义仍用 today。 */
+    var dayNow = Util.dayKeyOf(new Date(), Util.dayStartHour(d));
     var bd = (d.settings.baby && d.settings.baby.birthDate) || null;
     var wk = pregnancyWeek(d);
     var pk = (d.packing && d.packing.items) ? d.packing.items : [];
     var pkDone = pk.filter(function (x) { return x.checked; }).length;
     var pkPct = pk.length ? Math.round(pkDone / pk.length * 100) : 0;
     function cnt(arr, key) {
-      return (arr || []).filter(function (x) { return (x[key] || '').slice(0, 10) === today; }).length;
+      return (arr || []).filter(function (x) { return Util.dayKeyOf(x[key], Util.dayStartHour(d)) === dayNow; }).length;
     }
     var sleepRecent = (d.sleeps || []).filter(function (s) { return s.end; })
       .sort(function (a, b) { return new Date(b.start) - new Date(a.start); })[0];
@@ -1383,7 +1618,8 @@
           var w = (s.wakings == null) ? 0 : s.wakings;
           return Math.round((new Date(s.end) - new Date(s.start) - (s.pausedMs || 0)) / 60000 / (w + 1));
         };
-    var lastLongestH = sleepRecent ? (longestMin(sleepRecent) / 60) : null;
+    /* 第 128 次：与首页磁贴同一口径——昨夜整组取最长一段，不取 start 最新那一段 */
+    var lastLongestH = lastNightLongestH(d);
     var sleepRange = (function () {
       if (!sleepRecent) return null;
       var cut = new Date(); cut.setDate(cut.getDate() - 7);
