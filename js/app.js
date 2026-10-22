@@ -613,6 +613,7 @@
       if (Storage.syncBabyFromSettings) Storage.syncBabyFromSettings();
       Storage.save();
       root.innerHTML = '';
+      document.body.classList.remove('ob-open');
       refreshHeaderAvatar();
       rerender();
       Util.toast((draft.role || draft.baby.birthDate)
@@ -620,56 +621,78 @@
         : '先跳过也没关系，之后在设置里补就行。', 'ok');
     }
 
-    var step = 1;
+    /* ============================================================
+       第 149 次（引导重设计）：原先是浮在首页上的弹窗（modal-mask + .ob-modal），
+       背后首页透出来、按钮挤在卡片底部，第一眼像网页弹框。改为独立全屏欢迎流程：
+       0 欢迎 → 1 称呼 → 2 阶段 → 3 宝宝/孕期信息 → 4 数据说明。
+       顶部：返回箭头 + 分段进度条 + 跳过；中部：大标题 + 一句说明 + 大卡片选项；
+       底部：通栏主按钮（贴安全区）。步间横向推入动画，减少动态效果时关闭。
+       保留原有 id / data-ob / data-stage / data-role / data-sex，回归测试与 collectStep 不受影响。
+       ============================================================ */
+    var step = 0, lastStep = 0;
+    var TOTAL = 4; /* 进度条只数 1–4，欢迎页不计 */
+    var obRoot = document.getElementById('obRoot');
+    if (!obRoot) { obRoot = document.createElement('div'); obRoot.id = 'obRoot'; document.body.appendChild(obRoot); }
+    root = obRoot; /* collectStep / 提醒逻辑沿用 root 查询 */
+    document.body.classList.add('ob-open');
+
     function bodyOf(n) {
+      if (n === 0) return obWelcome();
       if (n === 1) return stepOneBody(draft);
       if (n === 2) return stepStageBody(draft);
       if (n === 3) return stepTwoBody(draft);
       return stepThreeBody();
     }
 
-    function renderStep() {
-      root.innerHTML = '<div class="modal-mask"><div class="modal ob-modal" role="dialog" aria-modal="true">'
-        + bodyOf(step) + '</div></div>';
-      Util.bindDateSliders(root);
+    function chrome(n) {
+      if (n === 0) return '';
+      var bars = '';
+      for (var i = 1; i <= TOTAL; i++) bars += '<i class="' + (i <= n ? 'on' : '') + '"></i>';
+      return '<div class="ob-top">'
+        + '<button type="button" class="ob-icon-btn" data-ob="back" aria-label="上一步">' + (global.icon ? global.icon('back') : '‹') + '</button>'
+        + '<div class="ob-progress" role="progressbar" aria-valuemin="1" aria-valuemax="' + TOTAL + '" aria-valuenow="' + n + '" aria-label="第 ' + n + ' 步，共 ' + TOTAL + ' 步">' + bars + '</div>'
+        + (n < TOTAL ? '<button type="button" class="ob-skip" data-ob="skip">跳过</button>' : '<span class="ob-skip-ph"></span>')
+        + '</div>';
+    }
 
-      Array.prototype.forEach.call(root.querySelectorAll('#obRole [data-role]'), function (btn) {
-        btn.addEventListener('click', function () {
-          draft.role = btn.getAttribute('data-role');
-          Array.prototype.forEach.call(root.querySelectorAll('#obRole [data-role]'), function (x) { x.classList.remove('active'); });
-          btn.classList.add('active');
+    function renderStep() {
+      var dir = step >= lastStep ? 'fwd' : 'back';
+      lastStep = step;
+      obRoot.innerHTML = '<div class="ob-screen ob-step-' + step + '" role="dialog" aria-modal="true" aria-label="首次设置">'
+        + chrome(step)
+        + '<div class="ob-body ob-in-' + dir + '">' + bodyOf(step) + '</div></div>';
+      Util.bindDateSliders(obRoot);
+      var h = obRoot.querySelector('h2'); if (h) { h.setAttribute('tabindex', '-1'); try { h.focus({ preventScroll: true }); } catch (e) {} }
+
+      function pick(sel, attr, apply) {
+        Array.prototype.forEach.call(obRoot.querySelectorAll(sel), function (btn) {
+          btn.addEventListener('click', function () {
+            apply(btn.getAttribute(attr));
+            Array.prototype.forEach.call(obRoot.querySelectorAll(sel), function (x) { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false'); });
+            btn.classList.add('active'); btn.setAttribute('aria-pressed', 'true');
+            var hint = obRoot.querySelector('#obStageHint');
+            if (hint && attr === 'data-stage') hint.textContent = draft.stage === 'pregnancy'
+              ? '下一步会问小名，预产期之后在「孕期」页填。' : '下一步会问宝宝的出生日期，疫苗排期、生长曲线都要用它。';
+          });
         });
-      });
-      /* 阶段选择（第 43 次）：选完立刻切下一步的文案，让用户看到「选了之后要填什么」 */
-      Array.prototype.forEach.call(root.querySelectorAll('#obStage [data-stage]'), function (btn) {
-        btn.addEventListener('click', function () {
-          draft.stage = btn.getAttribute('data-stage');
-          Array.prototype.forEach.call(root.querySelectorAll('#obStage [data-stage]'), function (x) { x.classList.remove('active'); });
-          btn.classList.add('active');
-        });
-      });
-      Array.prototype.forEach.call(root.querySelectorAll('#obSex [data-sex]'), function (btn) {
-        btn.addEventListener('click', function () {
-          var v = btn.getAttribute('data-sex');
-          draft.baby.sex = v || 'boy';
-          draft.baby.sexUnknown = (v === '');
-          Array.prototype.forEach.call(root.querySelectorAll('#obSex [data-sex]'), function (x) { x.classList.remove('active'); });
-          btn.classList.add('active');
-        });
-      });
-      Array.prototype.forEach.call(root.querySelectorAll('[data-ob]'), function (btn) {
+      }
+      pick('#obRole [data-role]', 'data-role', function (v) { draft.role = v; });
+      pick('#obStage [data-stage]', 'data-stage', function (v) { draft.stage = v; });
+      pick('#obSex [data-sex]', 'data-sex', function (v) { draft.baby.sex = v || 'boy'; draft.baby.sexUnknown = (v === ''); });
+
+      Array.prototype.forEach.call(obRoot.querySelectorAll('[data-ob]'), function (btn) {
         btn.addEventListener('click', function () {
           var act = btn.getAttribute('data-ob');
-          if (act === 'skip') { finish(); return; }        /* 跳过 = 留空身份，功能不受影响 */
+          if (act === 'skip') { collectStep(); finish(); return; } /* 跳过 = 已填的保留、其余留空，功能不受影响 */
           if (act === 'next' || act === 'back') {
             collectStep();
-            /* 第 146 次（P0-5）：育儿阶段离开宝宝信息页时还没填生日 → 先温和提醒一次（不阻断，再点一次即可继续）。
-               月龄、疫苗排期、生长曲线都靠它，跳过后用户往往不知道要去哪补。 */
+            if (act === 'back' && step === 0) return;
+            /* 第 146 次（P0-5）：离开宝宝信息页时还没填生日 → 先温和提醒一次，再点一次即可继续 */
             if (act === 'next' && step === 3 && draft.stage !== 'pregnancy' && !draft.baby.birthDate && !draft._birthNudged) {
               draft._birthNudged = true;
-              var nudge = root.querySelector('#obBirthNudge');
+              var nudge = obRoot.querySelector('#obBirthNudge');
               if (nudge) { nudge.hidden = false; }
-              var bi = root.querySelector('#obBirth');
+              var bi = obRoot.querySelector('#obBirth');
               if (bi && bi.focus) bi.focus();
               return;
             }
@@ -699,23 +722,41 @@
     renderStep();
   }
 
-  /* 引导第 2 步（第 43 次）：先问阶段。
-     为什么值得多问一句：孕期与育儿期要填的字段完全不同（末次月经 vs 宝宝生日），
-     先定阶段才能只问该问的，首页也据此排磁贴。选错了也不锁死——设置里随时能改，
-     且不选也能用（回落到客观判定）。 */
+  /* 引导：大卡片选项（第 149 次）——图标 + 标题 + 一行说明，整卡可点 */
+  function obCard(attr, val, cur, ico, title, sub) {
+    var on = (cur === val);
+    return '<button type="button" class="ob-card' + (on ? ' active' : '') + '" ' + attr + '="' + val + '" aria-pressed="' + on + '">'
+      + '<span class="ob-card-ico">' + (global.icon ? global.icon(ico) : '') + '</span>'
+      + '<span class="ob-card-txt"><b>' + title + '</b>' + (sub ? '<small>' + sub + '</small>' : '') + '</span>'
+      + '<span class="ob-card-check">' + (global.icon ? global.icon('check') : '') + '</span></button>';
+  }
+  function obFoot(label, act) {
+    return '<div class="ob-foot"><button type="button" class="btn btn-primary ob-cta" data-ob="' + (act || 'next') + '">' + label + '</button></div>';
+  }
+  function obWelcome() {
+    return '<div class="ob-hero">'
+      + '<img class="ob-logo" src="assets/icon-192.png" alt="" width="112" height="112">'
+      + '<h2>宝妈助手</h2>'
+      + '<p class="ob-lead">喂奶、睡眠、尿布、疫苗，<br>单手几秒记一笔。</p>'
+      + '<ul class="ob-points">'
+      + '<li>' + (global.icon ? global.icon('clock') : '') + '<span>首页一键快记，夜里也不用找</span></li>'
+      + '<li>' + (global.icon ? global.icon('vaccine') : '') + '<span>按生日自动排疫苗与体检</span></li>'
+      + '<li>' + (global.icon ? global.icon('heart') : '') + '<span>数据只存在这台手机，不注册</span></li>'
+      + '</ul></div>'
+      + obFoot('开始设置') ;
+  }
+
+  /* 引导第 2 步：阶段 */
   function stepStageBody(draft) {
-    return '<h2>你现在处于哪个阶段？</h2>'
-      + '<p class="hint">只影响接下来要问什么，以及首页优先显示哪些记录模块。所有模块都还能从设置里进入，不会因为选错就用不了。</p>'
-      + '<div class="seg seg-wrap2" id="obStage">'
-      + '<button type="button" class="seg-btn' + (draft.stage === 'pregnancy' ? ' active' : '') + '" data-stage="pregnancy">孕期中</button>'
-      + '<button type="button" class="seg-btn' + (draft.stage === 'baby' ? ' active' : '') + '" data-stage="baby">宝宝已出生</button>'
+    return '<div class="ob-main"><h2>你现在处于哪个阶段？</h2>'
+      + '<p class="ob-sub">只影响接下来问什么、首页先放哪些记录。选错了随时能在设置里改。</p>'
+      + '<div class="ob-cards" id="obStage">'
+      + obCard('data-stage', 'pregnancy', draft.stage, 'pregnancy', '孕期中', '孕周、产检、胎动、宫缩')
+      + obCard('data-stage', 'baby', draft.stage, 'feeding', '宝宝已出生', '喂养、睡眠、尿布、疫苗、生长')
       + '</div>'
-      + '<p class="hint">' + (draft.stage === 'pregnancy'
-        ? '接下来会问预产期或末次月经——用它推孕周、排疫苗与生长曲线。'
-        : '接下来会问宝宝的出生日期——疫苗排期、生长曲线、里程碑都要用它。') + '</p>'
-      + '<div class="modal-actions">'
-      + '<button type="button" class="btn" data-ob="back">上一步</button>'
-      + '<button type="button" class="btn btn-primary" data-ob="next">下一步</button></div>';
+      + '<p class="ob-sub ob-sub-sm" id="obStageHint">' + (draft.stage === 'pregnancy'
+        ? '下一步会问小名，预产期之后在「孕期」页填。' : (draft.stage === 'baby' ? '下一步会问宝宝的出生日期，疫苗排期、生长曲线都要用它。' : '')) + '</p></div>'
+      + obFoot('下一步');
   }
 
   /* 导出全部数据（可迁移格式 JSON）。
@@ -904,62 +945,60 @@
 
   /* 引导第 1 步：身份（只影响称呼，不做画像） */
   function stepOneBody(draft) {
-    return '<h2>先说一句：这是给谁用的？</h2>' +
-      '<p class="hint">只用来决定称呼和首页视角。不做账号、不采集姓名手机号，选错随时可以在设置里改。</p>' +
-      '<div class="seg seg-lg" id="obRole">' +
-      '<button type="button" class="seg-btn' + (draft.role === 'mom' ? ' active' : '') + '" data-role="mom">妈妈</button>' +
-      '<button type="button" class="seg-btn' + (draft.role === 'dad' ? ' active' : '') + '" data-role="dad">爸爸</button>' +
-      '<button type="button" class="seg-btn' + (draft.role === 'other' ? ' active' : '') + '" data-role="other">其他照护者</button>' +
-      '</div>' +
-      '<label>想让首页怎么叫你？（可留空）<input type="text" id="obName" maxlength="12" placeholder="比如：妈妈、豆豆妈、奶奶" value="' +
-      Util.escapeHtml(draft.name || '') + '"></label>' +
-      '<p class="hint">为什么问：研究显示爸爸参与和宝宝、妈妈自己的睡眠都相关（Ragni 2020，有限的关联证据）；'
-      + '把称呼讲对，是让另一位照护者也愿意用的最低成本。</p>' +
-      '<div class="modal-actions">' +
-      '<button type="button" class="btn" data-ob="skip">跳过</button>' +
-      '<button type="button" class="btn btn-primary" data-ob="next">下一步</button></div>';
+    return '<div class="ob-main"><h2>谁在用宝妈助手？</h2>'
+      + '<p class="ob-sub">只用来决定怎么称呼你。不建账号，不收集姓名和手机号。</p>'
+      + '<div class="ob-cards" id="obRole">'
+      + obCard('data-role', 'mom', draft.role, 'heart', '妈妈', '')
+      + obCard('data-role', 'dad', draft.role, 'mood', '爸爸', '')
+      + obCard('data-role', 'other', draft.role, 'home', '其他照护者', '奶奶、外婆、育儿嫂……')
+      + '</div>'
+      + '<label class="ob-field">首页怎么叫你？<span class="ob-opt">可留空</span>'
+      + '<input type="text" id="obName" maxlength="12" placeholder="比如：豆豆妈" value="' + Util.escapeHtml(draft.name || '') + '"></label></div>'
+      + obFoot('下一步');
   }
 
-  /* 引导第 2 步：宝宝信息（全部可留空，且说明每项到底影响什么） */
+  /* 引导第 3 步：宝宝 / 孕期信息（全部可留空） */
   function stepTwoBody(draft) {
     var b = draft.baby;
     var preg = (draft.stage === 'pregnancy');
-    /* 第 43 次：按已选阶段换标题与说明——孕期问不到「宝宝信息」，育儿期才是那三项 */
-    return '<h2>' + (preg ? '孕期的信息（可以全空）' : '宝宝的信息（可以全空）') + '</h2>' +
-      '<p class="hint">' + (preg
-        ? '预产期或末次月经用于推算孕周、待产包与产后阶段；可留空，之后在「孕期」页补。'
-        : '这三项各有用处：性别与出生日期用于疫苗排期和生长曲线，早产用于矫正月龄；'
-          + '其余可后补（「生长」页或设置）。') + '</p>' +
-      '<label>小名（可留空）<input type="text" id="obNick" maxlength="12" placeholder="比如：小汤圆" value="' +
-      Util.escapeHtml(b.nickname || '') + '"></label>' +
-      (preg ? '' :
-        '<label>性别</label>' +
-        '<div class="seg" id="obSex">' +
-        '<button type="button" class="seg-btn' + (b.sex !== 'girl' && !b.sexUnknown ? ' active' : '') + '" data-sex="boy">男宝</button>' +
-        '<button type="button" class="seg-btn' + (b.sex === 'girl' && !b.sexUnknown ? ' active' : '') + '" data-sex="girl">女宝</button>' +
-        '<button type="button" class="seg-btn' + (b.sexUnknown ? ' active' : '') + '" data-sex="">暂不确定</button>' +
-        '</div>' +
-        Util.birthInput({ id: 'obBirth', title: '宝宝生日', value: b.birthDate || '' }) +
-        '<p class="hint ob-nudge" id="obBirthNudge" role="status" hidden>还没填生日：月龄、疫苗排期和生长曲线都要用到它。不确定也没关系，再点一次「下一步」就先跳过，之后在「疫苗」或「生长」页补。</p>' +
-        '<label class="chk"><input type="checkbox" id="obPreterm"' + (b.preterm ? ' checked' : '') + '> 早产儿（生长曲线需用矫正月龄）</label>') +
-      '<div class="modal-actions">' +
-      '<button type="button" class="btn" data-ob="back">上一步</button>' +
-      '<button type="button" class="btn btn-primary" data-ob="next">下一步</button></div>';
+    function sexBtn(v, label, on) {
+      return '<button type="button" class="seg-btn' + (on ? ' active' : '') + '" data-sex="' + v + '" aria-pressed="' + on + '">' + label + '</button>';
+    }
+    return '<div class="ob-main"><h2>' + (preg ? '给宝宝起个小名吧' : '介绍一下宝宝') + '</h2>'
+      + '<p class="ob-sub">' + (preg ? '预产期之后在「孕期」页填。现在都可以留空。'
+        : '生日用来排疫苗、算月龄、画生长曲线，其余都可以以后再补。') + '</p>'
+      + '<div class="ob-group">'
+      + '<label class="ob-field">小名<span class="ob-opt">可留空</span><input type="text" id="obNick" maxlength="12" placeholder="比如：小汤圆" value="' + Util.escapeHtml(b.nickname || '') + '"></label>'
+      + (preg ? '' :
+        Util.birthInput({ id: 'obBirth', title: '出生日期', value: b.birthDate || '' })
+        + '<p class="ob-nudge" id="obBirthNudge" role="status" hidden>还没填生日：疫苗排期和生长曲线都要用它。不确定的话，再点一次「下一步」先跳过，之后在「疫苗」或「生长」页补。</p>'
+        + '<div class="ob-field"><span>性别</span><div class="seg" id="obSex">'
+        + sexBtn('boy', '男宝', b.sex !== 'girl' && !b.sexUnknown)
+        + sexBtn('girl', '女宝', b.sex === 'girl' && !b.sexUnknown)
+        + sexBtn('', '暂不确定', !!b.sexUnknown) + '</div></div>'
+        + '<label class="ob-switch"><span><b>早产儿</b><small>生长曲线会按矫正月龄来算</small></span>'
+        + '<input type="checkbox" id="obPreterm" role="switch"' + (b.preterm ? ' checked' : '') + '><i aria-hidden="true"></i></label>')
+      + '</div></div>'
+      + obFoot('下一步');
   }
 
-  /* 引导第 3 步：数据风险与能力边界（R-05 / U-32 / U-37）——必须在产生数据之前讲完 */
+  /* 引导第 4 步：数据风险与能力边界（R-05 / U-32 / U-37）——必须在产生数据之前讲完。
+     第 149 次：三行图标要点 + 可展开的完整说明，关键信息（只有一份、要自己导出）仍然在首屏。 */
   function stepThreeBody() {
-    return '<h2>开始之前，先看清这份数据的形状</h2>' +
-      '<p>宝妈助手是一个纯本地工具：不注册账号、不联网、不上传、不接入第三方 SDK、不做广告，也没有服务器接收你的记录。</p>' +
-      '<p>代价是它<b>只有一份</b>：清理浏览器数据、换手机或换浏览器，记录都会消失且无法找回；'
-      + 'iPhone / iPad 的 Safari 对长期不打开的网站数据可能在约 7 天后清除。</p>' +
-      '<p>本应用<b>不提供</b>多设备同步、云端备份或家人实时共享。唯一能自己掌控的兜底是<b>定期导出成文件</b>——'
-      + '导出的是明文，请自己放到信任的位置。</p>' +
-      '<p class="hint">说明：导出、备份与浏览器持久存储都只是「可申请、可被拒绝」，不构成任何安全保证；'
-      + '这里也不做加密（无账号体系下忘记密码会变成又一条永久丢数据的路）。健康数据仅供参考，重要判断请遵医嘱。</p>' +
-      '<div class="modal-actions">' +
-      '<button type="button" class="btn" data-ob="back">上一步</button>' +
-      '<button type="button" class="btn btn-primary" data-ob="done">我已知晓，开始使用</button></div>';
+    function row(ico, t, d) {
+      return '<li><span class="ob-row-ico">' + (global.icon ? global.icon(ico) : '') + '</span><span><b>' + t + '</b><small>' + d + '</small></span></li>';
+    }
+    return '<div class="ob-main"><h2>你的记录只存在这台手机上</h2>'
+      + '<p class="ob-sub">开始前花 10 秒了解一下，以后不会再弹出。</p>'
+      + '<ul class="ob-rows">'
+      + row('heart', '纯本地，不上传', '不注册、不联网，没有服务器，也没有广告和第三方 SDK。')
+      + row('bell', '只有一份', '清理浏览器、换手机都会丢失。iPhone 上长期不打开，约 7 天后可能被系统清掉。')
+      + row('export', '记得定期导出', '在「设置 → 导出」存成文件，放在你信任的地方。文件是明文。')
+      + '</ul>'
+      + '<details class="ob-more"><summary>完整说明</summary>'
+      + '<p>本应用不提供多设备同步、云端备份或家人实时共享。导出、备份和浏览器持久存储都只是「可以申请、可能被拒绝」，不构成安全保证；'
+      + '也不做加密：没有账号体系，忘了密码就会多一条永久丢数据的路。健康数据仅供参考，重要的判断请遵医嘱。</p></details></div>'
+      + obFoot('我已了解，开始使用', 'done');
   }
 
   global.App = {
