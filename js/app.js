@@ -749,6 +749,10 @@
       if (sub && Array.isArray(sub[p[1]])) n += sub[p[1]].length;
     });
     if (obj && obj.vaccines && obj.vaccines.done) n += Object.keys(obj.vaccines.done).length;
+    /* 第 146 次：其他宝宝的记录收在 babies[].rec 里，导入差异预览也要算上 */
+    if (obj && Array.isArray(obj.babies)) {
+      obj.babies.forEach(function (b) { if (b && b.rec && typeof b.rec === 'object') n += countRecords(b.rec); });
+    }
     return n;
   }
 

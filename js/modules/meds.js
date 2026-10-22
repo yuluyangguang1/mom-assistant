@@ -48,7 +48,7 @@
       if (todayList.length) {
         var names = {};
         todayList.forEach(function (r) { names[r.name] = (names[r.name] || 0) + 1; });
-        var parts = Object.keys(names).map(function (n) { return n + (names[n] > 1 ? ' ×' + names[n] : ''); });
+        var parts = Object.keys(names).map(function (n) { return Util.escapeHtml(n) + (names[n] > 1 ? ' ×' + names[n] : ''); /* 第 146 次：药名是自由输入，必须转义（如「退烧药 <5ml」） */ });
         html += '<p>今日已服 <b>' + todayList.length + '</b> 次：' + parts.join('、') + '</p>';
       } else {
         html += '<p class="hint">今天还没有服药记录。</p>';

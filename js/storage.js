@@ -23,7 +23,7 @@
   var STORAGE_KEY = 'momhelper_data_v1';
   var CORRUPT_BACKUP_KEY = 'momhelper_data_v1_corrupt_backup';
   var SNAPSHOT_PREFIX = 'momhelper_snapshot_v';
-  var DATA_VERSION = 3;
+  var DATA_VERSION = 4;
 
   /* 容量预警阈值（U-34）：多数浏览器 localStorage 上限约 5MB（UTF-16 计 5M 字符 ≈ 10MB 字节）。
      报告未给具体上限，故此处为设计判断：按 5MB 字符量估算，≥80% 视为「近上限」，
@@ -47,6 +47,27 @@
        之所以合成一个键而不是三个：宝宝不可能同时在洗澡和晒太阳，一个槽位足够，
        也避免三个键要有三套开始/结束/取消逻辑（care.js 单一来源）。 */
     'openCare'];
+
+  /* 第 146 次（多宝宝数据隔离，DATA_VERSION 3→4）：
+     这些键属于「某一个宝宝」，其余（经期/孕期/宫缩/胎动/情绪/记账/待产包/囤货/白噪音/埋点）属于妈妈或全家。
+     存储形态：当前宝宝的数据仍放在顶层（所有模块零改动照常读写），
+     其他宝宝的数据收在各自档案的 rec 里；switchBaby 时整组换入换出。 */
+  var BABY_KEYS = ['feedings', 'sleeps', 'openSleep', 'feedingTimer', 'openCare', 'growth', 'diapers', 'meds',
+    'milestones', 'milestoneObs', 'temps', 'baths', 'swims', 'suns', 'waters', 'jaundices',
+    'supplements', 'supplementPlans', 'vaccines', 'checkups'];
+
+  /* 导入兜底：记录里的单个字符串字段最长 500 字（界面输入框上限 40 字），
+     防止手改/恶意文件用一条超长备注吃掉存储配额。 */
+  var MAX_FIELD_CHARS = 500;
+  function capRecordStrings(r) {
+    Object.keys(r).forEach(function (k) {
+      if (typeof r[k] === 'string' && r[k].length > MAX_FIELD_CHARS) r[k] = r[k].slice(0, MAX_FIELD_CHARS);
+      else if (Array.isArray(r[k])) {
+        r[k] = r[k].map(function (x) { return (typeof x === 'string' && x.length > MAX_FIELD_CHARS) ? x.slice(0, MAX_FIELD_CHARS) : x; });
+      }
+    });
+    return r;
+  }
 
   /* 第 127 次（安全）：宝宝照片必须是**严格的 base64 dataURL**。
      原先只查 'data:image/' 前缀 —— 前缀校验挡不住「属性闭合逃逸」：
@@ -185,6 +206,12 @@
       + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
   }
 
+  function pickBaby(d) {
+    var o = {};
+    BABY_KEYS.forEach(function (k) { o[k] = d[k]; });
+    return o;
+  }
+
   function sanitize(raw) {
     var base = defaultData();
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base;
@@ -306,7 +333,8 @@
     }
     ARRAY_KEYS.forEach(function (k) {
       if (Array.isArray(raw[k])) {
-        base[k] = raw[k].filter(function (r) { return r && typeof r === 'object' && !Array.isArray(r); });
+        base[k] = raw[k].filter(function (r) { return r && typeof r === 'object' && !Array.isArray(r); })
+          .map(k === 'babies' ? function (r) { return r; } : capRecordStrings);
       }
     });
     OBJECT_KEYS.forEach(function (k) {
@@ -386,13 +414,26 @@
         id: b.id.slice(0, 24),
         name: (typeof b.name === 'string' && b.name.trim()) ? b.name.trim().slice(0, 12) : '宝宝',
         photo: validPhoto(b.photo) ? b.photo : null,
-        birthDate: (typeof b.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.birthDate)) ? b.birthDate : null
+        birthDate: (typeof b.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.birthDate)) ? b.birthDate : null,
+        /* 第 146 次：非当前宝宝的记录包。用同一套 sanitize 清洗（只取 BABY_KEYS），坏数据同样被挡住 */
+        rec: (b.rec && typeof b.rec === 'object' && !Array.isArray(b.rec)) ? pickBaby(sanitize(b.rec)) : null
       };
     });
     /* activeBabyId 必须指向真实存在的档案，否则置空（导入/坏数据兜底） */
     if (base.settings.activeBabyId && !base.babies.some(function (b) { return b.id === base.settings.activeBabyId; })) {
       base.settings.activeBabyId = null;
     }
+    /* 第 146 次：当前宝宝的数据在顶层，它自己的 rec 若还带着（手改文件）就并不进来——直接丢弃会丢数据，
+       所以只在顶层对应键全空时才用 rec 回填，否则以顶层为准。 */
+    base.babies.forEach(function (b) {
+      if (b.id === base.settings.activeBabyId && b.rec) {
+        BABY_KEYS.forEach(function (k) {
+          var top = base[k], empty = top == null || (Array.isArray(top) && !top.length);
+          if (empty && b.rec[k] != null) base[k] = b.rec[k];
+        });
+        b.rec = null;
+      }
+    });
     return base;
   }
 
@@ -490,10 +531,47 @@
       var d = this.data;
       var hit = (d.babies || []).filter(function (b) { return b.id === id; })[0];
       if (!hit) return null;
+      if (hit.id !== d.settings.activeBabyId) {
+        this._stashActive();
+        this._loadBaby(hit);
+      }
       d.settings.activeBabyId = id;
       this._mirrorActive();
       this.save();
       return hit;
+    },
+
+    /* 第 146 次（多宝宝隔离）：把顶层的宝宝数据收进「当前顶层数据的主人」的 rec。
+       主人 = activeBaby；若 activeBabyId 失效，则取唯一一个 rec 为空的档案（它的数据就在顶层），
+       都找不到时取第一个——宁可归错名下，也不让顶层数据在切换时被覆盖丢失。 */
+    _stashActive: function () {
+      var d = this.data;
+      var owner = this.activeBaby()
+        || (d.babies || []).filter(function (b) { return !b.rec; })[0]
+        || (d.babies || [])[0];
+      if (!owner) return;
+      var rec = {};
+      BABY_KEYS.forEach(function (k) { rec[k] = d[k]; });
+      owner.rec = rec;
+    },
+
+    /* 把某个宝宝的 rec 换到顶层（没有 rec = 新宝宝/旧版本留下的空档案 → 用默认空值） */
+    _loadBaby: function (b) {
+      var d = this.data, def = defaultData(), rec = b.rec || {};
+      BABY_KEYS.forEach(function (k) { d[k] = (k in rec) ? rec[k] : def[k]; });
+      b.rec = null;
+    },
+
+    /** 某个宝宝名下的记录条数（设置页删除确认用；当前宝宝读顶层） */
+    babyRecordCount: function (id) {
+      var d = this.data;
+      var b = (d.babies || []).filter(function (x) { return x.id === id; })[0];
+      if (!b) return 0;
+      var src = (b.id === d.settings.activeBabyId) ? d : (b.rec || {});
+      var n = 0;
+      BABY_KEYS.forEach(function (k) { if (Array.isArray(src[k])) n += src[k].length; });
+      if (src.vaccines && src.vaccines.done) n += Object.keys(src.vaccines.done).length;
+      return n;
     },
 
     /** 新增宝宝档案并切换为当前；opts: { name, birthDate, photo } */
@@ -513,6 +591,22 @@
         photo: validPhoto(opts.photo) ? opts.photo : null,
         birthDate: (typeof opts.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(opts.birthDate)) ? opts.birthDate : null
       };
+      /* 第 146 次：先把上一个宝宝的数据收好，新宝宝从空白开始。
+         还没有任何档案、但顶层已有宝宝信息或记录时，这些数据属于「隐含的第一个宝宝」：
+         先给它补建档案（名字/生日取 settings.baby），再加新宝宝——否则旧记录会被算到新宝宝名下。 */
+      var dd = this.data;
+      if (!dd.babies.length) {
+        var hasBabyData = BABY_KEYS.some(function (k) { return Array.isArray(dd[k]) && dd[k].length; })
+          || (dd.vaccines && dd.vaccines.done && Object.keys(dd.vaccines.done).length);
+        if (dd.settings.baby || hasBabyData) {
+          if (!dd.settings.baby) dd.settings.baby = { name: '宝宝', birthDate: null };
+          this.syncBabyFromSettings();
+        }
+      }
+      if (this.data.babies.length) {
+        this._stashActive();
+        this._loadBaby(b);
+      }
       this.data.babies.push(b);
       this.data.settings.activeBabyId = b.id;
       this._mirrorActive();
@@ -530,7 +624,9 @@
       d.babies.splice(idx, 1);
       if (wasActive) {
         d.settings.activeBabyId = d.babies.length ? d.babies[0].id : null;
-        if (d.babies.length) this._mirrorActive();
+        /* 第 146 次：删的是当前宝宝且还有别的宝宝 → 换入下一个宝宝的数据（被删宝宝的记录随档案删除）。
+           删的是最后一个档案 → 顶层记录保留不动（与旧版行为一致，避免误删全部记录）。 */
+        if (d.babies.length) { this._loadBaby(d.babies[0]); this._mirrorActive(); }
         else d.settings.baby = null;
       }
       this.save();
@@ -633,6 +729,14 @@
             this.data.settings.babiesSeeded = true;
           }
           v = 3;
+        }
+        /* 第 146 次 v3→v4：多宝宝数据隔离。旧版所有记录都在同一条时间线上，
+           迁移时全部归给当前宝宝（数据本就在顶层，无需搬动）；其他宝宝从空白开始。
+           迁移前已自动落快照（momhelper_snapshot_v3），可回滚。 */
+        if (v < 4) {
+          var actId = this.data.settings.activeBabyId;
+          if (!actId && this.data.babies.length) this.data.settings.activeBabyId = this.data.babies[0].id;
+          v = 4;
         }
         this.data.version = v;
         this._migrateFailed = false;

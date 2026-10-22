@@ -583,7 +583,7 @@
       html += '<div class="row"><button class="btn btn-primary" id="sBabyAdd" type="button">添加宝宝</button>'
         + '<button class="btn" id="sBabyPhotoCur" type="button">给当前宝宝换照片</button></div>';
       html += '<p class="hint">点宝宝行即切换：头像、问候与疫苗/生长排期跟着换；照片只存本机。'
-        + '注意：本版记录明细仍共用一条时间线，不按宝宝区分。</p></div>';
+        + '喂养、睡眠、尿布、生长、疫苗等记录按宝宝分开保存；经期、孕期、情绪、记账等妈妈的记录全家共用。</p></div>';
 
       /* O 系列：称呼与身份。只影响首页问候语，不采集任何个人信息；随时可改、可重来，不阻塞功能。 */
       html += '<div class="card"><h2>称呼与引导</h2>';
@@ -873,9 +873,14 @@
           var target = Storage.get().babies.filter(function (x) { return x.id === delId; })[0];
           Util.confirm({
             title: '删除「' + ((target && target.name) || '宝宝') + '」的档案？',
-            message: '只删除档案本身，喂养/生长等记录不会丢。多宝宝家庭建议保留档案以便切换。',
+            /* 第 146 次：记录已按宝宝分开，删档案会连带删掉这个宝宝名下的记录——如实告知并给导出口。
+               唯一的档案被删时记录保留（storage.removeBaby 同口径）。 */
+            message: (Storage.get().babies.length > 1 && Storage.babyRecordCount(delId) > 0)
+              ? '会同时删除这个宝宝名下的 ' + Storage.babyRecordCount(delId) + ' 条记录（喂养、睡眠、生长、疫苗等），删除后无法找回。'
+              : '只删除档案本身，已有记录会保留。',
             okText: '删除',
             danger: true,
+            extra: { text: '先导出备份', onClick: function () { global.App.exportAll(); } },
             onConfirm: function () {
               Storage.removeBaby(delId);
               if (global.App.refreshHeaderAvatar) global.App.refreshHeaderAvatar();
