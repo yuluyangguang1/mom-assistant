@@ -27,8 +27,8 @@
       html += '<div class="card"><h2>今天数胎动</h2>';
       html += '<div class="fetal-hero"><span class="stat-num">' + todayList.length + '<i class="stat-unit">次</i></span>';
       if (last) {
-        var gapMin = Math.max(0, Math.floor((Date.now() - new Date(last.time).getTime()) / 60000));
-        html += '<span class="hint">上次：' + Util.fmtDateTime(last.time) + '（' + (gapMin < 1 ? '刚刚' : gapMin + ' 分钟前') + '）</span>';
+        /* 第 146 次：走统一格式化层（原来几天前会显示成「4000 分钟前」） */
+        html += '<span class="hint">上次：' + Util.fmtDateTime(last.time) + '（' + Util.fmtAgo(last.time) + '）</span>';
       } else {
         html += '<span class="hint">今天还没有记录。</span>';
       }

@@ -8,7 +8,7 @@
   var Storage = global.Storage, Util = global.Util;
   var Modules = global.Modules = global.Modules || {};
 
-  function openC() { return Storage.get().openContraction || null; }
+  function openC() { return (Storage.get() || {}).openContraction || null; } /* 第 146 次：早于 load 的定时器调用时判空 */
 
   function cTick() {
     var oc = openC();

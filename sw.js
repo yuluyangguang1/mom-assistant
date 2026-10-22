@@ -12,7 +12,7 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v112';
+var CACHE = 'baoma-static-v113';
 /* v90（第 129 次）：首屏降噪——对标 Cali 首屏设计（HomeWidgetSnapshot 无 reminder 字段，
    逾期只以 VaccineReminderPlan.pendingCount 计数存在）。疫苗逾期 / 儿保过参考时间 /
    发育观察期过期这三类「今天不可能完成」的陈旧待办，从三条整卡合并为一行「待补」汇总
@@ -57,7 +57,6 @@ var CACHE = 'baoma-static-v112';
 var ASSETS = [
   './',
   'index.html',
-  'assets/logo-1024.png',
   'assets/icon-192.png',
   'assets/icon-512.png',
   'assets/maskable-512.png',
@@ -136,16 +135,31 @@ self.addEventListener('fetch', function (e) {
   /* 开发预览（localhost / 127.0.0.1）完全绕过缓存：否则改完源码刷新仍是旧版本，
      会把开发中的 bug 误判成「代码没生效」。离线缓存只服务于真实部署域名。 */
   if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(self.location.hostname)) return;
-  e.respondWith(
-    fetch(req).then(function (res) {
-      /* 网络优先：拿到新资源就顺手更新缓存；离线时回落缓存（保证可离线） */
-      if (res && res.ok) {
-        var copy = res.clone();
-        caches.open(CACHE).then(function (cache) { cache.put(req, copy); });
-      }
-      return res;
-    }).catch(function () {
-      return caches.match(req, { ignoreSearch: true });
-    })
-  );
+  /* 第 146 次（P1 · 弱网超时）：原先纯网络优先、无超时——地铁/医院这类「有信号但极慢」的网络下，
+     页面会一直白屏等网络，离线缓存形同虚设。现在网络 3 秒没回来就先用缓存顶上，
+     网络稍后回来仍会在后台更新缓存（下次打开即新版）；没有缓存时照旧等网络。 */
+  var TIMEOUT_MS = 3000;
+  var network = fetch(req).then(function (res) {
+    if (res && res.ok) {
+      var copy = res.clone();
+      caches.open(CACHE).then(function (cache) { cache.put(req, copy); });
+    }
+    return res;
+  });
+  e.respondWith(new Promise(function (resolve, reject) {
+    var settled = false;
+    function done(r) { if (!settled && r) { settled = true; resolve(r); } }
+    var timer = setTimeout(function () {
+      caches.match(req, { ignoreSearch: true }).then(done);
+    }, TIMEOUT_MS);
+    network.then(function (res) { clearTimeout(timer); done(res); }).catch(function () {
+      clearTimeout(timer);
+      caches.match(req, { ignoreSearch: true }).then(function (r) {
+        if (r) done(r);
+        else if (!settled) { settled = true; reject(new Error('offline and not cached')); }
+      });
+    });
+  }));
+  /* 超时后先返回了缓存，网络请求仍在跑；waitUntil 保证 SW 不在它写完缓存前被回收 */
+  e.waitUntil(network.catch(function () {}));
 });

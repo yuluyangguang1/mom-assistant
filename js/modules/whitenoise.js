@@ -269,7 +269,7 @@
   }
 
   function remainingMin() {
-    var wn = Storage.get().whitenoise || {};
+    var wn = (Storage.get() || {}).whitenoise || {};
     if (!wn.playing || !wn.until) return null;
     return Math.max(0, Math.ceil((wn.until - Date.now()) / 60000));
   }
@@ -281,7 +281,8 @@
 
   /* 定时器：即使用户已经离开本页，到点也必须停 ——「限制使用时长」不能只存在于界面上 */
   setInterval(function () {
-    var wn = Storage.get().whitenoise;
+    /* 第 146 次：脚本解析即启动的定时器可能早于 Storage.load() 触发（实测偶发 pageerror），先判空 */
+    var wn = (Storage.get() || {}).whitenoise;
     if (!wn || !wn.playing || !wn.until) return;
     if (Date.now() >= wn.until) {
       var mins = wn.minutes;

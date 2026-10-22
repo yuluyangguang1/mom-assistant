@@ -835,7 +835,9 @@
           html += '<div class="hn-run" data-accent="' + r.go + '">'
             + '<button type="button" class="hn-run-main" data-go="' + r.go + '">'
             + '<span class="hn-dot" aria-hidden="true"></span>'
-            + icon(r.ico) + '<span class="hn-run-label">' + r.label + '</span>'
+            + icon(r.ico) + '<span class="hn-run-label">' + r.label
+            /* 第 146 次：计时超过 12 小时多半是忘了结束，提示一句（点进去可改结束时间） */
+            + (openElapsedMs(r.os) > 12 * 3600000 ? '<small class="hn-stale">可能忘了结束</small>' : '') + '</span>'
             + '<b class="hn-elapsed" data-run-start="' + st + '" data-run-paused="' + ((r.os.pausedMs || 0)) + '"'
             + (r.os.pauseStart ? ' data-run-pause-at="' + r.os.pauseStart + '"' : '')
             + ' role="timer" aria-live="off">' + hnClock(openElapsedMs(r.os)) + '</b></button>'

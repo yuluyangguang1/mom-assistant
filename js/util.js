@@ -42,6 +42,15 @@
       return this.fmtDate(iso) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
     },
 
+    /* 第 146 次：时段的紧凑写法——起点用 fmtRowTime；同一天的终点只写 HH:MM，跨天再写日期 */
+    fmtRange: function (a, b) {
+      if (!b) return this.fmtRowTime(a) + ' 起';
+      var da = new Date(a), db = new Date(b);
+      if (isNaN(da.getTime()) || isNaN(db.getTime())) return this.fmtRowTime(a) + ' – ' + this.fmtRowTime(b);
+      var same = da.toDateString() === db.toDateString();
+      return this.fmtRowTime(a) + '–' + (same ? pad(db.getHours()) + ':' + pad(db.getMinutes()) : this.fmtRowTime(b));
+    },
+
     /* 列表行的紧凑时间：今年省略年份（MM-DD HH:MM），往年带全 */
     fmtRowTime: function (iso) {
       if (!iso) return '';
@@ -144,8 +153,40 @@
       var totalMin = Math.floor(ms / 60000);
       var h = Math.floor(totalMin / 60);
       var m = totalMin % 60;
-      if (h > 0) return h + '小时' + m + '分';
+      /* 第 146 次（格式化层）：满 24 小时改说「天+小时」，不再出现「260小时5分」 */
+      if (h >= 24) return Math.floor(h / 24) + '天' + (h % 24 ? (h % 24) + '小时' : '');
+      if (h > 0) return h + '小时' + (m ? m + '分' : '');
       return m + '分';
+    },
+
+    /* ============ 第 146 次（P1 · 统一格式化层）============
+       审计发现同一个「距上次」在各页各算各的：喂养页「260 小时」、胎动页「4000 分钟前」、
+       首页「距今 11 天」。统一收口到这两个函数，档位一致：
+       <1 分 刚刚 · <1 时 N 分钟 · <24 时 N 小时(N 分) · <30 天 N 天 · 更久 M月D日（跨年带年）。 */
+    /** 时间间隔拆成「数字 + 单位」，给大数字统计位用 → { num, unit } */
+    fmtGap: function (ms) {
+      if (typeof ms !== 'number' || !isFinite(ms) || ms < 60000) return { num: '刚刚', unit: '' };
+      var min = Math.floor(ms / 60000);
+      if (min < 60) return { num: String(min), unit: '分钟' };
+      var h = Math.floor(min / 60);
+      if (h < 24) return { num: String(h), unit: '小时' };
+      return { num: String(Math.floor(h / 24)), unit: '天' };
+    },
+    /** 相对时间短句：「刚刚 / 25 分钟前 / 3 小时前 / 昨天 21:40 / 5 天前 / 9月3日」 */
+    fmtAgo: function (when) {
+      var t = (when instanceof Date) ? when.getTime() : new Date(when).getTime();
+      if (!isFinite(t)) return '';
+      var now = Date.now(), ms = Math.max(0, now - t);
+      if (ms < 60000) return '刚刚';
+      if (ms < 3600000) return Math.floor(ms / 60000) + ' 分钟前';
+      var d = new Date(t), n = new Date(now);
+      var p2 = function (x) { return (x < 10 ? '0' : '') + x; };
+      if (ms < 6 * 3600000) return Math.floor(ms / 3600000) + ' 小时前';
+      var dayDiff = Math.round((new Date(n.getFullYear(), n.getMonth(), n.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+      if (dayDiff === 0) return '今天 ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
+      if (dayDiff === 1) return '昨天 ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
+      if (dayDiff < 30) return dayDiff + ' 天前';
+      return (d.getFullYear() !== n.getFullYear() ? d.getFullYear() + '年' : '') + (d.getMonth() + 1) + '月' + d.getDate() + '日';
     },
 
     /** 第 139 次：秒表读数 mm:ss（≥1 小时为 h:mm:ss）。

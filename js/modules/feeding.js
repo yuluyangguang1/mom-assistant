@@ -246,9 +246,9 @@
         var totalAmt = feedToday.reduce(function (s, r) { return s + (r.amount || 0); }, 0);
         if (totalAmt) html += '<div class="stat"><span class="stat-num">' + totalAmt + '<i class="stat-unit">ml/g</i></span><span class="stat-lbl">今日总量</span></div>';
         if (latest) {
-          var gap = Math.max(0, Math.floor((Date.now() - new Date(latest.start).getTime()) / 60000));
-          var gNum = gap >= 60 ? Math.floor(gap / 60) : gap;
-          var gUnit = gap >= 60 ? '小时' : '分';
+          /* 第 146 次：走统一格式化层（超过 24 小时说天，不再出现「260 小时」） */
+          var gg = Util.fmtGap(Date.now() - new Date(latest.start).getTime());
+          var gNum = gg.num, gUnit = gg.unit;
           html += '<div class="stat"><span class="stat-num">' + gNum + '<i class="stat-unit">' + gUnit + '</i></span><span class="stat-lbl">距上次</span></div>';
         }
         html += '</div>';

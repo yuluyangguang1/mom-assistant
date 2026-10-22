@@ -3395,3 +3395,28 @@ body::after {
 .ob-nudge { color: var(--warn-text); }
 /* 第 146 次（P0-6）：疫苗「过了应种日还没记录」批量补记卡 */
 .vac-backfill { border-left: 3px solid var(--warn); }
+.hn-run-label { display: flex; flex-direction: column; line-height: 1.25; }
+.hn-stale { font-size: var(--fs-sm); color: var(--warn-text); font-weight: 400; }
+
+/* ============================================================
+   第 146 次（P1 · 列表两行排版）：360 宽下「时间+类型」与「详情」挤在一行，
+   li-main 的 nowrap 文本溢出后直接压在 li-sub 上（喂养页实测重叠）。
+   ① 兜底：li-main 自身截断，任何情况下都不再溢出压字；
+   ② 支持 :has 的环境（iOS 15.4+ / Chrome 105+）：有 li-sub 的行改两行——
+      第一行时间+类型，第二行详情（可换行，不再省略号截掉），图标与操作按钮跨两行居中。
+      带 .sup-bar / .ing-tags（整行换行条）的行保持原单行 flex 布局，避免牵动既有依赖。
+   ============================================================ */
+.list li .li-main { overflow: hidden; text-overflow: ellipsis; }
+.list li .li-main b { margin-right: .4em; }
+.list li:has(> .li-main + .li-sub):not(:has(> .sup-bar, > .ing-tags)) {
+  display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-columns: auto;
+  column-gap: 8px; row-gap: 2px; align-items: center;
+}
+.list li:has(> .li-main + .li-sub):not(:has(> .sup-bar, > .ing-tags)) > .row-ico { grid-column: 1; grid-row: 1 / 3; margin-right: 4px; }
+.list li:has(> .row-ico):has(> .li-main + .li-sub):not(:has(> .sup-bar, > .ing-tags)) { grid-template-columns: auto minmax(0, 1fr); }
+/* 文字列 = 显式网格的最后一列（有图标时第 2 列，无图标时第 1 列）；操作按钮自动排到其后的隐式列 */
+.list li:has(> .li-main + .li-sub):not(:has(> .sup-bar, > .ing-tags)) > .li-main { grid-column: -2 / -1; grid-row: 1; }
+.list li:has(> .li-main + .li-sub):not(:has(> .sup-bar, > .ing-tags)) > .li-sub {
+  grid-column: -2 / -1; grid-row: 2; margin-left: 0; padding-left: 0; text-align: left; white-space: normal;
+}
+.list li:has(> .li-main + .li-sub):not(:has(> .sup-bar, > .ing-tags)) > :not(.row-ico):not(.li-main):not(.li-sub) { grid-row: 1 / 3; }

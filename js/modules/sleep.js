@@ -15,7 +15,7 @@
   var Storage = global.Storage, Util = global.Util;
   var Modules = global.Modules = global.Modules || {};
 
-  function openSleep() { return Storage.get().openSleep || null; }
+  function openSleep() { return (Storage.get() || {}).openSleep || null; } /* 第 146 次：早于 load 的定时器调用时判空 */
 
   /* ---- 睡眠四字段的取值与折算（首页复用 _longestOf）---- */
   function durMs(s) { return new Date(s.end).getTime() - new Date(s.start).getTime() - (s.pausedMs || 0); }
@@ -132,7 +132,7 @@
         html += '<ul class="list">';
         list.forEach(function (s) {
           /* 第 76 次（D 线）：行改「左入睡→醒来 / 右时长·夜醒·连续」双列 */
-          html += '<li><span class="li-main"><b>' + Util.fmtDateTime(s.start) + '</b> → ' + Util.fmtDateTime(s.end) + '</span>'
+          html += '<li><span class="li-main"><b>' + Util.fmtRange(s.start, s.end) + '</b></span>' /* 第 146 次：「2026-10-11 13:00 → 2026-10-11 14:20」在窄屏被截断，改紧凑时段 */
             + '<span class="li-sub li-sub-wrap">时长 ' + Util.fmtDuration(durMs(s))
             + ' · 夜醒 ' + wakText(s)
             + ' · 最长连续 约 ' + fmtH(longestMin(s) / 60) + ' 小时'
