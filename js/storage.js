@@ -69,6 +69,45 @@
     return r;
   }
 
+  /* 第 150 次（安全）：导入记录的 id 统一收口。
+     约 39 处模块代码把记录 id 拼进 HTML 属性（data-id="…"、onclick 参数等），
+     而导入只限了长度，没限字符集：备份里写 id: '" onmouseover="…' 就能闭合属性注入。
+     与其逐处转义（漏一处就破），不如在唯一入口 sanitize 把形状管死：
+     - 任何层级里名为 id 或以 Id 结尾（planId / babyId / activeBabyId…）的字符串，
+       必须匹配 SAFE_ID_RE；不匹配就**确定性**改写成 'x' + 哈希——同一个坏值永远映射到同一个新值，
+       所以 planId ↔ 补充剂计划 id、activeBabyId ↔ babies[].id 这类引用关系不会断。
+     - 对象的键名若含 < > " ' ` & \ 这类 HTML 敏感字符，整项丢弃（正常数据的键都是 ASCII 标识符）。
+     照片字段（validPhoto 已严格校验）与超长字符串不在此处理。 */
+  var SAFE_ID_RE = /^[A-Za-z0-9_.:-]{1,64}$/;
+  var UNSAFE_KEY_RE = /[<>"'`&\\]/;
+  function safeId(v) {
+    if (typeof v !== 'string') return v;
+    if (SAFE_ID_RE.test(v)) return v;
+    var h1 = 5381, h2 = 52711;
+    for (var i = 0; i < v.length; i++) {
+      var c = v.charCodeAt(i);
+      h1 = ((h1 << 5) + h1 + c) | 0;
+      h2 = ((h2 << 5) + h2 ^ c) | 0;
+    }
+    return 'x' + (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
+  }
+  function isIdKey(k) { return k === 'id' || /Id$/.test(k); }
+  function scrubIds(node, depth) {
+    if (!node || typeof node !== 'object' || depth > 8) return node;
+    if (Array.isArray(node)) {
+      for (var i = 0; i < node.length; i++) node[i] = scrubIds(node[i], depth + 1);
+      return node;
+    }
+    Object.keys(node).forEach(function (k) {
+      if (UNSAFE_KEY_RE.test(k)) { delete node[k]; return; }
+      var v = node[k];
+      if (isIdKey(k) && typeof v === 'string') node[k] = safeId(v);
+      else if (/Ids$/.test(k) && Array.isArray(v)) node[k] = v.map(function (x) { return typeof x === 'string' ? safeId(x) : x; });
+      else if (v && typeof v === 'object') scrubIds(v, depth + 1);
+    });
+    return node;
+  }
+
   /* 第 127 次（安全）：宝宝照片必须是**严格的 base64 dataURL**。
      原先只查 'data:image/' 前缀 —— 前缀校验挡不住「属性闭合逃逸」：
      payload 形如 `data:image/png" onerror="…` 同样通过前缀检查，再被裸拼进
@@ -277,7 +316,7 @@
       if (typeof s.periodRelactDismissed === 'boolean') base.settings.periodRelactDismissed = s.periodRelactDismissed;
       if (typeof s.periodE4Seen === 'string' || s.periodE4Seen === null) base.settings.periodE4Seen = s.periodE4Seen;
       /* 第 80 次（宝宝档案）：当前宝宝 id + 一次性迁移标记（随导入导出带走） */
-      if (typeof s.activeBabyId === 'string' || s.activeBabyId === null) base.settings.activeBabyId = s.activeBabyId;
+      if (typeof s.activeBabyId === 'string' || s.activeBabyId === null) base.settings.activeBabyId = (typeof s.activeBabyId === 'string') ? safeId(s.activeBabyId.slice(0, 64)) : null;
       if (typeof s.babiesSeeded === 'boolean') base.settings.babiesSeeded = s.babiesSeeded;
 
       /* ───── 第 118 次（对标 Cali）：补齐白名单漏键 ─────────────────────────
@@ -411,7 +450,7 @@
       return b && typeof b === 'object' && !Array.isArray(b) && typeof b.id === 'string' && b.id;
     }).map(function (b) {
       return {
-        id: b.id.slice(0, 24),
+        id: safeId(b.id.slice(0, 64)),
         name: (typeof b.name === 'string' && b.name.trim()) ? b.name.trim().slice(0, 12) : '宝宝',
         photo: validPhoto(b.photo) ? b.photo : null,
         birthDate: (typeof b.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.birthDate)) ? b.birthDate : null,
@@ -434,6 +473,8 @@
         b.rec = null;
       }
     });
+    /* 第 150 次：id 字符集收口（见 scrubIds 注释），放在最后统一覆盖所有键 */
+    BABY_KEYS.concat(ARRAY_KEYS, OBJECT_KEYS).forEach(function (key) { if (key !== 'babies' && base[key]) scrubIds(base[key], 0); });
     return base;
   }
 

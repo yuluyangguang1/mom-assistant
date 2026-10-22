@@ -97,6 +97,33 @@ def test_data(b):
         rec:{feedings:'bad',sleeps:[{id:'s',start:'zz'}],periods:[{id:'p'}]}}],settings:{activeBabyId:'x1'}}));
         Storage.switchBaby('x2');const d=Storage.get();return {f:d.feedings.length,s:d.sleeps.length,leak:d.periods.length}}""")
     check('嵌套 rec 被清洗', r == {'f': 0, 's': 0, 'leak': 0}, r)
+    # 第 150 次：恶意 id 不得逃逸 HTML 属性
+    bad = '" onmouseover="window.__pwn=1" x="'
+    badb = "'><img src=x onerror=window.__pwn=1>"
+    now = p.evaluate("Util.nowLocal()")
+    payload = {'version': 4,
+               'settings': {'privacyAccepted': True, 'activeBabyId': badb},
+               'babies': [{'id': badb, 'name': 'A'}, {'id': 'okB', 'name': 'B'}],
+               'feedings': [{'id': bad, 'start': now, 'type': 'formula', 'amount': 90}],
+               'sleeps': [{'id': bad, 'start': now, 'end': now}],
+               'diapers': [{'id': bad, 'time': now, 'type': 'pee'}],
+               'meds': [{'id': bad, 'name': 'x', 'time': now}],
+               'temps': [{'id': bad, 'time': now, 'value': 37}],
+               'supplementPlans': [{'id': bad, 'name': 'AD', 'active': True}],
+               'supplements': [{'id': 'ok-1', 'planId': bad, 'time': now}],
+               'vaccines': {'<img src=x onerror=window.__pwn=1>': {'date': '2026-01-01'}}}
+    r = p.evaluate("t=>{Storage.importJSON(t);const d=Storage.get();return {f:d.feedings[0].id,plan:d.supplementPlans[0].id,"
+                   "ref:d.supplements[0].planId,okId:d.supplements[0].id,bid:d.babies[0].id,act:d.settings.activeBabyId,"
+                   "vk:Object.keys(d.vaccines||{}).length}}", json.dumps(payload))
+    import re as _re
+    check('非法 id 被改写为安全字符', all(_re.fullmatch(r'[A-Za-z0-9_.:-]{1,64}', r[k]) for k in ('f', 'plan', 'bid', 'act')), r)
+    check('改写后引用关系不断', r['ref'] == r['plan'] and r['act'] == r['bid'], r)
+    check('合法 id 原样保留', r['okId'] == 'ok-1', r)
+    check('含 HTML 字符的键名被丢弃', r['vk'] == 0, r)
+    for t in TABS:
+        p.evaluate(f"App.showTab('{t}')"); p.wait_for_timeout(60)
+        p.evaluate("document.querySelectorAll('[onmouseover]').forEach(e=>e.dispatchEvent(new MouseEvent('mouseover')))")
+    check('恶意 id 在各页都不执行', p.evaluate("!window.__pwn && !document.querySelector('[onmouseover],img[src=\"x\"]')"))
     check('数据测试无 pageerror', not errs, errs)
     p.close()
 
