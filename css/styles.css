@@ -32,6 +32,7 @@
          暖色弱底的彩度分离，packing / pregnancy / contraction / diaper 必须补。
        · glass.js BG.light / qa/contrast_check.js PAGE_BG.light 同步更新。 */
   --bg-grad: linear-gradient(170deg, #FDF9F4 0%, #F6F0E5 55%, #F2EBDF 100%);
+  --bg-end: #F2EBDF; /* 第 146 次：底栏渐隐遮罩用的页底色 */
   /* 第 105 次（修「顶栏与下方透明渐变之间一条横线」）：顶栏雾纱的基色。
      这不是新颜色，而是把 --bg-grad 的首档色单独提出来，供顶栏雾化渐变起步。
 
@@ -197,6 +198,7 @@
 
 body.dark {
   --bg-grad: linear-gradient(170deg, #221E1A 0%, #26211C 55%, #231F1B 100%);
+  --bg-end: #231F1B; /* 第 146 次：底栏渐隐遮罩用的页底色 */
   /* 第 105 次（修顶栏横线）：与 --bg-grad 首档同步，理由见 :root 处同 token 注释。
      暗色下色系差同样被放大：#2E2924（surface）与 #221E1A（页面顶）差 12/255，
      与浅色同量级，且暗色下人眼对明度阶更敏感，所以两处都必须改。 */
@@ -513,6 +515,7 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 
 .btn-mini {
   display: inline-flex; align-items: center; gap: 4px;
+  white-space: nowrap; flex-shrink: 0; /* 第 146 次：窄屏下「已体检」「已接种」被挤成竖排 */
   font-size: var(--fs-sm); padding: 8px 16px; min-height: 44px; min-width: 44px; box-sizing: border-box; /* 第 128 次：触控目标 40→44px（第 72 次 33→40 未到 U-08 下限；疫苗已体检/改日期等高频标记按钮；min-width 兜住 ± 微调按钮的 43.7px 窄项） */
   border: 1px solid var(--border); border-radius: 999px;
   background: var(--surface); color: var(--muted); cursor: pointer;
@@ -531,7 +534,8 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .vac-item.is-done .row-ico { color: var(--ok); }
 .vac-item.is-due { background: var(--tile-weak, var(--primary-weak)); border-radius: var(--radius-sm, 10px); }
 .vac-item.is-due .vac-main small { color: var(--tile-text, var(--tile)); font-weight: 600; }
-.vac-item.is-over .vac-main small { color: var(--warn); font-weight: 600; }
+.vac-item.is-over .vac-main small { color: var(--warn-text); font-weight: 600; } /* 第 146 次：--warn 对比度仅 2.70，改用 --warn-text */
+.vac-item.is-late .vac-main small { color: var(--muted); }
 
 
 .icon-btn {
@@ -2307,6 +2311,7 @@ body.is-night .btn:active { transform: none; }
    ============================================================ */
 body.dark.deep-night {
   --bg-grad: linear-gradient(170deg, #1B1815 0%, #1E1A17 55%, #1B1815 100%);
+  --bg-end: #1B1815; /* 第 146 次：底栏渐隐遮罩用的页底色 */
   /* 第 105 次：本块压暗了 --bg-grad，必须同步压暗 --header-bg-top，
      否则深夜 23:00–05:00 顶栏仍停在 #221E1A，与页面顶差 3.7/255，横线重现。
      凡改 --bg-grad 的作用域都要连带改这个 token —— 这是同源约束。 */
@@ -3333,3 +3338,60 @@ body.dark .home-greet {
   border-color: rgba(255, 255, 255, .07);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .26), 0 1px 3px rgba(0, 0, 0, .32);
 }
+
+
+/* ============================================================
+   第 146 次（P0-2 · 底栏遮挡）：悬浮底栏下方加一层页底色渐隐。
+   滚动时内容从底栏后经过会先淡出，不再与底栏图标叠成一团；
+   pointer-events:none 不影响点击，z-index 低于底栏（10）与快记 dock（40）。
+   页面本身的底部留白（.view padding-bottom）保证滚到底时最后一行完整露出。
+   ============================================================ */
+body::after {
+  content: ''; position: fixed; left: 0; right: 0; bottom: 0; z-index: 9;
+  height: calc(88px + env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, transparent 0%, var(--bg-end, #F2EBDF) 78%);
+  pointer-events: none;
+}
+.view { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
+
+/* ============================================================
+   第 146 次（P0-3 / P0-4）：首页首屏「此刻」条——进行中计时 + 零表单快记。
+   单层：不套卡片，与下方「上次喂奶 | 上次尿布」双列卡同一套 surface/border/radius。
+   ============================================================ */
+.home-now { margin: 0 0 var(--space-md); display: flex; flex-direction: column; gap: 8px; }
+.hn-run {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px 6px 4px;
+  background: var(--tile-weak, var(--surface)); border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.hn-run-main {
+  flex: 1; min-width: 0; min-height: 44px;
+  display: flex; align-items: center; gap: 8px; padding: 0 8px;
+  background: none; border: 0; font: inherit; color: var(--text); text-align: left; cursor: pointer;
+}
+.hn-run-main .ico { width: 22px; height: 22px; color: var(--tile-text, var(--primary)); flex: none; }
+.hn-run-label { font-weight: 500; white-space: nowrap; }
+.hn-elapsed { margin-left: auto; font-size: calc(20px * var(--fs-mul, 1)); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--tile-text, var(--text)); }
+.hn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tile, var(--primary)); flex: none; animation: hnPulse 1.6s ease-in-out infinite; }
+@keyframes hnPulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .hn-dot { animation: none; } }
+.hn-quick { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 8px; }
+.hn-q {
+  min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  font: inherit; font-size: var(--fs-sm); font-weight: 500; color: var(--text); cursor: pointer;
+  transition: transform .15s var(--ease);
+}
+.hn-q .ico { width: 24px; height: 24px; color: var(--tile-text, var(--primary)); }
+.hn-q:active { transform: scale(.95); }
+.hn-q:focus-visible, .hn-run-main:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.hn-hint { margin: 0; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 第 146 次（P0-5）：宝宝生日原生日期选择器 */
+.birth-field { display: block; }
+.birth-field input[type="date"] { display: block; width: 100%; min-height: 48px; margin-top: 6px; box-sizing: border-box; }
+.birth-field .hint { display: block; margin-top: 4px; }
+.ob-nudge { color: var(--warn-text); }
+/* 第 146 次（P0-6）：疫苗「过了应种日还没记录」批量补记卡 */
+.vac-backfill { border-left: 3px solid var(--warn); }

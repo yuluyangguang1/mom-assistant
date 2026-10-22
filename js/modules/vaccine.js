@@ -14,6 +14,9 @@
  *   婴儿的免疫保护"正是这次全国调整的唯一理由。故一律按现行程序。
  *   其余剂次（脊灰 IPV/bOPV、麻腮风、流脑、乙脑、甲肝、卡介苗、乙肝）2025 年调整
  *   未涉及其时点，仍照 2021 年版。
+ * 第 146 次：时点已与《国家免疫规划疫苗儿童免疫程序及说明（2026 年版）》逐条核对一致
+ *   （百白破 2/4/6/18 月龄 + 6 岁；脊灰、麻腮风、乙脑、流脑、甲肝、卡介苗、乙肝时点不变），
+ *   页面出处与提示文案同步改为 2026 年版。
  * 数据：d.vaccines.done = { 'hepb-1': '2026-01-05', ... }（剂次 key → 实际接种日期）
  */
 (function (global) {
@@ -29,6 +32,13 @@
        老数据里残留的 vaccines.done['dt'] 会成为孤儿键——界面不再引用它，
        导出仍会带走，不影响任何渲染路径。 */
   function d(m) { return Math.round(m * 30.44); }
+  /* 第 146 次：「过了多久」的人话版本（≥1 年说年+月，否则说月） */
+  function agoText(days) {
+    var m = Math.floor(days / 30.44);
+    if (m < 12) return Math.max(1, m) + ' 个月';
+    var y = Math.floor(m / 12), r = m % 12;
+    return y + ' 年' + (r ? ' ' + r + ' 个月' : '');
+  }
   var SCHEDULE = [
     { key: 'bcg',    name: '卡介苗',        dose: '第 1 剂', at: 0 },
     { key: 'hepb-1', name: '乙肝疫苗',      dose: '第 1 剂', at: 0 },
@@ -106,7 +116,7 @@
 
       /* 宝宝生日（与生长模块共用 settings.baby.birthDate） */
       html += '<div class="card"><h2>宝宝生日</h2>';
-      html += Util.dateSlider({ id: 'vBirth', title: '出生日期', value: baby.birthDate || '', min: Util.addDays(Util.todayISO(), -1095), max: Util.todayISO(), opt: { label: '未设置（可后补）', invert: false } });
+      html += Util.birthInput({ id: 'vBirth', title: '出生日期', value: baby.birthDate || '' });
       html += '<p class="hint">与「生长」模块共用同一生日，改一处两边生效。</p></div>';
 
       if (!baby.birthDate) {
@@ -122,14 +132,26 @@
         html += '<p class="hint">已完成 ' + doneN + ' / ' + items.length + ' 剂'
           + (next ? '，下一剂：' + next.name + next.dose + '（' + next.dueISO + '）' : '，全部完成！') + '</p></div>';
 
+        /* 第 146 次：多剂「过了应种日还没记录」时，最常见的原因是「其实种过了、只是没在本机记」。
+           给一键补记出口（按应种日记、可逐条改），并说清楚没种的该怎么办。 */
+        var pastDue = items.filter(function (it) { return !done[it.key] && Util.daysBetween(today, it.dueISO) < 0; });
+        if (pastDue.length >= 3) {
+          html += '<div class="card vac-backfill"><h2>有 ' + pastDue.length + ' 剂过了应种日还没记录</h2>'
+            + '<p class="hint">如果宝宝已按门诊安排接种，可以一次补记，日期先按应种日填，之后可逐条改。还没种的，带上接种证联系接种门诊补种即可。</p>'
+            + '<div class="row"><button class="btn" type="button" id="vBackfill">都已接种，一键补记</button></div></div>';
+        }
+
         html += '<div class="card"><h2>接种时间表</h2><ul class="list vac-list">';
         items.forEach(function (it) {
           var doneDate = done[it.key];
           var left = Util.daysBetween(today, it.dueISO);
           var status, cls;
           if (doneDate) { status = '已种 ' + doneDate; cls = ' is-done'; }
-          else if (left < -30) { status = '逾期较久，咨询医生补种'; cls = ' is-over'; }
-          else if (left < 0) { status = '已逾期 ' + (-left) + ' 天'; cls = ' is-over'; }
+          /* 第 146 次：逾期分档。原先超过 30 天一律「逾期较久」+ 加粗警示色，
+             生日一填、历史剂次没补记时整屏飘红，制造焦虑且看不出轻重。
+             现在：30 天内 = 提醒尽快补种（警示色）；更久 = 平和地说明「过了多久」+ 补种出口（次要色）。 */
+          else if (left < -30) { status = '已过应种日约 ' + agoText(-left) + ' · 未种请预约补种'; cls = ' is-late'; }
+          else if (left < 0) { status = '已过应种日 ' + (-left) + ' 天，请尽快补种'; cls = ' is-over'; }
           else if (left <= 7) { status = left === 0 ? '今天应种' : left + ' 天后应种'; cls = ' is-due'; }
           else { status = it.dueISO; cls = ''; }
           html += '<li class="vac-item' + cls + '">'
@@ -141,7 +163,7 @@
               : '<button class="btn btn-mini" data-vax="' + it.key + '">已接种</button>')
             + '</li>';
         });
-        html += '</ul><p class="hint">时间表按现行国家免疫规划程序（2025 年起）生成，仅供参考；实际以接种门诊安排为准。</p></div>';
+        html += '</ul><p class="hint">时间表按《国家免疫规划疫苗儿童免疫程序及说明（2026 年版）》生成，仅供参考；同一天到期的国家免疫规划疫苗可以按程序同时接种，实际以接种门诊安排为准。</p></div>';
 
         /* 第 70 次（B4）：儿保体检节点——与接种时间表并排的另一张官方时刻表。
            标记只落本机 checkups.done，随导出走；早产宝宝的体检安排常按矫正月龄，
@@ -213,6 +235,27 @@
             onClick: function () { openDatePicker(key, null); }
           });
           global.App.rerender();
+        });
+      });
+      var bf = view.querySelector('#vBackfill');
+      if (bf) bf.addEventListener('click', function () {
+        var its = plan(Storage.get().settings.baby.birthDate);
+        var s0 = Storage.get(); s0.vaccines = s0.vaccines || { done: {} };
+        var keys = its.filter(function (it) { return !s0.vaccines.done[it.key] && Util.daysBetween(today, it.dueISO) < 0; });
+        Util.confirm({
+          title: '补记 ' + keys.length + ' 剂为已接种？',
+          message: '日期按各剂的应种日填写，之后可以点「改日期」逐条改成接种证上的日期。',
+          okText: '补记', cancelText: '取消',
+          onConfirm: function () {
+            var s = Storage.get();
+            keys.forEach(function (it) { s.vaccines.done[it.key] = it.dueISO; });
+            Storage.save(); global.App.rerender();
+            Util.toast('已补记 ' + keys.length + ' 剂', 'ok', { label: '撤销', onClick: function () {
+              var s2 = Storage.get();
+              keys.forEach(function (it) { delete s2.vaccines.done[it.key]; });
+              Storage.save(); global.App.rerender();
+            } });
+          }
         });
       });
       Array.prototype.forEach.call(view.querySelectorAll('[data-vaxdate]'), function (b) {

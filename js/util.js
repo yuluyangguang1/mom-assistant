@@ -322,6 +322,20 @@
     }
     return out;
   }
+  /* 第 146 次（P0-5）：宝宝生日专用的原生日期选择器。
+     审查结论：生日用「日期滑杆 + 未设置勾选」时，默认勾着「未设置」、滑杆标签不明确，
+     用户很容易一路下一步跳过，之后月龄/疫苗/生长全是空的。
+     生日是一个确定的日子，原生 <input type="date"> 在 iOS/安卓都弹系统滚轮，最不容易误操作；
+     id 与 .value 语义（YYYY-MM-DD 或空串）与原 dateSlider 完全一致，调用方读取代码不用改。 */
+  Util.birthInput = function (cfg) {
+    var max = cfg.max || Util.todayISO();
+    var min = cfg.min || Util.addDays(max, -1095);
+    return '<label class="birth-field">' + Util.escapeHtml(cfg.title || '宝宝生日')
+      + '<input type="date" id="' + cfg.id + '" min="' + min + '" max="' + max + '" value="' + Util.escapeHtml(cfg.value || '') + '">'
+      + (cfg.hint ? '<span class="hint">' + Util.escapeHtml(cfg.hint) + '</span>' : '')
+      + '</label>';
+  };
+
   Util.dateSlider = function (cfg) {
     cfg = cfg || {};
     var today = Util.todayISO();

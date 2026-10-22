@@ -79,7 +79,7 @@
       html += '<button type="button" class="seg-btn' + (baby.sex !== 'girl' ? ' active' : '') + '" data-s="boy">男</button>';
       html += '<button type="button" class="seg-btn' + (baby.sex === 'girl' ? ' active' : '') + '" data-s="girl">女</button>';
       html += '</div>';
-      html += Util.dateSlider({ id: 'bBirth', title: '出生日期', value: baby.birthDate || '', min: Util.addDays(Util.todayISO(), -1095), max: Util.todayISO(), opt: { label: '未设置（可后补）', invert: false } });
+      html += Util.birthInput({ id: 'bBirth', title: '出生日期', value: baby.birthDate || '' });
       html += '<label class="chk"><input type="checkbox" id="bPreterm"' + (baby.preterm ? ' checked' : '') + '> 早产儿（需矫正月龄）</label>';
       html += '<label id="lblGest">出生孕周（周）<input type="number" id="bGest" min="22" max="39" value="' + Util.escapeHtml(baby.birthGestWeeks || 36) + '"></label>';
       html += '<button class="btn" id="bSave">保存宝宝信息</button>';
@@ -186,12 +186,13 @@
         view.querySelector('#lblGest').style.display = baby.preterm ? '' : 'none';
 
         view.querySelector('#bSave').addEventListener('click', function () {
-          d.settings.baby = {
+          /* 第 146 次：合并而非整体替换——原写法会把引导里填的小名（nickname）等字段一并抹掉 */
+          d.settings.baby = Object.assign({}, d.settings.baby || {}, {
             sex: view.querySelector('#bSex .active').getAttribute('data-s'),
             birthDate: view.querySelector('#bBirth').value || null,
             preterm: view.querySelector('#bPreterm').checked,
             birthGestWeeks: parseInt(view.querySelector('#bGest').value, 10) || 36
-          };
+          });
           /* 第 80 次（宝宝档案）：生日改动同步回当前宝宝档案 */
           if (Storage.syncBabyFromSettings) Storage.syncBabyFromSettings();
           Storage.save(); global.App.rerender();

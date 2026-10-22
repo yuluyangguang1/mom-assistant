@@ -663,6 +663,16 @@
           if (act === 'skip') { finish(); return; }        /* 跳过 = 留空身份，功能不受影响 */
           if (act === 'next' || act === 'back') {
             collectStep();
+            /* 第 146 次（P0-5）：育儿阶段离开宝宝信息页时还没填生日 → 先温和提醒一次（不阻断，再点一次即可继续）。
+               月龄、疫苗排期、生长曲线都靠它，跳过后用户往往不知道要去哪补。 */
+            if (act === 'next' && step === 3 && draft.stage !== 'pregnancy' && !draft.baby.birthDate && !draft._birthNudged) {
+              draft._birthNudged = true;
+              var nudge = root.querySelector('#obBirthNudge');
+              if (nudge) { nudge.hidden = false; }
+              var bi = root.querySelector('#obBirth');
+              if (bi && bi.focus) bi.focus();
+              return;
+            }
             step += (act === 'next' ? 1 : -1);
             renderStep();
             return;
@@ -929,7 +939,8 @@
         '<button type="button" class="seg-btn' + (b.sex === 'girl' && !b.sexUnknown ? ' active' : '') + '" data-sex="girl">女宝</button>' +
         '<button type="button" class="seg-btn' + (b.sexUnknown ? ' active' : '') + '" data-sex="">暂不确定</button>' +
         '</div>' +
-        Util.dateSlider({ id: 'obBirth', title: '出生日期', value: b.birthDate || '', min: Util.addDays(Util.todayISO(), -1095), max: Util.todayISO(), opt: { label: '未设置（可后补）', invert: false } }) +
+        Util.birthInput({ id: 'obBirth', title: '宝宝生日', value: b.birthDate || '' }) +
+        '<p class="hint ob-nudge" id="obBirthNudge" role="status" hidden>还没填生日：月龄、疫苗排期和生长曲线都要用到它。不确定也没关系，再点一次「下一步」就先跳过，之后在「疫苗」或「生长」页补。</p>' +
         '<label class="chk"><input type="checkbox" id="obPreterm"' + (b.preterm ? ' checked' : '') + '> 早产儿（生长曲线需用矫正月龄）</label>') +
       '<div class="modal-actions">' +
       '<button type="button" class="btn" data-ob="back">上一步</button>' +
@@ -971,6 +982,7 @@
     setHcMode: setHcMode,
     _bindQuickDock: buildQuickDock, /* QA：重置缓存桩后重绑 dock（幂等，同元素不叠加） */
     metricsSummary: metricsSummary,
+    _fedDefaults: fedDefaults, /* 第 146 次：首页首屏快记与「＋」dock 共用喂养默认值 */
     _countRecords: countRecords, /* QA：导入差异预览的计数函数（导出前确认共用） */
     stageOf: stageOf, /* 阶段判定（settings.stage 优先，缺省回落到客观数据） */
     pregnancyWeekOf: pregnancyWeekOf,

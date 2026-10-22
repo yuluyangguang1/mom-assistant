@@ -807,6 +807,55 @@
 
       /* 主体（单列） */
       html += '<div class="home-main">';
+
+      /* ============ 第 146 次（P0-3 / P0-4）：首屏「此刻」条 ============
+         审查结论：① 睡眠/亲喂/宫缩/洗澡计时启动后回到首页，看不出有东西在跑（计时磁贴在首屏以下）；
+         ② 凌晨最常用的三件事（喂奶、换尿布、睡/醒）要滚动或点开「＋」才能记。
+         这里在问候卡正下方、搜索之前放一条：先列进行中的计时（每秒走字 + 一键结束/进入），
+         再给一行零表单快记（与「＋」dock 同口径写库、同款撤销）。孕期阶段不出快记行。 */
+      function hnClock(ms) {
+        var t = Math.floor(ms / 1000), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), sec = t % 60;
+        return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
+      }
+      Modules.home._hnClock = hnClock;
+      var runs = [];
+      if (d.openSleep && d.openSleep.start) runs.push({ k: 'sleep', ico: 'sleep', label: '睡眠中', os: d.openSleep, go: 'sleep', end: '醒了' });
+      if (d.feedingTimer && d.feedingTimer.start) runs.push({ k: 'feed', ico: 'feeding', label: '亲喂计时中', os: d.feedingTimer, go: 'feeding' });
+      if (d.openContraction && d.openContraction.start) runs.push({ k: 'contraction', ico: 'contraction', label: '宫缩计时中', os: d.openContraction, go: 'contraction' });
+      if (d.openCare && d.openCare.start) {
+        var CK = { bath: ['洗澡中', 'bath'], swim: ['游泳中', 'swim'], sun: ['日晒中', 'sun'] }[d.openCare.kind];
+        if (CK) runs.push({ k: 'care', ico: CK[1], label: CK[0], os: d.openCare, go: CK[1] });
+      }
+      var nowStage = (global.App && typeof App.stageOf === 'function') ? App.stageOf(d) : 'baby';
+      var showQuick = nowStage !== 'pregnancy';
+      if (runs.length || showQuick) {
+        html += '<div class="home-now">';
+        runs.forEach(function (r) {
+          var st = new Date(r.os.start).getTime();
+          html += '<div class="hn-run" data-accent="' + r.go + '">'
+            + '<button type="button" class="hn-run-main" data-go="' + r.go + '">'
+            + '<span class="hn-dot" aria-hidden="true"></span>'
+            + icon(r.ico) + '<span class="hn-run-label">' + r.label + '</span>'
+            + '<b class="hn-elapsed" data-run-start="' + st + '" data-run-paused="' + ((r.os.pausedMs || 0)) + '"'
+            + (r.os.pauseStart ? ' data-run-pause-at="' + r.os.pauseStart + '"' : '')
+            + ' role="timer" aria-live="off">' + hnClock(openElapsedMs(r.os)) + '</b></button>'
+            + (r.end ? '<button type="button" class="btn btn-mini hn-end" data-recsl="end">' + r.end + '</button>' : '')
+            + '</div>';
+        });
+        if (showQuick) {
+          var fedQ = (global.App && App._fedDefaults) ? App._fedDefaults() : null;
+          html += '<div class="hn-quick" role="group" aria-label="快速记录">'
+            + (fedQ ? '<button type="button" class="hn-q" data-hnq="feed" data-accent="feeding">' + icon('feeding') + '<span>喂奶</span></button>' : '')
+            + '<button type="button" class="hn-q" data-hnq="pee" data-accent="diaper">' + icon('pee') + '<span>尿了</span></button>'
+            + '<button type="button" class="hn-q" data-hnq="poop" data-accent="diaper">' + icon('poop') + '<span>拉了</span></button>'
+            /* 睡眠进行中时「醒了」已在上方计时条里，快记行不再重复 */
+            + (d.openSleep ? ''
+              : '<button type="button" class="hn-q" data-recsl="start" data-accent="sleep">' + icon('sleep') + '<span>睡了</span></button>')
+            + '</div>';
+          if (fedQ) html += '<p class="hn-hint">喂奶按上次：' + Util.escapeHtml(fedQ.label) + '</p>';
+        }
+        html += '</div>';
+      }
       /* 第 118 次（首页搜索入口）：放在 .home-main 最前面、紧贴问候卡下方——
          理由：① 搜索是跨模块的全局动作，语义上属于「页头」，应在所有卡片之前，
          用户进首页第一眼就能看到；② 它带 data-go="search"，会被下方统一的
@@ -1303,13 +1352,12 @@
           global.App.rerender();
         });
       });
-      var recSlStart = view.querySelector('[data-recsl="start"]');
-      if (recSlStart) recSlStart.addEventListener('click', function () {
+      /* 第 146 次：首屏「此刻」条与睡眠磁贴共用同一套开始/结束逻辑（querySelectorAll 绑全部） */
+      Array.prototype.forEach.call(view.querySelectorAll('[data-recsl="start"]'), function (recSlStart) { recSlStart.addEventListener('click', function () {
         d.openSleep = { id: Util.uid(), start: Util.nowLocal(), pausedMs: 0, pauseStart: null };
-        Storage.save(); global.App.rerender();
-      });
-      var recSlEnd = view.querySelector('[data-recsl="end"]');
-      if (recSlEnd) recSlEnd.addEventListener('click', function () {
+        Storage.save(); Util.toast('开始记录睡眠，醒了点「醒了」', 'ok'); global.App.rerender();
+      }); });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-recsl="end"]'), function (recSlEnd) { recSlEnd.addEventListener('click', function () {
         var os2 = d.openSleep;
         if (!os2 || !os2.start) return;
         var end = Date.now();
@@ -1319,7 +1367,47 @@
         d.openSleep = null;
         if (Storage.save()) Util.toast('已记录：睡眠 ' + Util.fmtDuration(Math.max(0, totalMs)), 'ok');
         global.App.rerender();
+      }); });
+
+      /* 第 146 次：首屏快记（与 app.js 快记 dock 同口径：同字段、同撤销） */
+      function hnSave(arrName, rec, msg) {
+        var dd = Storage.get();
+        dd[arrName].push(rec);
+        if (Storage.save()) Util.toast(msg, 'ok', { label: '撤销', onClick: function () {
+          var arr = Storage.get()[arrName];
+          for (var i = arr.length - 1; i >= 0; i--) if (arr[i].id === rec.id) { arr.splice(i, 1); break; }
+          Storage.save(); global.App.rerender(); Util.toast('已撤销', 'ok');
+        } });
+        global.App.rerender();
+      }
+      Array.prototype.forEach.call(view.querySelectorAll('[data-hnq]'), function (b) {
+        b.addEventListener('click', function () {
+          var k = b.getAttribute('data-hnq');
+          if (k === 'feed') {
+            var fd = App._fedDefaults(), f0 = fd.rec;
+            hnSave('feedings', { id: Util.uid(), type: f0.type, start: Util.nowLocal(),
+              durationMin: f0.durationMin, amount: f0.amount, amountBm: f0.amountBm || null, amountFm: f0.amountFm || null,
+              side: f0.side, note: null }, '已记录：' + fd.label);
+          } else if (k === 'pee' || k === 'poop') {
+            hnSave('diapers', { id: Util.uid(), type: k, time: Util.nowLocal(), note: null }, k === 'pee' ? '已记录：尿布 · 尿' : '已记录：尿布 · 便');
+          }
+        });
       });
+
+      /* 进行中计时每秒走字；页面换掉（元素不在文档里）后自停，重渲染时先清旧的 */
+      if (Modules.home._runTick) { clearInterval(Modules.home._runTick); Modules.home._runTick = null; }
+      if (view.querySelector('[data-run-start]')) {
+        Modules.home._runTick = setInterval(function () {
+          var els = document.querySelectorAll('.hn-elapsed[data-run-start]');
+          if (!els.length) { clearInterval(Modules.home._runTick); Modules.home._runTick = null; return; }
+          Array.prototype.forEach.call(els, function (el) {
+            var now = Date.now(), pa = parseInt(el.getAttribute('data-run-paused'), 10) || 0;
+            var pat = el.getAttribute('data-run-pause-at');
+            if (pat) pa += now - parseInt(pat, 10);
+            el.textContent = Modules.home._hnClock(Math.max(0, now - parseInt(el.getAttribute('data-run-start'), 10) - pa));
+          });
+        }, 1000);
+      }
 
       /* 第 123 次：瓶喂/亲喂/吸奶绑定。rec 十二字段与 feeding.js #fSave 全量同源；
          校验文案逐字一致（warn 不落库）；撤销链同 C2；记录成功后步进状态重置。 */
