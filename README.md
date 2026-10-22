@@ -17,3 +17,12 @@
 
 ---
 yu.ai 出品
+
+## 回归测试
+
+```bash
+pip install playwright && python -m playwright install chromium
+python tests/regression.py   # 失败时退出码为 1
+```
+
+覆盖多宝宝隔离、导入导出、XSS 转义、首页计时/快记、疫苗补记、格式化层、窄屏列表、提示堆叠等。修一个 bug 就补一条断言。

@@ -820,11 +820,26 @@
         dismiss();
       });
     }
+    /* 第 148 次（P2 · 提示堆叠）：连点快记/批量操作时 toast 会一条条往上摞，
+       最多摞到 5、6 条盖住半屏。规则：① 同文案只留最新一条；② 同屏最多 2 条，
+       超出时优先挤掉最旧的「无操作」提示，带「撤销」的尽量保留（撤销是唯一补救入口）。 */
+    var live = Array.prototype.filter.call(root.children, function (n) { return !n.classList.contains('leaving'); });
+    live.forEach(function (n) { if (n._toastMsg === message && n._toastDismiss) n._toastDismiss(); });
+    live = live.filter(function (n) { return !n.classList.contains('leaving'); });
+    while (live.length >= 2) {
+      var victim = live.filter(function (n) { return !n._toastHasAction; })[0] || live[0];
+      if (victim._toastDismiss) victim._toastDismiss(); else if (victim.parentNode) victim.parentNode.removeChild(victim);
+      live.splice(live.indexOf(victim), 1);
+    }
+    el._toastMsg = message;
+    el._toastHasAction = !!(action && action.label);
+    el._toastDismiss = dismiss;
     root.appendChild(el);
     requestAnimationFrame(function () { el.classList.add('show'); });
     var hideTimer = setTimeout(dismiss, action && action.label ? 5200 : 2800);
     function dismiss() {
       clearTimeout(hideTimer);
+      el.classList.add('leaving');
       el.classList.remove('show');
       /* 第 81 次（Appllama 动效纪律）：退场 140ms（:not(.show) 快速淡出），
          移除延时同步 280→160ms，杜绝出场动画还没走完就被摘除。 */
