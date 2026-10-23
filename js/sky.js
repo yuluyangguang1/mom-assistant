@@ -224,7 +224,7 @@
   function syncAmbient(pal) {
     try {
       if (typeof document === 'undefined' || !document.documentElement || !document.documentElement.style) return;
-      var key = [pal.top, pal.bottom].map(function (c) { return c.map(Math.round).join(','); }).join('|');
+      var key = [pal.top, pal.mid, pal.bottom].map(function (c) { return c.map(Math.round).join(','); }).join('|');
       if (key === ambientCache) return;
       ambientCache = key;
       var lum = (0.2126 * pal.top[0] + 0.7152 * pal.top[1] + 0.0722 * pal.top[2]) / 255;
@@ -239,6 +239,9 @@
       s.setProperty('--sky-live-rgb', pal.bottom.map(Math.round).join(','));
       s.setProperty('--sky-ambient-a', ambA);
       s.setProperty('--sky-dim-o', dim);
+      /* 第 155 次：hero 文字直接写在天空上，按天色中段亮度选墨色（白天深字、夜晚 / 晨昏偏暗时浅字） */
+      var lumMid = (0.2126 * pal.mid[0] + 0.7152 * pal.mid[1] + 0.0722 * pal.mid[2]) / 255;
+      document.documentElement.setAttribute('data-sky-ink', lumMid < 0.62 ? 'light' : 'dark');
     } catch (e) { /* 静默 */ }
   }
 
@@ -558,7 +561,9 @@
       fg.addColorStop(0.5, 'rgba(0,0,0,.32)');
       fg.addColorStop(1, 'rgba(0,0,0,1)');
       ctx.fillStyle = fg;
-      ctx.fillRect(0, H * 0.72, W, H * 0.28);
+      /* 第 155 次：多擦 2px。canvas.height = round(H*dpr)，H 带小数时位图会比 H*dpr 多出半行，
+         原来只擦到 H，最底那半行没擦掉，天空底边就留下一条 1px 的深色细线（夜间最明显）。 */
+      ctx.fillRect(0, H * 0.72, W, H * 0.28 + 2);
       ctx.globalCompositeOperation = 'source-over';
     }
 

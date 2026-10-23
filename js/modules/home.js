@@ -200,6 +200,24 @@
         else greetSub = '欢迎新生命';
       }
 
+      /* 第 155 次（hero 重设计）：问候按时段，阶段做成大数字。
+         greetSub 仍保留（无数字时作说明行），另算 stat = {num, unit, cap}。 */
+      var hrNow = new Date().getHours();
+      var timeHello = (hrNow >= 23 || hrNow < 5) ? '夜里辛苦了'
+        : (hrNow < 11 ? '早上好' : (hrNow < 13 ? '中午好' : (hrNow < 18 ? '下午好' : '晚上好')));
+      greetWho = who ? (timeHello + '，' + who) : timeHello;
+      var stat = null;
+      if (ageDays !== null && ageDays >= 1 && ageDays <= 730) {
+        var mo = Math.floor(ageDays / 30.44), rem = ageDays - Math.round(mo * 30.44);
+        if (rem < 0) rem = 0;
+        if (ageDays >= 294) stat = { num: String(mo), unit: '个月', cap: '宝宝' + (rem ? ' · 又 ' + rem + ' 天' : '') };
+        else stat = { num: String(ageDays), unit: '天', cap: '宝宝出生' + (mo ? ' · ' + mo + ' 个月' + (rem ? ' ' + rem + ' 天' : '') : '第 ' + ageDays + ' 天') };
+      } else if (ageDays === null && dl !== null && dl > 0) {
+        var wkS = pregnancyWeek(d);
+        stat = wkS !== null ? { num: String(wkS), unit: '周', cap: '孕期 · 距预产期 ' + dl + ' 天' }
+          : { num: String(dl), unit: '天', cap: '距预产期' };
+      }
+
       /* 模块记录摘要 */
       /* 第 111 次：lastAnySum 要「现在」来算间隔。本段单独取一次并复用，
          避免同一屏两个磁贴算出跨秒不一致的间隔。
@@ -786,23 +804,19 @@
            天空保留云/星/色板/环境光，问候卡直接叠在天空上不再被日轮穿插。 */
         + '<div class="sky-veil"></div>'
         + '<div class="home-greet">'
-        + '<div class="hg-body">'
-        /* 第 133 次（对齐 Cali · 大日期 hero）：原来这一行是「今天是10月19日 周一」13px 弱化字，
-           信息全但视觉重量为零。Cali 的做法是把「日」做成页面最大的字（390 宽下约 76px），
-           月份与星期降为它旁边的小字——日期本身就是首页的主角。
-           这里保留 .hg-date 这个类（第 80 次的「日期并入问候卡」结论不变、仍在天空内），
-           只把内部结构改成「小字月/周 + 大数字日」，CSS 侧 .hg-date 的 muted 规则继续生效。 */
-        + '<p class="hg-date"><b class="hg-day">' + nowD.getDate() + '</b>'
-        + '<span class="hg-date-meta">' + (nowD.getMonth() + 1) + '月 · ' + DOW[nowD.getDay()]
-        + (fest ? ' · <b class="hg-fest">' + Util.escapeHtml(fest) + '</b>' : '') + '</span></p>'
-        /* 第 131 次（P0-a）：身份与阶段合并一行——副标题作 h1 行内 span
-           （.hg-sub：13px/常规字重/弱化色），整行单行省略；
-           greetSub 为空串（理论不可达，三分支都有默认值）时不渲染 span。 */
-        + '<h1>' + Util.escapeHtml(greetWho)
-        + (greetSub ? '<span class="hg-sub"> · ' + Util.escapeHtml(greetSub) + '</span>' : '')
-        + '</h1>'
-        + (know ? '<p class="know-hint">' + Util.escapeHtml(know) + '</p>' : '')
-        + '</div></div>'
+        /* 第 155 次（hero 重设计 · 去卡片）：问候直接写在天空上，不再套一张灰卡。
+           次序：小日期行 → 时段问候 h1 → 阶段大数字 → 知识胶囊。
+           文字颜色跟天色走（sky.js 写 html[data-sky-ink]），白天深字、夜晚浅字。 */
+        + '<p class="hg-date">' + (nowD.getMonth() + 1) + '月' + nowD.getDate() + '日 ' + DOW[nowD.getDay()]
+        + (fest ? '<b class="hg-fest">' + Util.escapeHtml(fest) + '</b>' : '') + '</p>'
+        + '<h1>' + Util.escapeHtml(greetWho) + '</h1>'
+        + (stat
+          ? '<div class="hg-stat"><b class="hg-num">' + Util.escapeHtml(stat.num) + '</b>'
+            + '<span class="hg-stat-side"><span class="hg-unit">' + Util.escapeHtml(stat.unit) + '</span>'
+            + '<span class="hg-cap">' + Util.escapeHtml(stat.cap) + '</span></span></div>'
+          : (greetSub ? '<p class="hg-cap hg-cap-solo">' + Util.escapeHtml(greetSub) + '</p>' : ''))
+        + (know ? '<p class="know-hint"><span class="kh-ico" aria-hidden="true">✦</span>' + Util.escapeHtml(know) + '</p>' : '')
+        + '</div>'
         + '</section>';
 
       /* 主体（单列） */
