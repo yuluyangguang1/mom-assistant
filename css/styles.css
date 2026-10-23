@@ -3746,3 +3746,23 @@ body.dark .swipe-act { background: #D8434A; }
 }
 @media (max-width: 430px) { .list li > .btn-mini { margin-left: 0; margin-right: 0; } }
 @media (max-width: 340px) { .list li > .btn-mini { padding-left: 9px; padding-right: 9px; } .list li { gap: 6px; } }
+
+/* ============================================================
+   第 161 次 · 导航大标题收缩（js/large-title.js）
+   大标题 20px → 28px（iOS Large Title 的手机端体量）；滚到顶栏下面时，
+   顶栏中间的日期淡出、小标题淡入，进度 --lt 0→1 跟滚动连续变化。
+   ============================================================ */
+.mod-head h1, .page-head h1 { font-size: calc(28px * var(--fs-mul)); font-weight: 800; letter-spacing: -.01em; line-height: 1.15; }
+.lt-src { transform-origin: left center; will-change: transform; }
+.app-header { --lt: 0; }
+.hdr-title {
+  position: absolute; left: 76px; right: 76px; top: var(--sat-pad); bottom: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: calc(16px * var(--fs-mul)); font-weight: 700; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none; user-select: none;
+  /* 前半段日期上移淡出，后半段标题上浮淡入，两者不同时出现，避免叠字 */
+  opacity: clamp(0, calc(var(--lt) * 2 - 1), 1); transform: translateY(calc((1 - var(--lt)) * 8px));
+}
+.app-header .mod-date { opacity: calc(.6 * clamp(0, calc(1 - var(--lt) * 2), 1)); transform: translateY(calc(var(--lt) * -8px)); }
+body.in-home .hdr-title { display: none; }
