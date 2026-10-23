@@ -191,7 +191,12 @@
      matchMedia('(display-mode: standalone)') 或 iOS navigator.standalone 写入。
      1=独立模式（env() 已含状态栏，不再加基础内边距）；缺省=浏览器标签页模式。 */
   --sat-standalone: 0;
-  --sat-pad: calc(10px + var(--sat) * (1 - var(--sat-standalone)));
+  /* 第 157 次（真机：添加到主屏幕后系统状态栏盖住问候语）：
+     上面第 116 次写的意图是「standalone 只保留 env()，浏览器才加 10px」，
+     但公式写反了——乘到 (1 - standalone) 上的是 env()，于是独立模式下 env() 被整个抹掉，
+     顶栏和 hero 只剩 10px，直接钻进 59px 的状态栏底下。
+     现在：standalone = env()；浏览器 = 10px + env()（浏览器值不变）。 */
+  --sat-pad: calc(var(--sat) + 10px * (1 - var(--sat-standalone)));
 
   --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
 }
@@ -3693,4 +3698,4 @@ body.dark .home-greet .know-hint { background: rgba(40, 36, 32, .55); border-col
 @media (min-width: 980px) { .home-greet h1 { font-size: calc(28px * var(--fs-mul)); } }
 @media (max-width: 359px) { .hg-num { font-size: calc(56px * var(--fs-display-mul, 1)); } .home-greet h1 { font-size: calc(21px * var(--fs-mul)); } }
 /* hero 内容从顶栏（头像行）下方开始，不压在顶栏后面 */
-.home-sky { padding-top: calc(var(--sat-pad) + 58px); }
+.home-sky { padding-top: calc(var(--sat-pad) + 66px); }
