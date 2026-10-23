@@ -211,6 +211,20 @@ def test_css_rules(b):
     dead = sorted(c for c in cls if not c.startswith(DYN)
                   and not re.search(r'(?<![\w-])' + re.escape(c) + r'(?![\w-])', code))
     check('CSS 无死类名', not dead, dead[:8])
+    # 4. 第 171 次：同一作用域（顶层或同一 @media）内同名选择器只写一处。
+    #    .view / .home-sky 的后段覆盖与中间的 @media 有先后依赖，合并会改变结果，留作白名单。
+    import collections
+    seen = collections.Counter(); stack = []; buf = ''
+    for t in re.findall(r'[{}]|[^{}]+', nc):
+        if t == '{': stack.append(buf.strip()); buf = ''
+        elif t == '}':
+            sel = stack.pop() if stack else ''
+            if not sel.startswith('@') and all(x.startswith('@media') for x in stack):
+                seen[('|'.join(stack), sel)] += 1
+            buf = ''
+        else: buf = t
+    dup = [k[1] for k, v in seen.items() if v > 1 and k[1] not in ('.view', '.home-sky')]
+    check('CSS 无重复选择器', not dup, dup[:6])
 
 
 def test_layout_and_toast(b):

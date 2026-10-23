@@ -202,81 +202,11 @@
   --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
 }
 
-body.dark {
-  --bg-grad: linear-gradient(170deg, #221E1A 0%, #26211C 55%, #231F1B 100%);
-  --bg-end: #231F1B; /* 第 146 次：底栏渐隐遮罩用的页底色 */
-  /* 第 105 次（修顶栏横线）：与 --bg-grad 首档同步，理由见 :root 处同 token 注释。
-     暗色下色系差同样被放大：#2E2924（surface）与 #221E1A（页面顶）差 12/255，
-     与浅色同量级，且暗色下人眼对明度阶更敏感，所以两处都必须改。 */
-  --header-bg-top: #221E1A;
-  --sky-seam-rgb: 34, 30, 26; /* 第 64 次：暗色接缝色 = veil 压暗后的页面顶色（暗色下天空底=页面顶，恒同色） */
-  /* 第 54 次：暗色环境光系数——亮色温叠暗底容易发灰，乘 0.6 兜底；
-     夜间可见度主要由 --sky-ambient-a 的亮度自适应负责（暗板自动升透明度）
-     第 142 次：0.6 → 0.92。用户反馈「夜间天空和下方背景有分裂感」——
-     根因是夜空冷紫、页面暖褐，两套色温各走各的。环境层本来就是「把天空色温
-     渗进页面」的通道，打了 6 折后只剩 8.7% 的染色，几乎看不出融合。
-     放到 0.92 后页面顶端会带一层很淡的夜蓝色，接缝处不再是两个世界。
-     仍保留一档折扣（不是 1）：纯满强度会让暗色整体偏蓝、发闷。 */
-  --amb-mul: .92;
-
-  --surface: #2E2924;
-  --surface-solid: #322C26;
-  --surface-2: #282320;
-  --text: #F0EBE4;
-  --muted: #BAB1A4;
-  --border: rgba(255, 255, 255, 0.10);
-  --border-input: #8A8177;   /* 深色表单描边：对输入底 ≥3:1 */
-
-  --primary: #F0A891;
-  --primary-fill: #F0A891;
-  --primary-strong: #F5BFAE;
-  --primary-weak: rgba(240, 168, 145, 0.16);
-  --primary-text: #F5BFAE;
-  --on-primary: #3B211A;
-
-  --ok: #8FBF9F;
-  --danger: #E8826F;
-  --danger-weak: #3A2620;
-  --warn: #E0B07A;
-  --warn-text: #E0B07A;
-  --warn-bg: #30251C;
-  --warn-border: #4A3A2C;
-
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 28px -12px rgba(0, 0, 0, .5), 0 24px 52px -26px rgba(0, 0, 0, .6);
-  --shadow-hover: 0 2px 4px rgba(0, 0, 0, .35), 0 14px 36px -14px rgba(0, 0, 0, .55), 0 30px 60px -28px rgba(0, 0, 0, .65);
-}
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; padding: 0; min-height: 100vh; min-height: 100dvh; overscroll-behavior-y: none; }
 button, input, select, textarea { font-family: inherit; }
 
-body {
-  font-family: var(--font);
-  font-size: var(--fs-body);
-  line-height: 1.6;
-  color: var(--text);
-  /* 第 53 次（时光沉浸）：环境色温层——sky.js 的 syncAmbient 把当前天空
-     顶/底色写到 --sky-ambient-top/bottom（R,G,B 三元组），垫在 --bg-grad
-     之上，整页底色随太阳色温呼吸（正午清透、黄昏泛金、入夜转青）。
-     第 54 次：透明度不再写死——syncAmbient 按色板亮度算出 --sky-ambient-a
-     （正午亮板 ~.10、深夜暗板 ~.17），暗色板必须更高透明度才能染上页面；
-     暗色模式再乘 --amb-mul（.6）兜底防灰。变量未就绪回落 9% 白（暖奶油）。 */
-  --amb-mul: 1;
-  background:
-    linear-gradient(180deg,
-      rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul))),
-      rgba(var(--sky-ambient-bottom, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul)))) fixed,
-    var(--bg-grad) fixed;
-  text-align: left;
-  -webkit-font-smoothing: antialiased;
-  /* mobile-native 三件套：
-     1. text-size-adjust:100% —— 禁止 iOS 横屏自动放大文字（布局错乱源头）
-     2. touch-action:manipulation —— 取消按钮/链接点击的 300ms 延迟（双击缩放判定）
-     3. overscroll-behavior-y:none —— 禁止下拉刷新/回弹穿透（已在 html,body 定义，此处补注释） */
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-  touch-action: manipulation;
-}
 
 /* ============================================================
    折射层（v3 奶油柔彩已弃用：卡片改为实色，无需折射。
@@ -621,7 +551,6 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
    勾选项
    ============================================================ */
 .chk-group { margin: 10px 0; font-size: calc(14px * var(--fs-mul)); }
-.chk { display: inline-flex; align-items: center; margin-right: 14px; font-size: calc(14px * var(--fs-mul)); cursor: pointer; }
 .chk input { margin-right: 6px; }
 /* 第 112 次：勾选框旁的行内说明（提示这笔记到记账的哪个类别） */
 .hint-inline { color: var(--text-sub, #6b6b6b); font-size: calc(13px * var(--fs-mul)); margin-left: 6px; }
@@ -700,9 +629,6 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
 /* 第 61 次：列表行图标去白圆底（与第 60 次磁贴 rt-ico 同理——模块色直接呈现） */
 .list li .row-ico .ico { width: 20px; height: 20px; color: var(--tile, var(--primary)); }
 .list li .row-ico + span { flex: 1 1 auto; min-width: 0; }
-/* 第 61 次：「左名称右数据」双列行——li-main（时间/名称）左、li-sub（详情/备注）右 */
-.list li .li-main { flex: 0 1 auto; min-width: 0; white-space: nowrap; }
-.list li .li-main b { font-weight: 600; font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 .list li .li-sub {
   flex: 1 1 auto; min-width: 0; margin-left: auto; padding-left: 12px; text-align: right;
   color: var(--muted); font-size: calc(12.5px * var(--fs-mul)); line-height: 1.5;
@@ -928,14 +854,6 @@ body.dark .tabbar {
 .tab-slot .ico { color: var(--primary); }
 .tab-slot span { color: var(--primary-text); }
 
-/* ============================================================
-   隐私 / 确认弹层（实色奶油底）
-   ============================================================ */
-.modal-mask {
-  position: fixed; inset: 0; background: rgba(51, 48, 43, .45);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 100; padding: 20px;
-}
 .modal {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -955,6 +873,13 @@ body.dark .tabbar {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .modal-mask {
+  /* ============================================================
+   隐私 / 确认弹层（实色奶油底）
+   ============================================================ */
+  position: fixed; inset: 0; background: rgba(51, 48, 43, .45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; padding: 20px;
+  /* ↑ 第 171 次：同名选择器合并到此处 */
   /* 遮罩随弹层同步淡入（18ms 级差别不可感，18% 不抢戏） */
   animation: maskIn .18s var(--ease) both;
 }
@@ -993,16 +918,8 @@ body.dark .tabbar {
   to { transform: translateY(0); opacity: 1; }
 }
 .sheet h2 { margin: 0 0 10px; font-size: calc(16px * var(--fs-mul)); font-weight: 700; color: var(--text); }
-.sheet-list { list-style: none; margin: 0; padding: 0; }
 .sheet-empty { padding: 14px 4px; font-size: calc(13.5px * var(--fs-mul)); color: var(--muted); line-height: 1.6; }
-.sheet-row {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 10px 12px; border: 0; border-radius: var(--radius-sm);
-  background: transparent; cursor: pointer;
-  font-family: inherit; font-size: calc(15px * var(--fs-mul)); color: var(--text); text-align: left;
-}
 .sheet-row + .sheet-row { margin-top: 6px; }
-.sheet-row:active { background: var(--primary-weak); }
 .sheet-row .sheet-ava {
   flex: none; width: 36px; height: 36px; border-radius: 50%;
   background: var(--primary-weak); color: var(--primary-text);
@@ -1102,22 +1019,6 @@ body.dark .tabbar {
 }
 .sky-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }.view-enter .sky-canvas { animation: skyIn .55s ease-out both; }
 @keyframes skyIn { from { opacity: 0; } to { opacity: 1; } }
-/* 问候语：轻融合式排版（落到天空底部，借 sky-veil 下缘渐变兜住对比度）。
-   第 47 次：absolute bottom 改为 margin-top:auto 沉底（flex 流内），
-   与大日期天然拉开，字号放大时只会推着天空长高、不再互相压住。 */
-/* 问候卡（第 64 次）：与下方 .card 完全同一套 token（surface / border /
-   radius / shadow）——用户反馈上一版浅玻璃特例面与提醒卡「割裂」。
-   同 token 即同语言，明暗模式随 token 自动适配，无需暗色特例。
-   卡片自身提供对比度（浅面深字），不依赖 text-shadow。 */
-.home-greet {
-  position: relative; z-index: 2; margin-top: auto; flex: none;
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 12px 14px; border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-card);
-  color: var(--text);
-}
 .home-sky .sky-veil {
   position: absolute; inset: 0;
   /* 第 63 次（修「还有明显分界」）：S 曲线雾化消除色带。
@@ -1153,16 +1054,6 @@ body.dark .home-sky::after {
   opacity: var(--sky-dim-o, 1);
   pointer-events: none;
 }
-/* 第 85 次：日轮弧线（.sky-arc）与太阳/月亮（.sky-orb-*）样式已随元素一并移除
-   ——用户反馈日轮「挡住了」内容。天空保留色板/云/星/雾化 veil。 */
-/* 问候卡文字（第 63 次）：浅面深字，正文用 --muted（对比度由卡面保证，
-   不再靠 text-shadow 硬撑） */
-.home-greet h1 { font-size: calc(20px * var(--fs-mul)); font-weight: 700; margin: 0 0 2px; letter-spacing: .01em; color: var(--text); }
-/* 第 131 次（P0-a）：问候卡 5 行收 3 行——身份与阶段合并进 h1 一行。
-   .hg-sub = 行内副标题（月龄/孕周），规格与改前的独立 <p> 副标题一致
-   （13px/常规字重/弱化色）；h1 自身补单行省略：长称呼 + 长阶段串
-   不折行、不撑高问候卡（hero 高度恒定的老纪律不变）。 */
-.home-greet h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .home-greet h1 .hg-sub { font-size: calc(13px * var(--fs-mul)); font-weight: 400; color: var(--muted); letter-spacing: 0; }
 /* 副标题单行省略：问候卡高度恒定，hero（大日期）永远不会与它重叠（第 40 次根修）。
    第 63 次：颜色从白改 --muted（浅卡上白字不可读）。 */
@@ -1171,17 +1062,6 @@ body.dark .home-sky::after {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* 第 80 次（首页重设计）：天空大日期（.home-date）撤下——日期并入问候卡首行
-   （.hg-date，「今天是M月D日 周X · 节日」），天空整幅让给天色与日轮弧线，
-   顶部信息一行说完不再分两处。模块页日期仍用 .mod-date 小徽标。 */
-/* 模块页左上角小日期徽标：第 95 次起收进顶栏流（此前 position:fixed 相对视口，
-   宽屏下会漂出内容列）——flex:1 居中，首页隐藏但占位，保证齿轮仍贴右。 */
-.mod-date {
-  flex: 1 1 auto; text-align: center;
-  font-size: calc(13px * var(--fs-mul)); font-weight: 700; letter-spacing: .04em;
-  color: var(--text); opacity: .6; user-select: none; pointer-events: none;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
 body.in-home .mod-date { visibility: hidden; }
 
 /* 模块页返回按钮（第 95 次重设计）：顶栏内圆形图标钮，与右上角设置齿轮同一
@@ -1230,29 +1110,7 @@ body.in-home .mod-date { visibility: hidden; }
    直子元素抬层规则保留（磁贴层叠仍需要）。 */
 .home-main > * { position: relative; z-index: 1; }
 
-/* 第 80 次（首页重设计）：日期行——「今天是M月D日 周X · 节日」，问候卡首行、
-   h1 之前。节日名用主色轻强调，日期本体保持 muted（它是场景不是主角）。 */
-.home-greet .hg-date {
-  margin: 0 0 2px;
-  /* 第 133 次（对齐 Cali · 大日期）：由「今天是10月19日 周一」单行弱化字，
-     改为「大数字日 + 旁挂月/周」——日期成为问候卡里最大的视觉元素。
-     原来这行靠 nowrap+ellipsis 兜长文本，现在长文本只可能落在 .hg-date-meta 上，
-     所以把省略号下沉到 meta，日期数字永不截断。 */
-  display: flex; align-items: baseline; gap: 8px;
-  font-size: calc(12.5px * var(--fs-mul)); font-weight: 600; line-height: 1.2;
-  color: var(--muted); letter-spacing: .02em;
-}
-.home-greet .hg-date .hg-fest { color: var(--primary-text); font-weight: 700; }
 
-/* 第 63 次：小知识并入问候卡（用户点名整合「你好」与知识句），首页正文
-   独立行撤销。卡内用细分隔线分节（不再左侧 primary 竖条——那是给孤行的语言）。
-   注意 .home-greet p 的单行省略只该作用于副标题：知识句是多行内容，
-   这里显式恢复换行，否则整句被省略号吃掉。 */
-.home-greet .know-hint {
-  margin: 9px 0 0; padding-top: 9px;
-  border-top: 1px solid var(--border);
-  white-space: normal; overflow: visible;
-}
 /* 第 67 次：妈妈情绪页 mind 知识句——与首页知识行同一视觉语言，
    色条用模块分色（情绪页为 mood 紫），失败回落 primary */
 .mind-know { margin: 12px 2px 0; padding-left: 12px; border-left: 3px solid var(--tile, var(--primary)); border-radius: 3px; }
@@ -1543,11 +1401,6 @@ body.hc:not(.dark) .list li { box-shadow: inset 4px 0 0 0 var(--tile, var(--prim
   color: var(--tile-text); font-weight: 600;
 }
 .mood-tags { display: flex; flex-wrap: wrap; gap: 8px; }
-.mood-tags button {
-  padding: 7px 14px; border-radius: var(--radius-pill); font-size: calc(12.5px * var(--fs-mul));
-  border: 1px solid var(--border); background: var(--surface-2);
-  color: var(--text); font-family: inherit; cursor: pointer;
-}
 .mood-tags button.active {
   background: var(--tile-weak); border-color: var(--tile);
   color: var(--tile-text); font-weight: 600;
@@ -1589,28 +1442,9 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 .spark polyline { fill: none; stroke: var(--primary); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .spark circle { fill: var(--primary); }
 
-/* 全局快捷记录 dock（第 40 次）：展开式 FAB，悬在底栏右上角；
-   默认只有「＋」，点开才出现动作列 + 半透明遮罩——刻意多一次点击，不放误触面。 */
-#quickDock { position: fixed; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 40; }
-#quickDock .qd-fab {
-  width: 54px; height: 54px; border-radius: var(--radius-pill); border: none; cursor: pointer;
-  background: linear-gradient(180deg, var(--primary-fill) 0%, var(--primary-strong) 100%);
-  color: var(--on-primary); font-size: calc(26px * var(--fs-mul)); font-weight: 700; line-height: 1;
-  box-shadow: var(--shadow-hover);
-  display: flex; align-items: center; justify-content: center;
-  margin-left: auto;
-  transition: transform .2s var(--spring), box-shadow .2s var(--ease);
-}
 #quickDock .qd-fab:active { transform: scale(.92); }
 #quickDock .qd-fab:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 #quickDock.open .qd-fab { transform: rotate(45deg); }
-#quickDock .qd-actions {
-  display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
-  margin-bottom: 10px; visibility: hidden; opacity: 0;
-  transform: translateY(8px);
-  transition: opacity .18s var(--ease), transform .2s var(--spring), visibility .18s;
-}
-#quickDock.open .qd-actions { visibility: visible; opacity: 1; transform: none; }
 #quickDock .qd-action {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 11px 16px; border-radius: var(--radius-pill); border: 1px solid var(--border);
@@ -1906,8 +1740,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
   .record-grid { gap: 12px; }
   /* 桌面宽度充裕，统计卡回到 auto-fit：3/4/5 张都尽量单行铺开 */
   .stat-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-  .home-greet h1 { font-size: calc(26px * var(--fs-mul)); }
-  /* 第 64 次：固定高改 min-height（问候卡并入知识句后内容变高，固定高+overflow:hidden 会裁切）
+    /* 第 64 次：固定高改 min-height（问候卡并入知识句后内容变高，固定高+overflow:hidden 会裁切）
      第 80 次：大日期撤下，宽屏天空回到统一 min-height */
   .home-sky { min-height: 232px; }
 }
@@ -2158,25 +1991,6 @@ body.dark.deep-night {
   --surface-2: #201C19;
 }
 
-/* ============================================================
-   第 100 次：底栏五口集中排列（body.dock-left / body.dock-right，
-   设置 · 外观 · 底栏排列）——取代第 87 次只镜像快记钮的 left-hand。
-   left/right 时：底栏变竖排胶囊固定屏幕同侧下缘，五口=首页 / 日期记录 /
-   快记＋ / 宝宝切换 / 设置；页签只留图标（竖排没文字空间）；
-   快记 FAB 隐藏（＋已在底栏，转发点击复用原逻辑），动作列改从底栏上方
-   展开（定位吃 --dock-h，由 buildTabbar 按真实胶囊高度注入）；
-   顶栏齿轮隐藏（设置已在底栏），头像保留（身份展示 + 也能开切换面板）。
-   normal 不挂类、一条规则都不吃，居中横排原样。
-   ============================================================ */
-body.dock-left .tabbar, body.dock-right .tabbar {
-  flex-direction: column; flex-wrap: nowrap;
-  overflow: visible;
-  padding: 8px 6px; gap: 2px;
-  /* 第 101 次修复：定位完全自持——不依赖覆盖 base 的 left:50%/transform 链。
-     个别内核（X5/夸克等）对 fixed + left:50% + translateX(-50%) + 覆盖的组合
-     解析异常时胶囊会整体漂出画面；四向显式声明后任何内核都只能得出同一结果。 */
-  top: auto;
-}
 /* 第 116 次（真机实测：底栏靠边的按钮在手机上点不到）：
    12px 边距在真机上不够——竖排胶囊贴边时，最外侧按钮的外缘正好落在
    iOS/Android 的屏幕边缘手势区（返回手势/下拉刷新区），
@@ -2187,6 +2001,24 @@ body.dock-left .tabbar, body.dock-right .tabbar {
 body.dock-left .tabbar { left: 20px; right: auto; transform: none; }
 body.dock-right .tabbar { left: auto; right: 20px; transform: none; }
 body.dock-left .tabbar, body.dock-right .tabbar {
+  /* ============================================================
+   第 100 次：底栏五口集中排列（body.dock-left / body.dock-right，
+   设置 · 外观 · 底栏排列）——取代第 87 次只镜像快记钮的 left-hand。
+   left/right 时：底栏变竖排胶囊固定屏幕同侧下缘，五口=首页 / 日期记录 /
+   快记＋ / 宝宝切换 / 设置；页签只留图标（竖排没文字空间）；
+   快记 FAB 隐藏（＋已在底栏，转发点击复用原逻辑），动作列改从底栏上方
+   展开（定位吃 --dock-h，由 buildTabbar 按真实胶囊高度注入）；
+   顶栏齿轮隐藏（设置已在底栏），头像保留（身份展示 + 也能开切换面板）。
+   normal 不挂类、一条规则都不吃，居中横排原样。
+   ============================================================ */
+  flex-direction: column; flex-wrap: nowrap;
+  overflow: visible;
+  padding: 8px 6px; gap: 2px;
+  /* 第 101 次修复：定位完全自持——不依赖覆盖 base 的 left:50%/transform 链。
+     个别内核（X5/夸克等）对 fixed + left:50% + translateX(-50%) + 覆盖的组合
+     解析异常时胶囊会整体漂出画面；四向显式声明后任何内核都只能得出同一结果。 */
+  top: auto;
+  /* ↑ 第 171 次：同名选择器合并到此处 */
   bottom: calc(16px + env(safe-area-inset-bottom));
 }
 
@@ -2681,8 +2513,15 @@ body.dark .tile-size { background: rgba(255,255,255,.08); }
   background: var(--surface-solid); color: var(--text);
   font-size: calc(14px * var(--fs-mul)); font-family: inherit; margin-bottom: 8px;
 }
-.sheet-list { display: flex; flex-direction: column; }
+.sheet-list {
+  list-style: none; margin: 0; padding: 0;
+  /* ↑ 第 171 次：同名选择器合并到此处 */ display: flex; flex-direction: column; }
 .sheet-row {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 10px 12px; border: 0; border-radius: var(--radius-sm);
+  background: transparent; cursor: pointer;
+  font-family: inherit; font-size: calc(15px * var(--fs-mul)); color: var(--text); text-align: left;
+  /* ↑ 第 171 次：同名选择器合并到此处 */
   display: flex; align-items: center; gap: 10px; width: 100%;
   padding: 11px 4px; border: 0; border-bottom: 1px solid var(--border);
   background: transparent; color: var(--text); cursor: pointer;
@@ -2692,7 +2531,9 @@ body.dark .tile-size { background: rgba(255,255,255,.08); }
 .sheet-row .rt-ico { color: var(--tile, var(--primary)); }
 .sheet-row .rt-arrow { margin-left: auto; color: var(--muted); opacity: .55; }
 .sheet-row .rt-arrow .ico { width: 15px; height: 15px; }
-.sheet-row:active { background: var(--surface); }
+.sheet-row:active {
+  background: var(--primary-weak);
+  /* ↑ 第 171 次：同名选择器合并到此处 */ background: var(--surface); }
 .sheet-row:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .home-sheet-panel .row { margin-top: 14px; }
 
@@ -2896,21 +2737,40 @@ body .tabbar .tab-plus > span { display: none; }   /* 圆钮里只放图标，�
 body .tabbar .tab-plus:active { transform: scale(.9); }
 
 /* 独立的悬浮 FAB 退休：＋ 已在胶囊里。它仍留在 DOM（隐藏），转发点击照旧可用 */
-#quickDock .qd-fab { display: none; }
+#quickDock .qd-fab {
+  width: 54px; height: 54px; border-radius: var(--radius-pill); border: none; cursor: pointer;
+  background: linear-gradient(180deg, var(--primary-fill) 0%, var(--primary-strong) 100%);
+  color: var(--on-primary); font-size: calc(26px * var(--fs-mul)); font-weight: 700; line-height: 1;
+  box-shadow: var(--shadow-hover);
+  display: flex; align-items: center; justify-content: center;
+  margin-left: auto;
+  transition: transform .2s var(--spring), box-shadow .2s var(--ease);
+  /* ↑ 第 171 次：同名选择器合并到此处 */ display: none; }
 
 /* 快捷动作列：浮在胶囊正上方居中（原来锚在右下角 FAB 上） */
 #quickDock {
+  /* 全局快捷记录 dock（第 40 次）：展开式 FAB，悬在底栏右上角；
+   默认只有「＋」，点开才出现动作列 + 半透明遮罩——刻意多一次点击，不放误触面。 */
+  position: fixed; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 40;
+  /* ↑ 第 171 次：同名选择器合并到此处 */
   left: 50%; right: auto; transform: translateX(-50%);
   bottom: calc(76px + env(safe-area-inset-bottom));
 }
 #quickDock .qd-actions {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  margin-bottom: 10px; visibility: hidden; opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .18s var(--ease), transform .2s var(--spring), visibility .18s;
+  /* ↑ 第 171 次：同名选择器合并到此处 */
   position: absolute; left: 50%; bottom: 0;
   transform: translateX(-50%) translateY(8px);
   margin-bottom: 0;
   align-items: stretch;
   width: max-content; max-width: calc(100vw - 32px);
 }
-#quickDock.open .qd-actions { transform: translateX(-50%); }
+#quickDock.open .qd-actions {
+  visibility: visible; opacity: 1; transform: none;
+  /* ↑ 第 171 次：同名选择器合并到此处 */ transform: translateX(-50%); }
 
 /* 遮罩：第 135 次移出 #app（胶囊的 backdrop-filter 会为 fixed 子元素创建包含块，
    留在里面只盖得住小方块）。可见性改挂 body.qd-open。 */
@@ -2922,12 +2782,6 @@ body .tabbar .tab-plus:active { transform: scale(.9); }
 }
 body.qd-open .qd-mask { visibility: visible; opacity: 1; }
 
-/* 二级页：整条收起，只留返回钮 */
-body .tabbar.is-sub { padding: 6px; }
-body .tabbar.is-sub .tab { display: none; }
-body .tabbar.is-sub #avatarBtn,
-body .tabbar.is-sub #settingsBtn { display: none; }
-body .tabbar.is-sub #backBtn { display: inline-flex; }
 
 /* 第 135 次修正：.dock-btn 显式给了 display:inline-flex，会把 [hidden] 的
    UA 默认 display:none 覆盖掉——返回钮在首页也会显示（与 label[hidden] 同类坑）。
@@ -3126,15 +2980,24 @@ body .tabbar .tab.active::after { top: 2px; }        /* 圆钮上方的小圆点
 
 /* 二级页：两端分布（左返回 / 右＋） */
 body .tabbar.is-sub {
+  /* 二级页：整条收起，只留返回钮 */
+  padding: 6px;
+  /* ↑ 第 171 次：同名选择器合并到此处 */
   padding: 6px 8px;
   min-width: 152px;
   justify-content: space-between;
 }
-body .tabbar.is-sub .tab { display: none; }
+body .tabbar.is-sub .tab {
+  display: none;
+  /* ↑ 第 171 次：同名选择器合并到此处 */ display: none; }
 body .tabbar.is-sub .tab-plus { display: inline-flex; }
 body .tabbar.is-sub #avatarBtn,
-body .tabbar.is-sub #settingsBtn { display: none; }
-body .tabbar.is-sub #backBtn { display: inline-flex; }
+body .tabbar.is-sub #settingsBtn {
+  display: none;
+  /* ↑ 第 171 次：同名选择器合并到此处 */ display: none; }
+body .tabbar.is-sub #backBtn {
+  display: inline-flex;
+  /* ↑ 第 171 次：同名选择器合并到此处 */ display: inline-flex; }
 
 /* ============================================================
    第 142 次（体验体检 · 命中区补齐）
@@ -3143,12 +3006,18 @@ body .tabbar.is-sub #backBtn { display: inline-flex; }
    但有一批可点元素低于 44px 下限。按「点得中」优先级修四处：
    ============================================================ */
 /* ① 情绪标签 32 → 44：一排五个、记录时连点，是最容易被手指漏掉的控件 */
-.mood-tags button { min-height: 44px; padding: 0 14px; }
+.mood-tags button {
+  padding: 7px 14px; border-radius: var(--radius-pill); font-size: calc(12.5px * var(--fs-mul));
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font-family: inherit; cursor: pointer;
+  /* ↑ 第 171 次：同名选择器合并到此处 */ min-height: 44px; padding: 0 14px; }
 
 /* ② 复选行 23 → 36：经期症状 / 用品勾选 / 记账附带项都是「点文字切换」，
    23px 的行高在移动端容错只有 ±5px（第 128 次的 .ds-opt 已到 44，
    这条把同类的 .chk 补齐；36 是密度与容错的折中，清单动辄 20 行不宜再高） */
-.chk { min-height: 36px; padding: 2px 0; }
+.chk {
+  display: inline-flex; align-items: center; margin-right: 14px; font-size: calc(14px * var(--fs-mul)); cursor: pointer;
+  /* ↑ 第 171 次：同名选择器合并到此处 */ min-height: 36px; padding: 2px 0; }
 
 /* ③ 设置开关的文字标签铺满 44px 行高——原来 label 只有 24px，
    点「首页提醒卡」这几个字时，手指稍偏就落到空白处 */
@@ -3208,7 +3077,6 @@ body::after {
   background: none; border: 0; font: inherit; color: var(--text); text-align: left; cursor: pointer;
 }
 .hn-run-main .ico { width: 22px; height: 22px; color: var(--tile-text, var(--primary)); flex: none; }
-.hn-run-label { font-weight: 500; white-space: nowrap; }
 .hn-elapsed { margin-left: auto; font-size: calc(20px * var(--fs-mul, 1)); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--tile-text, var(--text)); }
 .hn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tile, var(--primary)); flex: none; animation: hnPulse 1.6s ease-in-out infinite; }
 @keyframes hnPulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
@@ -3229,10 +3097,11 @@ body::after {
 .birth-field { display: block; }
 .birth-field input[type="date"] { display: block; width: 100%; min-height: 48px; margin-top: 6px; box-sizing: border-box; }
 .birth-field .hint { display: block; margin-top: 4px; }
-.ob-nudge { color: var(--warn-text); }
 /* 第 146 次（P0-6）：疫苗「过了应种日还没记录」批量补记卡 */
 .vac-backfill { border-left: 3px solid var(--warn); }
-.hn-run-label { display: flex; flex-direction: column; line-height: 1.25; }
+.hn-run-label {
+  font-weight: 500; white-space: nowrap;
+  /* ↑ 第 171 次：同名选择器合并到此处 */ display: flex; flex-direction: column; line-height: 1.25; }
 .hn-stale { font-size: var(--fs-sm); color: var(--warn-text); font-weight: 400; }
 
 /* ============================================================
@@ -3243,8 +3112,13 @@ body::after {
       第一行时间+类型，第二行详情（可换行，不再省略号截掉），图标与操作按钮跨两行居中。
       带 .sup-bar / .ing-tags（整行换行条）的行保持原单行 flex 布局，避免牵动既有依赖。
    ============================================================ */
-.list li .li-main { overflow: hidden; text-overflow: ellipsis; }
-.list li .li-main b { margin-right: .4em; }
+.list li .li-main {
+  /* 第 61 次：「左名称右数据」双列行——li-main（时间/名称）左、li-sub（详情/备注）右 */
+  flex: 0 1 auto; min-width: 0; white-space: nowrap;
+  /* ↑ 第 171 次：同名选择器合并到此处 */ overflow: hidden; text-overflow: ellipsis; }
+.list li .li-main b {
+  font-weight: 600; font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
+  /* ↑ 第 171 次：同名选择器合并到此处 */ margin-right: .4em; }
 .list li:has(> .li-main + .li-sub):not(:has(> .sup-bar, > .ing-tags)) {
   display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-columns: auto;
   column-gap: 8px; row-gap: 2px; align-items: center;
@@ -3326,7 +3200,6 @@ body.ob-open .tabbar, body.ob-open #quickDock { visibility: hidden; }
   border: 1.5px solid var(--border-input); display: inline-flex; align-items: center; justify-content: center;
   color: #fff; transition: background .2s var(--ease), border-color .2s var(--ease);
 }
-.ob-card-check .ico { width: 15px; height: 15px; opacity: 0; transition: opacity .15s var(--ease); }
 .ob-card.active { border-color: var(--primary); background: color-mix(in srgb, var(--primary-weak) 60%, var(--surface)); }
 .ob-card.active .ob-card-check { background: var(--primary); border-color: var(--primary); }
 .ob-card.active .ob-card-check .ico { opacity: 1; }
@@ -3342,9 +3215,11 @@ body.ob-open .tabbar, body.ob-open #quickDock { visibility: hidden; }
 .ob-main > .ob-field { margin-top: 24px; }
 .ob-field, .ob-group .birth-field { display: flex; flex-direction: column; gap: 8px; font-size: calc(15px * var(--fs-mul)); font-weight: 600; }
 .ob-opt { font-weight: 400; color: var(--muted); font-size: calc(13px * var(--fs-mul)); margin-left: 6px; }
-.ob-field > .ob-opt { position: absolute; } /* 与标题同行：label 是 column flex，绝对定位避免另起一行 */
+ /* 与标题同行：label 是 column flex，绝对定位避免另起一行 */
 .ob-field { position: relative; }
-.ob-field > .ob-opt { right: 0; top: 0; }
+.ob-field > .ob-opt {
+  position: absolute;
+  /* ↑ 第 171 次：同名选择器合并到此处 */ right: 0; top: 0; }
 .ob-group .ob-field > .ob-opt { top: 14px; }
 .ob-screen input[type="text"], .ob-screen input[type="date"] {
   width: 100%; min-height: 48px; font-size: 17px; font-weight: 400;
@@ -3353,13 +3228,14 @@ body.ob-open .tabbar, body.ob-open #quickDock { visibility: hidden; }
 .ob-screen input[type="text"]:focus, .ob-screen input[type="date"]:focus { outline: none; border-color: var(--primary); background: var(--surface); }
 .ob-main > .ob-field input { background: var(--surface); border-color: var(--border); }
 .ob-group .seg { margin: 0; }
-.ob-nudge { color: var(--warn-text); font-size: calc(14px * var(--fs-mul)); line-height: 1.55; font-weight: 400; }
+.ob-nudge {
+  color: var(--warn-text);
+  /* ↑ 第 171 次：同名选择器合并到此处 */ color: var(--warn-text); font-size: calc(14px * var(--fs-mul)); line-height: 1.55; font-weight: 400; }
 
 /* iOS 式开关 */
 .ob-switch { display: flex !important; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; }
 .ob-switch > span { display: flex; flex-direction: column; gap: 2px; }
 .ob-switch b { font-size: calc(15px * var(--fs-mul)); font-weight: 600; }
-.ob-switch small { color: var(--muted); font-size: calc(13px * var(--fs-mul)); }
 .ob-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .ob-switch i {
   flex: none; position: relative; width: 51px; height: 31px; border-radius: var(--radius-md);
@@ -3410,8 +3286,12 @@ body.ob-open .tabbar, body.ob-open #quickDock { visibility: hidden; }
 
 body.dark .ob-card, body.dark .ob-group { box-shadow: none; border-color: var(--border); }
 body.dark .ob-card.active { border-color: var(--primary); }
-.ob-card-check .ico { stroke: #fff; stroke-width: 2.4; color: #fff; }
-.ob-switch small { font-weight: 400; }
+.ob-card-check .ico {
+  width: 15px; height: 15px; opacity: 0; transition: opacity .15s var(--ease);
+  /* ↑ 第 171 次：同名选择器合并到此处 */ stroke: #fff; stroke-width: 2.4; color: #fff; }
+.ob-switch small {
+  color: var(--muted); font-size: calc(13px * var(--fs-mul));
+  /* ↑ 第 171 次：同名选择器合并到此处 */ font-weight: 400; }
 
 /* ============================================================
    第 153 次（原生感）：iOS 半屏底部面板 + 推入/推出页面转场
@@ -3473,7 +3353,6 @@ html[data-nav="fade"]::view-transition-new(page) { animation: vtFadeIn .2s ease-
      给新旧快照垫上页面底色，滑动的是两张不透明的「纸」。
    ② 原来每帧都在动画 24px 模糊阴影，整屏大图层上算阴影很吃 iOS 的合成，换成静态阴影。 */
 ::view-transition-old(page), ::view-transition-new(page) { background: var(--vt-paper, #FDF9F4); }
-html:has(body.dark) { --vt-paper: #221E1A; }
 html[data-nav="push"]::view-transition-new(page), html[data-nav="pop"]::view-transition-old(page) { box-shadow: -8px 0 24px rgba(0,0,0,.08); }
 @keyframes vtInRight { from { transform: translateX(100%); } to { transform: none; } }
 @keyframes vtOutLeft { to { transform: translateX(-30%); opacity: .85; } }
@@ -3488,6 +3367,21 @@ html[data-nav="push"]::view-transition-new(page), html[data-nav="pop"]::view-tra
    墨色跟天色：html[data-sky-ink="light"]（夜晚、暗色模式）切浅字
    ============================================================ */
 .home-greet {
+  /* 问候语：轻融合式排版（落到天空底部，借 sky-veil 下缘渐变兜住对比度）。
+   第 47 次：absolute bottom 改为 margin-top:auto 沉底（flex 流内），
+   与大日期天然拉开，字号放大时只会推着天空长高、不再互相压住。 */
+/* 问候卡（第 64 次）：与下方 .card 完全同一套 token（surface / border /
+   radius / shadow）——用户反馈上一版浅玻璃特例面与提醒卡「割裂」。
+   同 token 即同语言，明暗模式随 token 自动适配，无需暗色特例。
+   卡片自身提供对比度（浅面深字），不依赖 text-shadow。 */
+  position: relative; z-index: 2; margin-top: auto; flex: none;
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 14px; border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+  /* ↑ 第 171 次：同名选择器合并到此处 */
   display: block; margin-top: auto; padding: 0 2px 2px;
   background: none; border: 0; box-shadow: none; border-radius: 0;
   --hg-ink: #2B2A33; --hg-ink-2: rgba(43, 42, 51, .62);
@@ -3500,17 +3394,41 @@ html[data-sky-ink="light"] .home-greet, body.dark .home-greet {
 html[data-sky-ink="light"] .home-greet h1, html[data-sky-ink="light"] .home-greet .hg-num,
 body.dark .home-greet h1, body.dark .home-greet .hg-num { text-shadow: 0 1px 12px rgba(20, 16, 40, .25); }
 .home-greet .hg-date {
+  /* 第 80 次（首页重设计）：日期行——「今天是M月D日 周X · 节日」，问候卡首行、
+   h1 之前。节日名用主色轻强调，日期本体保持 muted（它是场景不是主角）。 */
+  margin: 0 0 2px;
+  /* 第 133 次（对齐 Cali · 大日期）：由「今天是10月19日 周一」单行弱化字，
+     改为「大数字日 + 旁挂月/周」——日期成为问候卡里最大的视觉元素。
+     原来这行靠 nowrap+ellipsis 兜长文本，现在长文本只可能落在 .hg-date-meta 上，
+     所以把省略号下沉到 meta，日期数字永不截断。 */
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: calc(12.5px * var(--fs-mul)); font-weight: 600; line-height: 1.2;
+  color: var(--muted); letter-spacing: .02em;
+  /* ↑ 第 171 次：同名选择器合并到此处 */
   display: flex; align-items: center; gap: 8px; margin: 0 0 6px;
   font-size: calc(13px * var(--fs-mul)); font-weight: 600; letter-spacing: .04em;
   color: var(--hg-ink-2); white-space: nowrap;
 }
 .home-greet .hg-date .hg-fest {
+  color: var(--primary-text); font-weight: 700;
+  /* ↑ 第 171 次：同名选择器合并到此处 */
   font-weight: 700; font-size: calc(11.5px * var(--fs-mul)); letter-spacing: .02em;
   color: var(--hg-ink); padding: 2px 8px; border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, .38); border: 1px solid rgba(255, 255, 255, .45);
 }
 html[data-sky-ink="light"] .home-greet .hg-fest, body.dark .home-greet .hg-fest { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .22); }
 .home-greet h1 {
+  /* 第 85 次：日轮弧线（.sky-arc）与太阳/月亮（.sky-orb-*）样式已随元素一并移除
+   ——用户反馈日轮「挡住了」内容。天空保留色板/云/星/雾化 veil。 */
+/* 问候卡文字（第 63 次）：浅面深字，正文用 --muted（对比度由卡面保证，
+   不再靠 text-shadow 硬撑） */
+  font-size: calc(20px * var(--fs-mul)); font-weight: 700; margin: 0 0 2px; letter-spacing: .01em; color: var(--text);
+  /* 第 131 次（P0-a）：问候卡 5 行收 3 行——身份与阶段合并进 h1 一行。
+   .hg-sub = 行内副标题（月龄/孕周），规格与改前的独立 <p> 副标题一致
+   （13px/常规字重/弱化色）；h1 自身补单行省略：长称呼 + 长阶段串
+   不折行、不撑高问候卡（hero 高度恒定的老纪律不变）。 */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* ↑ 第 171 次：同名选择器合并到此处 */
   font-size: calc(24px * var(--fs-mul)); font-weight: 700; line-height: 1.25;
   margin: 0; color: var(--hg-ink); letter-spacing: .01em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -3528,6 +3446,14 @@ html[data-sky-ink="light"] .home-greet .hg-fest, body.dark .home-greet .hg-fest 
 }
 .home-greet .hg-cap-solo { margin-top: 6px; font-size: calc(14px * var(--fs-mul)); }
 .home-greet .know-hint {
+  /* 第 63 次：小知识并入问候卡（用户点名整合「你好」与知识句），首页正文
+   独立行撤销。卡内用细分隔线分节（不再左侧 primary 竖条——那是给孤行的语言）。
+   注意 .home-greet p 的单行省略只该作用于副标题：知识句是多行内容，
+   这里显式恢复换行，否则整句被省略号吃掉。 */
+  margin: 9px 0 0; padding-top: 9px;
+  border-top: 1px solid var(--border);
+  white-space: normal; overflow: visible;
+  /* ↑ 第 171 次：同名选择器合并到此处 */
   display: flex; gap: 8px; align-items: flex-start;
   margin: 16px 0 0; padding: 10px 12px; border-top: 0;
   border-radius: var(--radius-sm); white-space: normal; overflow: visible;
@@ -3540,7 +3466,9 @@ html[data-sky-ink="light"] .home-greet .hg-fest, body.dark .home-greet .hg-fest 
 html[data-sky-ink="light"] .home-greet .know-hint { background: rgba(255, 255, 255, .7); }
 body.dark .home-greet .know-hint { background: rgba(40, 36, 32, .55); border-color: rgba(255, 255, 255, .1); color: rgba(255, 255, 255, .88); }
 .know-hint .kh-ico { flex: none; color: var(--primary); font-size: 12px; line-height: 1.9; }
-@media (min-width: 980px) { .home-greet h1 { font-size: calc(28px * var(--fs-mul)); } }
+@media (min-width: 980px) { .home-greet h1 {
+  font-size: calc(26px * var(--fs-mul));
+  /* ↑ 第 171 次：同名选择器合并到此处 */ font-size: calc(28px * var(--fs-mul)); } }
 @media (max-width: 359px) { .hg-num { font-size: calc(56px * var(--fs-display-mul, 1)); } .home-greet h1 { font-size: calc(21px * var(--fs-mul)); } }
 /* hero 内容从顶栏（头像行）下方开始，不压在顶栏后面 */
 .home-sky { padding-top: calc(var(--sat-pad) + 66px); }
@@ -3610,13 +3538,93 @@ body.dark .swipe-act { background: #D8434A; }
    其他页取页面底色。
    ============================================================ */
 html { background-color: #FDF9F4; }
-html:has(body.dark) { background-color: #221E1A; }
+html:has(body.dark) {
+  --vt-paper: #221E1A;
+  /* ↑ 第 171 次：同名选择器合并到此处 */ background-color: #221E1A; }
 html:has(body.in-home) { background-color: rgb(var(--sky-ambient-top, 167, 189, 236)); }
-body { background-color: #FDF9F4; }
-body.dark { background-color: #221E1A; }
+body {
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  color: var(--text);
+  /* 第 53 次（时光沉浸）：环境色温层——sky.js 的 syncAmbient 把当前天空
+     顶/底色写到 --sky-ambient-top/bottom（R,G,B 三元组），垫在 --bg-grad
+     之上，整页底色随太阳色温呼吸（正午清透、黄昏泛金、入夜转青）。
+     第 54 次：透明度不再写死——syncAmbient 按色板亮度算出 --sky-ambient-a
+     （正午亮板 ~.10、深夜暗板 ~.17），暗色板必须更高透明度才能染上页面；
+     暗色模式再乘 --amb-mul（.6）兜底防灰。变量未就绪回落 9% 白（暖奶油）。 */
+  --amb-mul: 1;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul))),
+      rgba(var(--sky-ambient-bottom, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul)))) fixed,
+    var(--bg-grad) fixed;
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+  /* mobile-native 三件套：
+     1. text-size-adjust:100% —— 禁止 iOS 横屏自动放大文字（布局错乱源头）
+     2. touch-action:manipulation —— 取消按钮/链接点击的 300ms 延迟（双击缩放判定）
+     3. overscroll-behavior-y:none —— 禁止下拉刷新/回弹穿透（已在 html,body 定义，此处补注释） */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: manipulation;
+  /* ↑ 第 171 次：同名选择器合并到此处 */ background-color: #FDF9F4; }
+body.dark {
+  --bg-grad: linear-gradient(170deg, #221E1A 0%, #26211C 55%, #231F1B 100%);
+  --bg-end: #231F1B; /* 第 146 次：底栏渐隐遮罩用的页底色 */
+  /* 第 105 次（修顶栏横线）：与 --bg-grad 首档同步，理由见 :root 处同 token 注释。
+     暗色下色系差同样被放大：#2E2924（surface）与 #221E1A（页面顶）差 12/255，
+     与浅色同量级，且暗色下人眼对明度阶更敏感，所以两处都必须改。 */
+  --header-bg-top: #221E1A;
+  --sky-seam-rgb: 34, 30, 26; /* 第 64 次：暗色接缝色 = veil 压暗后的页面顶色（暗色下天空底=页面顶，恒同色） */
+  /* 第 54 次：暗色环境光系数——亮色温叠暗底容易发灰，乘 0.6 兜底；
+     夜间可见度主要由 --sky-ambient-a 的亮度自适应负责（暗板自动升透明度）
+     第 142 次：0.6 → 0.92。用户反馈「夜间天空和下方背景有分裂感」——
+     根因是夜空冷紫、页面暖褐，两套色温各走各的。环境层本来就是「把天空色温
+     渗进页面」的通道，打了 6 折后只剩 8.7% 的染色，几乎看不出融合。
+     放到 0.92 后页面顶端会带一层很淡的夜蓝色，接缝处不再是两个世界。
+     仍保留一档折扣（不是 1）：纯满强度会让暗色整体偏蓝、发闷。 */
+  --amb-mul: .92;
+
+  --surface: #2E2924;
+  --surface-solid: #322C26;
+  --surface-2: #282320;
+  --text: #F0EBE4;
+  --muted: #BAB1A4;
+  --border: rgba(255, 255, 255, 0.10);
+  --border-input: #8A8177;   /* 深色表单描边：对输入底 ≥3:1 */
+
+  --primary: #F0A891;
+  --primary-fill: #F0A891;
+  --primary-strong: #F5BFAE;
+  --primary-weak: rgba(240, 168, 145, 0.16);
+  --primary-text: #F5BFAE;
+  --on-primary: #3B211A;
+
+  --ok: #8FBF9F;
+  --danger: #E8826F;
+  --danger-weak: #3A2620;
+  --warn: #E0B07A;
+  --warn-text: #E0B07A;
+  --warn-bg: #30251C;
+  --warn-border: #4A3A2C;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 28px -12px rgba(0, 0, 0, .5), 0 24px 52px -26px rgba(0, 0, 0, .6);
+  --shadow-hover: 0 2px 4px rgba(0, 0, 0, .35), 0 14px 36px -14px rgba(0, 0, 0, .55), 0 30px 60px -28px rgba(0, 0, 0, .65);
+  /* ↑ 第 171 次：同名选择器合并到此处 */ background-color: #221E1A; }
 body.in-home { background-color: rgb(var(--sky-ambient-top, 167, 189, 236)); }
 /* 二级页顶栏日期撤下（只保留占位） */
-.mod-date { visibility: hidden; }
+.mod-date {
+  /* 第 80 次（首页重设计）：天空大日期（.home-date）撤下——日期并入问候卡首行
+   （.hg-date，「今天是M月D日 周X · 节日」），天空整幅让给天色与日轮弧线，
+   顶部信息一行说完不再分两处。模块页日期仍用 .mod-date 小徽标。 */
+/* 模块页左上角小日期徽标：第 95 次起收进顶栏流（此前 position:fixed 相对视口，
+   宽屏下会漂出内容列）——flex:1 居中，首页隐藏但占位，保证齿轮仍贴右。 */
+  flex: 1 1 auto; text-align: center;
+  font-size: calc(13px * var(--fs-mul)); font-weight: 700; letter-spacing: .04em;
+  color: var(--text); opacity: .6; user-select: none; pointer-events: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* ↑ 第 171 次：同名选择器合并到此处 */ visibility: hidden; }
 
 /* ============================================================
    第 168 次 · iOS 日期输入框错位
