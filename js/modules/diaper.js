@@ -117,7 +117,7 @@
           /* 第 61 次：行改「左时间+类型 / 右备注」双列 */
           var dot = (r.color && colorOf(r.color)) ? ' <span class="poop-dot" style="--dot:' + colorOf(r.color).hex + '"></span>' : '';
           html += '<li><span class="row-ico">' + icon(ti.icon) + '</span>'
-            + '<span class="li-main"><b>' + Util.fmtRowTime(r.time) + '</b>' + ti.t + dot + '</span>'
+            + '<span class="li-main"><b>' + Util.fmtRowTime(r.time) + '</b>' + Util.escapeHtml(ti.t) + dot + '</span>'
             + '<span class="li-sub">' + (r.note ? Util.escapeHtml(r.note) : '') + '</span>'
             + '<button class="btn btn-mini" data-colorbtn="' + r.id + '">' + (r.color ? '改色' : '颜色') + '</button>'
             + '<button class="btn btn-mini" data-note="' + r.id + '">' + (r.note ? '改备注' : '备注') + '</button>'

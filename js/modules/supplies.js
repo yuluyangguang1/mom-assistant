@@ -388,7 +388,7 @@
           html += '<li>'
             + icon('supplies')
             + '<span class="li-main"><b>' + Util.escapeHtml(s.name) + '</b>' + Util.escapeHtml(s.cat || '') + '</span>'
-            + '<span class="li-sub">' + Util.fmtDate(s.date) + ' 买 · ' + qty + unit
+            + '<span class="li-sub">' + Util.fmtDate(s.date) + ' 买 · ' + qty + Util.escapeHtml(unit)
             + (s.price > 0 ? ' · ' + s.price.toFixed(2) + ' 元' : '')
             + '</span>'
             + '<span class="li-num ' + st.cls + '">' + left + '<i>天</i></span>'

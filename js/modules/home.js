@@ -936,7 +936,7 @@
             html += '<li' + (r.pending ? ' class="is-pending"' : '')
               + ' data-accent="' + r.accent + '" data-go="' + r.go + '" role="button" tabindex="0">'
               + '<span class="row-ico">' + icon(r.accent === 'finance' ? 'export' : r.accent) + '</span>'
-              + '<span>' + r.text + '</span>'
+              + '<span>' + Util.escapeHtml(r.text) + '</span>'
               /* 汇总行补一个右侧箭头，明示「点进去看详情」；普通提醒行不加，
                  避免一屏里出现多个箭头竞争注意力。 */
               + (r.pending ? '<span class="rt-arrow" aria-hidden="true">' + icon('chevron-right') + '</span>' : '')

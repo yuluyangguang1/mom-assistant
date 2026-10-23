@@ -461,7 +461,7 @@
             /* 第 61 次：行改「左时间+类型 / 右详情」双列（替代 ｜ 串行）；li-sub 恒输出作右推锚点 */
             var sub = [sideTxt, detail, r.note ? Util.escapeHtml(r.note) : null].filter(Boolean).join(' · ');
             html += '<li><span class="row-ico">' + icon(r.type) + '</span>'
-              + '<span class="li-main"><b>' + Util.fmtRowTime(r.start) + '</b>' + typeName + '</span>'
+              + '<span class="li-main"><b>' + Util.fmtRowTime(r.start) + '</b>' + Util.escapeHtml(typeName) + '</span>'
               + '<span class="li-sub">' + sub + '</span>'
               + solidBadges
               + '<button class="icon-btn" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';

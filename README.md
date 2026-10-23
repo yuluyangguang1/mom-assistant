@@ -26,3 +26,9 @@ python tests/regression.py   # 失败时退出码为 1
 ```
 
 覆盖多宝宝隔离、导入导出、XSS 转义、首页计时/快记、疫苗补记、格式化层、窄屏列表、提示堆叠等。修一个 bug 就补一条断言。
+
+### XSS 模糊测试
+
+```bash
+python3 tests/xss_fuzz.py   # 给所有文字和数值字段注入 HTML 载荷后逐页渲染，输出“总计 0 处”算通过
+```

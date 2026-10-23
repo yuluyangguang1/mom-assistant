@@ -91,6 +91,17 @@
     }
     return 'x' + (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
   }
+  /* 第 151 次（XSS 模糊测试发现）：数值字段在模块里按「数字」直接拼进 HTML（' 分钟'、' ml/g'、' kg'），
+     导入的字符串值会原样渲染。在入口统一转成数字：能解析就转，不能就置 null。 */
+  var NUM_KEYS = { amount: 1, amountBm: 1, amountFm: 1, minutes: 1, durationMin: 1, durationL: 1, durationR: 1,
+    value: 1, kg: 1, weightKg: 1, heightCm: 1, headCm: 1, ml: 1, qty: 1, price: 1, perDay: 1, wakings: 1,
+    longestMin: 1, pausedMs: 1, touches: 1, steps: 1, week: 1, birthGestWeeks: 1, count: 1, temp: 1 };
+  function toNum(v) {
+    if (typeof v !== 'string') return v;
+    var t = v.trim(); if (t === '') return null;
+    var n = Number(t);
+    return isFinite(n) ? n : null;
+  }
   function isIdKey(k) { return k === 'id' || /Id$/.test(k); }
   function scrubIds(node, depth) {
     if (!node || typeof node !== 'object' || depth > 8) return node;
@@ -102,6 +113,7 @@
       if (UNSAFE_KEY_RE.test(k)) { delete node[k]; return; }
       var v = node[k];
       if (isIdKey(k) && typeof v === 'string') node[k] = safeId(v);
+      else if (NUM_KEYS[k] === 1 && typeof v === 'string') node[k] = toNum(v);
       else if (/Ids$/.test(k) && Array.isArray(v)) node[k] = v.map(function (x) { return typeof x === 'string' ? safeId(x) : x; });
       else if (v && typeof v === 'object') scrubIds(v, depth + 1);
     });
