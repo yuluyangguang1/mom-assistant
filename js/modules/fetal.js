@@ -48,7 +48,7 @@
         });
         html += '</ul>';
       } else {
-        html += '<div class="empty-state"><span class="es-ico">' + icon('fetal') + '</span><p>暂无记录</p><span class="hint">宝宝动的时候点上面按钮记一次。</span></div>';
+        html += '<div class="empty-state"><span class="es-ico">' + icon('fetal') + '</span><p>还没有胎动记录</p><span class="hint">宝宝动的时候点上面按钮记一次。</span></div>';
       }
       html += '</div>';
 

@@ -59,7 +59,7 @@
         });
         html += '</ul><button class="btn-mini" id="fClear">清空</button>';
       } else {
-        html += '<p class="hint">暂无</p>';
+        html += '<div class="empty-state"><span class="es-ico">' + icon('finance') + '</span><p>还没有开销记录</p><span class="hint">买了东西顺手记一笔。</span></div>';
       }
       html += '</div>';
 

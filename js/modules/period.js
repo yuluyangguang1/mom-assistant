@@ -202,7 +202,7 @@
           });
         html += '</ul>';
       } else {
-        html += '<p class="hint">暂无</p>';
+        html += '<div class="empty-state"><span class="es-ico">' + icon('period') + '</span><p>还没有经期记录</p><span class="hint">来了记一下开始日期就好。</span></div>';
       }
       html += '</div>';
 

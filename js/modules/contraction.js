@@ -57,7 +57,7 @@
         html += '<button class="btn" id="cExport">导出时间线（文本）</button> ';
         html += '<button class="btn" id="cExportJson">导出 JSON</button>';
       } else {
-        html += '<p class="hint">暂无记录</p>';
+        html += '<div class="empty-state"><span class="es-ico">' + icon('contraction') + '</span><p>还没有宫缩记录</p><span class="hint">宫缩开始时点上面的按钮计时。</span></div>';
       }
       html += '</div>';
 

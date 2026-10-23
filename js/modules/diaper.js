@@ -126,7 +126,7 @@
         });
         html += '</ul>';
       } else {
-        html += '<div class="empty-state"><span class="es-ico">' + icon('diaper') + '</span><p>暂无记录</p><span class="hint">点上方按钮记一次吧。</span></div>';
+        html += '<div class="empty-state"><span class="es-ico">' + icon('diaper') + '</span><p>还没有尿布记录</p><span class="hint">点上方按钮记一次吧。</span></div>';
       }
       html += '</div>';
 

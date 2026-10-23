@@ -373,7 +373,7 @@
       /* 清单 */
       html += '<div class="card"><h2>清单</h2>';
       if (!list.length) {
-        html += '<p class="empty">还没有记录。填上「能用多少天」，这里会算出还剩几天。</p>';
+        html += '<div class="empty-state"><span class="es-ico">' + icon('supplies') + '</span><p>清单还是空的</p><span class="hint">填上「能用多少天」，这里会算出还剩几天。</span></div>';
       } else {
         var sorted = list.slice().sort(function (a, b) { return supplyLeft(a) - supplyLeft(b); });
         html += '<ul class="list">';

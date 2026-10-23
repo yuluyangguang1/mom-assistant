@@ -468,7 +468,7 @@
         });
         html += '</ul>';
       } else {
-        html += '<div class="empty-state"><span class="es-ico">' + icon('feeding') + '</span><p>暂无</p><span class="hint">点上方表单记第一笔吧。</span></div>';
+        html += '<div class="empty-state"><span class="es-ico">' + icon('feeding') + '</span><p>还没有喂养记录</p><span class="hint">点上方表单记第一笔吧。</span></div>';
       }
       html += '</div>';
 
