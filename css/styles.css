@@ -1171,6 +1171,8 @@ body.dark .set-group .sg-ico { background: rgba(255,255,255,.08); }
   box-shadow: var(--shadow-card);
   display: flex; flex-direction: column; gap: 4px;
 }
+/* 第 175 次：卡片里的数字块不再是「卡片里套一张带描边和阴影的小卡」，改成无描边的浅底块 */
+.card .stat { background: var(--surface-2); border-color: transparent; box-shadow: none; border-radius: var(--radius-sm); }
 .stat-num {
   /* 第 118 次：改用 --fs-display（旧值是写死的 34px）。
      这是报告 §4.7 的直接后果 —— 首页最大最关键的数字（奶量/次数）
@@ -1422,7 +1424,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 .gs-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); }
 .gs-cell {
   display: flex; flex-direction: column; gap: 2px;
-  padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 12px 14px; border-radius: var(--radius-sm); /* 第 175 次：卡片里的小块去掉描边，只留浅底 */
   background: var(--surface-2);
 }
 .gs-lbl { font-size: calc(12px * var(--fs-mul)); font-weight: 600; color: var(--muted); }
@@ -1486,7 +1488,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 
 /* 大数字 + 尺滑杆（第 41 次，对标 Cali 录入范式） */
 .ruler {
-  border: 1px solid var(--border); border-radius: var(--radius);
+  border-radius: var(--radius); /* 第 175 次：去掉描边，只留浅底 */
   padding: 14px 16px 12px; background: var(--surface-2);
 }
 .ruler-num { text-align: center; line-height: 1.05; margin-bottom: 10px; position: relative; }
