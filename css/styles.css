@@ -584,7 +584,7 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 /* 哄睡白噪音（W 系列） */
 .noise-state { font-size: calc(15px * var(--fs-mul)); font-weight: 600; color: var(--text); margin: 0 0 6px; }
 .noise-card .btn { margin-top: 10px; }
-input[type="range"] { width: 100%; accent-color: var(--primary); margin-top: 8px; cursor: pointer; }
+input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: border-box; accent-color: var(--primary); margin-top: 8px; cursor: pointer; }
 
 /* 第 62 次：滑块选日期（date-slider）——手机免键盘；真正的值在保留原 id 的隐藏 input 上 */
 .date-slider { margin: 6px 0 14px; }
@@ -3453,7 +3453,11 @@ body.dark .sheet-grab i { background: rgba(235, 235, 245, .3); }
 }
 
 /* —— 页面转场（View Transitions；app.js 在 <html data-nav="push|pop|fade"> 下启动）—— */
-#view { view-transition-name: page; }
+/* 第 170 次：只在转场进行中（html 带 data-nav）才给 #view 起名。
+   名字常驻时，iOS Safari 在第一次转场之后会把 #view 当成独立合成层、按它自己的盒子裁切，
+   首页天空伸到 #view 上方（顶栏背后）的那一截就被裁掉，露出页面底色——
+   真机上就是「第一次进首页正常，切几个页面回来顶上多一条横带」。 */
+html[data-nav] #view { view-transition-name: page; }
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 /* 第 167 次：旧根快照（含旧顶栏）直接隐藏——两者都不动画时会叠在一起，旧页日期/标题和新页标题重影发虚 */
 ::view-transition-old(root) { display: none; }
@@ -3562,7 +3566,7 @@ body.dark .home-greet .know-hint { background: rgba(40, 36, 32, .55); border-col
 body.dark .swipe-act { background: #D8434A; }
 /* 所在卡片横向裁切（js 给它加 .sw-clip）；页面容器也裁一层，防止撑出横向滚动条 */
 .sw-clip { overflow-x: clip; }
-#view { overflow-x: clip; }
+#app { overflow-x: clip; } /* 第 170 次：从 #view 挪到 #app，#view 自身不再做任何裁切，天空才能伸到顶栏背后 */
 .swipe-act .ico, .swipe-act svg, .swipe-act svg * { color: #fff !important; stroke: #fff !important; }
 
 /* 第 160 次：触屏设备已支持左滑删除，行内小垃圾桶改为「视觉隐藏」，把横向空间让给时间文字。
