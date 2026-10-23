@@ -118,7 +118,7 @@
       });
       html += '</div>';
       html += Util.rulerHTML('gRuler', { unit: metOf(gActive).unit, label: '测量值' });
-      html += '<button class="btn btn-primary" id="gSave">保存</button></div>';
+      html += '<button class="btn btn-primary btn-save" id="gSave">保存</button></div>';
 
       var recs = d.growth.slice().sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
       if (recs.length) {

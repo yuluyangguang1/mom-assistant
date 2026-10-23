@@ -156,7 +156,7 @@
         html += '<label class="chk"><input type="checkbox" class="pSym" value="' + s + '"> ' + s + '</label>';
       });
       html += '</div>';
-      html += '<button class="btn btn-primary" id="pSave">保存</button> ';
+      html += '<button class="btn btn-primary btn-save" id="pSave">保存</button> ';
       html += '<button class="btn" id="pClear">清空记录</button></div>';
 
       /* E3：参考窗口（仅近 3 周期 24–38 天且波动 ≤9 天才显示日期窗口） */

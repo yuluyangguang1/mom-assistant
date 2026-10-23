@@ -142,7 +142,7 @@
       html += '<label>或自定义<input type="text" id="msTitle" placeholder="如：第一次游泳"></label>';
       html += Util.dateSlider({ id: 'msDate', title: '日期', value: Util.todayISO(), min: Util.addDays(Util.todayISO(), -31), max: Util.todayISO() });
       html += '<label>备注（可选）<input type="text" id="msNote" placeholder="当时的情景…"></label>';
-      html += '<button class="btn btn-primary" id="msSave">保存</button></div>';
+      html += '<button class="btn btn-primary btn-save" id="msSave">保存</button></div>';
 
       /* 时间线 */
       var list = (d.milestones || []).slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });

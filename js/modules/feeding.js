@@ -401,7 +401,7 @@
           + '<p class="hint">写一句话就行，保存后会自动按句号拆成步骤。</p>'
           + '</div>';
         html += '<p class="hint" id="solidHint" style="display:none">辅食的种类与克数不成线性，暂不提供滑杆——请在备注里写明（如「南瓜泥 60g」）。</p>';
-      html += '<button class="btn btn-primary" id="fSave">保存</button></div>';
+      html += '<button class="btn btn-primary btn-save" id="fSave">保存</button></div>';
 
       html += '<div class="card"><h2>最近记录</h2>';
       var list = d.feedings.slice().sort(function (a, b) { return new Date(b.start) - new Date(a.start); }).slice(0, 20);

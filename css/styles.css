@@ -358,6 +358,15 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
   box-shadow: 0 6px 16px -6px var(--primary-strong);
 }
 .btn-primary .ico { color: var(--on-primary); }
+/* 第 178 次：表单的主操作（保存 / 开始计时）统一为整行大按钮——
+   原来是左下角一颗小「保存」，各页宽窄不一；记录是每天最高频的动作，按钮要一眼找到、拇指好按。 */
+.btn-save {
+  display: flex; width: 100%; margin: var(--space-md) 0 var(--space-xs);
+  min-height: calc(50px * var(--fs-mul)); font-size: calc(16px * var(--fs-mul)); font-weight: 600;
+  border-radius: var(--radius-pill);
+}
+/* 同一页已经有「开始计时」这个主按钮时，「补记」的保存用次要样式（白底描边），避免两颗一样抢眼的大按钮 */
+.btn-save:not(.btn-primary) { color: var(--primary-text); }
 .btn-primary:hover { filter: brightness(1.05); box-shadow: 0 8px 20px -8px var(--primary-strong); }
 .btn-danger { background: var(--surface); color: var(--danger); border-color: rgba(208,91,74,.35); }
 .btn-danger:hover { background: var(--danger-weak); }

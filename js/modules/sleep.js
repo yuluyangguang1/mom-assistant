@@ -65,7 +65,7 @@
         }
         html += '<button class="btn btn-primary" id="sEnd">结束并记录</button>';
       } else {
-        html += '<button class="btn btn-primary" id="sStart">开始睡眠计时</button>';
+        html += '<button class="btn btn-primary btn-save" id="sStart">开始睡眠计时</button>';
         html += '<p class="hint">点开始后记录本次睡眠，可暂停/继续。</p>';
       }
       html += '</div>';
@@ -152,7 +152,7 @@
       html += '<div class="row"><label>入睡<input type="datetime-local" id="sManStart" value="' + dtLocalValue(startDef) + '"></label>'
         + '<label>醒来<input type="datetime-local" id="sManEnd" value="' + dtLocalValue(endDef) + '"></label></div>';
       html += '<p class="hint">夜醒次数：</p>' + wakSeg('sManWak', 'data-mwak');
-      html += '<button class="btn btn-primary" id="sManSave" type="button">保存这条</button>';
+      html += '<button class="btn btn-save" id="sManSave" type="button">保存这条</button>';
       html += '<p class="hint">忘了记也没关系，漏记不会清零、不会影响任何统计，回来补上就行。</p></div>';
 
       view.innerHTML = html;

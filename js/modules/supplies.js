@@ -368,7 +368,7 @@
       html += '<label class="chk"><input type="checkbox" id="spAlsoCost">'
         + '同时在记账里记这一笔<span class="hint-inline" id="spAlsoCostHint"></span></label>';
       html += '<p class="hint">同名同一天再记会并入原来那条，不会多出一行。</p>';
-      html += '<button class="btn btn-primary" id="spSave">保存</button></div>';
+      html += '<button class="btn btn-primary btn-save" id="spSave">保存</button></div>';
 
       /* 清单 */
       html += '<div class="card"><h2>清单</h2>';

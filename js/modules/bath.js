@@ -41,7 +41,7 @@
       } else {
         html += '<div class="card"><h2>开始洗澡</h2>'
           + '<p class="hint">下水前点一下开始，洗完点结束，时长自动算好——不用事后回想。</p>'
-          + '<button class="btn btn-primary" id="careStart" type="button">开始计时</button></div>';
+          + '<button class="btn btn-primary btn-save" id="careStart" type="button">开始计时</button></div>';
       }
 
       /* 记一次 */
@@ -50,7 +50,7 @@
         'inputmode="numeric" placeholder="如 10"></label>';
       html += '<label>备注（可选）<input type="text" id="baNote" maxlength="40" ' +
         'placeholder="如 用了新浴盆 / 洗头哭了"></label>';
-      html += '<button class="btn btn-primary" id="baSave">保存</button></div>';
+      html += '<button class="btn btn-save" id="baSave">保存</button></div>';
 
       /* 统计 */
       var monthKey = Util.todayISO().slice(0, 7);

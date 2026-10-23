@@ -40,7 +40,7 @@
       } else {
         html += '<div class="card"><h2>开始游泳</h2>'
           + '<p class="hint">下水点一下开始，上岸点结束，时长自动算好——水里的时候不用惦记记。</p>'
-          + '<button class="btn btn-primary" id="careStart" type="button">开始计时</button></div>';
+          + '<button class="btn btn-primary btn-save" id="careStart" type="button">开始计时</button></div>';
       }
 
       html += '<div class="card"><h2>补记一次游泳</h2>';
@@ -48,7 +48,7 @@
         'inputmode="numeric" placeholder="如 15"></label>';
       html += '<label>备注（可选）<input type="text" id="swNote" maxlength="40" ' +
         'placeholder="如 第一次下水 / 有点怕"></label>';
-      html += '<button class="btn btn-primary" id="swSave">保存</button></div>';
+      html += '<button class="btn btn-save" id="swSave">保存</button></div>';
 
       var monthKey = Util.todayISO().slice(0, 7);
       var monthCount = all.filter(function (r) { return String(r.time).slice(0, 7) === monthKey; }).length;

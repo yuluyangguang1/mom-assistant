@@ -102,7 +102,7 @@
       });
       html += '</select></label>';
       html += '<label>备注（可选）<input type="text" id="tNote" maxlength="40" placeholder="如 午睡后 / 精神还行"></label>';
-      html += '<button class="btn btn-primary" id="tSave">保存</button>';
+      html += '<button class="btn btn-primary btn-save" id="tSave">保存</button>';
       html += '<p class="hint">不同部位的参考值不同，记下部位，回看时才知道这几次是不是同一把尺子量出来的。</p></div>';
 
       /* 今日小结 */

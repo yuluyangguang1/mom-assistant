@@ -54,7 +54,7 @@
       } else {
         html += '<div class="card"><h2>开始日晒</h2>'
           + '<p class="hint">到户外点一下开始，回屋点结束，时长自动算好。</p>'
-          + '<button class="btn btn-primary" id="careStart" type="button">开始计时</button></div>';
+          + '<button class="btn btn-primary btn-save" id="careStart" type="button">开始计时</button></div>';
       }
 
       html += '<div class="card"><h2>补记一次日晒</h2>';
@@ -65,7 +65,7 @@
       html += '</select></label>';
       html += '<label>备注（可选）<input type="text" id="suNote" maxlength="40" ' +
         'placeholder="如 上午十点前 / 阴天"></label>';
-      html += '<button class="btn btn-primary" id="suSave">保存</button></div>';
+      html += '<button class="btn btn-save" id="suSave">保存</button></div>';
 
       var todayCount = all.filter(function (r) { return Util.dayKeyOf(r.time, DS) === dayNow; }).length;
       var todayMin = all.filter(function (r) { return Util.dayKeyOf(r.time, DS) === dayNow; })

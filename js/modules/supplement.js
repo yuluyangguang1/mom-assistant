@@ -120,7 +120,7 @@
       html += '</select></label>';
       html += '<label>每日次数<input type="number" id="spPerDay" min="1" max="6" ' +
         'inputmode="numeric" value="1"></label>';
-      html += '<button class="btn btn-primary" id="spAdd">加入计划</button>';
+      html += '<button class="btn btn-primary btn-save" id="spAdd">加入计划</button>';
       html += '</div>';
       html += '<p class="hint">吃多少、吃多久，按医嘱或说明书；这里只记「有没有吃」，不给剂量建议。</p>';
       html += '</div>';

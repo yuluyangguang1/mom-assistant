@@ -84,7 +84,7 @@
       });
       html += '</div>';
       html += '<label>想多说一句（可选）<input type="text" id="moodNote" maxlength="40" placeholder="比如：昨晚只睡了四个小时"></label>';
-      html += '<button class="btn btn-primary" id="moodSave">保存</button></div>';
+      html += '<button class="btn btn-primary btn-save" id="moodSave">保存</button></div>';
 
       /* 近 14 天趋势：每天一枚圆点（取当天最近一次），颜色 = 情绪档。
          刻意不做折线图——趋势要温和地呈现，不放大波动制造「病情感」。 */

@@ -28,7 +28,7 @@
       html += '</select></label>';
       html += '<label>备注<input type="text" id="fNote" placeholder="可选"></label>';
       html += Util.dateSlider({ id: 'fDate', title: '日期', value: Util.todayISO(), min: Util.addDays(Util.todayISO(), -31), max: Util.todayISO() });
-      html += '<button class="btn btn-primary" id="fSave">保存</button></div>';
+      html += '<button class="btn btn-primary btn-save" id="fSave">保存</button></div>';
 
       var recs = d.finance.records.slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
       var total = recs.reduce(function (s, r) { return s + (parseFloat(r.amount) || 0); }, 0);

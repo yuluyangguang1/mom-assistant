@@ -35,7 +35,7 @@
         html += '<button class="btn btn-primary" id="cEnd">结束本次</button> ';
         html += '<button class="btn" id="cCancel">取消</button>';
       } else {
-        html += '<button class="btn btn-primary" id="cStart">记录一次宫缩（开始）</button>';
+        html += '<button class="btn btn-primary btn-save" id="cStart">记录一次宫缩（开始）</button>';
         html += '<p class="hint">每次宫缩到来时点"开始"，结束时点"结束"。间隔按"下一次开始 − 本次开始"(START-to-START)计算。</p>';
       }
       html += '</div>';

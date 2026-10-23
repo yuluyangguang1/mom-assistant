@@ -44,7 +44,7 @@
         'placeholder="如 80"></label>';
       html += '<label>备注（可选）<input type="text" id="waNote" maxlength="40" ' +
         'placeholder="如 用学饮杯 / 喝了半杯"></label>';
-      html += '<button class="btn btn-primary" id="waSave">记一次</button>';
+      html += '<button class="btn btn-primary btn-save" id="waSave">记一次</button>';
       html += '<p class="hint">只统计喝进去的水，冲奶粉用的水不算在内。</p></div>';
 
       /* 最近记录 */

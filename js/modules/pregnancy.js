@@ -46,7 +46,7 @@
       html += '<div class="card"><h2>预产期设置</h2>';
       html += Util.dateSlider({ id: 'lmp', title: '末次月经 (LMP)', value: pg.lmp || '', min: Util.addDays(Util.todayISO(), -320), max: Util.todayISO(), opt: { label: '未设置', invert: false } });
       html += Util.dateSlider({ id: 'due', title: '预产期（可手动改，将联动 LMP）', value: pg.dueDate || '', min: Util.addDays(Util.todayISO(), -60), max: Util.addDays(Util.todayISO(), 130), opt: { label: '未设置', invert: false } });
-      html += '<button class="btn btn-primary" id="pgSave">保存</button>';
+      html += '<button class="btn btn-primary btn-save" id="pgSave">保存</button>';
       html += '<p class="hint">预产期 = 末次月经 + 280 天（40周）。修改任一项会自动同步另一项。</p></div>';
 
       var cw = currentWeek();
@@ -91,7 +91,7 @@
       html += '<div class="row">' + Util.dateSlider({ id: 'mwDate', title: '日期', value: Util.todayISO(), min: Util.addDays(Util.todayISO(), -31), max: Util.todayISO() }) + '</div>';
       /* 体重改尺滑杆录入（第 42 次）：孕期每周只增 0.3–0.5kg，0.1 步进的滑杆比数字键盘好按得多 */
       html += Util.rulerHTML('mwRuler', { unit: 'kg', label: '体重' });
-      html += '<button class="btn btn-primary" id="mwAdd">保存体重</button>';
+      html += '<button class="btn btn-primary btn-save" id="mwAdd">保存体重</button>';
       if (mw.length) {
         var mwSorted = mw.slice().sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
         var mwGain = (mwSorted[mwSorted.length - 1].kg - mwSorted[0].kg).toFixed(1);
@@ -113,7 +113,7 @@
       html += '<div class="card"><h2>产检记录</h2>';      html += '<label>项目<input type="text" id="rcItem" placeholder="如 宫高 / 体重 / 血压"></label>';
       html += '<label>数值<input type="text" id="rcVal" placeholder="如 28cm / 120/80"></label>';
       html += Util.dateSlider({ id: 'rcDate', title: '日期', value: Util.todayISO(), min: Util.addDays(Util.todayISO(), -31), max: Util.todayISO() });
-      html += '<button class="btn btn-primary" id="rcAdd">保存记录</button>';
+      html += '<button class="btn btn-primary btn-save" id="rcAdd">保存记录</button>';
       if (d.prenatal.records.length) {
         var byItem = {};
         d.prenatal.records.forEach(function (r) { (byItem[r.item] = byItem[r.item] || []).push(r); });
