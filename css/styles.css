@@ -343,7 +343,7 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   margin: var(--space-xs) var(--space-sm) var(--space-xs) 0; padding: 12px 20px;
   font-size: var(--fs-body); font-family: inherit; line-height: 1.2;
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  border: 1px solid var(--border); border-radius: var(--radius-pill); /* 第 179 次：与保存按钮、chips 同为胶囊 */
   background: var(--surface); color: var(--text); cursor: pointer;
   box-shadow: var(--shadow-card);
   transition: background .2s var(--ease), border-color .2s var(--ease), transform .15s var(--spring), box-shadow .2s var(--ease);
@@ -432,12 +432,12 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
   /* 内边距/字号按「喂养 4 枚类型 chips 在 360–375px 一行放下」反推：
      4×(22+15+5+27)+3×6 ≈ 286 ≤ 360 视口内容宽 286。勿再放大，否则母乳/辅食会折行。 */
   padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius-pill);
-  background: var(--surface); color: var(--muted); cursor: pointer;
+  background: var(--surface); color: var(--text); cursor: pointer; /* 第 179 次：未选中 chips 统一白底 + 正文色 */
   font-size: calc(13.5px * var(--fs-mul)); font-family: inherit;
   transition: background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease);
 }
 .seg-btn .ico { width: 15px; height: 15px; }
-.seg-btn:hover { color: var(--text); }
+.seg-btn:hover { border-color: var(--primary); }
 /* 按压反馈（第 44 次）：触屏 hover 已被 @media(hover:none) 禁用，:active 是仅剩的
    触控反馈通道——没有它，点药丸看不出「点到了」（MicroKit click-feedback 模式） */
 .seg-btn:active { transform: scale(.95); }
@@ -462,7 +462,7 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
   min-height: 44px;
   padding: 8px 12px;
   border: 1px solid var(--border); border-radius: var(--radius-pill);
-  background: var(--surface-2); color: var(--text);
+  background: var(--surface); color: var(--text);
   font-size: calc(13.5px * var(--fs-mul)); font-family: inherit; cursor: pointer;
   transition: background .2s var(--ease), border-color .2s var(--ease), transform .2s var(--spring);
 }
@@ -1391,9 +1391,9 @@ body.hc:not(.dark) .alltools-entry { border: 2px solid var(--tile, var(--border)
    时间轴刻意不做折线：趋势温和呈现，不放大波动制造「病感情感」。 */
 .mood-lv { display: flex; gap: 8px; }
 .mood-lv button {
-  flex: 1; padding: 11px 0; border-radius: var(--radius-sm);
-  border: 1px solid var(--border); background: var(--surface-2);
-  color: var(--text); font-size: calc(13px * var(--fs-mul)); font-family: inherit; cursor: pointer;
+  flex: 1; padding: 11px 0; border-radius: var(--radius-pill);
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); font-size: calc(13.5px * var(--fs-mul)); font-family: inherit; cursor: pointer;
   min-height: 44px; box-sizing: border-box; /* 第 128 次：padding 撑到 41px，补 min-height 到 U-08 下限 44 */
 }
 .mood-lv button.active {
@@ -2624,7 +2624,7 @@ body.dark .tile-size { background: rgba(255,255,255,.08); }
 
 /* 饮水：快捷加水按钮一排（30/50/100/150 ml） */
 .water-quick { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
-.water-quick .btn-mini { min-width: 58px; min-height: 40px; font-variant-numeric: tabular-nums; }
+.water-quick .btn-mini { min-width: 58px; min-height: 44px; font-variant-numeric: tabular-nums; }
 
 /* 补剂：计划行右侧「+1」按钮——触摸目标 ≥44px（第 126 次真机教训的延续） */
 .sup-plans .icon-btn,
@@ -2839,7 +2839,7 @@ body .tabbar .dock-btn[hidden] { display: none; }
   min-width: 44px; min-height: 44px; padding: 0 13px;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   border: 1px solid var(--border); border-radius: var(--radius-pill);
-  background: var(--surface-2); color: var(--text);
+  background: var(--surface); color: var(--text);
   font-family: inherit; font-size: calc(14px * var(--fs-mul)); font-weight: 600;
   cursor: pointer; white-space: nowrap;
   transition: background .18s var(--ease), transform .15s var(--spring), color .18s var(--ease);
@@ -2900,7 +2900,7 @@ body .tabbar .dock-btn[hidden] { display: none; }
 .diaper-color .color-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 6px; }
 .color-chip {
   display: inline-flex; align-items: center; gap: 7px;
-  min-height: 40px; padding: 0 13px;
+  min-height: 44px; padding: 0 13px;
   border: 1px solid var(--border); border-radius: var(--radius-pill);
   background: var(--surface-2); color: var(--text);
   font-family: inherit; font-size: calc(13.5px * var(--fs-mul)); font-weight: 600; cursor: pointer;
@@ -3020,8 +3020,8 @@ body .tabbar.is-sub #backBtn {
    ============================================================ */
 /* ① 情绪标签 32 → 44：一排五个、记录时连点，是最容易被手指漏掉的控件 */
 .mood-tags button {
-  padding: 7px 14px; border-radius: var(--radius-pill); font-size: calc(12.5px * var(--fs-mul));
-  border: 1px solid var(--border); background: var(--surface-2);
+  padding: 7px 14px; border-radius: var(--radius-pill); font-size: calc(13.5px * var(--fs-mul));
+  border: 1px solid var(--border); background: var(--surface);
   color: var(--text); font-family: inherit; cursor: pointer;
   /* ↑ 第 171 次：同名选择器合并到此处 */ min-height: 44px; padding: 0 14px; }
 

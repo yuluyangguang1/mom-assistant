@@ -15,7 +15,7 @@ for d in range(5, 12):
         sleeps.append({'id': f's{d}{a}', 'start': T(d, a) + ':00', 'end': T(d, b) + ':00', 'pausedMs': 0, 'note': None, 'wakings': 0, 'longestMin': None})
     for hm in ['02:00', '06:30', '09:10', '12:40', '16:00', '19:30']:
         if d == 11 and hm > '15:00': continue
-        diapers.append({'id': f'd{d}{hm}', 'type': random.choice(['wet', 'wet', 'dirty', 'both']), 'time': T(d, hm), 'note': None})
+        diapers.append({'id': f'd{d}{hm}', 'type': random.choice(['pee', 'pee', 'poop', 'both']), 'time': T(d, hm), 'note': None})
 growth = [{'id': 'g1', 'date': '2026-05-20', 'weightKg': 3.3, 'heightCm': 50, 'headCm': 34}, {'id': 'g2', 'date': '2026-06-20', 'weightKg': 4.4, 'heightCm': 54.5, 'headCm': 37},
           {'id': 'g3', 'date': '2026-07-20', 'weightKg': 5.5, 'heightCm': 58, 'headCm': 39}, {'id': 'g4', 'date': '2026-08-20', 'weightKg': 6.3, 'heightCm': 61, 'headCm': 40.5}, {'id': 'g5', 'date': '2026-09-20', 'weightKg': 6.9, 'heightCm': 63.5, 'headCm': 41.5}]
 temps = [{'id': 't1', 'time': T(10, '20:10'), 'value': 36.8, 'note': None}, {'id': 't2', 'time': T(11, '08:00'), 'value': 36.6, 'note': None}]
