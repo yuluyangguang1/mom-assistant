@@ -3799,3 +3799,35 @@ body.dark { background-color: #221E1A; }
 body.in-home { background-color: rgb(var(--sky-ambient-top, 167, 189, 236)); }
 /* 二级页顶栏日期撤下（只保留占位） */
 .mod-date { visibility: hidden; }
+
+/* ============================================================
+   第 168 次 · iOS 日期输入框错位
+   iOS Safari 的原生 date / datetime-local 控件有自己的最小宽度，
+   width:100% 管不住，会撑出卡片右边；两个并排时还会叠在一起。
+   去掉原生外观、允许收缩、内容左对齐；并排的日期时间改成上下两行。
+   ============================================================ */
+input[type=date], input[type=datetime-local], input[type=time] {
+  -webkit-appearance: none; appearance: none;
+  box-sizing: border-box; min-width: 0; max-width: 100%;
+  min-height: 48px; text-align: left;
+}
+input[type=date]::-webkit-date-and-time-value,
+input[type=datetime-local]::-webkit-date-and-time-value,
+input[type=time]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+.row:has(input[type=datetime-local]) { flex-direction: column; gap: 0; }
+
+/* ============================================================
+   第 168 次 · 首页天空顶部「切几个页面后错位」
+   真机现象：第一次打开首页正常；进过二级页再回来，状态栏下面多出一条
+   从天空色渐变到奶油白的硬边横带，高度正好等于顶栏。
+   原因（依据 iOS Liquid Glass 的已知行为推断）：二级页顶栏是 sticky，
+   iOS 会把贴在顶部的 sticky/fixed 元素当成「顶栏」取色、加系统模糊；
+   回到首页后顶栏改成 static，但系统那层没撤，于是留下一块。
+   修法：所有页面的顶栏都不再 sticky、也不画背景，跟着内容一起滚走；
+   页面顶部不再有任何 sticky/fixed 元素，状态栏一带交给系统统一处理。
+   二级页滚动后居中出现的小标题（第 161 次）随之撤下，大标题照常显示。
+   ============================================================ */
+.app-header, .app-header.is-solid, .app-header.is-scrolled, body.in-home .app-header.is-deep {
+  position: static !important; background: none !important;
+}
+.hdr-title { display: none !important; }

@@ -667,62 +667,10 @@
          homeLayout 有效 → 顺序/大小/增删全部由用户布局决定（阶段筛选与收敛退位）；
          编辑模式 → 画布展示全量模块（被删的不画，目录可加回）；
          其余情况走原有自动管线（阶段筛选 + 收敛 + 截取前 8），行为逐行未动。 */
-      var editing = !!Modules.home._edit;
-      var ORDER = STAGE_ORDER[(stage === 'pregnancy') ? 'pregnancy' : 'baby'];
-      var layout = Modules.home._layoutNormalize(d.settings.homeLayout, UNIVERSE());
-      var tileDropped = false;
-      if (editing) {
-        var seenC = {}; var canvasIds = [];
-        /* 画布基线（第 121 次）：用户布局优先；没编辑过 = 条件卡在前（对应自动模式
-           里卡片在网格上方的视觉现状）+ 阶段序。注意基线只含**自动模式就在渲染的卡**
-           （feednext/growthspark）——last-* 不进默认基线：它们是「可添加组件」，
-           在目录里等用户挑；否则首次编辑物化会把 5 张距上次卡全塞进首页
-           （画布即物化基线，第 120 次的「所见即所得」纪律）。 */
-        var builtCardIds = cardTiles.filter(function (c) {
-          return c.id === 'feednext' || c.id === 'growthspark';
-        }).map(function (c) { return c.id; });
-        var baseIds = layout
-          ? layout.items.map(function (it) { return it.id; })
-          : builtCardIds.concat(ORDER.slice());
-        baseIds.forEach(function (id) {
-          if (!seenC[id] && (!layout || layout.removed.indexOf(id) < 0)) { seenC[id] = 1; canvasIds.push(id); }
-        });
-        UNIVERSE().forEach(function (id) {
-          /* 卡组件只跟随 items，不殿后（第 122 次扩展到 rec 系列）：
-             last / rec 都是「可添加组件」，目录常驻；条件卡不在本轮构建时
-             也不进画布（零惊吓）。 */
-          if (LAST_DEFS_IDS.indexOf(id) >= 0) return;
-          if (CARDS_META[id] && builtCardIds.indexOf(id) < 0) return;
-          if (!seenC[id] && (!layout || layout.removed.indexOf(id) < 0)) { seenC[id] = 1; canvasIds.push(id); }
-        });
-        var cmap = {};
-        tiles.forEach(function (t) { cmap[t.id] = t; });
-        cardTiles.forEach(function (c) { cmap[c.id] = c; });
-        if (layout) {
-          /* items 里有、本轮条件不满足的条件卡 → 画布渲染占位（可删可排序；
-             条件满足时自动恢复真卡。last-* 总有对象，不在此列） */
-          layout.items.forEach(function (it) {
-            if (!cmap[it.id] && CARDS_META[it.id] && LAST_DEFS_IDS.indexOf(it.id) < 0) {
-              cmap[it.id] = { id: it.id, _card: true, _ph: true, name: CARDS_META[it.id].name, icon: CARDS_META[it.id].icon };
-            }
-          });
-        }
-        tiles = canvasIds.filter(function (id) { return cmap[id]; }).map(function (id) {
-          var t = cmap[id];
-          var it = layout && layout.items.filter(function (x) { return x.id === id; })[0];
-          t._sz = it ? it.size : 'l';
-          return t;
-        });
-        if (layout && layout.removed.length) tileDropped = true;
-        Modules.home._canvasIds = canvasIds;
-      } else if (layout) {
-        /* 第 125 次：非编辑态清空画布基线，避免退出编辑模式后
-           _ensureLayout 误用上一次会话的陈旧 _canvasIds 作物化基线。 */
-        Modules.home._canvasIds = null;
-        tiles = Modules.home._layoutApply(tiles.concat(cardTiles), layout);
-        if (layout.removed.length) tileDropped = true;
-      } else {
-        Modules.home._canvasIds = null;
+      /* 第 168 次：自动管线（阶段筛选 + 收敛限额）抽成函数——编辑模式要用它算出
+         「首页现在实际显示的模块」作为画布基线，不能再把全部模块铺上去。 */
+      function autoPipeline(tiles) {
+        var tileDropped = false;
       if (d.settings.tilesByStage !== false && (stage === 'pregnancy' || stage === 'baby')) {
         var stageBefore = tiles.length;
         tiles = tiles.filter(function (t) {
@@ -770,6 +718,71 @@
         tiles = tiles.slice(0, HOME_CAP);
         tileDropped = true;
       }
+        return { tiles: tiles, dropped: tileDropped };
+      }
+      var editing = !!Modules.home._edit;
+      var ORDER = STAGE_ORDER[(stage === 'pregnancy') ? 'pregnancy' : 'baby'];
+      var layout = Modules.home._layoutNormalize(d.settings.homeLayout, UNIVERSE());
+      var tileDropped = false;
+      if (editing) {
+        var seenC = {}; var canvasIds = [];
+        /* 画布基线（第 121 次）：用户布局优先；没编辑过 = 条件卡在前（对应自动模式
+           里卡片在网格上方的视觉现状）+ 阶段序。注意基线只含**自动模式就在渲染的卡**
+           （feednext/growthspark）——last-* 不进默认基线：它们是「可添加组件」，
+           在目录里等用户挑；否则首次编辑物化会把 5 张距上次卡全塞进首页
+           （画布即物化基线，第 120 次的「所见即所得」纪律）。 */
+        var builtCardIds = cardTiles.filter(function (c) {
+          return c.id === 'feednext' || c.id === 'growthspark';
+        }).map(function (c) { return c.id; });
+        /* 第 168 次（用户反馈：一点编辑首页，所有隐藏的模块都冒出来）：
+           没编辑过时，画布基线 = 自动模式下首页实际显示的磁贴（阶段筛选 + 收敛后），
+           其余模块留在「添加组件」目录里等用户加，不再整张铺开。 */
+        var autoIds = layout ? [] : autoPipeline(tiles.slice()).tiles.map(function (t) { return t.id; });
+        var baseIds = layout
+          ? layout.items.map(function (it) { return it.id; })
+          : builtCardIds.concat(autoIds);
+        baseIds.forEach(function (id) {
+          if (!seenC[id] && (!layout || layout.removed.indexOf(id) < 0)) { seenC[id] = 1; canvasIds.push(id); }
+        });
+        if (layout) UNIVERSE().forEach(function (id) {
+          /* 卡组件只跟随 items，不殿后（第 122 次扩展到 rec 系列）：
+             last / rec 都是「可添加组件」，目录常驻；条件卡不在本轮构建时
+             也不进画布（零惊吓）。 */
+          if (LAST_DEFS_IDS.indexOf(id) >= 0) return;
+          if (CARDS_META[id] && builtCardIds.indexOf(id) < 0) return;
+          if (!seenC[id] && (!layout || layout.removed.indexOf(id) < 0)) { seenC[id] = 1; canvasIds.push(id); }
+        });
+        var cmap = {};
+        tiles.forEach(function (t) { cmap[t.id] = t; });
+        cardTiles.forEach(function (c) { cmap[c.id] = c; });
+        if (layout) {
+          /* items 里有、本轮条件不满足的条件卡 → 画布渲染占位（可删可排序；
+             条件满足时自动恢复真卡。last-* 总有对象，不在此列） */
+          layout.items.forEach(function (it) {
+            if (!cmap[it.id] && CARDS_META[it.id] && LAST_DEFS_IDS.indexOf(it.id) < 0) {
+              cmap[it.id] = { id: it.id, _card: true, _ph: true, name: CARDS_META[it.id].name, icon: CARDS_META[it.id].icon };
+            }
+          });
+        }
+        tiles = canvasIds.filter(function (id) { return cmap[id]; }).map(function (id) {
+          var t = cmap[id];
+          var it = layout && layout.items.filter(function (x) { return x.id === id; })[0];
+          t._sz = it ? it.size : 'l';
+          return t;
+        });
+        if (layout && layout.removed.length) tileDropped = true;
+        Modules.home._canvasIds = canvasIds;
+      } else if (layout) {
+        /* 第 125 次：非编辑态清空画布基线，避免退出编辑模式后
+           _ensureLayout 误用上一次会话的陈旧 _canvasIds 作物化基线。 */
+        Modules.home._canvasIds = null;
+        tiles = Modules.home._layoutApply(tiles.concat(cardTiles), layout);
+        if (layout.removed.length) tileDropped = true;
+      } else {
+        Modules.home._canvasIds = null;
+        var autoR = autoPipeline(tiles);
+        tiles = autoR.tiles;
+        if (autoR.dropped) tileDropped = true;
       } /* ── 第 120 次：else（自动管线）结束 ── */
 
       var html = '';
@@ -1100,6 +1113,7 @@
          实测它在网格后位于文档 ≈924px（冷启动）/ ≈1154px（普通日），视口 844px，
          要滚 1.1–1.4 屏才够得着，而它是「一个入口都不丢」的唯一枢纽。
          上移后首屏磁贴区上方即可见；不动第 118 次「底栏 2 页签」裁定。 */
+      var converge = d.settings.homeConverge !== false; /* 第 168 次：autoPipeline 内的同名变量是局部的，这里另取一次 */
       if (tileDropped && (editing || layout || converge)) {
         var alltoolsN = (global.Modules && Modules.alltools && Modules.alltools._modules
           && Modules.alltools._modules.length) ? Modules.alltools._modules.length : 19;
@@ -1682,7 +1696,12 @@
       : STAGE_ORDER[editStage(d)].slice();
     var items = []; var seen = {};
     ids.forEach(function (id) { if (!seen[id]) { seen[id] = 1; items.push({ id: id, size: 'l' }); } });
-    return { items: items, removed: [] };
+    /* 第 168 次：没上画布的磁贴模块记进 removed——否则 _layoutApply 的「新模块殿后」
+       会把它们全部补到首页末尾（用户看到的就是：编辑一次，隐藏的模块全出来了）。 */
+    var removed = UNIVERSE().filter(function (id) {
+      return !seen[id] && LAST_DEFS_IDS.indexOf(id) < 0 && !CARDS_META[id];
+    });
+    return { items: items, removed: removed };
   };
   function withLayout(fn) {
     var hl = Modules.home._ensureLayout();

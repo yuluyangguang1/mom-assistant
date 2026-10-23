@@ -176,6 +176,20 @@ def test_format(b):
     p.close()
 
 
+def test_home_edit(b):
+    """第 168 次：进入编辑首页不能把隐藏模块全铺出来；编辑后被收起的模块也不能补回首页。"""
+    p, errs = fresh(b, 393, 852)
+    ids = lambda: p.evaluate("[...document.querySelectorAll('.record-grid [data-go]')].map(e=>e.dataset.go).join(',')")
+    auto = ids()
+    p.evaluate("Modules.home._edit=true;App.rerender()"); p.wait_for_timeout(300)
+    edit = ids()
+    check('编辑画布 = 首页当前显示的模块', edit == auto, (auto, edit))
+    p.evaluate("Modules.home._editSize('feeding');Modules.home._edit=false;App.rerender()"); p.wait_for_timeout(300)
+    check('编辑一次后首页模块不增加', ids() == auto, ids())
+    check('编辑首页无报错', not errs, errs)
+    p.close()
+
+
 def test_layout_and_toast(b):
     p, errs = fresh(b, 360, 740)
     bad = {}
@@ -219,7 +233,7 @@ def test_layout_and_toast(b):
 def main():
     with sync_playwright() as pw:
         b = pw.chromium.launch()
-        for fn in (test_data, test_flows, test_format, test_layout_and_toast):
+        for fn in (test_data, test_flows, test_format, test_home_edit, test_layout_and_toast):
             try:
                 fn(b)
             except Exception as e:  # 一组崩了不影响其他组
