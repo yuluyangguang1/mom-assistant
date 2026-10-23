@@ -117,10 +117,11 @@
           /* 第 61 次：行改「左时间+类型 / 右备注」双列 */
           var dot = (r.color && colorOf(r.color)) ? ' <span class="poop-dot" style="--dot:' + colorOf(r.color).hex + '"></span>' : '';
           html += '<li><span class="row-ico">' + icon(ti.icon) + '</span>'
-            + '<span class="li-main"><b>' + Util.fmtRowTime(r.time) + '</b>' + Util.escapeHtml(ti.t) + dot + '</span>'
-            + '<span class="li-sub">' + (r.note ? Util.escapeHtml(r.note) : '') + '</span>'
-            + '<button class="btn btn-mini" data-colorbtn="' + r.id + '">' + (r.color ? '改色' : '颜色') + '</button>'
-            + '<button class="btn btn-mini" data-note="' + r.id + '">' + (r.note ? '改备注' : '备注') + '</button>'
+            /* 第 160 次：类型挪到第二行，第一行只放时间，窄屏也不被行内按钮挤成「10-…」 */
+            + '<span class="li-main"><b>' + Util.fmtRowTime(r.time) + '</b></span>'
+            + '<span class="li-sub">' + Util.escapeHtml(ti.t) + dot + (r.note ? ' · ' + Util.escapeHtml(r.note) : '') + '</span>'
+            + '<button class="btn btn-mini" data-colorbtn="' + r.id + '" aria-label="' + (r.color ? '修改颜色' : '记录颜色') + '">颜色</button>'
+            + '<button class="btn btn-mini" data-note="' + r.id + '" aria-label="' + (r.note ? '修改备注' : '添加备注') + '">备注</button>'
             + '<button class="icon-btn" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
         });
         html += '</ul>';
