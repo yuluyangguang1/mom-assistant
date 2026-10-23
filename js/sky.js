@@ -220,6 +220,10 @@
      过渡带都消费同一颜色，天空与页面在底边逐像素同色。暗色模式不用
      live 值（seam 固定 34,30,26），写下去也无妨。
      沙箱 / 无 DOM 环境静默跳过——环境光只是锦上添花，任何异常都不能影响天空本体。 */
+  function relLum(c) {
+    var f = function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+  }
   var ambientCache = '';
   function syncAmbient(pal) {
     try {
@@ -240,8 +244,15 @@
       s.setProperty('--sky-ambient-a', ambA);
       s.setProperty('--sky-dim-o', dim);
       /* 第 155 次：hero 文字直接写在天空上，按天色中段亮度选墨色（白天深字、夜晚 / 晨昏偏暗时浅字） */
-      var lumMid = (0.2126 * pal.mid[0] + 0.7152 * pal.mid[1] + 0.0722 * pal.mid[2]) / 255;
-      document.documentElement.setAttribute('data-sky-ink', lumMid < 0.62 ? 'light' : 'dark');
+      /* 第 181 次（修 19:45 前后白字隐形）：原判据是「中段 gamma 亮度 < .62 切白字」——
+         gamma 值不是视觉亮度，黄昏→夜晚过渡里 19:40 左右就判成浅字，可问候文字实际压在
+         天空下缘（中段与底段之间、底段更亮），白字只剩 1.4–1.7:1。改为 WCAG 相对亮度：
+         取文字真实所在的「中段 40% + 底段 60%」色，深墨与白字谁对比更高用谁。 */
+      var under = [0, 1, 2].map(function (k) { return pal.mid[k] * 0.4 + pal.bottom[k] * 0.6; });
+      var L = relLum(under);
+      var crDark = (L + 0.05) / (0.0245 + 0.05);   /* #2B2A33 相对亮度 ≈ .0245 */
+      var crLight = 1.05 / (L + 0.05);
+      document.documentElement.setAttribute('data-sky-ink', crLight > crDark ? 'light' : 'dark');
     } catch (e) { /* 静默 */ }
   }
 

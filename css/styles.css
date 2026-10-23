@@ -827,7 +827,6 @@ body.dark .tabbar {
 .tab > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .tab .ico { width: 20px; height: 20px; color: var(--muted); margin: 0; }
-.tab-label { font-size: calc(11px * var(--fs-mul)); }
 .tab:hover { color: var(--text); }
 .tab:active { transform: scale(.9); } /* 第 44 次：底栏按压反馈 */
 .tab:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
@@ -2024,9 +2023,9 @@ body.dock-left .tabbar, body.dock-right .tabbar {
    顶栏齿轮隐藏（设置已在底栏），头像保留（身份展示 + 也能开切换面板）。
    normal 不挂类、一条规则都不吃，居中横排原样。
    ============================================================ */
-  flex-direction: column; flex-wrap: nowrap;
+  flex-direction: column; flex-wrap: nowrap; align-items: center;
   overflow: visible;
-  padding: 8px 6px; gap: 2px;
+  padding: 8px 6px; gap: 6px; /* 第 181 次：2→6px，与横排同节奏 */
   /* 第 101 次修复：定位完全自持——不依赖覆盖 base 的 left:50%/transform 链。
      个别内核（X5/夸克等）对 fixed + left:50% + translateX(-50%) + 覆盖的组合
      解析异常时胶囊会整体漂出画面；四向显式声明后任何内核都只能得出同一结果。 */
@@ -2038,14 +2037,13 @@ body.dock-left .tabbar, body.dock-right .tabbar {
 body.dock-left .tab, body.dock-right .tab {
   flex: 0 0 auto; min-width: 0; width: 46px; padding: 9px 0;
 }
-/* 图标-only 页签：标签藏掉（仍留在 DOM，读屏与无障碍语义不变） */
-body.dock-left .tab .tab-label, body.dock-right .tab .tab-label { display: none; }
 body.dock-left .tab .ico, body.dock-right .tab .ico { width: 22px; height: 22px; }
-/* 快记＋在竖排里给一个主色底，与普通页签拉开层级 */
-body.dock-left .tab-plus, body.dock-right .tab-plus { background: var(--primary-weak); }
-body.dock-left .tab-plus .ico, body.dock-right .tab-plus .ico { color: var(--primary-text); }
-/* 设置入口已在底栏：顶栏齿轮收掉，避免双入口 */
-body.dock-left .header-gear, body.dock-right .header-gear { display: none; }
+/* 第 181 次：删掉竖排专用的「＋浅主色底」与「隐藏齿轮」——三种排列按钮内容、配色完全一致，
+   左右手只改方向（齿轮现在就在胶囊里，藏掉它等于把设置入口删了）。 */
+/* 二级页竖排：返回在上、＋在下，不再沿用横排的 152px 最小宽 */
+body.dock-left .tabbar.is-sub, body.dock-right .tabbar.is-sub {
+  min-width: 0; padding: 6px; justify-content: flex-start; gap: 8px;
+}
 /* 快记 FAB 隐藏；动作列从竖排底栏上方展开，与底栏同侧对齐 */
 body.dock-left #quickDock, body.dock-right #quickDock {
   right: auto; bottom: calc(10px + env(safe-area-inset-bottom) + var(--dock-h, 260px) + 12px);
@@ -3694,5 +3692,4 @@ input[type=time]::-webkit-date-and-time-value { text-align: left; margin: 0; }
 /* 第 180 次（对比度复核）：首页背景是天色（body.in-home），直接压在天色上的分区标题和
    「喂奶按上次」提示原用 --muted（褐灰），在蓝天上只有 3.1:1。改随天色墨色走。 */
 body.in-home .section-title, body.in-home .hn-hint { color: rgba(43, 42, 51, .78); }
-html[data-sky-ink="light"] body.in-home .section-title, html[data-sky-ink="light"] body.in-home .hn-hint,
 body.dark.in-home .section-title, body.dark.in-home .hn-hint { color: rgba(255, 255, 255, .8); }

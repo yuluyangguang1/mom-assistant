@@ -66,75 +66,25 @@
     return 'normal';
   }
 
+  var _dockNodes = {};
   function buildTabbar() {
     var bar = document.getElementById('tabbar');
     /* 第 135 次（底部胶囊 dock）：宝宝切换 / 设置 / 返回三个顶栏按钮要搬进胶囊。
        必须在 innerHTML='' 之前取到引用——清空后它们在 DOM 里就找不到了
        （节点对象仍由这几个变量持有，重新 append 即「搬移」，id 与既有事件绑定全部保留）。 */
-    var avEl = document.getElementById('avatarBtn');
-    var gearEl = document.getElementById('settingsBtn');
-    var backEl = document.getElementById('backBtn');
+    /* 第 181 次：三个节点首取后缓存——即使某次重建异常把它们清出了文档，下次仍能放回 */
+    var avEl = _dockNodes.av || (_dockNodes.av = document.getElementById('avatarBtn'));
+    var gearEl = _dockNodes.gear || (_dockNodes.gear = document.getElementById('settingsBtn'));
+    var backEl = _dockNodes.back || (_dockNodes.back = document.getElementById('backBtn'));
     bar.innerHTML = '';
     var hand = handMode();
-    /* 第 100 次：左手/右手模式——五个入口收进一根竖排胶囊（固定屏幕同侧下缘）：
-       首页、日期记录、快记「＋」（转发给 #qdFab 复用整套开合/快记逻辑）、
-       宝宝切换（复用 openBabySheet 面板）、设置。竖排没有文字空间，页签只留图标。 */
-    if (hand !== 'normal') {
-      var defs = [
-        { id: 'home', title: '首页', kind: 'tab' },
-        { id: 'calendar', title: '日期记录', kind: 'tab' },
-        { id: '__quick', title: '快速记录', kind: 'quick' },
-        { id: '__baby', title: '切换宝宝', kind: 'baby' },
-        { id: 'settings', title: '设置', kind: 'tab' }
-      ];
-      defs.forEach(function (t) {
-        var b = document.createElement('button');
-        b.className = 'tab' + (t.kind === 'quick' ? ' tab-plus' : '') + (t.kind === 'tab' && t.id === current ? ' active' : '');
-        b.type = 'button';
-        b.innerHTML = icon(t.id === '__quick' ? 'plus' : (t.id === '__baby' ? 'baby' : t.id))
-          + '<span class="tab-label">' + t.title + '</span>';
-        if (t.kind === 'tab') {
-          b.setAttribute('data-tab', t.id);
-          if (t.id === current) b.setAttribute('aria-current', 'page');
-          b.addEventListener('click', function () { showTab(t.id); });
-        } else if (t.kind === 'quick') {
-          b.setAttribute('data-qd-toggle', '1');
-          b.setAttribute('aria-label', '快速记录');
-          b.addEventListener('click', function () {
-            var fab = document.getElementById('qdFab');
-            if (fab && fab.click) fab.click(); /* 隐藏的 FAB 仍在 DOM，转发点击即复用全部逻辑 */
-          });
-        } else {
-          b.setAttribute('aria-label', '切换宝宝');
-          b.addEventListener('click', function () { openBabySheet(); });
-        }
-        bar.appendChild(b);
-      });
-      /* 快记动作列从底栏上方展开：把竖排胶囊高度喂给 CSS（#quickDock 定位用） */
-      try {
-        var hh = bar.offsetHeight;
-        document.documentElement.style.setProperty('--dock-h', (hh > 0 ? hh : 260) + 'px');
-      } catch (e) { /* QA 桩无真实布局，跳过 */ }
-      /* 第 101 次修复：布局自检兜底——个别真机内核（X5/夸克等）对 fixed + transform
-         覆盖链解析异常时，竖排胶囊会整体漂出画面。rAF 后实测 rect，越界即内联
-         强制回正（内联样式优先级最高，任何怪癖都压得住）。正常时零副作用。 */
-      try {
-        requestAnimationFrame(function () {
-          var r = bar.getBoundingClientRect();
-          var vw = window.innerWidth, vh = window.innerHeight;
-          if (!r || !vw) return;
-          if (r.left < 0 || r.right > vw + 1 || r.bottom > vh + 1 || r.top < 0) {
-            bar.style.left = '12px'; bar.style.right = 'auto';
-            bar.style.top = 'auto'; bar.style.transform = 'none';
-            var b2 = bar.getBoundingClientRect();
-            if (b2.bottom > vh) bar.style.bottom = Math.max(0, vh - b2.height - 4) + 'px';
-          }
-        });
-      } catch (e) { /* 老内核无 rAF 就算了：CSS 已自持 */ }
-      return;
-    }
-    /* 正常排列：居中横排（原逻辑不动） */
-    try { document.documentElement.style.setProperty('--dock-h', '0px'); } catch (e) {}
+    /* 第 181 次（修：左右手 ⇄ 正常来回切，底栏少按钮）：
+       以前左右手模式走一条独立分支，自己造五个按钮，而头像 / 设置 / 返回这三个
+       「搬进胶囊的原顶栏节点」在上面 innerHTML='' 时被一并清出 DOM、再没放回去——
+       切回正常排列时 getElementById 全部取不到，宝宝切换、设置、返回就丢了。
+       同时两种模式的按钮内容也不一样（竖排没有快捷槽位，＋ 的颜色也另一套）。
+       现在三种排列共用同一份按钮清单与同一套节点，左右手只是 CSS 把胶囊竖起来。 */
+    if (hand !== 'normal') bar.classList.add('is-vertical'); else bar.classList.remove('is-vertical');
     /* 第 135 次：胶囊最左 = 宝宝切换（原顶栏左上角头像）。 */
     if (avEl) { avEl.classList.add('dock-btn'); bar.appendChild(avEl); }
     TABS.forEach(function (t) {
@@ -191,6 +141,31 @@
     /* 返回在 ＋ 之前：二级页里 CSS 让「返回靠左、＋ 靠右」，DOM 顺序即视觉顺序 */
     if (backEl) { backEl.classList.add('dock-btn'); bar.appendChild(backEl); }
     bar.appendChild(plus);
+    if (hand === 'normal') {
+      try { document.documentElement.style.setProperty('--dock-h', '0px'); } catch (e) {}
+      bar.style.left = ''; bar.style.right = ''; bar.style.top = ''; bar.style.bottom = ''; bar.style.transform = '';
+      return;
+    }
+    /* 快记动作列从竖排胶囊上方展开：把胶囊真实高度喂给 CSS（#quickDock 定位用） */
+    try {
+      var hh = bar.offsetHeight;
+      document.documentElement.style.setProperty('--dock-h', (hh > 0 ? hh : 260) + 'px');
+    } catch (e) { /* QA 桩无真实布局，跳过 */ }
+    /* 第 101 次：布局自检兜底——个别内核（X5/夸克等）fixed 定位异常时竖排胶囊会漂出画面，
+       rAF 后实测越界即内联回正。 */
+    try {
+      requestAnimationFrame(function () {
+        var r = bar.getBoundingClientRect();
+        var vw = window.innerWidth, vh = window.innerHeight;
+        if (!r || !vw) return;
+        if (r.left < 0 || r.right > vw + 1 || r.bottom > vh + 1 || r.top < 0) {
+          bar.style.left = '12px'; bar.style.right = 'auto';
+          bar.style.top = 'auto'; bar.style.transform = 'none';
+          var b2 = bar.getBoundingClientRect();
+          if (b2.bottom > vh) bar.style.bottom = Math.max(0, vh - b2.height - 4) + 'px';
+        }
+      });
+    } catch (e) { /* 老内核无 rAF：CSS 已自持 */ }
   }
 
   /* 第 169 次：顶栏全站 static、无背景（见 styles.css .app-header），不再按滚动切换雾化类。
@@ -1253,6 +1228,15 @@
     }
     applyTheme();
     buildTabbar();
+    /* 第 181 次：「跟随时间」此前只在启动 / 切页时判一次——傍晚打开、一直开着，
+       到 22:00 也不会变暗。每分钟（及回到前台时）比一次时段签名，变了才重套主题。 */
+    try {
+      var themeSig = function () { return [shouldDark(), isNightNow(), isDeepNightNow()].join(); };
+      var lastSig = themeSig();
+      var recheck = function () { var g = themeSig(); if (g !== lastSig) { lastSig = g; applyTheme(); } };
+      if (global.setInterval) global.setInterval(recheck, 60000);
+      document.addEventListener('visibilitychange', function () { if (document.visibilityState !== 'hidden') recheck(); });
+    } catch (eT) { /* 无定时器环境：仍按切页时重判 */ }
     /* 顶栏主题按钮已移除（第 40 次），主题入口在「设置 · 外观」；保留空位注释防回填 */
 
     /* 跟随系统：系统外观变化时（含 Web 深浅色切换），system 模式下实时重算主题 */

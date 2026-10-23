@@ -687,8 +687,8 @@
           return '<button type="button" class="seg-btn' + (curHand === m[0] ? ' active' : '') + '" data-hand-mode="' + m[0] + '">' + m[1] + '</button>';
         }).join('')
         + '</div>';
-      html += '<p class="hint">「左手 / 右手」会把首页、日期记录、快记加号、宝宝切换、设置五个入口'
-        + '收进屏幕同侧竖排（单手抱娃时拇指够得着一切）；「正常排列」恢复居中底栏。</p>';
+      html += '<p class="hint">「左手 / 右手」把整条底栏竖起来贴在屏幕同侧（单手抱娃时拇指够得着），'
+        + '按钮和「正常排列」完全一样，只是方向不同。</p>';
       /* 第 97 次：底栏右侧自定义快捷槽位——两页签之后加一个直达常用记录的入口 */
       var SLOT_OPTS = [
         ['', '不显示'], ['feeding', '喂养'], ['diaper', '尿布'], ['sleep', '睡眠'],
@@ -701,7 +701,7 @@
         }).join('')
         + '</div>';
       html += '<p class="hint">在底部「首页 / 日期记录」右侧加一个常用记录的直达按钮，选「不显示」即恢复两页签。'
-        + '仅「正常排列」下生效；左手 / 右手模式的竖排底栏是固定五口。</p>';
+        + '正常排列与左手 / 右手模式都生效。</p>';
       /* 第 54 次：天空时刻预览——不用等到对应时段，点一下就看整页在一天里怎么变色
          （天空色板 + 全页环境光 + 日轮弧线三处同步）。会话级生效不落盘：刷新即回真实时间，
          不影响任何记录的时间戳（记录永远按真实时刻存）。 */
@@ -1135,8 +1135,8 @@
         if (global.App && typeof App.buildTabbar === 'function') App.buildTabbar();
         Array.prototype.forEach.call(handSeg.querySelectorAll('.seg-btn'), function (x) { x.classList.remove('active'); });
         t.classList.add('active');
-        Util.toast(v === 'left' ? '已切左手模式：五个入口收进左下竖排'
-          : v === 'right' ? '已切右手模式：五个入口收进右下竖排'
+        Util.toast(v === 'left' ? '已切左手模式：底栏竖排贴左侧'
+          : v === 'right' ? '已切右手模式：底栏竖排贴右侧'
           : '已恢复正常排列', 'ok');
       });
 
