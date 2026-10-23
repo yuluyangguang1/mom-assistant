@@ -3582,7 +3582,7 @@ body.dark .ob-card.active { border-color: var(--primary); }
 /* —— 底部面板（sheet.js 给 role=dialog 的弹窗加 .as-sheet / .is-sheet）—— */
 .modal-mask.as-sheet {
   align-items: flex-end; padding: 0;
-  background: rgba(20, 16, 12, calc(.42 * var(--sheet-dim, 1)));
+  background: rgba(20, 16, 12, calc(.48 * var(--sheet-dim, 1)));
   animation: maskIn .28s var(--ease) both;
 }
 .modal-mask.as-sheet.sheet-leaving { background: rgba(20, 16, 12, 0); transition: background .2s var(--ease); }
@@ -3608,13 +3608,11 @@ body.dark .sheet-grab i { background: rgba(235, 235, 245, .3); }
 .modal-mask.as-sheet > .is-sheet .modal-actions .btn { min-height: 48px; }
 .modal-mask.as-sheet > .sheet.is-sheet { padding-top: 0; }
 
-/* 背后页面：iOS 卡片式呈现——轻微缩小 + 圆角，弹窗关闭后复原 */
-#view { transition: transform .38s cubic-bezier(.32, .72, 0, 1), filter .38s var(--ease); transform-origin: 50% 0; }
-body.sheet-open #view { transform: scale(.955) translateY(8px); filter: saturate(.9); border-radius: 18px; }
+/* 背后页面：不再缩小。第 154 次：首页天空层是通栏且用负 margin 伸到顶栏后面，
+   缩小 #view 会让天空两侧露出生硬的竖边，而顶栏、底部胶囊在 #view 外不跟着缩，整体不协调。
+   改成只靠遮罩加深来压暗背景，让面板成为视觉焦点。 */
 @media (prefers-reduced-motion: reduce) {
   .modal-mask.as-sheet > .is-sheet { animation: none; }
-  #view { transition: none; }
-  body.sheet-open #view { transform: none; }
 }
 
 /* —— 页面转场（View Transitions；app.js 在 <html data-nav="push|pop|fade"> 下启动）—— */
