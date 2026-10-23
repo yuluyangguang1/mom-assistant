@@ -2062,7 +2062,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 @media (max-width: 359px) {
   .view { padding: 14px 12px calc(88px + env(safe-area-inset-bottom)); }
   .card { padding: 16px; }
-  .home-sky { margin: calc(-14px - 64px - var(--sat)) -12px 12px; min-height: 190px; }
+  .home-sky { margin: calc(-14px - 64px - var(--sat-pad)) -12px 12px; min-height: 190px; }
   /* 第 91 次：seam 过渡带已删除，窄屏定位覆盖规则随之退役 */
   .record-tile { padding: 10px 12px; gap: 10px; }
   .stat-row, .stat-row[data-n="3"], .stat-row[data-n="5"], .stat-row[data-n="6"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
