@@ -190,6 +190,29 @@ def test_home_edit(b):
     p.close()
 
 
+def test_css_rules(b):
+    """第 169 次（样式整理）：几条设计规范的静态守卫，见「设计规范.md」。"""
+    import re, glob
+    css = open(ROOT / 'css' / 'styles.css', encoding='utf-8').read()
+    nc = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
+    # 1. 圆角只用变量（50%、0、≤3px 的细节圆角除外）
+    raw = [v for v in re.findall(r'border-radius:\s*([^;}]+)', nc)
+           if not re.fullmatch(r'(var\([^)]*\)\s*)+|50%|0|inherit|[0-3](\.\d+)?px', v.strip())
+           and 'var(' not in v]
+    check('圆角统一走 --radius-* 变量', not raw, raw[:5])
+    # 2. 顶栏不得再 sticky/fixed（iOS 会给它加系统模糊、切页残留横带，第 168 次）
+    hdr = [m for m in re.findall(r'([^{}]*\.app-header[^{}]*)\{([^{}]*)\}', nc)
+           if re.search(r'position:\s*(sticky|fixed)', m[1])]
+    check('顶栏不 sticky / fixed', not hdr, [h[0].strip()[:60] for h in hdr])
+    # 3. 没有死样式：CSS 里出现的类名都要在 JS/HTML 里找得到（动态拼接的前缀除外）
+    code = ''.join(open(f, encoding='utf-8').read() for f in glob.glob(str(ROOT / 'js' / '**' / '*.js'), recursive=True) + [str(ROOT / 'index.html')])
+    DYN = ('lv', 'theme-card--', 'toast-', 'ob-in-')
+    cls = set(re.findall(r'\.([a-zA-Z_][\w-]*)', re.sub(r'url\([^)]*\)|\d\.\d+', '', nc)))
+    dead = sorted(c for c in cls if not c.startswith(DYN)
+                  and not re.search(r'(?<![\w-])' + re.escape(c) + r'(?![\w-])', code))
+    check('CSS 无死类名', not dead, dead[:8])
+
+
 def test_layout_and_toast(b):
     p, errs = fresh(b, 360, 740)
     bad = {}
@@ -233,7 +256,7 @@ def test_layout_and_toast(b):
 def main():
     with sync_playwright() as pw:
         b = pw.chromium.launch()
-        for fn in (test_data, test_flows, test_format, test_home_edit, test_layout_and_toast):
+        for fn in (test_data, test_flows, test_format, test_home_edit, test_css_rules, test_layout_and_toast):
             try:
                 fn(b)
             except Exception as e:  # 一组崩了不影响其他组

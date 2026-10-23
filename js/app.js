@@ -193,32 +193,11 @@
     bar.appendChild(plus);
   }
 
-  /* 顶栏玻璃化策略：
-     - 首页（天空 hero）：默认透明，滚动 >8px 后补实色底（为天空让路）
-     - 模块页：始终实色（无天空，透明顶栏会让「页头标题」上方露出 66px 空白带，
-       且内容滚动时会从透明顶栏下方穿过造成重叠）
-     奶油风下实色顶栏与卡片同源，视觉一体。 */
+  /* 第 169 次：顶栏全站 static、无背景（见 styles.css .app-header），不再按滚动切换雾化类。
+     保留这个函数只为清掉旧版本可能残留的类名。 */
   function syncHeader() {
     var header = document.querySelector('.app-header');
-    if (!header) return;
-    /* 第 117 次：区分「首页滚动后」与「模块页」——两者曾共用 is-scrolled，
-       但顶栏雾化的前提完全不同：
-         首页背后是天空画布，状态栏区必须留透明让天空透出（否则 59px 处硬横线）；
-         模块页背后**没有天空**，留透明就是直接露出 body 底色，
-         在 iOS 上等于把横线搬到状态栏那一行。
-       所以模块页用 is-solid（真雾化、无安全区豁免），首页滚动用 is-scrolled。 */
-    if (current !== 'home') {
-      header.classList.add('is-solid');
-      header.classList.remove('is-scrolled');
-      header.classList.remove('is-deep');
-      return;
-    }
-    /* 第 144 次：首页顶栏已改为 position:static（跟着天空滚走），
-       is-scrolled / is-deep 两套雾化对首页不再有意义——留着只会在
-       某些内核上残留类名造成困惑，这里一并清掉，只保留模块页的 is-solid。 */
-    header.classList.remove('is-solid');
-    header.classList.remove('is-scrolled');
-    header.classList.remove('is-deep');
+    if (header) header.classList.remove('is-solid', 'is-scrolled', 'is-deep');
   }
 
   /* 第 153 次（原生感 · iOS 推入/推出转场）：支持 View Transitions 的环境（iOS 18+ Safari、Chrome 111+）
@@ -1321,7 +1300,6 @@
       gear.addEventListener('click', function () { showTab('settings'); });
     }
     /* 顶栏滚动玻璃化（被动监听，不影响滚动性能） */
-    window.addEventListener('scroll', syncHeader, { passive: true });
     syncHeader();
 
     /* PWA 离线缓存：仅在 http(s) 环境注册 Service Worker（「添加到主屏」后可离线秒开）。
