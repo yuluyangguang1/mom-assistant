@@ -1335,12 +1335,37 @@
            守卫两处：① 首次安装（此前没有 controller）不重载，避免白刷一次；
                     ② 标记位防止极端情况下反复重载。 */
         var hadController = !!navigator.serviceWorker.controller;
-        navigator.serviceWorker.addEventListener('controllerchange', function () {
-          if (!hadController || global.__swReloaded) return;
+        /* 第 164 次（用户：主屏幕 App 每次更新都要删了重加太麻烦）：
+           iOS 主屏 App 切回前台不会重新加载页面，SW 也就不会去查新版本——
+           只有彻底划掉后台再开才更新。这里在每次回到前台时主动 reg.update()（至少隔 60 秒），
+           发现新版本 → 新 SW 立刻接管 → 自动重载。
+           正在输入 / 弹窗或面板打开时不打断，等下次切到后台再重载。 */
+        var pendingReload = false;
+        var busy = function () {
+          var a = document.activeElement;
+          if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;
+          var m = document.getElementById('modalRoot');
+          return !!(m && m.children.length);
+        };
+        var doReload = function () {
+          if (global.__swReloaded) return;
           global.__swReloaded = true;
           if (global.location && global.location.reload) global.location.reload();
+        };
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          if (!hadController || global.__swReloaded) return;
+          if (busy()) { pendingReload = true; return; }
+          doReload();
         });
-        navigator.serviceWorker.register('sw.js').catch(function () {});
+        navigator.serviceWorker.register('sw.js').then(function (reg) {
+          var lastCheck = Date.now();
+          document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'hidden') { if (pendingReload) doReload(); return; }
+            if (Date.now() - lastCheck < 60000) return;
+            lastCheck = Date.now();
+            try { reg.update().catch(function () {}); } catch (eU) { /* 离线等情况忽略 */ }
+          });
+        }).catch(function () {});
       }
     } catch (e) { /* SW 不可用不影响任何功能 */ }
 

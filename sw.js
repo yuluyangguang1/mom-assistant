@@ -12,7 +12,7 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v127';
+var CACHE = 'baoma-static-v128';
 /* v90（第 129 次）：首屏降噪——对标 Cali 首屏设计（HomeWidgetSnapshot 无 reminder 字段，
    逾期只以 VaccineReminderPlan.pendingCount 计数存在）。疫苗逾期 / 儿保过参考时间 /
    发育观察期过期这三类「今天不可能完成」的陈旧待办，从三条整卡合并为一行「待补」汇总
@@ -115,7 +115,9 @@ self.addEventListener('install', function (e) {
     caches.open(CACHE).then(function (cache) {
       /* 逐个缓存：单个资源失败不阻断安装（如开发者临时改名的文件） */
       return Promise.all(ASSETS.map(function (url) {
-        return cache.add(url).catch(function (err) { console.warn('[SW] 预缓存失败:', url, err); });
+        /* 第 164 次：cache:'reload' 绕过浏览器 HTTP 缓存（GitHub Pages 默认 max-age=600），
+           否则推送后 10 分钟内装上的新 SW 可能把旧文件当新版本缓存起来 */
+        return cache.add(new Request(url, { cache: 'reload' })).catch(function (err) { console.warn('[SW] 预缓存失败:', url, err); });
       }));
     }).then(function () { return self.skipWaiting(); })
   );
@@ -143,7 +145,12 @@ self.addEventListener('fetch', function (e) {
      页面会一直白屏等网络，离线缓存形同虚设。现在网络 3 秒没回来就先用缓存顶上，
      网络稍后回来仍会在后台更新缓存（下次打开即新版）；没有缓存时照旧等网络。 */
   var TIMEOUT_MS = 3000;
-  var network = fetch(req).then(function (res) {
+  /* 第 164 次：网络请求一律带 no-cache 去服务器校验（没变只回 304，很省流量），
+     避免浏览器 HTTP 缓存把刚推送的新版本挡住；navigate 请求不能带 init 重建，单独用 URL 构造 */
+  var netReq;
+  try { netReq = req.mode === 'navigate' ? new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' }) : new Request(req, { cache: 'no-cache' }); }
+  catch (eReq) { netReq = req; }
+  var network = fetch(netReq).then(function (res) {
     if (res && res.ok) {
       var copy = res.clone();
       caches.open(CACHE).then(function (cache) { cache.put(req, copy); });
