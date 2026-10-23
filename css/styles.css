@@ -77,7 +77,7 @@
   --primary-fill: #E8907C;
   --primary-strong: #D97A64;
   --primary-weak: rgba(232, 144, 124, 0.12);
-  --primary-text: #A8503C;
+  --primary-text: #9A4634; /* 第 180 次：#A8503C 叠在主色弱底上只有 4.2:1，加深到 ≥4.8 */
   --on-primary: #3B211A;      /* 珊瑚底上的文字/图标（深暖棕） */
 
   --ok: #4F9475;
@@ -1533,7 +1533,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
   35% { transform: scale(1.12); }
   100% { transform: scale(1); }
 }
-.ruler-num b.dim { opacity: .4; }
+.ruler-num b.dim { opacity: .62; } /* 第 180 次：.4 在深色下只有 2.7:1，未填值的占位数字也要看得清 */
 .ruler-num i { font-style: normal; font-size: calc(14px * var(--fs-mul)); color: var(--muted); margin-left: 5px; }
 .ruler-track { position: relative; height: 38px; }
 /* 刻度由 Util.rulerTicks 画出（按 min/max/step 真实计算），不再用等距条纹 */
@@ -3397,7 +3397,7 @@ html[data-nav="push"]::view-transition-new(page), html[data-nav="pop"]::view-tra
   /* ↑ 第 171 次：同名选择器合并到此处 */
   display: block; margin-top: auto; padding: 0 2px 2px;
   background: none; border: 0; box-shadow: none; border-radius: 0;
-  --hg-ink: #2B2A33; --hg-ink-2: rgba(43, 42, 51, .62);
+  --hg-ink: #2B2A33; --hg-ink-2: rgba(43, 42, 51, .76); /* 第 180 次：.62→.76，浅色天空上日期/副标对比 3.4→4.6 */
   color: var(--hg-ink);
 }
 html[data-sky-ink="light"] .home-greet, body.dark .home-greet {
@@ -3690,3 +3690,9 @@ input[type=time]::-webkit-date-and-time-value { text-align: left; margin: 0; }
   background: color-mix(in srgb, var(--bar-c, var(--primary)) 9%, var(--surface));
   border-color: transparent; box-shadow: none;
 }
+
+/* 第 180 次（对比度复核）：首页背景是天色（body.in-home），直接压在天色上的分区标题和
+   「喂奶按上次」提示原用 --muted（褐灰），在蓝天上只有 3.1:1。改随天色墨色走。 */
+body.in-home .section-title, body.in-home .hn-hint { color: rgba(43, 42, 51, .78); }
+html[data-sky-ink="light"] body.in-home .section-title, html[data-sky-ink="light"] body.in-home .hn-hint,
+body.dark.in-home .section-title, body.dark.in-home .hn-hint { color: rgba(255, 255, 255, .8); }
