@@ -79,7 +79,7 @@
         if (sAge >= 0 && sAge <= 1095) {
           var slRef = Knowledge.all('sleep').filter(function (e) { return sAge >= e.from && sAge <= e.to; });
           if (slRef.length) {
-            html += '<div class="card"><h2>睡眠参考</h2>';
+            html += '<div class="card info-card"><h2>睡眠参考</h2>';
             slRef.forEach(function (e) {
               html += '<p class="hint">' + Util.escapeHtml(e.text) + '</p>';
             });

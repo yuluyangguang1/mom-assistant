@@ -109,7 +109,7 @@
 
       /* E1-哺乳期等待期（产后 43 天–1 年、未复潮）：解读 + 避孕常识 + 补铁（知识陈述，不做工具） */
       if (dsb !== null && dsb > 42 && dsb <= 365 && !postRecords.length) {
-        html += '<div class="card"><h2>哺乳期与月经</h2>';
+        html += '<div class="card info-card"><h2>哺乳期与月经</h2>';
         [ 'KN-PER-4', 'KN-PER-5', 'KN-PER-6' ].forEach(function (id) {
           var t = perText(id);
           if (t) html += '<p class="hint">' + Util.escapeHtml(t) + '</p>';

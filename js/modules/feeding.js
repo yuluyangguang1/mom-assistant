@@ -319,7 +319,7 @@
             return fAge >= e.from && fAge <= e.to && e.id !== 'KN-F-5';
           });
           if (refItems.length) {
-            html += '<div class="card"><h2>喂养参考</h2>';
+            html += '<div class="card info-card"><h2>喂养参考</h2>';
             refItems.forEach(function (e) {
               html += '<p class="hint">' + Util.escapeHtml(e.text) + '</p>';
             });

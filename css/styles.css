@@ -3675,7 +3675,9 @@ input[type=time]::-webkit-date-and-time-value { text-align: left; margin: 0; }
 .list li + li, .kv li + li { border-top: 1px solid var(--border); }
 /* 卡片里的列表不再套一层容器（卡片本身就是容器） */
 .card .list:not(:empty), .card .kv:not(:empty) { background: none; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
-.notice-banner, .review-card, .farewell-card, .vac-backfill, .card.backfill-note {
+/* 第 176 次：喂养参考、睡眠参考、哺乳期与月经这类纯说明卡（.info-card）也走浅色横幅，颜色跟随所在模块 */
+.card.info-card { --bar-c: var(--tile, var(--primary)); }
+.notice-banner, .review-card, .farewell-card, .vac-backfill, .card.backfill-note, .card.info-card {
   background: color-mix(in srgb, var(--bar-c, var(--primary)) 9%, var(--surface));
   border-color: transparent; box-shadow: none;
 }
