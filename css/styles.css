@@ -3623,6 +3623,8 @@ body.dark .sheet-grab i { background: rgba(235, 235, 245, .3); }
 /* —— 页面转场（View Transitions；app.js 在 <html data-nav="push|pop|fade"> 下启动）—— */
 #view { view-transition-name: page; }
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+/* 第 167 次：旧根快照（含旧顶栏）直接隐藏——两者都不动画时会叠在一起，旧页日期/标题和新页标题重影发虚 */
+::view-transition-old(root) { display: none; }
 ::view-transition-group(page) { animation-duration: .38s; animation-timing-function: cubic-bezier(.32, .72, 0, 1); }
 html[data-nav="push"]::view-transition-old(page) { animation: vtOutLeft .38s cubic-bezier(.32, .72, 0, 1) both; }
 html[data-nav="push"]::view-transition-new(page) { animation: vtInRight .38s cubic-bezier(.32, .72, 0, 1) both; }
@@ -3630,9 +3632,16 @@ html[data-nav="pop"]::view-transition-old(page) { animation: vtOutRight .32s cub
 html[data-nav="pop"]::view-transition-new(page) { animation: vtInLeft .32s cubic-bezier(.32, .72, 0, 1) both; }
 html[data-nav="fade"]::view-transition-old(page) { animation: vtFadeOut .16s ease-out both; }
 html[data-nav="fade"]::view-transition-new(page) { animation: vtFadeIn .2s ease-out both; }
-@keyframes vtInRight { from { transform: translateX(100%); box-shadow: -8px 0 24px rgba(0,0,0,.08); } to { transform: none; } }
+/* 第 167 次（iOS 实测：切页闪烁、几帧卡顿）：
+   ① #view 本身是透明的，快照也透明——新页滑进来时能透出下面的旧页，两页内容叠在一起闪；
+     给新旧快照垫上页面底色，滑动的是两张不透明的「纸」。
+   ② 原来每帧都在动画 24px 模糊阴影，整屏大图层上算阴影很吃 iOS 的合成，换成静态阴影。 */
+::view-transition-old(page), ::view-transition-new(page) { background: var(--vt-paper, #FDF9F4); }
+html:has(body.dark) { --vt-paper: #221E1A; }
+html[data-nav="push"]::view-transition-new(page), html[data-nav="pop"]::view-transition-old(page) { box-shadow: -8px 0 24px rgba(0,0,0,.08); }
+@keyframes vtInRight { from { transform: translateX(100%); } to { transform: none; } }
 @keyframes vtOutLeft { to { transform: translateX(-30%); opacity: .85; } }
-@keyframes vtOutRight { to { transform: translateX(100%); box-shadow: -8px 0 24px rgba(0,0,0,.08); } }
+@keyframes vtOutRight { to { transform: translateX(100%); } }
 @keyframes vtInLeft { from { transform: translateX(-30%); opacity: .85; } to { transform: none; } }
 @keyframes vtFadeOut { to { opacity: 0; } }
 @keyframes vtFadeIn { from { opacity: 0; } }
@@ -3773,3 +3782,20 @@ body.in-home .hdr-title { display: none; }
    让背景从 border-box 起算且不平铺，渐变的透明尾巴正好落到最底边。 */
 /* 用 !important：.is-solid 等状态规则写的是 background 简写，特异性更高，会把 origin/repeat 重置回默认 */
 .app-header { background-origin: border-box !important; background-repeat: no-repeat !important; }
+
+/* ============================================================
+   第 167 次 · iOS 独立模式顶部发灰 / 二级页日期
+   iOS（Liquid Glass）在 scrollY=0 时，状态栏一带显示的是根元素的 background-color，
+   不是页面实际画出来的像素。原来 html/body 只有渐变 background-image、没有颜色，
+   系统就退回中性灰白，首页天空顶上像被盖了一块。
+   给根元素一个明确的颜色：首页取天空当前顶色（sky.js 写入 --sky-ambient-top），
+   其他页取页面底色。
+   ============================================================ */
+html { background-color: #FDF9F4; }
+html:has(body.dark) { background-color: #221E1A; }
+html:has(body.in-home) { background-color: rgb(var(--sky-ambient-top, 167, 189, 236)); }
+body { background-color: #FDF9F4; }
+body.dark { background-color: #221E1A; }
+body.in-home { background-color: rgb(var(--sky-ambient-top, 167, 189, 236)); }
+/* 二级页顶栏日期撤下（只保留占位） */
+.mod-date { visibility: hidden; }

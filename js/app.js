@@ -315,7 +315,9 @@
     else document.body.classList.remove('in-module');
     if (id === 'home') document.body.classList.add('in-home');
     else document.body.classList.remove('in-home');
-    /* 第 43 次：模块页左上角小日期徽标（首页大日期在天空卡片内，二者互不重复） */
+    /* 第 43 次：模块页左上角小日期徽标（首页大日期在天空卡片内，二者互不重复）。
+       第 167 次：二级页不再显示日期（styles.css 末尾 .mod-date visibility:hidden），
+       文字仍照写——它撑着顶栏这一行的高度，清空会让首页天空整体上移约 20px。 */
     var modDate = document.getElementById('modDate');
     if (modDate) {
       var mD = new Date();
