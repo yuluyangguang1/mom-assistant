@@ -984,20 +984,37 @@
       if (global.Reminders && d.settings.remindersEnabled !== false) {
         var rems = Reminders.evaluate(d);
         if (rems.length) {
-          html += '<div class="card remind-card"><h2>提醒</h2><ul class="list remind-list">';
-          rems.forEach(function (r) {
-            /* 第 129 次：pending 行（陈旧待办汇总）走紧凑单行样式 is-pending——
-               图标、文案、点击目标都在，但不占完整卡片的高度与视觉重量。 */
-            html += '<li' + (r.pending ? ' class="is-pending"' : '')
-              + ' data-accent="' + r.accent + '" data-go="' + r.go + '" role="button" tabindex="0">'
-              + '<span class="row-ico">' + icon(r.accent === 'finance' ? 'export' : r.accent) + '</span>'
-              + '<span>' + Util.escapeHtml(r.text) + '</span>'
-              /* 汇总行补一个右侧箭头，明示「点进去看详情」；普通提醒行不加，
-                 避免一屏里出现多个箭头竞争注意力。 */
-              + (r.pending ? '<span class="rt-arrow" aria-hidden="true">' + icon('chevron-right') + '</span>' : '')
-              + '</li>';
-          });
-          html += '</ul></div>';
+          /* 第 173 次（提醒区重做，方案 A + B）：
+             原来是「白卡 → 标题 → 米色小卡 → 左边条」三层嵌套，一两句话被三层装饰包着；
+             「待补」汇总行和「该喂奶了」长得一样，还被省略号截断。现在：
+             · 标题出卡，和「模块记录」一样用小节标题；
+             · 待补（陈旧待办）收成标题右侧一个小标签，点进去看明细，不占首屏；
+             · 此刻的提醒是一组 iOS 式分组列表：一个容器、行间细分隔线，
+               左侧模块色小方块图标标识来源，不再用左边条。 */
+          var pend = null, fresh = [];
+          rems.forEach(function (r) { if (r.pending) pend = r; else fresh.push(r); });
+          html += '<div class="sec-head rem-head"><h2 class="section-title">提醒</h2>';
+          if (pend) {
+            var pl = (pend.items || []).map(function (x) { return x.label; }).filter(Boolean);
+            var chip = pl.length ? (pl[0] + (pl.length > 1 ? ' +' + (pl.length - 1) : '')) : '查看';
+            html += '<button class="rem-pend" type="button" data-accent="' + pend.accent + '" data-go="' + pend.go + '"'
+              + ' aria-label="' + Util.escapeHtml(pend.text) + '">'
+              + '<span class="rem-pend-k">待补</span><span class="rem-pend-v">' + Util.escapeHtml(chip) + '</span>'
+              + icon('chevron-right') + '</button>';
+          }
+          html += '</div>';
+          if (fresh.length) {
+            html += '<ul class="rem-group">';
+            fresh.forEach(function (r) {
+              html += '<li class="rem-row' + ((r.remLevel || 0) >= 2 ? ' is-urgent' : '') + '"'
+                + ' data-accent="' + r.accent + '" data-go="' + r.go + '" role="button" tabindex="0">'
+                + '<span class="rem-ico">' + icon(r.accent === 'finance' ? 'export' : r.accent) + '</span>'
+                + '<span class="rem-text">' + Util.escapeHtml(r.text) + '</span>'
+                + '<span class="rem-arrow" aria-hidden="true">' + icon('chevron-right') + '</span>'
+                + '</li>';
+            });
+            html += '</ul>';
+          }
         }
       }
 

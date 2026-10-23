@@ -440,7 +440,9 @@
          **一行**待补汇总，数字与入口都在，正文空间还给此刻提醒。
          总数仍受 MAX_REMINDERS 约束（汇总行也占一格）。 */
       var stale = out.filter(function (x) { return x.stale; });
-      var budget = MAX_REMINDERS - (stale.length ? 1 : 0);
+      /* 第 173 次：待补汇总已改成首页提醒区标题旁的小标签，不再占一行，
+         所以不再从「此刻提醒」的名额里扣掉一格。 */
+      var budget = MAX_REMINDERS;
       var fresh = out.filter(function (x) { return !x.stale; }).slice(0, budget);
       if (stale.length) {
         fresh.unshift({

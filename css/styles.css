@@ -1834,43 +1834,56 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 
 
 /* ============================================================
-   首页提醒卡（reminders.js）：有提醒才渲染，复用 .list 行样式，
-   行可点击直达对应模块；左侧图标/边条按来源模块分色。
+   第 173 次 · 首页提醒区（方案 A + B）
+   原「提醒卡」是白卡 → 标题 → 米色小卡 → 左边条三层嵌套，待补汇总行还被省略号截断。
+   现在：
+   · .rem-head  小节标题「提醒」，右侧挂「待补」小标签 .rem-pend（陈旧待办的计数入口）；
+   · .rem-group 此刻提醒，iOS 式分组列表：一个容器，行间细分隔线从图标右侧开始；
+   · .rem-ico   模块色小方块图标，用颜色区分来源，取代左边条；
+   · .is-urgent 已逾期 / 已到点的提醒，文字加粗。
+   触控：行 ≥ 56px，小标签 ≥ 44px（U-08）。
    ============================================================ */
-.remind-card { --bar-c: var(--warn); }
-.remind-list li { cursor: pointer; }
-.remind-list li:active { background: var(--primary-weak); transform: none; }
-
-/* ============================================================
-   第 129 次：陈旧待办汇总行（对标 Cali 首屏设计）
-
-   Cali 的逾期信息只以 VaccineReminderPlan.pendingCount 这个「计数」存在，
-   服务磁贴角标与本机通知——HomeWidgetSnapshot 里没有 reminder 字段，
-   首屏正文只放「此刻可做」的活跃会话 / 今日摘要 / 最近记录。
-
-   Web 端无系统推送，汇总行必须保留可点入口（第 109 次「不静默消失」口径），
-   但视觉降噪：压掉 .list li 的 64px 行高与卡片阴影，改为单行紧凑条，
-   弱化文字色 + 右侧箭头。首屏空间还给此刻提醒（维D/尿布间隔/今天应种）。
-   触控目标仍守 U-08：min-height 44px，整行可点。
-   ============================================================ */
-.remind-list li.is-pending {
-  min-height: calc(44px * var(--fs-mul));
-  padding: 6px 10px 6px 12px;
-  background: var(--surface-2);
-  --bar-c: var(--warn); --bar-inset: 10px; --bar-w: 3px;
-  font-size: calc(13px * var(--fs-mul));
-  color: var(--muted);
+.rem-head .rem-pend { margin: 10px 0 0; }
+.rem-pend {
+  display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 62%;
+  min-height: 44px; padding: 0 6px 0 12px; box-sizing: border-box;
+  background: transparent; border: 0; color: var(--muted);
+  font: inherit; font-size: var(--fs-sm); cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
-.remind-list li.is-pending > span:not(.row-ico):not(.rt-arrow) {
-  flex: 1 1 auto; min-width: 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.rem-pend-k {
+  flex: none; padding: 2px 8px; border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); font-weight: 600;
 }
-.remind-list li.is-pending .row-ico { flex: none; opacity: .65; }
-.remind-list li.is-pending .row-ico .ico { width: 16px; height: 16px; }
-.remind-list li.is-pending .rt-arrow { flex: none; color: var(--muted); }
-.remind-list li.is-pending .rt-arrow .ico { width: 14px; height: 14px; }
-/* 注意：不给普通提醒行加 flex 规则——它们沿用 .list li 的 space-between 两端对齐，
-   第 129 次只动汇总行，不改普通行的既有排版。 */
+.rem-pend-v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rem-pend .ico { flex: none; width: 14px; height: 14px; opacity: .6; }
+.rem-pend:active { opacity: .6; }
+
+.rem-group {
+  list-style: none; margin: 0 0 var(--space-md); padding: 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-card); overflow: hidden;
+}
+.rem-row {
+  position: relative; display: flex; align-items: center; gap: 12px;
+  min-height: calc(56px * var(--fs-mul)); padding: 10px 12px 10px 14px; box-sizing: border-box;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.rem-row + .rem-row::before {
+  content: ''; position: absolute; top: 0; right: 0; left: calc(14px + 32px + 12px);
+  height: 1px; background: var(--border); pointer-events: none;
+}
+.rem-row:active { background: var(--surface-2); }
+.rem-ico {
+  flex: none; width: 32px; height: 32px; border-radius: var(--radius-xs);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--tile-weak, var(--primary-weak));
+}
+.rem-ico .ico { width: 18px; height: 18px; color: var(--tile, var(--primary)); }
+.rem-text { flex: 1 1 auto; min-width: 0; font-size: var(--fs-body); line-height: 1.45; color: var(--text); }
+.rem-row.is-urgent .rem-text { font-weight: 600; }
+.rem-arrow { flex: none; display: inline-flex; color: var(--muted); opacity: .5; }
+.rem-arrow .ico { width: 15px; height: 15px; }
 
 /* ============================================================
    第 80 次（宝宝档案）：设置页宝宝列表。行复用 .card .list 去壳样式
@@ -3653,9 +3666,9 @@ input[type=time]::-webkit-date-and-time-value { text-align: left; margin: 0; }
    记录列表 .list li 默认用模块色、上下让开 14px。
    用法：元素上设 --bar-c（颜色），可选 --bar-w（粗细，默认 3px）和 --bar-inset（上下让开的距离）。
    ============================================================ */
-.remind-card, .notice-banner, .review-card, .farewell-card, .vac-backfill, .card.backfill-note,
+.notice-banner, .review-card, .farewell-card, .vac-backfill, .card.backfill-note,
 .card.care-live, .kv li { position: relative; }
-.remind-card::before, .notice-banner::before, .review-card::before, .farewell-card::before,
+.notice-banner::before, .review-card::before, .farewell-card::before,
 .vac-backfill::before, .card.backfill-note::before, .card.care-live::before,
 .kv li::before, .list li::before {
   content: ''; position: absolute; left: 0; top: var(--bar-inset, 18px); bottom: var(--bar-inset, 18px);
