@@ -50,7 +50,9 @@
     li.style.transform = x ? 'translate3d(' + x + 'px,0,0)' : '';
     if (a) {
       a.style.transition = animate ? 'width .3s cubic-bezier(.32,.72,0,1), opacity .2s' : 'none';
-      var w = Math.max(0, -x - 8);
+      /* 第 174 次：缝隙按删除块的实际位置算——分组列表里删除块贴边（0），卡片里留 8px */
+      var gap = Math.max(0, a.offsetLeft - li.clientWidth);
+      var w = Math.max(0, -x - gap);
       a.style.width = w + 'px';
       a.style.opacity = w > 4 ? '1' : '0';
       a.classList.toggle('is-full', -x > li.offsetWidth * FULL_RATIO);

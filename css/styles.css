@@ -474,7 +474,7 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 
 /* C7 补记模式提示条：细左条 + 弱底，一眼知道「这条会记到别处」 */
 .backfill-note { border-left: 3px solid var(--warn); padding: 12px 16px; }
-.card.backfill-note { border-left: 1px solid var(--border); --bar-c: var(--warn); --bar-inset: 14px; } /* 第 172 次：卡片上改用直条，见文件末尾 */
+.card.backfill-note { border-left-width: 1px; --bar-c: var(--warn); } /* 第 174 次：说明类卡片改为浅色横幅，见文件末尾 */
 
 /* 第 72 次：辅食观察期进度环（Kinetics Progress Ring 落地）——环内数字随主题色 */
 .nf-ring-row { display: flex; align-items: center; gap: 12px; }
@@ -562,15 +562,10 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
    ============================================================ */
 .kv { list-style: none; padding: 0; margin: 0; }
 .kv li {
-  padding: 11px 14px; margin-bottom: var(--space-sm);
-  background: var(--surface); border: 1px solid var(--border);
-  /* 第 51 次：左边条与 .list 统一为 inset 直条——border-left 会顺着 16px 圆角
-     弯出一段弧，inset 影条是贴住内缘的直线，与记录列表视觉一致 */
-  --bar-c: var(--tile, var(--primary)); --bar-inset: 9px;
-  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  background: var(--surface);
   font-size: var(--fs-body);
 }
-.kv li:last-child { margin-bottom: 0; }
 .kv li b { color: var(--tile-text, var(--tile, var(--primary-text))); }
 
 /* ============================================================
@@ -594,14 +589,11 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
      min-height 只在不足时兜底，且随 --fs-mul 一起放大（mul=1 时正好 64px）。 */
   min-height: calc(64px * var(--fs-mul));
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 13px 15px; margin-bottom: var(--space-sm);
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
-  position: relative; --bar-c: var(--tile, var(--primary)); --bar-inset: 14px; /* 第 172 次：左边条改 ::before 直条，见文件末尾 */
+  padding: 13px 15px;
+  background: var(--surface);
+  position: relative;
   transition: transform .2s var(--spring), border-color .2s var(--ease), box-shadow .2s var(--ease);
 }
-.list li:last-child { margin-bottom: 0; }
 /* 第 85 次：列表行离场——收高 + 淡出 + 轻左移。height 由 JS 起步
    （exitRow 先锁原行高再置 0），padding/margin/边框色随类过渡归零；
    .16s 退场快于 listIn 入场 .3s（第 81 次动效纪律）。不 scale：
@@ -616,7 +608,7 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
     margin .16s var(--ease), border-color .16s var(--ease);
   pointer-events: none;
 }
-.list li:hover { transform: translateY(-1px); border-color: var(--primary-weak); box-shadow: var(--shadow-hover); }
+.list li:hover { background: var(--surface-2); }
 /* 可点列表项按压反馈（第 44 次）：data-go 是可跳转项（提醒卡/磁贴行）——
    触屏无 hover（已被 hover:none 禁用），按下时轻微下沉确认「点到了」 */
 /* 第 81 次（Appllama 动效纪律）：列表行按压只用底色高亮，永不 scale——
@@ -697,14 +689,9 @@ body.dark .list li .li-num.sup-ok  { color: #8FCDB2; }
    卡片内行用「软药丸」：弱色底、无描边、无投影、无分隔线、sm 圆角，
    与首页磁贴同一语言；分色左条撤下（模块色由行图标 tile 承担）。
    散落在页面上的独立 .list/.kv（模块页记录列表）不受影响，仍是描边药丸卡。 */
-.card .list li, .card .kv li {
-  background: var(--surface-2); border: 0; border-radius: var(--radius-sm);
-  box-shadow: none;
-  margin-bottom: 8px; padding: 10px 12px;
-  --bar-w: 0px; /* 第 172 次：卡片内的行原本就不画左边条（原来靠 box-shadow: none 去掉 inset 条） */
-}
-.card .list li:last-child, .card .kv li:last-child { margin-bottom: 0; }
-.card .list li:hover { transform: none; box-shadow: none; background: var(--primary-weak); }
+/* 第 174 次：卡片里的行不再一行一块米色底，改为透明行 + 行间细分隔线（与首页提醒区同一语言） */
+.card .list li, .card .kv li { background: transparent; padding: 11px 2px; }
+.card .list li:hover { background: transparent; }
 /* 「更早…」入口：短滑块下方独立一行 */
 .date-slider .ds-earlier { margin-top: 2px; }
 
@@ -1388,7 +1375,6 @@ body.hc:not(.dark) .tool-item,
 body.hc:not(.dark) .record-tile { border: 2px solid var(--tile, var(--border)); }
 body.hc:not(.dark) .tool-item,
 body.hc:not(.dark) .alltools-entry { border: 2px solid var(--tile, var(--border)); }
-body.hc:not(.dark) .list li { --bar-w: 4px; }
 
 /* 第 66 次（F 线）：妈妈情绪随记——5 档 chip / 处境多选 / 14 天圆点时间轴。
    时间轴刻意不做折线：趋势温和呈现，不放大波动制造「病感情感」。 */
@@ -1889,7 +1875,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
    第 80 次（宝宝档案）：设置页宝宝列表。行复用 .card .list 去壳样式
    （透明行+分隔线），头像 40px 圆裁；「当前」用弱色底轻标记。
    ============================================================ */
-.baby-list li { cursor: pointer; box-shadow: none; --bar-w: 0px; } /* 行内有头像标识，不再叠分色左条 */
+.baby-list li { cursor: pointer; } /* 行内有头像标识，不再叠分色左条 */
 .baby-list li[data-baby-active] { background: var(--primary-weak); }
 .baby-list li:active { background: var(--primary-weak); transform: none; }
 .baby-ava {
@@ -2882,7 +2868,7 @@ body .tabbar .dock-btn[hidden] { display: none; }
    让「正在计时」在长列表里第一眼能被认出来。
    ============================================================ */
 .card.care-live {
-  --bar-c: var(--tile, var(--primary)); --bar-w: 4px;
+  position: relative; --bar-c: var(--tile, var(--primary)); --bar-w: 4px;
   padding-left: 18px;
   animation: care-breathe 2.6s var(--ease) infinite;
 }
@@ -3508,6 +3494,9 @@ body.dark .home-greet .know-hint { background: rgba(40, 36, 32, .55); border-col
 .swipe-act svg { width: 20px; height: 20px; stroke: currentColor; }
 .swipe-act.is-full { background: #D93036; }
 body.dark .swipe-act { background: #D8434A; }
+/* 第 174 次：记录列表改成分组列表后，删除块贴着行右边缘长出来（不留缝、不带圆角），和 iOS 设置页一致 */
+.list .swipe-act { left: 100%; border-radius: 0; }
+.card .list .swipe-act { left: calc(100% + 8px); border-radius: var(--radius-sm); }
 /* 所在卡片横向裁切（js 给它加 .sw-clip）；页面容器也裁一层，防止撑出横向滚动条 */
 .sw-clip { overflow-x: clip; }
 #app { overflow-x: clip; } /* 第 170 次：从 #view 挪到 #app，#view 自身不再做任何裁切，天空才能伸到顶栏背后 */
@@ -3659,19 +3648,32 @@ input[type=time]::-webkit-date-and-time-value { text-align: left; margin: 0; }
 .row:has(input[type=datetime-local]) { flex-direction: column; gap: 0; }
 
 /* ============================================================
-   第 172 次 · 左侧强调条改为直条
-   原先用 border-left 或 inset 阴影画左边条，两种都会顺着圆角弯成一道月牙
-   （真机：首页提醒卡和里面的待补行左边都是一个「(」）。
-   改为 ::before 画的直条：贴着左内缘，上下各让开一段圆角，两端也是圆头。
-   记录列表 .list li 默认用模块色、上下让开 14px。
+   第 172 次 · 左侧强调条改为直条（::before，不随圆角弯成月牙）
+   第 174 次起只剩计时中卡片 .card.care-live 用它：左边条只表示「正在进行」。
    用法：元素上设 --bar-c（颜色），可选 --bar-w（粗细，默认 3px）和 --bar-inset（上下让开的距离）。
    ============================================================ */
-.notice-banner, .review-card, .farewell-card, .vac-backfill, .card.backfill-note,
-.card.care-live, .kv li { position: relative; }
-.notice-banner::before, .review-card::before, .farewell-card::before,
-.vac-backfill::before, .card.backfill-note::before, .card.care-live::before,
-.kv li::before, .list li::before {
+.card.care-live::before {
   content: ''; position: absolute; left: 0; top: var(--bar-inset, 18px); bottom: var(--bar-inset, 18px);
   width: var(--bar-w, 3px); border-radius: 0 var(--bar-w, 3px) var(--bar-w, 3px) 0;
   background: var(--bar-c, var(--primary)); pointer-events: none;
+}
+
+/* ============================================================
+   第 174 次 · 卡片体系统一（方案 C）
+   · 记录列表 .list / 键值列表 .kv：从「一行一张描边小卡 + 左边条」改为 iOS 式分组列表——
+     一个圆角容器，行间 1px 细分隔线，行本身不再有圆角、阴影和间距；
+   · 说明类卡片（通知、回顾、告别、补种说明、补记说明）：去掉边框、阴影和左边条，
+     改为按 --bar-c 着色的浅色横幅，和能点的卡片区分开；
+   · 左边条只留给计时中（见上）。
+   ============================================================ */
+.list:not(:empty), .kv:not(:empty) {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-card); overflow: clip;
+}
+.list li + li, .kv li + li { border-top: 1px solid var(--border); }
+/* 卡片里的列表不再套一层容器（卡片本身就是容器） */
+.card .list:not(:empty), .card .kv:not(:empty) { background: none; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
+.notice-banner, .review-card, .farewell-card, .vac-backfill, .card.backfill-note {
+  background: color-mix(in srgb, var(--bar-c, var(--primary)) 9%, var(--surface));
+  border-color: transparent; box-shadow: none;
 }
