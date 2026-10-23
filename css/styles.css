@@ -3766,3 +3766,10 @@ body.dark .swipe-act { background: #D8434A; }
 }
 .app-header .mod-date { opacity: calc(.6 * clamp(0, calc(1 - var(--lt) * 2), 1)); transform: translateY(calc(var(--lt) * -8px)); }
 body.in-home .hdr-title { display: none; }
+
+/* 第 162 次（用户反馈：顶栏底部有一条横线）：
+   根因：顶栏有 1px 透明下边框，背景渐变默认从 padding-box 起算并重复平铺，
+   落在边框那 1px 里的是「第二遍」渐变的顶端实色，就成了顶栏底部一条 1px 灰线。
+   让背景从 border-box 起算且不平铺，渐变的透明尾巴正好落到最底边。 */
+/* 用 !important：.is-solid 等状态规则写的是 background 简写，特异性更高，会把 origin/repeat 重置回默认 */
+.app-header { background-origin: border-box !important; background-repeat: no-repeat !important; }
