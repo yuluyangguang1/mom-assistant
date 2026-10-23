@@ -28,5 +28,75 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "记喂养",
+      "short_name": "记喂养",
+      "url": "./?go=feeding",
+      "icons": [
+        {
+          "src": "assets/shortcuts/feeding-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        },
+        {
+          "src": "assets/shortcuts/feeding-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "换尿布",
+      "short_name": "换尿布",
+      "url": "./?go=diaper",
+      "icons": [
+        {
+          "src": "assets/shortcuts/diaper-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        },
+        {
+          "src": "assets/shortcuts/diaper-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "记睡眠",
+      "short_name": "记睡眠",
+      "url": "./?go=sleep",
+      "icons": [
+        {
+          "src": "assets/shortcuts/sleep-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        },
+        {
+          "src": "assets/shortcuts/sleep-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "宫缩计时",
+      "short_name": "宫缩计时",
+      "url": "./?go=contraction",
+      "icons": [
+        {
+          "src": "assets/shortcuts/contraction-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        },
+        {
+          "src": "assets/shortcuts/contraction-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }

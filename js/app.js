@@ -1354,6 +1354,16 @@
       global.Modules.whitenoise.resetStaleState();
     }
     showTab('home');
+    /* 第 163 次：桌面图标长按快捷菜单（manifest shortcuts）带 ?go=模块id 打开，
+       先落首页（保证返回有落点），再推入目标模块；随后把参数从地址栏抹掉，刷新不会再跳一次。
+       首次引导未完成时不跳，先走完引导。 */
+    try {
+      var goId = new URLSearchParams(global.location.search).get('go');
+      if (goId) {
+        if (global.history && global.history.replaceState) global.history.replaceState(global.history.state, '', global.location.pathname);
+        if (goId !== 'home' && Modules[goId] && Storage.get().settings.privacyAccepted) showTab(goId);
+      }
+    } catch (eGo) { /* 地址参数异常时就停在首页 */ }
     Util.bindLongPressCopy(); /* 第 87 次：列表行长按复制该条记录（全局委托，一次绑定） */
     showOnboarding();
     maybeWeeklyReview();
