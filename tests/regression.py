@@ -188,6 +188,18 @@ def test_layout_and_toast(b):
         if n:
             bad[t] = n
     check('360 宽列表行内无重叠', not bad, bad)
+    # 第 152 次：滚到底后，页面最后的内容不能被底栏挡住（设置页展开全部分组；收起的 <details> 内容不计）
+    covered = {}
+    for t in TABS:
+        p.evaluate(f"App.showTab('{t}')"); p.wait_for_timeout(120)
+        p.evaluate("document.querySelectorAll('#view details').forEach(d=>d.open=true)")
+        p.evaluate("document.scrollingElement.scrollTop=1e7"); p.wait_for_timeout(150)
+        hit = p.evaluate("""(()=>{const bar=document.querySelector('.tabbar');if(!bar)return [];const br=bar.getBoundingClientRect();const o=[];
+            document.querySelectorAll('#view *').forEach(e=>{if(e.children.length)return;const d=e.closest('details');if(d&&!d.open&&!e.closest('summary'))return;
+              const b=e.getBoundingClientRect();if(b.width&&b.height&&b.bottom>br.top+1&&b.top<br.bottom&&getComputedStyle(e).visibility!=='hidden')o.push((e.textContent||e.tagName).trim().slice(0,12))});return o})()""")
+        if hit:
+            covered[t] = hit[:3]
+    check('360 宽滚到底无内容被底栏遮挡', not covered, covered)
     r = p.evaluate("""(()=>{for(let i=0;i<6;i++)Util.toast('提示'+i);Util.toast('同一句');Util.toast('同一句');
         return [...document.querySelectorAll('#toastRoot .toast:not(.leaving)')].map(e=>e.textContent)})()""")
     check('同屏提示最多 2 条且同文案不重复', len(r) <= 2 and r.count('同一句') == 1, r)
