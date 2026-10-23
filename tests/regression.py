@@ -206,6 +206,12 @@ def test_layout_and_toast(b):
     r = p.evaluate("""(()=>{Util.toast('已删除','ok',{label:'撤销',onClick(){}});Util.toast('甲');Util.toast('乙');
         return [...document.querySelectorAll('#toastRoot .toast:not(.leaving)')].map(e=>e.textContent)})()""")
     check('带撤销的提示优先保留', any('撤销' in x for x in r), r)
+    r = p.evaluate("""(()=>{const G=window.Greetings;const bad=[];let n=0;
+        const cases=[{ageDays:5},{ageDays:156},{ageDays:500},{pregWeek:8},{pregWeek:20},{pregWeek:33,dueLeft:50},{pregWeek:39,dueLeft:5},{}];
+        for(const c of cases)for(let h=0;h<24;h++)for(const who of ['豆豆妈','']){const o=Object.assign({now:new Date(2026,9,23,h),who,role:'妈妈'},c);
+          const a=G.pick(o).text,b=G.pick(o).text;n++;if(a!==b||/[{}]/.test(a)||!a||a.length>13||/^，|，$/.test(a))bad.push(h+':'+a)}
+        return {n,bad:bad.slice(0,5),ms:G.pick({ageDays:30,who:'x'}).text}})()""")
+    check('问候语：阶段×时段全覆盖、同日同时段稳定、无残留占位符', not r['bad'] and '满月' in r['ms'], r)
     check('布局测试无 pageerror', not errs, errs)
     p.close()
 

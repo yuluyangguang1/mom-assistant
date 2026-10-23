@@ -202,10 +202,38 @@
 
       /* 第 155 次（hero 重设计）：问候按时段，阶段做成大数字。
          greetSub 仍保留（无数字时作说明行），另算 stat = {num, unit, cap}。 */
-      var hrNow = new Date().getHours();
-      var timeHello = (hrNow >= 23 || hrNow < 5) ? '夜里辛苦了'
-        : (hrNow < 11 ? '早上好' : (hrNow < 13 ? '中午好' : (hrNow < 18 ? '下午好' : '晚上好')));
-      greetWho = who ? (timeHello + '，' + who) : timeHello;
+      /* 第 156 次：问候语交给 js/greetings.js（阶段 × 时段 × 特殊日子，一天内同时段不变）。
+         加句子只改 greetings.js 的 LIB，不用动这里。 */
+      var gNow = new Date();
+      var festRaw = Util.festivalOf ? Util.festivalOf(gNow) : null;
+      var festG = null;
+      if (festRaw) {
+        var fl = festRaw.split(' · ').filter(function (f) {
+          if (f === '教师节') return false;
+          if (f === '父亲节') return cg && cg.role === 'dad';
+          if (f === '母亲节') return !(cg && cg.role === 'dad');
+          return true;
+        });
+        festG = fl[0] || null;
+      }
+      var monthDay = null;
+      if (bd && ageDays !== null && ageDays > 30) {
+        var bDt = new Date(bd + 'T00:00:00');
+        if (bDt.getDate() === gNow.getDate()) {
+          var mCount = (gNow.getFullYear() - bDt.getFullYear()) * 12 + (gNow.getMonth() - bDt.getMonth());
+          if (mCount >= 2 && mCount % 12 !== 0) monthDay = mCount;
+        }
+      }
+      var pwG = pregnancyWeek(d);
+      if (global.Greetings) {
+        greetWho = Greetings.pick({
+          now: gNow, who: who, role: roleWord || '',
+          ageDays: (ageDays !== null && ageDays >= 0 && ageDays <= 1095) ? ageDays : null,
+          pregWeek: (ageDays === null || ageDays < 0) ? pwG : null,
+          dueLeft: (ageDays === null || ageDays < 0) ? dl : null,
+          fest: festG, monthDay: monthDay
+        }).text;
+      }
       var stat = null;
       if (ageDays !== null && ageDays >= 1 && ageDays <= 730) {
         var mo = Math.floor(ageDays / 30.44), rem = ageDays - Math.round(mo * 30.44);
