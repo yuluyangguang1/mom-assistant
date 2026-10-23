@@ -3699,3 +3699,27 @@ body.dark .home-greet .know-hint { background: rgba(40, 36, 32, .55); border-col
 @media (max-width: 359px) { .hg-num { font-size: calc(56px * var(--fs-display-mul, 1)); } .home-greet h1 { font-size: calc(21px * var(--fs-mul)); } }
 /* hero 内容从顶栏（头像行）下方开始，不压在顶栏后面 */
 .home-sky { padding-top: calc(var(--sat-pad) + 66px); }
+
+/* ============================================================
+   第 159 次 · 列表行左滑删除（js/swipe-row.js）
+   删除卡片挂在行的右侧外面（left: 100% + 8px），宽度跟着拖动距离长出来，
+   和行之间留 8px 缝，像 iOS 卡片式列表的滑动操作。
+   ============================================================ */
+.list li.sw-row { position: relative; will-change: transform; }
+.list li.sw-active { user-select: none; -webkit-user-select: none; }
+.swipe-act {
+  position: absolute; top: 0; left: calc(100% + 8px); width: 0; height: 100%; min-height: 0; opacity: 0;
+  box-sizing: border-box; box-shadow: none; transform: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  overflow: hidden; white-space: nowrap; padding: 0; margin: 0;
+  border: 0; border-radius: inherit; border-radius: var(--radius, 16px);
+  background: #E5484D; color: #fff; font-size: calc(12px * var(--fs-mul)); font-weight: 700;
+  -webkit-tap-highlight-color: transparent;
+}
+.swipe-act svg { width: 20px; height: 20px; stroke: currentColor; }
+.swipe-act.is-full { background: #D93036; }
+body.dark .swipe-act { background: #D8434A; }
+/* 所在卡片横向裁切（js 给它加 .sw-clip）；页面容器也裁一层，防止撑出横向滚动条 */
+.sw-clip { overflow-x: clip; }
+#view { overflow-x: clip; }
+.swipe-act .ico, .swipe-act svg, .swipe-act svg * { color: #fff !important; stroke: #fff !important; }
