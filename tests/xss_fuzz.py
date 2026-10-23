@@ -37,6 +37,14 @@ def main():
     data['supplementPlans'][-1]['id'] = 'z0'
     data['pregnancy'] = {'lmp': '2026-03-01', 'dueDate': '2026-12-06', 'weights': [dict(rec(90), kg=P)]}
     data['prenatal'] = {'checks': [rec(91)], 'records': [rec(92)]}
+    data['finance'] = {'records': [dict(rec(93), amount=P)]}
+    data['packing'] = {'seeded': True, 'items': [dict(rec(94), checked=False, hint=P)]}
+    data['vaccines'] = {'done': {'hepb-1': {'date': today, 'note': P, 'site': P}}}
+    data['checkups'] = {'done': {'m1': {'date': today, 'note': P}}}
+    # 日期字段也注入一份（另一条记录），验证格式化函数不会原样吐出非法日期
+    for k in ('feedings', 'diapers', 'sleeps', 'meds', 'temps', 'growth', 'finance'):
+        bad = dict(rec(200), time=P, start=P, end=P, date=P)
+        (data[k]['records'] if k == 'finance' else data[k]).append(bad)
     data['settings']['caregiver'] = {'role': P, 'name': P}
     data['settings']['baby'] = {'nickname': P, 'name': P, 'sex': P, 'birthDate': '2026-05-20'}
     data.setdefault('settings', {})['privacyAccepted'] = True
@@ -58,13 +66,16 @@ def main():
         note('启动')
         for t in R.TABS:
             p.evaluate(f"App.showTab('{t}')"); p.wait_for_timeout(120); note(t)
-            li = p.locator('#app .list li, main .list li').first
-            if li.count():
+            n = min(p.locator('#view .list li').count(), 6)  # 每页点前 6 条，覆盖编辑弹窗
+            for i in range(n):
+                li = p.locator('#view .list li').nth(i)
                 try:
-                    li.click(timeout=800); p.wait_for_timeout(150); note(t + ' 点第一条')
+                    li.click(timeout=600); p.wait_for_timeout(120); note(t + ' 点开记录')
                 except Exception:
                     pass
                 p.evaluate("var m=document.getElementById('modalRoot');if(m)m.innerHTML=''")
+                if p.evaluate("!document.querySelector('#view .list')"):
+                    p.evaluate(f"App.showTab('{t}')"); p.wait_for_timeout(80)
         p.evaluate("App.showTab('search')"); p.wait_for_timeout(100)
         s = p.locator('input[type=search], #searchInput').first
         if s.count():

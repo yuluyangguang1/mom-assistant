@@ -40,7 +40,7 @@
       if (keys.length) {
         html += '<ul class="kv">';
         keys.sort(function (a, b) { return byCat[b] - byCat[a]; }).forEach(function (k) {
-          html += '<li>' + k + '：' + byCat[k].toFixed(2) + ' 元</li>';
+          html += '<li>' + Util.escapeHtml(k) + '：' + byCat[k].toFixed(2) + ' 元</li>';
         });
         html += '</ul>';
       }
