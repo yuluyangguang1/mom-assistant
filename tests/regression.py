@@ -225,6 +225,9 @@ def test_css_rules(b):
         else: buf = t
     dup = [k[1] for k, v in seen.items() if v > 1 and k[1] not in ('.view', '.home-sky')]
     check('CSS 无重复选择器', not dup, dup[:6])
+    # 5. 第 172 次：左侧强调条不再用 inset 阴影（会顺着圆角弯成月牙），统一走 ::before 直条（--bar-c）
+    bent = re.findall(r'box-shadow:[^;]*inset\s+[2-6]px\s+0\s+0', nc)
+    check('左边条不用 inset 阴影', not bent, bent[:3])
 
 
 def test_layout_and_toast(b):

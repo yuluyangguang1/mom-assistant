@@ -474,6 +474,7 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 
 /* C7 补记模式提示条：细左条 + 弱底，一眼知道「这条会记到别处」 */
 .backfill-note { border-left: 3px solid var(--warn); padding: 12px 16px; }
+.card.backfill-note { border-left: 1px solid var(--border); --bar-c: var(--warn); --bar-inset: 14px; } /* 第 172 次：卡片上改用直条，见文件末尾 */
 
 /* 第 72 次：辅食观察期进度环（Kinetics Progress Ring 落地）——环内数字随主题色 */
 .nf-ring-row { display: flex; align-items: center; gap: 12px; }
@@ -565,7 +566,7 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
   background: var(--surface); border: 1px solid var(--border);
   /* 第 51 次：左边条与 .list 统一为 inset 直条——border-left 会顺着 16px 圆角
      弯出一段弧，inset 影条是贴住内缘的直线，与记录列表视觉一致 */
-  box-shadow: inset 3px 0 0 0 var(--tile, var(--primary));
+  --bar-c: var(--tile, var(--primary)); --bar-inset: 9px;
   border-radius: var(--radius-sm);
   font-size: var(--fs-body);
 }
@@ -596,7 +597,8 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
   padding: 13px 15px; margin-bottom: var(--space-sm);
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: inset 3px 0 0 0 var(--tile, var(--primary)), var(--shadow-card);
+  box-shadow: var(--shadow-card);
+  position: relative; --bar-c: var(--tile, var(--primary)); --bar-inset: 14px; /* 第 172 次：左边条改 ::before 直条，见文件末尾 */
   transition: transform .2s var(--spring), border-color .2s var(--ease), box-shadow .2s var(--ease);
 }
 .list li:last-child { margin-bottom: 0; }
@@ -614,7 +616,7 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
     margin .16s var(--ease), border-color .16s var(--ease);
   pointer-events: none;
 }
-.list li:hover { transform: translateY(-1px); border-color: var(--primary-weak); box-shadow: inset 3px 0 0 0 var(--tile, var(--primary)), var(--shadow-hover); }
+.list li:hover { transform: translateY(-1px); border-color: var(--primary-weak); box-shadow: var(--shadow-hover); }
 /* 可点列表项按压反馈（第 44 次）：data-go 是可跳转项（提醒卡/磁贴行）——
    触屏无 hover（已被 hover:none 禁用），按下时轻微下沉确认「点到了」 */
 /* 第 81 次（Appllama 动效纪律）：列表行按压只用底色高亮，永不 scale——
@@ -699,6 +701,7 @@ body.dark .list li .li-num.sup-ok  { color: #8FCDB2; }
   background: var(--surface-2); border: 0; border-radius: var(--radius-sm);
   box-shadow: none;
   margin-bottom: 8px; padding: 10px 12px;
+  --bar-w: 0px; /* 第 172 次：卡片内的行原本就不画左边条（原来靠 box-shadow: none 去掉 inset 条） */
 }
 .card .list li:last-child, .card .kv li:last-child { margin-bottom: 0; }
 .card .list li:hover { transform: none; box-shadow: none; background: var(--primary-weak); }
@@ -1385,7 +1388,7 @@ body.hc:not(.dark) .tool-item,
 body.hc:not(.dark) .record-tile { border: 2px solid var(--tile, var(--border)); }
 body.hc:not(.dark) .tool-item,
 body.hc:not(.dark) .alltools-entry { border: 2px solid var(--tile, var(--border)); }
-body.hc:not(.dark) .list li { box-shadow: inset 4px 0 0 0 var(--tile, var(--primary)), var(--shadow-card); }
+body.hc:not(.dark) .list li { --bar-w: 4px; }
 
 /* 第 66 次（F 线）：妈妈情绪随记——5 档 chip / 处境多选 / 14 天圆点时间轴。
    时间轴刻意不做折线：趋势温和呈现，不放大波动制造「病感情感」。 */
@@ -1772,7 +1775,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
   }
   .list li:hover {
     background: var(--surface); border-color: var(--border);
-    box-shadow: inset 3px 0 0 0 var(--tile, var(--primary)), var(--shadow-card);
+    box-shadow: var(--shadow-card);
   }
   .btn:hover, .btn-mini:hover,
   .seg-btn:hover, .tab:hover, .mod-item:hover { background: var(--surface); }
@@ -1834,7 +1837,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
    首页提醒卡（reminders.js）：有提醒才渲染，复用 .list 行样式，
    行可点击直达对应模块；左侧图标/边条按来源模块分色。
    ============================================================ */
-.remind-card { border-left: 3px solid var(--warn); }
+.remind-card { --bar-c: var(--warn); }
 .remind-list li { cursor: pointer; }
 .remind-list li:active { background: var(--primary-weak); transform: none; }
 
@@ -1854,7 +1857,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
   min-height: calc(44px * var(--fs-mul));
   padding: 6px 10px 6px 12px;
   background: var(--surface-2);
-  box-shadow: inset 3px 0 0 0 var(--warn);
+  --bar-c: var(--warn); --bar-inset: 10px; --bar-w: 3px;
   font-size: calc(13px * var(--fs-mul));
   color: var(--muted);
 }
@@ -1873,7 +1876,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
    第 80 次（宝宝档案）：设置页宝宝列表。行复用 .card .list 去壳样式
    （透明行+分隔线），头像 40px 圆裁；「当前」用弱色底轻标记。
    ============================================================ */
-.baby-list li { cursor: pointer; box-shadow: none; } /* 行内有头像标识，不再叠分色左条 */
+.baby-list li { cursor: pointer; box-shadow: none; --bar-w: 0px; } /* 行内有头像标识，不再叠分色左条 */
 .baby-list li[data-baby-active] { background: var(--primary-weak); }
 .baby-list li:active { background: var(--primary-weak); transform: none; }
 .baby-ava {
@@ -1898,7 +1901,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
    - .notice-banner：持续性静默风险的强提示卡，不自动消失、可延迟关闭、不阻断操作。
    ============================================================ */
 
-.notice-banner { border-left: 3px solid var(--warn); }
+.notice-banner { --bar-c: var(--warn); }
 .notice-banner h2 { display: flex; align-items: center; gap: 6px; }
 .notice-banner h2 .ico { width: 18px; height: 18px; }
 .notice-banner .row { margin-top: var(--space-sm); }
@@ -1909,12 +1912,12 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
    平静呈现——不用红色、不用进度条、不用「连续天数」；
    回顾只拿用户自己的数据自比，告别卡不设任何挽留话术。
    ============================================================ */
-.review-card { border-left: 3px solid var(--primary); }
+.review-card { --bar-c: var(--primary); }
 .review-card p { line-height: 1.7; }
 .review-card .row { margin-top: var(--space-sm); }
 .review-card .row .btn { width: 100%; }
 
-.farewell-card { border-left: 3px solid var(--primary); }
+.farewell-card { --bar-c: var(--primary); }
 .farewell-card h2 { display: flex; align-items: center; gap: 6px; }
 .farewell-card h2 .ico { width: 18px; height: 18px; }
 .farewell-card p { line-height: 1.7; }
@@ -2866,8 +2869,8 @@ body .tabbar .dock-btn[hidden] { display: none; }
    让「正在计时」在长列表里第一眼能被认出来。
    ============================================================ */
 .card.care-live {
-  border-left: 4px solid var(--tile, var(--primary));
-  padding-left: 14px;
+  --bar-c: var(--tile, var(--primary)); --bar-w: 4px;
+  padding-left: 18px;
   animation: care-breathe 2.6s var(--ease) infinite;
 }
 @keyframes care-breathe {
@@ -3098,7 +3101,7 @@ body::after {
 .birth-field input[type="date"] { display: block; width: 100%; min-height: 48px; margin-top: 6px; box-sizing: border-box; }
 .birth-field .hint { display: block; margin-top: 4px; }
 /* 第 146 次（P0-6）：疫苗「过了应种日还没记录」批量补记卡 */
-.vac-backfill { border-left: 3px solid var(--warn); }
+.vac-backfill { --bar-c: var(--warn); }
 .hn-run-label {
   font-weight: 500; white-space: nowrap;
   /* ↑ 第 171 次：同名选择器合并到此处 */ display: flex; flex-direction: column; line-height: 1.25; }
@@ -3641,3 +3644,21 @@ input[type=date]::-webkit-date-and-time-value,
 input[type=datetime-local]::-webkit-date-and-time-value,
 input[type=time]::-webkit-date-and-time-value { text-align: left; margin: 0; }
 .row:has(input[type=datetime-local]) { flex-direction: column; gap: 0; }
+
+/* ============================================================
+   第 172 次 · 左侧强调条改为直条
+   原先用 border-left 或 inset 阴影画左边条，两种都会顺着圆角弯成一道月牙
+   （真机：首页提醒卡和里面的待补行左边都是一个「(」）。
+   改为 ::before 画的直条：贴着左内缘，上下各让开一段圆角，两端也是圆头。
+   记录列表 .list li 默认用模块色、上下让开 14px。
+   用法：元素上设 --bar-c（颜色），可选 --bar-w（粗细，默认 3px）和 --bar-inset（上下让开的距离）。
+   ============================================================ */
+.remind-card, .notice-banner, .review-card, .farewell-card, .vac-backfill, .card.backfill-note,
+.card.care-live, .kv li { position: relative; }
+.remind-card::before, .notice-banner::before, .review-card::before, .farewell-card::before,
+.vac-backfill::before, .card.backfill-note::before, .card.care-live::before,
+.kv li::before, .list li::before {
+  content: ''; position: absolute; left: 0; top: var(--bar-inset, 18px); bottom: var(--bar-inset, 18px);
+  width: var(--bar-w, 3px); border-radius: 0 var(--bar-w, 3px) var(--bar-w, 3px) 0;
+  background: var(--bar-c, var(--primary)); pointer-events: none;
+}
