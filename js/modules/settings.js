@@ -372,6 +372,7 @@
     });
   }
 
+  var _sgCur = null, _sgY = 0; /* 第 182 次：当前打开的设置分组（跨 silent 重绘保持） */
   Modules.settings = {
     id: 'settings',
     title: '设置',
@@ -458,7 +459,7 @@
         + '不行就保存为 PNG。全程在本机绘制，照片与记录不出这台设备。</p></div>';
       html += '</details>';
 
-      html += sgOpen('settings', '数据与统计', '各模块记录数 / 日的起始 / 本机占用 / 记录成本自测');
+      html += sgOpen('grid', '数据与统计', '各模块记录数 / 日的起始 / 本机占用 / 记录成本自测');
       /* 数据统计：各模块记录数一目了然，导出前确认数据完整 */
       var stats = Storage.stats();
       html += '<div class="card"><h2>数据统计</h2><ul class="kv">';
@@ -517,7 +518,7 @@
       html += '</details>';
 
       /* 第 71 次（B5/B6）：知识与来源——知识底座的出处与引用分层，全部数据来自 Knowledge */
-      html += sgOpen('settings', '知识与来源', '内容出处 / 引用分层');
+      html += sgOpen('search', '知识与来源', '内容出处 / 引用分层');
       html += '<div class="card"><h2>知识来源</h2>';
       html += '<p class="hint">知识句与参考数字来自以下公开资料，按可信度分三级：'
         + '<b>官方标准/指南</b> &gt; <b>权威机构共识</b> &gt; <b>学派/流行观点</b>；'
@@ -551,7 +552,7 @@
         + '随时可以在「日期记录」页看到回顾，不需要靠提醒。</p></div>';
       html += '</details>';
 
-      html += sgOpen('heart', '称呼与阶段', '宝宝档案 / 首页称呼 / 首次引导 / 当前阶段');
+      html += sgOpen('baby', '称呼与阶段', '宝宝档案 / 首页称呼 / 首次引导 / 当前阶段');
       /* 第 80 次（宝宝档案）：多宝宝家庭在这里添加/切换/改名/删照片。
          切换后 settings.baby（名字/生日）被镜像更新，growth/vaccine 等模块零改动跟随。 */
       html += '<div class="card"><h2>宝宝档案</h2>';
@@ -615,7 +616,7 @@
     + '阶段由预产期/宝宝生日自动判定，这里可覆盖。</p></div>';
       html += '</details>';
 
-      html += sgOpen('settings', '外观', '主题 / 玻璃折射 / 触感 / 天空时刻预览');
+      html += sgOpen('sun', '外观', '主题 / 玻璃折射 / 触感 / 天空时刻预览');
       /* 主题四选（第 40 次移除顶栏按钮；第 41 次加「跟随系统」）：这里是唯一主题入口 */
       html += '<div class="card">';
       var MODES = [['time', '跟随时间'], ['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']];
@@ -743,6 +744,49 @@
       html += '</details>';
 
       view.innerHTML = html;
+      /* 第 182 次（用户：设置在一个页面里展开有点乱）：分组从「原地折叠展开」改为真正的二级页。
+         一级页只剩分组目录；点一行 → 整页只显示这一组，大标题换成组名，底栏切成「返回 + ＋」，
+         侧滑 / 系统返回 / 返回钮都回到目录（history 与转场由 App.enterSub 统一管理）。
+         各组内容仍一次性渲染在 DOM 里，下面的事件绑定一行不用改；
+         组内改设置触发 rerender（silent）时，按 _sgCur 原地回到同一组，不会被踢回目录。 */
+      var sgHead = view.querySelector('.page-head h1');
+      var sgGroups = view.querySelectorAll('.set-group');
+      function sgShow(idx, push) {
+        var g = sgGroups[idx];
+        if (!g) return;
+        _sgCur = idx;
+        if (push) _sgY = window.pageYOffset || 0;
+        g.open = true;
+        g.classList.add('sg-cur');
+        view.classList.add('sg-in');
+        var b = g.querySelector('.sg-txt b');
+        if (sgHead && b) sgHead.textContent = b.textContent;
+        if (push) {
+          try { window.scrollTo(0, 0); } catch (e) {}
+          if (global.App && App.enterSub) App.enterSub(sgHide);
+        }
+      }
+      function sgHide() {
+        _sgCur = null;
+        var cur = view.querySelector('.set-group.sg-cur');
+        if (cur) { cur.classList.remove('sg-cur'); cur.open = false; }
+        view.classList.remove('sg-in');
+        if (sgHead) sgHead.textContent = '设置';
+        var y = _sgY; _sgY = 0;
+        try { window.scrollTo(0, y); } catch (e) {}
+      }
+      Array.prototype.forEach.call(sgGroups, function (g, i) {
+        var sm = g.querySelector('summary');
+        if (sm) sm.addEventListener('click', function (e) {
+          e.preventDefault();
+          if (view.classList.contains('sg-in')) return;
+          sgShow(i, true);
+        });
+      });
+      if (_sgCur != null && global.App && App.inSub && App.inSub()) {
+        sgShow(_sgCur, false);
+        App.enterSub(sgHide); /* 已在二级态：只换成新 DOM 的回调，不再多推一条 history */
+      } else { _sgCur = null; }
       view.querySelector('#sExport').addEventListener('click', function () { global.App.exportAll(); });
       view.querySelector('#sImport').addEventListener('click', function () { global.App.importAll(); });
       view.querySelector('#sReset').addEventListener('click', function () { global.App.resetAll(); });

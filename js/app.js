@@ -213,6 +213,9 @@
        返回=从左收回（模块页回首页），底栏页签互切与平级跳转纯上浮。
        只动 transform+opacity；reduced-motion 下全局禁动画自动降级。 */
     var prevId = current;
+    /* 第 182 次：页内二级（设置分组）只在原地重绘（silent）时保留；真正切页就作废，
+       那条 history 记录仍在 historyDepth 里，之后返回会按普通规则回首页。 */
+    if (!(opts && opts.silent) && subExit) subExit = null;
     /* 第 116 次：进入「有上一层」的模块时登记一条 history，让侧滑返回与
        浏览器/系统返回键生效。判定只看「从顶层进更深一层」——
        首页/日历/设置互切是平级，不登记（否则侧滑会退到另一顶层页，行为怪异）。
@@ -255,14 +258,14 @@
     /* 返回按钮 + 日期收起态（第 42 次）：模块页显示返回，回到首页则隐藏。
        底栏两个页签（首页/日期记录）之外的任何页，都需要一个就近的返回出口。 */
     var backBtn = document.getElementById('backBtn');
-    if (backBtn) backBtn.hidden = (id === 'home' || id === 'calendar' || id === 'settings');    /* 用 add/remove 而非 classList.toggle(cls, force)：测试桩的 toggle 不接受 force 参数，
+    if (backBtn) backBtn.hidden = (id === 'home' || id === 'calendar' || id === 'settings') && !subExit;    /* 用 add/remove 而非 classList.toggle(cls, force)：测试桩的 toggle 不接受 force 参数，
        会退化成「反转」，连续进两次同一页就把类删掉了。 */
     /* 第 135 次（底部胶囊 dock）：二级页收起整条胶囊，只留返回钮。
        判据与 backBtn 完全同源——不另立一套「什么算二级页」的规则，
        否则两处口径迟早分叉（返回钮在、胶囊不收，或反过来）。 */
     var dockBar = document.getElementById('tabbar');
     if (dockBar) {
-      var isSub = (id !== 'home' && id !== 'calendar' && id !== 'settings');
+      var isSub = (id !== 'home' && id !== 'calendar' && id !== 'settings') || !!subExit;
       if (isSub) dockBar.classList.add('is-sub'); else dockBar.classList.remove('is-sub');
     }
     if (id !== 'home') document.body.classList.add('in-module');
@@ -991,6 +994,9 @@
   global.App = {
     showTab: showTab,
     rerender: rerender,
+    enterSub: enterSub,
+    inSub: inSub,
+    exitSub: function () { if (!popHistory()) exitSubNow(); },
     refreshHeaderAvatar: refreshHeaderAvatar, /* 第 80 次：设置页改照片/切宝宝后刷新左上角 */
     /* C7（操作便捷性研究）：一次性日期覆盖。日历空日「补记」入口设置它再跳模块，
        模块在 render 时读取并立即清空（消费式），保存即落到该日期。默认 null。 */
@@ -1261,7 +1267,7 @@
          旧写法是 showTab('home')，会留下一条悬空 history 记录，
          导致按一次返回后，再按系统返回又「弹回」刚才那个模块。 */
       backBtn.addEventListener('click', function () {
-        if (!popHistory()) showTab('home');
+        if (!popHistory()) { if (subExit) exitSubNow(); else showTab('home'); }
       });
     }
     /* 全局左上角宝宝头像（第 80 次重设计）：显示当前宝宝照片（未上传回落插画），
@@ -1411,6 +1417,30 @@
 
   /** 退出当前模块：把 historyDepth 减到 0，并回退一条 history。
       侧滑与顶部返回按钮共用这个出口，保证两条路径行为一致。 */
+  /* 第 182 次：页内二级页（目前用于设置分组）。模块自己切换内容，App 负责三件事：
+     ① 登记一条 history，让侧滑 / 系统返回 / 底栏返回钮都能退回上一层；
+     ② 底栏切成二级态（返回 + ＋）；③ 返回时回调模块的 onExit 收起二级内容。 */
+  var subExit = null;
+  function syncSubDock() {
+    var top = (current === 'home' || current === 'calendar' || current === 'settings');
+    var bb = document.getElementById('backBtn');
+    if (bb) bb.hidden = top && !subExit;
+    var bar = document.getElementById('tabbar');
+    if (bar) { if (!top || subExit) bar.classList.add('is-sub'); else bar.classList.remove('is-sub'); }
+  }
+  function enterSub(onExit) {
+    var wasIn = !!subExit;
+    subExit = onExit || function () {};
+    if (!wasIn) pushHistory('__sub');
+    syncSubDock();
+  }
+  function exitSubNow() {
+    var f = subExit; subExit = null;
+    syncSubDock();
+    if (f) { try { f(); } catch (e) { /* 模块回调异常不影响返回 */ } }
+  }
+  function inSub() { return !!subExit; }
+
   function popHistory() {
     if (historyDepth <= 0) return false;
     historyDepth--;
@@ -1530,6 +1560,7 @@
        走 popstate 回到首页，与侧滑共用同一条出口。 */
     try {
       global.addEventListener('popstate', function () {
+        if (subExit) { historyDepth = Math.max(0, historyDepth - 1); exitSubNow(); return; }
         if (current !== 'home') { historyDepth = Math.max(0, historyDepth - 1); showTab('home'); }
       });
     } catch (e) { /* 忽略 */ }

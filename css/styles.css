@@ -1154,10 +1154,18 @@ body.dark .set-group .sg-ico { background: rgba(255,255,255,.08); }
 .set-group .sg-chv { flex-shrink: 0; width: 18px; height: 18px; color: var(--muted); opacity: .55; transition: transform .2s var(--ease); }
 /* 第 99 次：svg 无尺寸规则会走 --icon 默认 22px，溢出 18px 容器（旋转基也随之偏大） */
 .set-group .sg-chv .ico { width: 18px; height: 18px; }
-.set-group[open] .sg-chv { transform: rotate(90deg); }
-.set-group[open] summary { border-bottom: 1px solid var(--border); }
 .set-group > .card { margin: var(--space-sm); box-shadow: none; }
 .set-group > .card:last-child { margin-bottom: 16px; }
+/* 第 182 次：分组改为二级页——#view.sg-in 时只显示当前组，组外壳隐形，组内卡片按普通页面卡片排 */
+#view.sg-in .set-group:not(.sg-cur) { display: none; }
+#view.sg-in .set-group.sg-cur {
+  border: 0; background: none; box-shadow: none; border-radius: 0; overflow: visible; margin: 0;
+}
+#view.sg-in .set-group.sg-cur > summary { display: none; }
+#view.sg-in .set-group.sg-cur > .card { margin: 0 0 var(--space-md, 14px); box-shadow: var(--shadow-card); animation: sgIn .28s var(--ease) both; }
+#view.sg-in .set-group.sg-cur > .card:last-child { margin-bottom: 16px; }
+@keyframes sgIn { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { #view.sg-in .set-group.sg-cur > .card { animation: none; } }
 
 /* 区块标题：小号字距标签 + 短强调竖线（克制、留白） */
 .section-title {
