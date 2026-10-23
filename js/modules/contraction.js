@@ -106,7 +106,7 @@
         if (json) {
           Util.download('宫缩时间线_' + Util.todayISO() + '.json', JSON.stringify(arr, null, 2), 'application/json');
         } else {
-          var lines = ['宝妈助手 宫缩时间线（仅供参考）', '生成时间：' + Util.nowLocal(), ''];
+          var lines = ['咿呀记 宫缩时间线（仅供参考）', '生成时间：' + Util.nowLocal(), ''];
           for (var i = 0; i < arr.length; i++) {
             var cc = arr[i];
             var dur = cc.end ? Util.fmtDuration(new Date(cc.end).getTime() - new Date(cc.start).getTime()) : '未结束';

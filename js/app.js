@@ -767,7 +767,7 @@
   function obWelcome() {
     return '<div class="ob-hero">'
       + '<img class="ob-logo" src="assets/icon-192.png" alt="" width="112" height="112">'
-      + '<h2>宝妈助手</h2>'
+      + '<h2>咿呀记</h2>'
       + '<p class="ob-lead">喂奶、睡眠、尿布、疫苗，<br>单手几秒记一笔。</p>'
       + '<ul class="ob-points">'
       + '<li>' + (global.icon ? global.icon('clock') : '') + '<span>首页一键快记，夜里也不用找</span></li>'
@@ -795,7 +795,7 @@
      请勿存放在公共或自动同步的目录。之后不再打断。 */
   function doExport() {
     var text = Storage.exportJSON();
-    Util.download('宝妈助手数据_' + Util.todayISO() + '.json', text, 'application/json');
+    Util.download('咿呀记数据_' + Util.todayISO() + '.json', text, 'application/json');
     /* 记录上次导出时间，供备份提醒与设置页展示 */
     var s = Storage.get();
     s.settings.lastExportISO = Util.todayISO();
@@ -976,7 +976,7 @@
 
   /* 引导第 1 步：身份（只影响称呼，不做画像） */
   function stepOneBody(draft) {
-    return '<div class="ob-main"><h2>谁在用宝妈助手？</h2>'
+    return '<div class="ob-main"><h2>谁在用咿呀记？</h2>'
       + '<p class="ob-sub">只用来决定怎么称呼你。不建账号，不收集姓名和手机号。</p>'
       + '<div class="ob-cards" id="obRole">'
       + obCard('data-role', 'mom', draft.role, 'heart', '妈妈', '')

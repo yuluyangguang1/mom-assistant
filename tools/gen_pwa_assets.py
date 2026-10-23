@@ -21,7 +21,7 @@ html,body{margin:0;height:100%%;background:%s;font-family:S,sans-serif}
 img{width:112px;height:112px;border-radius:26px;display:block;margin:0 auto;box-shadow:0 10px 30px rgba(0,0,0,.08)}
 h1{margin:22px 0 0;font-size:24px;font-weight:700;color:%s;letter-spacing:.12em}
 p{margin:8px 0 0;font-size:13px;color:%s;letter-spacing:.2em}
-</style></head><body><div class="c"><img src="data:image/png;base64,%s"><h1>宝妈助手</h1><p>陪你和宝宝每一天</p></div></body></html>"""
+</style></head><body><div class="c"><img src="data:image/png;base64,%s"><h1>咿呀记</h1><p>陪你和宝宝每一天</p></div></body></html>"""
 
 TILE = {'feeding': '#2E8C84', 'diaper': '#A6832B', 'sleep': '#686BAF', 'contraction': '#C0604A'}
 SHORTCUTS = [('feeding', '记喂养'), ('diaper', '换尿布'), ('sleep', '记睡眠'), ('contraction', '宫缩计时')]

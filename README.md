@@ -1,4 +1,4 @@
-# 宝妈助手 (Mom Assistant)
+# 咿呀记 Yiya（原名：宝妈助手）
 
 孕期 / 育儿一站式记录 Web App。纯静态、零依赖、可离线运行（双击 `index.html` 即可）。
 

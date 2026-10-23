@@ -14,7 +14,7 @@
   function buildVisitSummary(d) {
     var L = [];
     var baby = (d.settings && d.settings.baby) || {};
-    L.push('【就诊摘要】宝妈助手 · 生成于 ' + Util.nowLocal().slice(0, 16).replace('T', ' '));
+    L.push('【就诊摘要】咿呀记 · 生成于 ' + Util.nowLocal().slice(0, 16).replace('T', ' '));
     L.push('（由本机记录自动拼装，供问诊参考，不构成诊断；具体请遵医嘱。）');
     L.push('');
     L.push('◆ 宝宝信息');
@@ -200,7 +200,7 @@
       ctx.fillStyle = '#2F2A26';
       ctx.font = '600 36px ' + FONT;
       ctx.textAlign = 'left';
-      ctx.fillText('宝妈助手', 106, 84);
+      ctx.fillText('咿呀记', 106, 84);
       ctx.fillStyle = '#7A726B';
       ctx.font = '500 34px ' + FONT;
       ctx.textAlign = 'right';
@@ -344,7 +344,7 @@
 
   /* 浏览器内：分享卡片预览弹层（图片 + 分享/保存）。 */
   function openShareCardPreview(root, res) {
-    var name = '宝妈助手分享卡片_' + Util.todayISO() + '.png';
+    var name = '咿呀记分享卡片_' + Util.todayISO() + '.png';
     root.innerHTML =
       '<div class="modal-mask" data-sc-mask>' +
         '<div class="modal share-card-modal" role="dialog" aria-modal="true" aria-label="分享卡片预览">' +
@@ -719,7 +719,7 @@
       html += sgOpen('heart', '关于与告别', '版本信息 / 能力边界 / 随时离开');
 
       html += '<div class="card"><h2>关于</h2>';
-      html += '<p>宝妈助手 v1.0 · 本地优先纯工具（2026-09）</p>';
+      html += '<p>咿呀记 Yiya v1.0 · 本地优先纯工具（2026-09）</p>';
       var swOn = false;
       try { swOn = !!(global.navigator && navigator.serviceWorker && navigator.serviceWorker.controller); } catch (e) {}
       html += '<p class="hint">运行环境：' + (swOn ? '已启用离线缓存（添加到主屏后可离线使用）' : '直接运行（未启用离线缓存，不影响使用）') + '。'
@@ -1223,7 +1223,7 @@
         var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
         var a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = '宝妈助手_' + key + '_' + Util.todayISO() + '.csv';
+        a.download = '咿呀记_' + key + '_' + Util.todayISO() + '.csv';
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
         Util.toast('CSV 已导出', 'ok');
@@ -1239,7 +1239,7 @@
            必须先转义——sanitize 只校验记录「是对象」，不校验字段值，导入 crafted 备份
            即可把 <img onerror> 之类带进这一页（新窗口与主文档同源，可访问 opener）。 */
         var esc = Util.escapeHtml;
-        var body = '<h1>宝宝成长报告</h1><p class="sub">宝妈助手 · 生成于 ' + Util.nowLocal().slice(0, 16).replace('T', ' ') + '</p>';
+        var body = '<h1>宝宝成长报告</h1><p class="sub">咿呀记 · 生成于 ' + Util.nowLocal().slice(0, 16).replace('T', ' ') + '</p>';
         body += '<h2>宝宝信息</h2><p>性别：' + esc(baby.sex === 'girl' ? '女' : (baby.sex === 'boy' ? '男' : '未设置'))
           + ' ｜ 出生日期：' + esc(baby.birthDate || '未设置')
           + (baby.preterm ? ' ｜ 早产（孕 ' + esc(baby.birthGestWeeks || '?') + ' 周）' : '') + '</p>';
