@@ -3575,3 +3575,61 @@ body.dark .ob-card, body.dark .ob-group { box-shadow: none; border-color: var(--
 body.dark .ob-card.active { border-color: var(--primary); }
 .ob-card-check .ico { stroke: #fff; stroke-width: 2.4; color: #fff; }
 .ob-switch small { font-weight: 400; }
+
+/* ============================================================
+   第 153 次（原生感）：iOS 半屏底部面板 + 推入/推出页面转场
+   ============================================================ */
+/* —— 底部面板（sheet.js 给 role=dialog 的弹窗加 .as-sheet / .is-sheet）—— */
+.modal-mask.as-sheet {
+  align-items: flex-end; padding: 0;
+  background: rgba(20, 16, 12, calc(.42 * var(--sheet-dim, 1)));
+  animation: maskIn .28s var(--ease) both;
+}
+.modal-mask.as-sheet.sheet-leaving { background: rgba(20, 16, 12, 0); transition: background .2s var(--ease); }
+.modal-mask.as-sheet > .is-sheet {
+  width: 100%; max-width: 640px; margin: 0 auto;
+  max-height: calc(100vh - env(safe-area-inset-top) - 44px);
+  border-radius: 22px 22px 0 0; border-bottom: 0;
+  padding: 0 20px calc(18px + env(safe-area-inset-bottom));
+  box-shadow: 0 -10px 40px -12px rgba(30, 20, 10, .28);
+  animation: sheetIn .38s cubic-bezier(.32, .72, 0, 1) both;
+  will-change: transform;
+}
+@keyframes sheetIn { from { transform: translate3d(0, 100%, 0); } to { transform: none; } }
+.sheet-grab {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; justify-content: center; align-items: center;
+  height: 22px; margin: 0 -20px 6px; cursor: grab; touch-action: none;
+  background: inherit; background: var(--surface);
+}
+.sheet-grab i { width: 36px; height: 5px; border-radius: 3px; background: rgba(120, 120, 128, .32); }
+body.dark .sheet-grab i { background: rgba(235, 235, 245, .3); }
+.modal-mask.as-sheet > .is-sheet .modal-actions { position: sticky; bottom: calc(-18px - env(safe-area-inset-bottom)); background: var(--surface); padding: 12px 0 4px; margin-top: 16px; }
+.modal-mask.as-sheet > .is-sheet .modal-actions .btn { min-height: 48px; }
+.modal-mask.as-sheet > .sheet.is-sheet { padding-top: 0; }
+
+/* 背后页面：iOS 卡片式呈现——轻微缩小 + 圆角，弹窗关闭后复原 */
+#view { transition: transform .38s cubic-bezier(.32, .72, 0, 1), filter .38s var(--ease); transform-origin: 50% 0; }
+body.sheet-open #view { transform: scale(.955) translateY(8px); filter: saturate(.9); border-radius: 18px; }
+@media (prefers-reduced-motion: reduce) {
+  .modal-mask.as-sheet > .is-sheet { animation: none; }
+  #view { transition: none; }
+  body.sheet-open #view { transform: none; }
+}
+
+/* —— 页面转场（View Transitions；app.js 在 <html data-nav="push|pop|fade"> 下启动）—— */
+#view { view-transition-name: page; }
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+::view-transition-group(page) { animation-duration: .38s; animation-timing-function: cubic-bezier(.32, .72, 0, 1); }
+html[data-nav="push"]::view-transition-old(page) { animation: vtOutLeft .38s cubic-bezier(.32, .72, 0, 1) both; }
+html[data-nav="push"]::view-transition-new(page) { animation: vtInRight .38s cubic-bezier(.32, .72, 0, 1) both; }
+html[data-nav="pop"]::view-transition-old(page) { animation: vtOutRight .32s cubic-bezier(.32, .72, 0, 1) both; z-index: 2; }
+html[data-nav="pop"]::view-transition-new(page) { animation: vtInLeft .32s cubic-bezier(.32, .72, 0, 1) both; }
+html[data-nav="fade"]::view-transition-old(page) { animation: vtFadeOut .16s ease-out both; }
+html[data-nav="fade"]::view-transition-new(page) { animation: vtFadeIn .2s ease-out both; }
+@keyframes vtInRight { from { transform: translateX(100%); box-shadow: -8px 0 24px rgba(0,0,0,.08); } to { transform: none; } }
+@keyframes vtOutLeft { to { transform: translateX(-30%); opacity: .85; } }
+@keyframes vtOutRight { to { transform: translateX(100%); box-shadow: -8px 0 24px rgba(0,0,0,.08); } }
+@keyframes vtInLeft { from { transform: translateX(-30%); opacity: .85; } to { transform: none; } }
+@keyframes vtFadeOut { to { opacity: 0; } }
+@keyframes vtFadeIn { from { opacity: 0; } }

@@ -221,7 +221,38 @@
     header.classList.remove('is-deep');
   }
 
+  /* 第 153 次（原生感 · iOS 推入/推出转场）：支持 View Transitions 的环境（iOS 18+ Safari、Chrome 111+）
+     用系统级快照做真正的「新页从右推入、旧页向左退 30%」；返回反向；顶层平级页签互切快速淡入。
+     只给 #view 起 view-transition-name，顶栏与底部胶囊保持不动。
+     不支持 / 减少动态效果 / silent 原地刷新 → 直接走原路径（保留第 96 次的方向性上浮作降级）。 */
+  var _vtBusy = false;
+  var _swipeBackT = 0; /* 自定义侧滑返回已经自己推出整屏，紧随其后的切页不再叠一次系统转场 */
+  function navKind(prevId, id) {
+    var top = function (x) { return x === 'home' || x === 'calendar' || x === 'settings'; };
+    if (!prevId || prevId === id) return '';
+    if (top(prevId) && !top(id)) return 'push';
+    if (!top(prevId) && top(id)) return 'pop';
+    if (top(prevId) && top(id)) return 'fade';
+    return 'push';
+  }
   function showTab(id, opts) {
+    if (!Modules[id]) return;
+    var kind = (opts && opts.silent) ? '' : navKind(current, id);
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (kind && !reduce && !_vtBusy && (Date.now() - _swipeBackT > 800) && typeof document.startViewTransition === 'function') {
+      _vtBusy = true;
+      document.documentElement.setAttribute('data-nav', kind);
+      var o2 = {}; for (var k in (opts || {})) o2[k] = opts[k]; o2._vt = true;
+      try {
+        var vt = document.startViewTransition(function () { showTabNow(id, o2); });
+        var done = function () { _vtBusy = false; document.documentElement.removeAttribute('data-nav'); };
+        (vt.finished || Promise.resolve()).then(done, done);
+      } catch (e) { _vtBusy = false; showTabNow(id, o2); }
+      return;
+    }
+    showTabNow(id, opts);
+  }
+  function showTabNow(id, opts) {
     if (!Modules[id]) return;
     /* 第 96 次（原生手感·方向性进场）：按导航语义注入水平位移变量，
        fadeUp 消费（见 styles.css）。前进=从内容深处推入（磁贴/齿轮进模块），
@@ -296,7 +327,7 @@
     // .view-enter .sky-canvas，整页卡片、列表与天空不再重播入场动画。
     // 此前每记一笔全页重新错落淡入一遍（连天空都眨一下），是「假忙碌」感的主源。
     view.classList.remove('view-enter');
-    if (!(opts && opts.silent)) {
+    if (!(opts && (opts.silent || opts._vt))) {
       var dirX = '0px';
       if (prevId === 'home' && id !== 'home' && id !== 'calendar') dirX = '18px';
       else if (prevId && prevId !== 'home' && prevId !== 'calendar' && id === 'home') dirX = '-18px';
@@ -1473,6 +1504,7 @@
       /* 判定为返回：整屏推出去 → 切回首页 → 清掉跟手样式
          （showTab 会重建 #view 的内容，旧节点上的 transform 自然失效） */
       animateSwipe(vw, true);
+      _swipeBackT = Date.now();
       if (global.history && global.history.go) {
         try { global.history.go(-1); } catch (err) { showTab('home'); }
         historyDepth = Math.max(0, historyDepth - 1);
