@@ -40,7 +40,8 @@
 
   /* 喂养间隔：距上次喂养 > 3 小时 */
   function ruleFeeding(d, now) {
-    var latest = (d.feedings || []).slice()
+    /* 第 185 次：吸奶是妈妈的记录，不算宝宝吃了一顿 */
+    var latest = (d.feedings || []).filter(function (r) { return r.type !== 'pump'; }).slice()
       .sort(function (a, b) { return new Date(b.start) - new Date(a.start); })[0];
     if (!latest) return null;
     var h = hoursSince(latest.start, now);
@@ -240,24 +241,49 @@
      Util 未加载时（理论上不会，index.html 里 util.js 在前）回落本地日历日，
      与改前逐字节等价。 */
   function ruleMeds(d, now) {
+    var DS = (window.Util && Util.dayStartHour) ? Util.dayStartHour(d) : 0;
+    function keyOf(x) {
+      if (window.Util && Util.dayKeyOf) return Util.dayKeyOf(x, DS);
+      var t = new Date(x);
+      return t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' + ('0' + t.getDate()).slice(-2);
+    }
+    var dayNow = keyOf(new Date(now));
+    var cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 3);
+    /* 第 185 次：补剂计划优先——有计划、近 3 天在打卡、今天还没吃满 → 提醒具体名字 */
+    var sups = d.supplements || [];
+    var plans = (d.supplementPlans || []).filter(function (p) { return p && p.active !== false; });
+    if (plans.length && sups.some(function (r) { return r.time && new Date(r.time) >= cutoff && keyOf(r.time) !== dayNow; })) {
+      var todaySup = sups.filter(function (r) { return r.time && keyOf(r.time) === dayNow; });
+      var missing = plans.filter(function (p) {
+        var per = (typeof p.perDay === 'number' && p.perDay > 0) ? p.perDay : 1;
+        var n = todaySup.filter(function (r) { return (r.planId && p.id) ? r.planId === p.id : r.name === p.name; }).length;
+        return n < per;
+      });
+      if (missing.length) {
+        return {
+          accent: 'meds', go: 'supplement', remLevel: 1,
+          text: '今天的' + missing.slice(0, 2).map(function (p) { return p.name; }).join('、')
+            + (missing.length > 2 ? ' 等' : '') + '还没打卡，别忘了哦。'
+        };
+      }
+    }
+    /* 第 185 次：吃药——只对「近 3 天里至少 2 天都吃过」的同一种药提醒，
+       不再写死「维生素 D」；偶尔吃一次的退烧药、抗生素不会触发。 */
     var meds = d.meds || [];
     if (!meds.length) return null;
-    var DS = (window.Util && Util.dayStartHour) ? Util.dayStartHour(d) : 0;
-    var nd = new Date(now);
-    var dayNow = (window.Util && Util.dayKeyOf) ? Util.dayKeyOf(nd, DS)
-      : nd.getFullYear() + '-' + ('0' + (nd.getMonth() + 1)).slice(-2) + '-' + ('0' + nd.getDate()).slice(-2);
-    function sameDay(iso) {
-      if (window.Util && Util.dayKeyOf) return Util.dayKeyOf(iso, DS) === dayNow;
-      return (iso || '').slice(0, 10) === dayNow;
-    }
-    var hasToday = meds.some(function (r) { return sameDay(r.time); });
-    if (hasToday) return null;
-    var cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 3);
-    var recent = meds.some(function (r) { return r.time && new Date(r.time) >= cutoff; });
-    if (!recent) return null;
+    var days = {}, todayNames = {};
+    meds.forEach(function (r) {
+      if (!r.time || !r.name) return;
+      var k = keyOf(r.time);
+      if (k === dayNow) { todayNames[r.name] = 1; return; }
+      if (new Date(r.time) < cutoff) return;
+      (days[r.name] = days[r.name] || {})[k] = 1;
+    });
+    var habit = Object.keys(days).filter(function (n) { return Object.keys(days[n]).length >= 2 && !todayNames[n]; });
+    if (!habit.length) return null;
     return {
       accent: 'meds', go: 'meds', remLevel: 1,
-      text: '今天的维生素 D 还没有喂，别忘了哦。'
+      text: '今天的' + habit.slice(0, 2).join('、') + (habit.length > 2 ? ' 等' : '') + '还没有记录，别忘了哦。'
     };
   }
 

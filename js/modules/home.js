@@ -252,7 +252,7 @@
          刻意不与下方的 nowD 合并——nowD 服务于问候卡日期，两处语义不同，
          混用会在跨零点渲染时把日期和间隔算到不同的「现在」。 */
       var sumNow = new Date();
-      var feedToday = countToday(d.feedings, 'start');
+      var feedToday = countToday(Util.babyFeeds(d.feedings), 'start');
       var diaperToday = countToday(d.diapers, 'time');
       var contraToday = countToday(d.contractions, 'start');
       /* 第 128 次：昨夜最长连续改走共享口径（昨夜整组取最长一段），
@@ -371,7 +371,7 @@
          扩到「最近一次」。原写法在跨天时 lastToday 返回 null，磁贴一律退化成
          「暂无今日」，第 1 批那个 P0 成果在跨天回访（回访失败的主场景）下整个消失。
          今天记过时 lastAnySum 内部走原有分支，字面输出与改前完全一致——不回归。 */
-      var feedRaw = lastAnySum(d.feedings, 'start', sumNow);
+      var feedRaw = lastAnySum(Util.babyFeeds(d.feedings), 'start', sumNow);
       var diaperRaw = lastAnySum(d.diapers, 'time', sumNow);
       var feedSum = feedRaw || '暂无今日';
       var diaperSum = diaperRaw || '暂无今日';
@@ -929,7 +929,7 @@
          回答的是「现在要不要再来一次」。我们原来只有磁贴右侧那句
          「最近 08:30 · 今日 2 次」，扫读成本高，且被其他模块挤在后面。
          这里只读不写；两类都没记录时整块不渲染（不摆空壳，延续第 118 次冷启动保护）。 */
-      var lf = (d.feedings || []).filter(function (r) { return r && r.start; })
+      var lf = Util.babyFeeds(d.feedings).filter(function (r) { return r && r.start; })
         .sort(function (a, b) { return new Date(b.start) - new Date(a.start); })[0];
       var ld = (d.diapers || []).filter(function (r) { return r && r.time; })
         .sort(function (a, b) { return new Date(b.time) - new Date(a.time); })[0];
@@ -1036,7 +1036,7 @@
          输出与改前逐字节一致），布局/编辑模式以卡组件身份在网格循环里调用。 */
       function feedNextHTML(extraCls, badges) {
         if (!(bd && ageDays !== null && ageDays >= 0 && ageDays <= 730)) return '';
-        var feedWin = d.feedings.filter(function (r) { return r.start && (Date.now() - new Date(r.start).getTime()) < 48 * 3600000; })
+        var feedWin = d.feedings.filter(function (r) { return r.start && r.type !== 'pump' && (Date.now() - new Date(r.start).getTime()) < 48 * 3600000; })
           .sort(function (a, b) { return new Date(a.start) - new Date(b.start); });
         if (feedWin.length >= 2) {
           var gapsSum = 0;
@@ -1060,7 +1060,7 @@
       function feedNextReady() {
         if (!(bd && ageDays !== null && ageDays >= 0 && ageDays <= 730)) return false;
         var n = 0;
-        (d.feedings || []).forEach(function (r) {
+        Util.babyFeeds(d.feedings).forEach(function (r) {
           if (r.start && (Date.now() - new Date(r.start).getTime()) < 48 * 3600000) n++;
         });
         return n >= 2;
@@ -1799,7 +1799,7 @@
     })();
     var stats = [];
     if (lastLongestH != null) stats.push({ num: lastLongestH.toFixed(1), lbl: '昨夜最长连续', unit: '小时' });
-    stats.push({ num: cnt(d.feedings, 'start'), lbl: '今日喂养', unit: '次' });
+    stats.push({ num: cnt(Util.babyFeeds(d.feedings), 'start'), lbl: '今日喂养', unit: '次' });
     stats.push({ num: cnt(d.diapers, 'time'), lbl: '今日尿布', unit: '次' });
     /* 第 89 次（审计 B1）：宫缩统计只出现在孕期——与宫缩磁贴（stages:['pregnancy']）
        同口径，育儿期不再出现「今日宫缩 0 次」的阶段错位 */

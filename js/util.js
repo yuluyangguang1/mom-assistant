@@ -19,6 +19,33 @@
       return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     },
 
+    /** 第 185 次：「宝宝吃了一顿」的口径——排除吸奶（妈妈的记录）。
+        预测、距上次、今日次数都走这里。 */
+    babyFeeds: function (arr) {
+      return (arr || []).filter(function (r) { return r && r.type !== 'pump'; });
+    },
+
+    /** 第 185 次：记录时刻选择。留空 = 现在；选了就按选的时刻落库（夜里量的第二天补记不再错时）。 */
+    timePickHTML: function (id, value) {
+      return '<label class="time-pick">时刻<input type="time" id="' + id + '" value="' + (value || '') + '">'
+        + '<span class="hint">留空＝现在</span></label>';
+    },
+    /** 读时刻：dateIso 为 yyyy-mm-dd（缺省今天）。选了未来时刻返回 null 并提示。 */
+    stampFrom: function (root, id, dateIso) {
+      var now = Util.nowLocal();
+      var day = dateIso || now.slice(0, 10);
+      var el = root && root.querySelector ? root.querySelector('#' + id) : null;
+      var v = el && el.value ? String(el.value).slice(0, 5) : '';
+      if (!/^\d{2}:\d{2}$/.test(v)) return day + now.slice(10);
+      var iso = day + 'T' + v + ':00';
+      if (new Date(iso).getTime() > Date.now() + 60000) {
+        Util.toast('这个时刻还没到，请检查一下', 'warn');
+        if (Util.markInvalid) Util.markInvalid(el, '时刻在未来');
+        return null;
+      }
+      return iso;
+    },
+
     /** 当前的本地日期时间字符串 yyyy-mm-ddThh:mm:ss（避免使用 toISOString 的 UTC 偏移） */
     nowLocal: function () {
       var d = new Date();
@@ -238,7 +265,8 @@
       }
       (d.feedings || []).forEach(function (r) {
         var t = r.type === 'breast' ? '母乳' : (r.type === 'bottle' ? '奶瓶' : (r.type === 'formula' ? '奶粉' : (r.type === 'pump' ? '吸奶' : '辅食')));
-        var v = r.type === 'breast' ? (r.duration ? r.duration + ' 分' : '') : ((r.amount ? r.amount + (r.type === 'solid' ? ' g' : ' ml') : '') + (r.type === 'pump' && r.durationMin ? ' · ' + r.durationMin + ' 分' : ''));
+        var bm = r.durationMin || r.duration;
+        var v = r.type === 'breast' ? (bm ? bm + ' 分' : '') : ((r.amount ? r.amount + (r.type === 'solid' ? ' g' : ' ml') : '') + (r.type === 'pump' && r.durationMin ? ' · ' + r.durationMin + ' 分' : ''));
         add(isoOf(r.start), 'feeding', t, v, hmOf(r.start));
       });
       (d.sleeps || []).forEach(function (r) {
@@ -256,6 +284,8 @@
           add(d.vaccines.done[k], 'vaccine', '疫苗接种', '');
         });
       }
+      /* 第 185 次：饮水此前不进日期记录 */
+      (d.waters || []).forEach(function (r) { add(isoOf(r.time), 'water', '饮水', r.ml ? r.ml + ' ml' : '', hmOf(r.time)); });
       (d.meds || []).forEach(function (r) { add(isoOf(r.time), 'meds', '服药', r.name || '', hmOf(r.time)); });
       (d.milestones || []).forEach(function (r) { add(r.date, 'milestone', '里程碑', r.title || ''); });
       (d.periods || []).forEach(function (r) { if (r.start) add(isoOf(r.start), 'period', '经期', ''); });
@@ -377,6 +407,14 @@
       + '</label>';
   };
 
+  /* 第 185 次：记录类日期的最早可选日——有生日用生日，否则 3 年前 */
+  Util.recordFloor = function (d) {
+    var max = Util.todayISO();
+    var bd = d && d.settings && d.settings.baby && d.settings.baby.birthDate;
+    if (bd && /^\d{4}-\d{2}-\d{2}$/.test(bd) && Util.daysBetween(bd, max) > 31) return bd;
+    return Util.addDays(max, -1095);
+  };
+
   Util.dateSlider = function (cfg) {
     cfg = cfg || {};
     var today = Util.todayISO();
@@ -386,11 +424,11 @@
     var span = Util.daysBetween(min, max);
     var val = (cfg.value && Util.daysBetween(min, cfg.value) >= 0 && Util.daysBetween(cfg.value, max) >= 0) ? cfg.value : '';
     /* 第 76 次（D 线）：存完整 cfg 供「更早」入口重渲用（title/value 也带上） */
-    Util._dsCfg[cfg.id] = { id: cfg.id, title: cfg.title, value: val, min: min, max: max, span: span, opt: cfg.opt || null, earlier: cfg.earlier };
+    Util._dsCfg[cfg.id] = { id: cfg.id, title: cfg.title, value: val, min: min, max: max, span: span, opt: cfg.opt || null, earlier: cfg.earlier, floor: cfg.floor || null };
     /* 「更早」入口（D 线）：短滑块（span≤40，min 一般是 31 天前）够不着更早的补记。
        自动带一个「更早…」按钮，点击把可选范围向前扩 90 天、最早到 365 天前；
        span>40 的长滑块（生日/LMP）本就可选任意旧日期，不带。cfg.earlier===false 可显式关闭。 */
-    var earlier = cfg.earlier !== false && span <= 40 && Util.daysBetween(Util.addDays(max, -365), min) > 0;
+    var earlier = cfg.earlier !== false && span <= 40 && Util.daysBetween(cfg.floor || Util.addDays(max, -365), min) > 0;
     var h = '<div class="date-slider" data-ds-for="' + cfg.id + '">';
     h += '<div class="ds-head"><span class="ds-title">' + Util.escapeHtml(cfg.title || '日期') + '</span>'
       + '<span class="ds-label">' + dsLabel(val) + '</span></div>';
@@ -500,13 +538,15 @@
       if (btnE) btnE.addEventListener('click', function () {
         var c = Util._dsCfg[box.getAttribute('data-ds-for')];
         if (!c) return;
-        var floor = Util.addDays(c.max, -365);
-        var newMin = Util.addDays(c.min, -90);
+        /* 第 185 次：cfg.floor（如宝宝生日）——「更早」一步直接扩到 floor，
+           出生体重、42 天体检这类早期数据才录得进去 */
+        var floor = c.floor || Util.addDays(c.max, -365);
+        var newMin = c.floor ? c.floor : Util.addDays(c.min, -90);
         if (Util.daysBetween(floor, newMin) < 0) newMin = floor;
         if (Util.daysBetween(newMin, c.min) >= 0) { btnE.disabled = true; btnE.textContent = '已到最早'; return; }
         var curVal = hid.value;
         var tmp = document.createElement('div');
-        tmp.innerHTML = Util.dateSlider({ id: c.id, title: c.title, value: curVal, min: newMin, max: c.max, opt: c.opt, earlier: true });
+        tmp.innerHTML = Util.dateSlider({ id: c.id, title: c.title, value: curVal, min: newMin, max: c.max, opt: c.opt, earlier: true, floor: c.floor });
         var fresh = tmp.firstElementChild;
         box.parentNode.replaceChild(fresh, box);
         Util.bindDateSliders(fresh.parentNode);

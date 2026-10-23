@@ -109,7 +109,7 @@
       var gActive = 'weight';
 
       html += '<div class="card"><h2>记录一次测量</h2>';
-      html += Util.dateSlider({ id: 'gDate', title: '日期', value: Util.todayISO(), min: Util.addDays(Util.todayISO(), -31), max: Util.todayISO() });
+      html += Util.dateSlider({ id: 'gDate', title: '日期', value: Util.todayISO(), min: Util.addDays(Util.todayISO(), -31), max: Util.todayISO(), floor: Util.recordFloor(d) });
       html += '<span class="lbl-text">测量项（点选切换滑杆）</span><div class="seg seg-wrap3" id="gMetrics">';
       METS.forEach(function (m) {
         var v = gvals[m.k];

@@ -30,7 +30,8 @@
       html += '<div class="card"><h2>一键记录</h2>';
       html += backfill
         ? '<p class="hint"><b>补记模式</b>：这条会记到 ' + Util.fmtDate(backfill) + '。</p>'
-        : '<p class="hint">喂完点一下，自动记下现在的时间。</p>';
+        : '<p class="hint">喂完点一下，默认记现在；补记先选时刻再点。</p>';
+      html += Util.timePickHTML('mdTime');
       html += '<div class="quick-row">';
       PRESETS.forEach(function (p) {
         html += '<button type="button" class="quick-btn" data-quick="' + p + '">'
@@ -80,7 +81,9 @@
 
       function record(name) {
         if (!name) return;
-        var rec = { id: Util.uid(), name: name, time: (backfill || today) + Util.nowLocal().slice(10), note: null };
+        var mdStamp = Util.stampFrom(view, 'mdTime', backfill || today);
+        if (!mdStamp) return;
+        var rec = { id: Util.uid(), name: name, time: mdStamp, note: null };
         d.meds.push(rec);
         if (Storage.save()) {
           /* C2：一键即记配一键撤销 */

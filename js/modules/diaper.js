@@ -54,7 +54,8 @@
       html += '<div class="card"><h2>一键记录</h2>';
       html += backfill
         ? '<p class="hint"><b>补记模式</b>：这条会记到 ' + Util.fmtDate(backfill) + '。</p>'
-        : '<p class="hint">换完尿布点一下，自动记下现在的时间。</p>';
+        : '<p class="hint">换完尿布点一下，默认记现在；补记先选时刻再点。</p>';
+      html += Util.timePickHTML('dpTime');
       html += '<div class="quick-row">';
       TYPES.forEach(function (t) {
         html += '<button type="button" class="quick-btn" data-quick="' + t.v + '">'
@@ -135,7 +136,9 @@
       Array.prototype.forEach.call(view.querySelectorAll('[data-quick]'), function (b) {
         b.addEventListener('click', function () {
           var v = b.getAttribute('data-quick');
-          var rec = { id: Util.uid(), type: v, time: (backfill || today) + Util.nowLocal().slice(10), note: null };
+          var dpStamp = Util.stampFrom(view, 'dpTime', backfill || today);
+          if (!dpStamp) return;
+          var rec = { id: Util.uid(), type: v, time: dpStamp, note: null };
           d.diapers.push(rec);
           if (Storage.save()) {
             /* C2：单手误触高发场景——撤销 = 直接移除刚落库的这条 */

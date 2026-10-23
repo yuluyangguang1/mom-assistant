@@ -3776,3 +3776,8 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
   .mod-hero .hero-art img, .hero-z i, .hero-art.boing img { animation: none !important; }
   .hero-z i { opacity: .8; transform: none; }
 }
+
+/* 第 185 次：记录时刻（留空＝现在） */
+.time-pick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+.time-pick input[type="time"] { width: auto; min-width: 110px; flex: 0 0 auto; }
+.time-pick .hint { margin: 0; }

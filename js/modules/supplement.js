@@ -78,6 +78,7 @@
         }, 0);
         html += '<p class="hint">今天完成 ' + totalDone + '/' + totalNeed +
           (totalDone >= totalNeed ? '，都吃过了。' : '，还有没吃的。') + '</p>';
+        html += Util.timePickHTML('spTime');
       } else {
         html += '<div class="empty-state"><span class="es-ico">' + icon('supplement') + '</span><p>还没有补剂计划</p>' +
           '<span class="hint">在下面加一条「每天吃什么」，之后每天点一下就完成打卡。</span></div>';
@@ -164,8 +165,10 @@
           var pid = b.getAttribute('data-take');
           var plan = (d.supplementPlans || []).filter(function (p) { return p.id === pid; })[0];
           if (!plan) return;
+          var spStamp = Util.stampFrom(view, 'spTime');
+          if (!spStamp) return;
           d.supplements.push({
-            id: Util.uid(), time: Util.nowLocal(), name: plan.name,
+            id: Util.uid(), time: spStamp, name: plan.name,
             planId: plan.id, dose: null, note: null
           });
           if (Storage.save()) Util.toast('已记录 ' + plan.name, 'ok');

@@ -55,6 +55,7 @@
       html += '</select></label>';
       html += '<label>备注（可选）<input type="text" id="jaNote" maxlength="40" ' +
         'placeholder="如 社区医院测的 / 出生第 5 天"></label>';
+      html += Util.timePickHTML('jaTime');
       html += '<button class="btn btn-primary btn-save" id="jaSave">保存</button>';
       html += '<p class="hint">1 mg/dL ≈ 17.1 µmol/L。不同医院报告单位不同，按报告上的单位填即可，' +
         '本工具不做换算后的判读。</p></div>';
@@ -113,8 +114,10 @@
           Util.markInvalid(el, '请填 0–' + max + ' 之间的数值（单位 ' + unitLabel(unit) + '）');
           return;
         }
+        var jaStamp = Util.stampFrom(view, 'jaTime');
+        if (!jaStamp) return;
         var rec = {
-          id: Util.uid(), time: Util.nowLocal(),
+          id: Util.uid(), time: jaStamp,
           value: Math.round(v * 10) / 10, unit: unit,
           site: view.querySelector('#jaSite').value || 'forehead',
           note: (view.querySelector('#jaNote').value || '').trim() || null

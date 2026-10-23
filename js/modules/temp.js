@@ -102,6 +102,7 @@
       });
       html += '</select></label>';
       html += '<label>备注（可选）<input type="text" id="tNote" maxlength="40" placeholder="如 午睡后 / 精神还行"></label>';
+      html += Util.timePickHTML('tTime');
       html += '<button class="btn btn-primary btn-save" id="tSave">保存</button>';
       html += '<p class="hint">不同部位的参考值不同，记下部位，回看时才知道这几次是不是同一把尺子量出来的。</p></div>';
 
@@ -195,8 +196,10 @@
 
       view.querySelector('#tSave').addEventListener('click', function () {
         if (tState.value == null) { Util.toast('请先拖动滑杆（或点 ＋/−）设置体温', 'warn'); return; }
+        var tStamp = Util.stampFrom(view, 'tTime');
+        if (!tStamp) return;
         var rec = {
-          id: Util.uid(), time: Util.nowLocal(), value: tState.value,
+          id: Util.uid(), time: tStamp, value: tState.value,
           site: (view.querySelector('#tSite').value || 'axillary'),
           note: (view.querySelector('#tNote').value || '').trim() || null
         };

@@ -44,6 +44,7 @@
         'placeholder="如 80"></label>';
       html += '<label>备注（可选）<input type="text" id="waNote" maxlength="40" ' +
         'placeholder="如 用学饮杯 / 喝了半杯"></label>';
+      html += Util.timePickHTML('waTime');
       html += '<button class="btn btn-primary btn-save" id="waSave">记一次</button>';
       html += '<p class="hint">只统计喝进去的水，冲奶粉用的水不算在内。</p></div>';
 
@@ -69,8 +70,10 @@
       view.innerHTML = html;
 
       function add(ml) {
+        var waStamp = Util.stampFrom(view, 'waTime');
+        if (!waStamp) return;
         var rec = {
-          id: Util.uid(), time: Util.nowLocal(), ml: ml,
+          id: Util.uid(), time: waStamp, ml: ml,
           note: (view.querySelector('#waNote').value || '').trim() || null
         };
         d.waters.push(rec);

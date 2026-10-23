@@ -228,9 +228,10 @@
       }
 
       /* 今日统计 + 母乳换边建议（放最上面，一眼看到） */
-      var feedToday = d.feedings.filter(function (r) { return Util.dayKeyOf(r.start, DS) === dayNow; });
+      var feedToday = Util.babyFeeds(d.feedings).filter(function (r) { return Util.dayKeyOf(r.start, DS) === dayNow; });
       var sorted = d.feedings.slice().sort(function (a, b) { return new Date(b.start) - new Date(a.start); });
       var latest = sorted[0];
+      var latestFed = Util.babyFeeds(sorted)[0]; /* 第 185 次：距上次不算吸奶 */
       var lastBreast = sorted.filter(function (r) { return r.type === 'breast' && r.side; })[0];
       /* U-06：表单默认值取「上一次记录值」，把重复输入的成本降到最低（报告：重复自报负担是第一大退出原因）。
          类型取上次类型；侧别默认换边（与上方换边建议一致）；时长/奶量取上次同类型的值。 */
@@ -243,11 +244,12 @@
       if (feedToday.length || latest) {
         html += '<div class="stat-row">';
         html += '<div class="stat"><span class="stat-num">' + feedToday.length + '<i class="stat-unit">次</i></span><span class="stat-lbl">今日喂养</span></div>';
-        var totalAmt = feedToday.reduce(function (s, r) { return s + (r.amount || 0); }, 0);
-        if (totalAmt) html += '<div class="stat"><span class="stat-num">' + totalAmt + '<i class="stat-unit">ml/g</i></span><span class="stat-lbl">今日总量</span></div>';
-        if (latest) {
+        /* 第 185 次：只算宝宝喝下的奶（奶瓶/奶粉），不混吸奶量与辅食克数 */
+        var totalAmt = feedToday.reduce(function (s, r) { return s + ((r.type === 'bottle' || r.type === 'formula') ? (r.amount || 0) : 0); }, 0);
+        if (totalAmt) html += '<div class="stat"><span class="stat-num">' + totalAmt + '<i class="stat-unit">ml</i></span><span class="stat-lbl">今日奶量</span></div>';
+        if (latestFed) {
           /* 第 146 次：走统一格式化层（超过 24 小时说天，不再出现「260 小时」） */
-          var gg = Util.fmtGap(Date.now() - new Date(latest.start).getTime());
+          var gg = Util.fmtGap(Date.now() - new Date(latestFed.start).getTime());
           var gNum = gg.num, gUnit = gg.unit;
           html += '<div class="stat"><span class="stat-num">' + gNum + '<i class="stat-unit">' + gUnit + '</i></span><span class="stat-lbl">距上次</span></div>';
         }
@@ -387,6 +389,9 @@
       if (!ftimer) {
         html += '<div id="ftStartWrap"><button type="button" class="btn-mini" id="ftStart">开始计时（结束自动填入时长）</button></div>';
       }
+        /* 第 185 次：记录时刻（计时结束回填时自动填成开始时刻） */
+        var pendStart = (pendDur && pendDur.start) ? String(pendDur.start) : '';
+        html += Util.timePickHTML('fTime', pendStart ? pendStart.slice(11, 16) : '');
         html += '<label>备注<input type="text" id="fNote" placeholder="可选"></label>';
         /* 第 69 次（B3）：辅食可选「新食材」——记录后 2–3 天观察期由上方动态卡提示 */
         html += '<div id="wrapNewFood" style="display:none"><label>新食材<input type="text" id="fNewFood" placeholder="可选，如 南瓜——将进入 2–3 天观察期"></label></div>';
@@ -622,7 +627,9 @@
         var mR = Math.round(R / 60000);
         d.feedingTimer = null;
         Storage.save();
-        Modules.feeding._pendingDur = { L: mL, R: mR };
+        /* 第 185 次：把计时开始时刻一并带回表单——此前保存时用的是点保存那一刻，
+           「距上次」和下次喂奶预测都会往后偏一整顿奶的时长 */
+        Modules.feeding._pendingDur = { L: mL, R: mR, start: t.start };
         var txt = '左 ' + mL + ' 分' + (mR ? ' · 右 ' + mR + ' 分' : '');
         Util.toast('已填入 ' + txt + '，确认后点保存', 'ok');
         global.App.rerender();
@@ -660,13 +667,17 @@
 
       view.querySelector('#fSave').addEventListener('click', function () {
         var note = view.querySelector('#fNote').value.trim();
+        var fDay = backfill || today;
+        if (typeof pendStart === 'string' && pendStart && !backfill) fDay = pendStart.slice(0, 10);
+        var fStamp = Util.stampFrom(view, 'fTime', fDay);
+        if (!fStamp) return;
         var isBreast = (type === 'breast');
         var isPump = (type === 'pump');
         var isBottle = (type === 'bottle' || type === 'formula');
         var rec = {
           id: Util.uid(),
           type: type,
-          start: (backfill || today) + Util.nowLocal().slice(10),
+          start: fStamp,
           durationMin: null, durationL: null, durationR: null,
           amount: null, amountBm: null, amountFm: null,
           side: null,
