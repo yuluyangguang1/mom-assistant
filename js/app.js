@@ -252,6 +252,11 @@
       var head = document.createElement('div');
       head.className = 'mod-head';
       head.setAttribute('data-accent', id);
+      /* 第 183 次：有状态插画的模块，页头换成「大物件 + 标题 + 当前状态」（hero.js） */
+      if (global.Hero && Hero.has(id) && !subExit) {
+        head.className = 'mod-head has-hero';
+        head.innerHTML = Hero.html(id, Modules[id].title);
+      } else
       head.innerHTML = '<span class="mod-head-ico">' + icon(ICON_KEY[id] || id) + '</span><h1>' + Util.escapeHtml(Modules[id].title) + '</h1>';
       view.insertBefore(head, view.firstChild);
     }

@@ -12,7 +12,7 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v146';
+var CACHE = 'baoma-static-v148';
 /* v90（第 129 次）：首屏降噪——对标 Cali 首屏设计（HomeWidgetSnapshot 无 reminder 字段，
    逾期只以 VaccineReminderPlan.pendingCount 计数存在）。疫苗逾期 / 儿保过参考时间 /
    发育观察期过期这三类「今天不可能完成」的陈旧待办，从三条整卡合并为一行「待补」汇总
@@ -75,6 +75,30 @@ var ASSETS = [
   'js/sheet.js',
   'js/swipe-row.js',
   'js/large-title.js',
+  'js/hero.js',
+  'assets/hero/feeding.webp',
+  'assets/hero/sleep.webp',
+  'assets/hero/diaper.webp',
+  'assets/hero/growth.webp',
+  'assets/hero/vaccine.webp',
+  'assets/hero/temp.webp',
+  'assets/hero/bath.webp',
+  'assets/hero/swim.webp',
+  'assets/hero/sun.webp',
+  'assets/hero/water.webp',
+  'assets/hero/jaundice.webp',
+  'assets/hero/meds.webp',
+  'assets/hero/supplement.webp',
+  'assets/hero/milestone.webp',
+  'assets/hero/mood.webp',
+  'assets/hero/fetal.webp',
+  'assets/hero/contraction.webp',
+  'assets/hero/period.webp',
+  'assets/hero/finance.webp',
+  'assets/hero/supplies.webp',
+  'assets/hero/packing.webp',
+  'assets/hero/pregnancy.webp',
+  'assets/hero/whitenoise.webp',
   'js/glass.js',
   'js/app.js',
   'js/greetings.js',

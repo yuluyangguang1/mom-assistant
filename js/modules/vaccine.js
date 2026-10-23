@@ -106,6 +106,14 @@
 
   Modules.vaccine = {
     id: 'vaccine',
+    /* 第 183 次：给页头插画用的接种进度（与下方进度条同一口径） */
+    progress: function (d) {
+      var b = (d.settings && d.settings.baby) || {};
+      if (!b.birthDate) return null;
+      var done = (d.vaccines && d.vaccines.done) || {};
+      var items = plan(b.birthDate);
+      return { done: items.filter(function (it) { return done[it.key]; }).length, total: items.length };
+    },
     title: '疫苗',
     render: function (view) {
       var d = Storage.get();

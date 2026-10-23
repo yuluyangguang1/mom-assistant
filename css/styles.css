@@ -3356,7 +3356,10 @@ body.dark .sheet-grab i { background: rgba(235, 235, 245, .3); }
    名字常驻时，iOS Safari 在第一次转场之后会把 #view 当成独立合成层、按它自己的盒子裁切，
    首页天空伸到 #view 上方（顶栏背后）的那一截就被裁掉，露出页面底色——
    真机上就是「第一次进首页正常，切几个页面回来顶上多一条横带」。 */
-html[data-nav] #view { view-transition-name: page; }
+/* 第 183 次：iOS Safari 不给 ::view-transition-new 画背景，新页快照是透明的，
+   推入时旧页（首页问候、快捷按钮）会透过新页叠在一起（用户截图「好好的，全部功能」）。
+   转场期间直接把纸色画进 #view 本身，快照自带不透明底。 */
+html[data-nav] #view { view-transition-name: page; background: var(--vt-paper, #FDF9F4); min-height: 100vh; }
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 /* 第 167 次：旧根快照（含旧顶栏）直接隐藏——两者都不动画时会叠在一起，旧页日期/标题和新页标题重影发虚 */
 ::view-transition-old(root) { display: none; }
@@ -3701,3 +3704,75 @@ input[type=time]::-webkit-date-and-time-value { text-align: left; margin: 0; }
    「喂奶按上次」提示原用 --muted（褐灰），在蓝天上只有 3.1:1。改随天色墨色走。 */
 body.in-home .section-title, body.in-home .hn-hint { color: rgba(43, 42, 51, .78); }
 body.dark.in-home .section-title, body.dark.in-home .hn-hint { color: rgba(255, 255, 255, .8); }
+
+/* ============================================================
+   第 183 次 · 模块状态插画（hero.js）
+   大物件 + 标题 + 一句状态，居中；插画跟数据动，减少动态时全部静止。
+   ============================================================ */
+.mod-head.has-hero { display: block; margin: 0 0 var(--space-md); }
+.mod-hero { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 4px 0 2px; }
+.mod-hero .hero-art {
+  position: relative; width: 168px; height: 168px; padding: 0; border: 0; background: none;
+  display: grid; place-items: center; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.mod-hero .hero-art::before { /* 柔光地台：替代生成图里的投影，深浅模式都干净 */
+  content: ''; position: absolute; left: 22%; right: 22%; bottom: 10px; height: 14px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(80, 50, 30, .20), transparent); filter: blur(2px);
+}
+.mod-hero .hero-art img {
+  position: relative; width: 150px; height: 150px; object-fit: contain;
+  transform: scale(var(--hero-scale, 1)); transform-origin: 50% 92%;
+  filter: drop-shadow(0 6px 10px rgba(80, 50, 30, .12));
+  animation: hero-float 5s ease-in-out infinite;
+}
+.mod-hero h1 { margin: 2px 0 0; }
+.mod-hero .hero-status { margin: 4px 0 0; font-size: var(--fs-body, 15px); color: var(--muted); font-variant-numeric: tabular-nums; }
+@keyframes hero-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
+
+/* 喂养：计时中/久未喂 → 奶瓶轻摇 */
+.mod-hero.is-live .hero-art img, .mod-hero.is-nudge .hero-art img { animation: hero-wobble 2.4s ease-in-out infinite; }
+@keyframes hero-wobble { 0%, 100% { rotate: 0deg; } 25% { rotate: -5deg; } 75% { rotate: 5deg; } }
+/* 睡眠：睡着 → 调暗 + 飘 Zzz */
+.mod-hero.is-asleep .hero-art img { filter: drop-shadow(0 6px 10px rgba(40, 30, 60, .18)) brightness(.88) saturate(.85); }
+.hero-z { position: absolute; right: 22px; top: 0; z-index: 2; pointer-events: none; }
+.hero-z i { position: absolute; font-style: normal; font-weight: 800; color: var(--primary-text); opacity: 0; animation: hero-z 3s ease-in infinite; }
+.hero-z i:nth-child(1) { font-size: 15px; animation-delay: 0s; }
+.hero-z i:nth-child(2) { font-size: 20px; animation-delay: 1s; }
+.hero-z i:nth-child(3) { font-size: 26px; animation-delay: 2s; }
+@keyframes hero-z { 0% { opacity: 0; transform: translate(-8px, 18px); } 25% { opacity: 1; } 100% { opacity: 0; transform: translate(14px, -22px); } }
+/* 尿布：今日片数角标 */
+.hero-badge { z-index: 2;
+  position: absolute; right: 14px; top: 14px; min-width: 30px; height: 30px; padding: 0 8px; box-sizing: border-box;
+  border-radius: var(--radius-pill); background: var(--primary-fill); color: #fff; font-weight: 800; font-size: 15px;
+  display: grid; place-items: center; box-shadow: 0 4px 10px rgba(208, 107, 81, .28);
+}
+/* 疫苗：进度环 */
+.hero-ring { position: absolute; inset: 4px; width: calc(100% - 8px); height: calc(100% - 8px); transform: rotate(-90deg); }
+.hero-ring circle { fill: none; stroke: var(--primary-weak); stroke-width: 3.5; }
+.hero-ring circle.on { stroke: var(--primary-fill); stroke-linecap: round; transition: stroke-dasharray .6s ease; }
+/* 体温：发热 → 暖红光晕 */
+.mod-hero.is-hot .hero-art { background: radial-gradient(closest-side, rgba(232, 96, 70, .22), transparent 75%); border-radius: 50%; }
+.mod-hero.is-hot .hero-status { color: #B8432C; font-weight: 600; }
+/* 点一下的小彩蛋 */
+.hero-art.boing img { animation: hero-boing .5s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes hero-boing { 0% { transform: scale(var(--hero-scale, 1)); } 40% { transform: scale(calc(var(--hero-scale, 1) * 1.12)); } 100% { transform: scale(var(--hero-scale, 1)); } }
+/* 深色：地台阴影换成冷一点的黑 */
+body.dark .mod-hero .hero-art::before { background: radial-gradient(closest-side, rgba(0, 0, 0, .45), transparent); }
+body.dark .mod-hero.is-hot .hero-status { color: #FF9B85; }
+/* 第 184 次：其余模块的状态 */
+.mod-hero.is-shine .hero-art { background: radial-gradient(closest-side, rgba(255, 196, 92, .34), transparent 78%); border-radius: 50%; }
+.mod-hero.is-shine .hero-art img { animation: hero-breathe 3.2s ease-in-out infinite; }
+.mod-hero.is-beat .hero-art img { animation: hero-beat 1.4s ease-in-out infinite; }
+.mod-hero.is-low .hero-art img { filter: drop-shadow(0 6px 10px rgba(80, 50, 30, .12)) saturate(.8); }
+.mod-hero.is-warn .hero-status { color: #B8562C; font-weight: 600; }
+.mod-hero[data-hero="contraction"].is-live .hero-art img,
+.mod-hero[data-hero="whitenoise"].is-live .hero-art img,
+.mod-hero[data-hero="period"].is-live .hero-art img { animation: hero-breathe 2.6s ease-in-out infinite; }
+.mod-hero[data-hero="whitenoise"].is-live .hero-art { background: radial-gradient(closest-side, rgba(232, 144, 124, .22), transparent 78%); border-radius: 50%; }
+@keyframes hero-breathe { 0%, 100% { scale: 1; } 50% { scale: 1.05; } }
+@keyframes hero-beat { 0%, 60%, 100% { scale: 1; } 15% { scale: 1.09; } 30% { scale: .98; } 45% { scale: 1.05; } }
+body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
+@media (prefers-reduced-motion: reduce) {
+  .mod-hero .hero-art img, .hero-z i, .hero-art.boing img { animation: none !important; }
+  .hero-z i { opacity: .8; transform: none; }
+}
