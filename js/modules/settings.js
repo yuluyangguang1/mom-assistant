@@ -87,6 +87,57 @@
     L.push('◆ 近 7 天日常');
     L.push('喂养 ' + n7(d.feedings, 'start') + ' 次 ｜ 睡眠 ' + n7(d.sleeps, 'start') + ' 段 ｜ 换尿布 ' + n7(d.diapers, 'time') + ' 次');
     L.push('');
+    /* 第 198 次：体温 / 用药 / 黄疸 / 尿布异常——有记录才出节，医生问诊最常问的就是这几样。
+       只罗列事实（最高、最近、次数），不写「发热」「偏高」之类的判读。枚举值一律查表，查不到不输出。 */
+    function hm(t) { return String(t || '').slice(5, 16).replace('T', ' '); }
+    function okNum(v) { return typeof v === 'number' && isFinite(v); }
+    var T_SITE = { axillary: '腋下', ear: '耳温', forehead: '额温', rectal: '肛温' };
+    var tp7 = (d.temps || []).filter(function (r) { return r && okNum(r.value) && r.time && new Date(r.time) >= cut7; })
+      .sort(function (a, b) { return new Date(a.time) - new Date(b.time); });
+    if (tp7.length) {
+      var tMax = tp7.reduce(function (m, r) { return r.value > m.value ? r : m; }, tp7[0]);
+      var tLast = tp7[tp7.length - 1];
+      L.push('◆ 体温（近 7 天 ' + tp7.length + ' 次）');
+      L.push('最高 ' + tMax.value + '°C（' + hm(tMax.time) + (T_SITE[tMax.site] ? ' ' + T_SITE[tMax.site] : '') + '）'
+        + ' ｜ 最近 ' + tLast.value + '°C（' + hm(tLast.time) + (T_SITE[tLast.site] ? ' ' + T_SITE[tLast.site] : '') + '）');
+      L.push('');
+    }
+    var md7 = (d.meds || []).filter(function (r) { return r && r.name && r.time && new Date(r.time) >= cut7; });
+    if (md7.length) {
+      var byName = {};
+      md7.forEach(function (r) {
+        var k = String(r.name).slice(0, 20);
+        var b = byName[k] = byName[k] || { n: 0, last: r.time };
+        b.n++; if (new Date(r.time) > new Date(b.last)) b.last = r.time;
+      });
+      L.push('◆ 用药（近 7 天，家长记录）');
+      Object.keys(byName).forEach(function (k) { L.push(k + ' ' + byName[k].n + ' 次，最近 ' + hm(byName[k].last)); });
+      L.push('');
+    }
+    var J_UNIT = { mgdl: 'mg/dL', umol: 'µmol/L' }, J_SITE = { forehead: '额头', cheek: '脸颊', chest: '胸口' };
+    var ja = (d.jaundices || []).filter(function (r) { return r && okNum(r.value) && r.time && J_UNIT[r.unit] && !isNaN(new Date(r.time).getTime()); })
+      .sort(function (a, b) { return new Date(b.time) - new Date(a.time); });
+    if (ja.length) {
+      L.push('◆ 经皮黄疸（最近 ' + Math.min(5, ja.length) + ' 次，共 ' + ja.length + ' 次）');
+      ja.slice(0, 5).forEach(function (r) {
+        L.push(hm(r.time) + '  ' + r.value + ' ' + J_UNIT[r.unit] + (J_SITE[r.site] ? '（' + J_SITE[r.site] + '）' : ''));
+      });
+      L.push('');
+    }
+    var D_COL = { black: '黑', red: '红', pale: '灰白' };
+    var dp7 = (d.diapers || []).filter(function (r) { return r && r.time && new Date(r.time) >= cut7; });
+    var wat7 = dp7.filter(function (r) { return r.consistency === 'watery'; }).length;
+    var colHit = {}; dp7.forEach(function (r) { if (D_COL[r.color]) colHit[D_COL[r.color]] = (colHit[D_COL[r.color]] || 0) + 1; });
+    var rash7 = dp7.filter(function (r) { return r.rash === true; }).length;
+    if (wat7 || Object.keys(colHit).length || rash7) {
+      L.push('◆ 大便与尿布（近 7 天，家长记录）');
+      var dl = [];
+      if (wat7) dl.push('稀水样 ' + wat7 + ' 次');
+      Object.keys(colHit).forEach(function (c) { dl.push(c + '色便 ' + colHit[c] + ' 次'); });
+      if (rash7) dl.push('红屁屁 ' + rash7 + ' 次');
+      L.push(dl.join(' ｜ '));
+      L.push('');
+    }
     /* 妈妈情绪（近 14 天） */
     var cut14 = new Date(); cut14.setDate(cut14.getDate() - 14);
     var mood14 = (d.moods || []).filter(function (r) { return r && r.time && new Date(r.time) >= cut14; });
