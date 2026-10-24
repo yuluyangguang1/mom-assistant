@@ -34,6 +34,38 @@
     { v: 'fan', t: '风扇', desc: '稳定的低沉气流声，没有起伏' }
   ];
   /* 循环片段长度：海浪一个涨落周期 8 秒，其余 4 秒（嘘声 2 秒一下、心跳 0.8 秒一下，都能整除） */
+  var TAGS = { pink: '细雨', white: '沙沙', brown: '远风', shush: '轻哄', ocean: '涨落', heart: '75 拍', fan: '气流' };
+  var SHORT = { pink: '粉红噪音', white: '白噪音', brown: '棕噪音' };
+  TYPES.forEach(function (t) { t.tag = TAGS[t.v] || ''; t.short = SHORT[t.v] || t.t; });
+  function typeInfo(v) { for (var i = 0; i < TYPES.length; i++) if (TYPES[i].v === v) return TYPES[i]; return null; }
+  /* 第 205 次：线性图标（24 网格、1.6 描边、currentColor），只用于本页 */
+  function svg(p) { return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>'; }
+  var ICON = {
+    pink: svg('<path d="M7 14a4 4 0 0 1-.5-8 5 5 0 0 1 9.6-1A4 4 0 0 1 17 14H7z"/><path d="M8 17l-1 3M12 17l-1 3M16 17l-1 3"/>'),
+    white: svg('<path d="M3 12h1M6 9v6M9 6v12M12 8v8M15 5v14M18 9v6M21 12h0"/>'),
+    brown: svg('<path d="M3 9h11a3 3 0 1 0-3-3"/><path d="M3 14h15a3 3 0 1 1-3 3"/><path d="M3 19h6"/>'),
+    shush: svg('<path d="M5 12h4"/><path d="M12 8c1.5 1 2.3 2.4 2.3 4s-.8 3-2.3 4"/><path d="M15.5 5.5c2.3 1.6 3.5 3.8 3.5 6.5s-1.2 4.9-3.5 6.5"/>'),
+    ocean: svg('<path d="M2 15c2 0 2.5-2 5-2s3 2 5 2 2.5-2 5-2 3 2 5 2"/><path d="M2 19c2 0 2.5-2 5-2s3 2 5 2 2.5-2 5-2 3 2 5 2"/><path d="M6 10c1-3 3.5-5 7-5 1.5 0 3 .5 4 1.5-2 0-3.5 1.2-3.5 3.5"/>'),
+    heart: svg('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/><path d="M7 12h2.5l1.2-2 1.8 4 1.2-2H17"/>'),
+    fan: svg('<circle cx="12" cy="12" r="1.6"/><path d="M12 10.4c0-3.4 1-6.4 3.4-6.4 2 0 2.4 3-1 5.2"/><path d="M13.6 12c3.4 0 6.4 1 6.4 3.4 0 2-3 2.4-5.2-1"/><path d="M12 13.6c0 3.4-1 6.4-3.4 6.4-2 0-2.4-3 1-5.2"/><path d="M10.4 12C7 12 4 11 4 8.6c0-2 3-2.4 5.2 1"/>'),
+    play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor"/></svg>',
+    stop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5" fill="currentColor"/></svg>',
+    volLo: svg('<path d="M4 10v4h3l4 3.5v-11L7 10H4z"/><path d="M15 10a3 3 0 0 1 0 4"/>'),
+    volHi: svg('<path d="M4 10v4h3l4 3.5v-11L7 10H4z"/><path d="M15 9.5a3.5 3.5 0 0 1 0 5"/><path d="M17.5 7a7 7 0 0 1 0 10"/>'),
+    moon: svg('<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/>'),
+    dist: svg('<path d="M3 12h18"/><path d="M6 9l-3 3 3 3M18 9l3 3-3 3"/>'),
+    lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>')
+  };
+  function ringOffset(wn, C) {
+    if (!wn.playing) return C;
+    if (!wn.until || !(wn.minutes > 0)) return 0;
+    var f = Math.max(0, Math.min(1, (wn.until - Date.now()) / (wn.minutes * 60000)));
+    return C * (1 - f);
+  }
+  function stateLine(wn, rem) {
+    if (!wn.playing) return (wn.minutes > 0 ? wn.minutes + ' 分钟后自动关闭' : '不限时') + ' · 音量 ' + wn.volume;
+    return rem != null ? '还剩约 ' + rem + ' 分钟' : '正在播放 · 不限时';
+  }
   function loopSec(type) { return type === 'ocean' ? 8 : 4; }
   var MINUTES = [10, 20, 30, 0]; /* 0 = 不限时（显式选择，且带提示） */
 
@@ -454,96 +486,100 @@
     id: 'whitenoise',
     title: '哄睡白噪音',
     render: function (view) {
+      /* 第 205 次（设计改版样板页）：从「白卡 + 小标题 + 一段说明」改成播放器式布局——
+         夜空舞台（大圆播放键 + 剩余时间圆环 + 声波）→ 声音方块 → 音量/定时 → 安全三件事；
+         长说明全部收进「为什么」折叠，页面上只留必须一眼看到的那一句。原有安全信息一条不删。 */
       var d = Storage.get();
       var wn = d.whitenoise;
       var supported = audioSupported();
       var rem = remainingMin();
       var html = '';
+      var cur0 = typeInfo(wn.type) || TYPES[0];
 
-      /* 状态 + 主控 */
-      html += '<div class="card noise-card"><h2>哄睡声音</h2>';
       if (!supported) {
-        html += '<p class="hint">当前环境不支持音频播放（例如部分内嵌浏览器未开启声音权限）。'
-          + '用手机 / 电脑的浏览器直接打开本页即可使用；不支持的设备上其余功能不受影响，也不影响你的记录。</p>';
+        html += '<div class="card"><h2>哄睡声音</h2><p class="hint">当前环境不支持音频播放（例如部分内嵌浏览器未开启声音权限）。'
+          + '用手机 / 电脑的浏览器直接打开本页即可使用；不支持的设备上其余功能不受影响，也不影响你的记录。</p></div>';
       } else {
-        html += '<p class="noise-state">' + (wn.playing
-          ? '正在播放：' + typeName(wn.type) + (rem != null ? '，还有约 ' + rem + ' 分钟自动关闭' : '，当前设为不限时')
-          : '未播放') + '</p>';
-        html += '<p class="hint">声音在本机实时生成：不下载音频文件、不联网、飞行模式也能用。</p>';
-        /* 第 116 次（真机实测：手机上按了没声音）：iOS 上最常见的两个非代码原因，
-           用户无从判断是哪个，必须主动说出来而不是让用户反复试。
-           ① 侧边静音拨片处于静音位时，Web Audio 走的是「遵从静音键」通道，出不来声；
-           ② iOS 媒体音量已调到 0 或锁屏打断了音频会话。 */
-        if (isIOS()) {
-          html += '<p class="hint">iPhone 没声音？先确认两件事：'
-            + '① 侧边静音拨片不在静音位（拨片朝上）；'
-            + '② 媒体音量没调到 0。锁屏后会继续播放，到时间自动停；也可以在锁屏的播放控件上点暂停。'
-            + '外放没声音时，改用耳机或开免提再试。</p>';
-        }
-        html += '<button class="btn ' + (wn.playing ? '' : 'btn-primary') + '" id="wnToggle" type="button">'
-          + (wn.playing ? '停止播放' : '开始播放') + '</button>';
-      }
-      html += '</div>';
+        var C = 2 * Math.PI * 76;
+        html += '<section class="wn-stage' + (wn.playing ? ' is-playing' : '') + '" aria-label="播放器">'
+          + '<div class="wn-stars" aria-hidden="true"></div>'
+          + '<div class="wn-orb">'
+          + '<svg class="wn-ring" viewBox="0 0 168 168" aria-hidden="true">'
+          + '<circle class="wn-ring-bg" cx="84" cy="84" r="76"></circle>'
+          + '<circle class="wn-ring-fg" id="wnRing" cx="84" cy="84" r="76" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + ringOffset(wn, C).toFixed(1) + '"></circle>'
+          + '</svg>'
+          + '<button class="wn-play" id="wnToggle" type="button" aria-label="' + (wn.playing ? '停止播放' : '开始播放') + '">'
+          + (wn.playing ? ICON.stop : ICON.play) + '</button>'
+          + '</div>'
+          + '<div class="wn-now">'
+          + '<p class="wn-name">' + cur0.t + '</p>'
+          + '<p class="noise-state" id="wnState">' + stateLine(wn, rem) + '</p>'
+          + '</div>'
+          + '<div class="wn-wave" aria-hidden="true">' + new Array(29).join('<i></i>') + '</div>'
+          + '</section>';
+        html += '<p class="wn-local">' + ICON.lock + '声音在本机实时生成，不联网，飞行模式也能用</p>';
 
-      if (supported) {
-        /* 类型：只描述听感、不排名——没有证据证明某种「颜色」对婴儿更好 */
-        html += '<div class="card"><h2>声音类型</h2>';
+        /* 声音方块：图标 + 名字 + 两个字的听感；选中项的完整描述放在方块下面一行 */
+        html += '<div class="card wn-card"><div class="wn-head"><h2>声音</h2><span class="wn-sub">哪种都行，看宝宝是否更放松</span></div>'
+          + '<div class="wn-grid" role="radiogroup" aria-label="声音类型">';
         TYPES.forEach(function (t) {
-          html += '<div class="row-switch"><label for="wnT_' + t.v + '">' + t.t + '</label>'
-            + '<input type="radio" name="wnType" id="wnT_' + t.v + '" value="' + t.v + '"'
-            + (wn.type === t.v ? ' checked' : '') + '></div>';
-          html += '<p class="hint">' + t.desc + '。</p>';
+          html += '<label class="wn-tile' + (wn.type === t.v ? ' on' : '') + '" for="wnT_' + t.v + '">'
+            + '<input type="radio" name="wnType" id="wnT_' + t.v + '" value="' + t.v + '"' + (wn.type === t.v ? ' checked' : '') + '>'
+            + '<span class="wn-ico">' + (ICON[t.v] || '') + '</span>'
+            + '<span class="wn-tn">' + t.short + '</span>'
+            + '<span class="wn-tg">' + t.tag + '</span></label>';
         });
-        html += '<p class="hint">哪一种都行，看宝宝听到后是不是更放松。都不喜欢就别硬放——'
-          + '很多宝宝有稳定的生活声（风扇、空调）就已经够了。</p>';
-        html += '</div>';
+        html += '</div><p class="wn-desc">' + cur0.desc + '。</p></div>';
 
-        /* 音量与时长：默认保守，上限写进说明里 */
-        html += '<div class="card"><h2>音量与时长</h2>';
-        html += '<label>音量 <span id="wnVolVal">' + wn.volume + '</span> / 10'
-          + '<input type="range" id="wnVol" min="1" max="10" step="1" value="' + wn.volume + '"></label>';
-        html += '<p class="hint">默认 3 已经是很轻的背景声。判断标准不是数字，而是'
-          + '<b>把手机放到宝宝睡觉时头部的位置，听起来应该是很轻、不刺耳的</b>；'
-          + '如果房间里大人说话都要提高嗓门，那就是太大了。</p>';
-        html += '<div class="seg" id="wnMin">';
+        /* 音量与定时 */
+        html += '<div class="card wn-card">'
+          + '<div class="wn-head"><h2>音量</h2><span class="wn-val"><b id="wnVolVal">' + wn.volume + '</b> / 10</span></div>'
+          + '<div class="wn-vol">' + ICON.volLo
+          + '<input type="range" id="wnVol" min="1" max="10" step="1" value="' + wn.volume + '" aria-label="音量" style="--p:' + ((wn.volume - 1) / 9 * 100).toFixed(1) + '%">'
+          + ICON.volHi + '</div>'
+          + '<p class="wn-tip">把手机放在宝宝头部的位置听：应该很轻、不刺耳。</p>'
+          + '<div class="wn-head wn-head2"><h2>定时关闭</h2></div>'
+          + '<div class="wn-chips" id="wnMin">';
         MINUTES.forEach(function (m) {
-          html += '<button type="button" class="seg-btn' + (wn.minutes === m ? ' active' : '') + '" data-min="' + m + '">'
-            + (m === 0 ? '不限时' : m + ' 分钟') + '</button>';
+          html += '<button type="button" class="wn-chip' + (wn.minutes === m ? ' active' : '') + '" data-min="' + m + '">'
+            + (m === 0 ? '不限时' : '<b>' + m + '</b> 分') + '</button>';
         });
         html += '</div>';
-        html += '<p class="hint">默认 20 分钟自动关闭。「不限时」通常是家里环境噪音大时才需要——'
-          + '那就更要把音量压到最低，并且不要把设备放进婴儿床。</p>';
-        html += '<div class="row-switch"><label for="wnLink">顺便开始哄睡计时</label>'
-          + '<input type="checkbox" id="wnLink"' + (wn.linkSleep ? ' checked' : '') + '></div>';
-        html += '<p class="hint">勾选后，点「开始播放」会同时开始睡眠计时；宝宝睡着后到睡眠页点「结束并记录」即可。</p>';
-        html += '</div>';
+        if (wn.minutes === 0) html += '<p class="wn-tip wn-warn">不限时：请把音量压到最低，设备不要放进婴儿床。</p>';
+        html += '<div class="row-switch wn-link"><label for="wnLink">' + ICON.moon + '同时开始睡眠计时</label>'
+          + '<input type="checkbox" id="wnLink"' + (wn.linkSleep ? ' checked' : '') + '></div>'
+          + '</div>';
       }
 
-      /* 安全：只讲事实与上下限，不做疗效承诺，也不承诺「完全安全」 */
-      html += '<div class="card"><h2>用之前先看这几条</h2><ul class="kv">';
-      html += '<li><b>离远一点</b>：不要把手机 / 音箱放进婴儿床，也不要对着宝宝耳朵放。'
-        + '美国儿科学会（AAP）的表述是「放得越远越好、音量越低越好、限制使用时长」，并曾建议离孩子 7 英尺（约 2.1 米）以上。</li>';
-      html += '<li><b>音量别追高</b>：有研究测过 24 款婴儿睡眠音机与 6 个手机 App，'
-        + '在最大音量下全部超过 NIOSH 给成年工人的 8 小时职业暴露限值（85 dBA）；'
-        + '该研究作者建议把上限控制在 60 dB（属专家建议，不是监管标准）。</li>';
-      html += '<li><b>别整夜播</b>：只当作入睡辅助，睡着后关掉或调低，对大人也更好睡。</li>';
-      html += '<li><b>早产，或有听力 / 神经发育情况的宝宝</b>：先问儿科或耳鼻喉科医生，不要照网页自行设定。</li>';
-      html += '<li><b>它不替代安全睡眠</b>：1 岁以下每次睡觉都应仰睡、床内保持净空（不用枕头、松软被褥、防撞垫、填充玩具），'
-        + '并与大人同室不同床。安全永远排在「睡得久」之前。</li>';
-      html += '</ul></div>';
-
-      /* W-04 停用路径：讲成「情境线索」，既不制造焦虑也不承诺脱离 */
-      html += '<div class="card"><h2>想少用一点的时候</h2>';
-      html += '<p class="hint">白噪音更像一个「该睡觉了」的情境线索（和关灯、换睡衣一样），'
-        + '不是药物依赖，也没有「几岁必须戒」的说法。如果发现没有声音就完全睡不着，可以这样慢慢退：</p>';
-      html += '<ul class="kv">'
-        + '<li>1. 每隔几天把音量调低一点，看宝宝是否照睡。</li>'
+      /* 安全三件事：一眼看到的版本；依据与细节收进折叠（内容与改版前一致） */
+      html += '<div class="card wn-card"><div class="wn-head"><h2>用之前记住三件事</h2></div>'
+        + '<div class="wn-rules">'
+        + '<div class="wn-rule">' + ICON.dist + '<b>离远一点</b><span>不进婴儿床<br>不对着耳朵</span></div>'
+        + '<div class="wn-rule">' + ICON.volLo + '<b>音量要轻</b><span>大人说话<br>不用提高嗓门</span></div>'
+        + '<div class="wn-rule">' + ICON.moon + '<b>睡着就关</b><span>只当入睡辅助<br>别整夜播</span></div>'
+        + '</div>'
+        + '<p class="wn-safe">1 岁以下每次睡觉都要仰睡、床内净空、同室不同床。白噪音不替代安全睡眠。</p>'
+        + '<details class="wn-more"><summary>为什么这样建议</summary><ul class="kv">'
+        + '<li><b>离远一点</b>：美国儿科学会（AAP）的表述是「放得越远越好、音量越低越好、限制使用时长」，并曾建议离孩子 7 英尺（约 2.1 米）以上。</li>'
+        + '<li><b>音量别追高</b>：有研究测过 24 款婴儿睡眠音机与 6 个手机 App，在最大音量下全部超过 NIOSH 给成年工人的 8 小时职业暴露限值（85 dBA）；'
+        + '该研究作者建议把上限控制在 60 dB（属专家建议，不是监管标准）。</li>'
+        + '<li><b>早产，或有听力 / 神经发育情况的宝宝</b>：先问儿科或耳鼻喉科医生，不要照网页自行设定。</li>'
+        + '<li><b>不替代安全睡眠</b>：床内不用枕头、松软被褥、防撞垫、填充玩具。安全永远排在「睡得久」之前。</li>'
+        + '<li><b>「不限时」</b>：通常是家里环境噪音大时才需要，那就更要把音量压到最低。</li>'
+        + '</ul></details>'
+        + '<details class="wn-more"><summary>想少用一点的时候</summary>'
+        + '<p class="hint">白噪音更像一个「该睡觉了」的情境线索（和关灯、换睡衣一样），不是药物依赖，也没有「几岁必须戒」的说法。可以这样慢慢退：</p>'
+        + '<ul class="kv"><li>1. 每隔几天把音量调低一点，看宝宝是否照睡。</li>'
         + '<li>2. 缩短播放时间：先只用在入睡前，再配合定时关闭。</li>'
         + '<li>3. 增加别的睡前线索：洗澡、换睡衣、拉窗帘、调暗灯、固定绘本或道晚安。</li>'
-        + '<li>4. 先挑环境安静的白天小睡试不播，适应后再动夜间。</li>'
-        + '</ul>';
-      html += '<p class="hint">如果宝宝长时间极难入睡、睡觉时出现呼吸异常，或你对听力、发育有疑虑，'
-        + '请找儿科医生评估，而不是继续把音量调大。</p></div>';
+        + '<li>4. 先挑环境安静的白天小睡试不播，适应后再动夜间。</li></ul>'
+        + '<p class="hint">如果宝宝长时间极难入睡、睡觉时出现呼吸异常，或你对听力、发育有疑虑，请找儿科医生评估，而不是继续把音量调大。</p></details>';
+      if (supported && isIOS()) {
+        html += '<details class="wn-more"><summary>iPhone 没声音？</summary><p class="hint">'
+          + '① 侧边静音拨片不在静音位（拨片朝上）；② 媒体音量没调到 0。锁屏后会继续播放，到时间自动停；也可以在锁屏的播放控件上点暂停。'
+          + '外放没声音时，改用耳机或开免提再试。</p></details>';
+      }
+      html += '</div>';
 
       view.innerHTML = html;
 
@@ -579,6 +615,7 @@
         var v = parseInt(volEl.value, 10);
         var label = view.querySelector('#wnVolVal');
         if (label) label.textContent = v;
+        volEl.style.setProperty('--p', ((v - 1) / 9 * 100).toFixed(1) + '%');
         var cur = Storage.get().whitenoise;
         cur.volume = v;
         Storage.save();
@@ -612,6 +649,24 @@
         Storage.get().whitenoise.linkSleep = linkEl.checked;
         Storage.save();
       });
+
+      /* 声音条横向滑动：重绘后把选中的方块滚进视野 */
+      var gridEl = view.querySelector('.wn-grid'), onEl = gridEl && gridEl.querySelector('.wn-tile.on');
+      if (gridEl && onEl && onEl.offsetLeft + onEl.offsetWidth > gridEl.clientWidth) gridEl.scrollLeft = onEl.offsetLeft - 16;
+
+      /* 第 205 次：圆环与剩余时间每秒走一格；离开本页（节点不在文档里）就自停 */
+      if (Modules.whitenoise._tick) clearInterval(Modules.whitenoise._tick);
+      var ringEl = view.querySelector('#wnRing');
+      if (ringEl && Storage.get().whitenoise.playing) {
+        var CC = parseFloat(ringEl.getAttribute('stroke-dasharray'));
+        Modules.whitenoise._tick = setInterval(function () {
+          if (!document.body.contains(ringEl)) { clearInterval(Modules.whitenoise._tick); return; }
+          var w = Storage.get().whitenoise;
+          ringEl.setAttribute('stroke-dashoffset', ringOffset(w, CC).toFixed(1));
+          var st = view.querySelector('#wnState');
+          if (st) st.textContent = stateLine(w, remainingMin());
+        }, 1000);
+      }
     }
   };
 
