@@ -203,7 +203,9 @@
         var due = pgMode === 'lmp' ? Util.addDays(v, 280) : v;
         pgLmpEl.value = lmp; pgDueEl.value = due;
         var days = Math.round((new Date(today + 'T00:00:00') - new Date(lmp + 'T00:00:00')) / 86400000);
-        var wk = days >= 0 ? '现在约孕 <b>' + Math.floor(days / 7) + ' 周 + ' + (days % 7) + ' 天</b>' : '';
+        /* 第 192 次：已过预产期改说「已过预产期 N 天」，不再显示「孕 43 周」这类让人发慌的数字 */
+        var wk = days < 0 ? '' : days > 280 ? '<span class="nw">已过预产期 <b>' + (days - 280) + ' 天</b></span>'
+          : '<span class="nw">现在约孕 <b>' + Math.floor(days / 7) + ' 周 + ' + (days % 7) + ' 天</b></span>';
         pgDerEl.innerHTML = (pgMode === 'lmp' ? '预产期 <b>' + pgFmt(due) + '</b>' : '末次月经约 <b>' + pgFmt(lmp) + '</b>') + (wk ? ' · ' + wk : '');
         pgDerEl.classList.add('on');
       }

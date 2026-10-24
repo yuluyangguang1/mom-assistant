@@ -3086,6 +3086,10 @@ body::after {
   pointer-events: none;
 }
 .view { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
+/* 第 192 次（左/右手模式实测）：竖排胶囊高约 262px，沿用横排的 112px 留白时，
+   滚到底最后两三行（首页「妈妈情绪」、设置末项等）永远压在胶囊下面点不到。
+   竖排时留白 = 胶囊真实高度（--dock-h，buildTabbar 注入）+ 胶囊离底 16px + 12px 呼吸。 */
+body.dock-left .view, body.dock-right .view { padding-bottom: calc(var(--dock-h, 262px) + 28px + env(safe-area-inset-bottom)); }
 
 /* ============================================================
    第 146 次（P0-3 / P0-4）：首页首屏「此刻」条——进行中计时 + 零表单快记。
@@ -3603,6 +3607,8 @@ body {
   touch-action: manipulation;
   /* ↑ 第 171 次：同名选择器合并到此处 */ background-color: #FDF9F4; }
 body.dark {
+  /* 第 192 次：原生控件（日期框日历钮、日期面板、下拉、滚动条）跟随深色，否则日历图标黑色画在深底上看不见 */
+  color-scheme: dark;
   --bg-grad: linear-gradient(170deg, #221E1A 0%, #26211C 55%, #231F1B 100%);
   --bg-end: #231F1B; /* 第 146 次：底栏渐隐遮罩用的页底色 */
   /* 第 105 次（修顶栏横线）：与 --bg-grad 首档同步，理由见 :root 处同 token 注释。
@@ -3884,4 +3890,9 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
 .pg-derived { margin: 10px 0 0; padding: 0 12px; max-height: 0; opacity: 0; overflow: hidden; border-radius: var(--radius-sm); background: var(--primary-weak); color: var(--text); font-size: var(--fs-sm); line-height: 1.6; transition: max-height .3s var(--ease), opacity .25s var(--ease), padding .3s var(--ease); }
 .pg-derived.on { max-height: 80px; opacity: 1; padding: 10px 12px; }
 .pg-derived b { color: var(--primary-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* 第 192 次：「现在约孕 25 周 + 1 天」整段不拆行（旧版窄屏会断成「现在约孕 / 25 周」） */
+.pg-derived .nw { white-space: nowrap; }
+/* 第 192 次：iPad 上日期框不再拉满 640px 宽——日期只有 10 个字，过宽显得空，日历钮离文字太远 */
+@media (min-width: 700px) { #pgDate { max-width: 360px; } }
+
 #pgMode + .birth-field { margin-top: 2px; }

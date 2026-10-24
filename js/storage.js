@@ -191,7 +191,8 @@
          photo 是本机压缩后的 dataURL（util.pickPhoto 统一压到 288px JPEG）。 */
       babies: [],
       periods: [],
-      pregnancy: { lmp: null, dueDate: null, weights: [] },
+      /* 第 192 次：dateBasis = 'due' | 'lmp' | null —— 用户按哪个日期填的（孕期页记住口径），null = 未选过 */
+      pregnancy: { lmp: null, dueDate: null, dateBasis: null, weights: [] },
       prenatal: { checks: [], records: [] },
       feedings: [],
       sleeps: [],
@@ -395,6 +396,18 @@
     OBJECT_KEYS.forEach(function (k) {
       if (raw[k] && typeof raw[k] === 'object' && !Array.isArray(raw[k])) base[k] = raw[k];
     });
+    /* 第 192 次：孕期日期逐字段清洗——OBJECT_KEYS 是整对象浅拷贝，手改/导入的坏日期会让孕周算出 NaN。
+       lmp/dueDate 只收 YYYY-MM-DD；dateBasis 只收 'due'|'lmp'；weights 必须是数组。 */
+    (function () {
+      var rp = (raw.pregnancy && typeof raw.pregnancy === 'object' && !Array.isArray(raw.pregnancy)) ? raw.pregnancy : {};
+      var okD = function (v) { return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(v + 'T00:00:00').getTime()) ? v : null; };
+      var np = {};
+      Object.keys(rp).forEach(function (k) { np[k] = rp[k]; });
+      np.lmp = okD(rp.lmp); np.dueDate = okD(rp.dueDate);
+      np.dateBasis = (rp.dateBasis === 'due' || rp.dateBasis === 'lmp') ? rp.dateBasis : null;
+      np.weights = Array.isArray(rp.weights) ? rp.weights.filter(function (r) { return r && typeof r === 'object' && !Array.isArray(r); }).map(capRecordStrings) : [];
+      base.pregnancy = np;
+    })();
     /* metrics 逐字段清洗：只保留合法的埋点样本，坏样本整条丢弃（U-05） */
     if (base.metrics && Array.isArray(base.metrics.records)) {
       base.metrics.records = base.metrics.records.filter(function (r) {
@@ -833,7 +846,13 @@
         if (!cur.prenatal.plan || typeof cur.prenatal.plan !== 'object') cur.prenatal.plan = {};
         bump('产检预约', mergeMap(cur.prenatal.plan, inc.prenatal.plan));
       }
-      ['lmp', 'dueDate'].forEach(function (k) { if (cur.pregnancy && !cur.pregnancy[k] && inc.pregnancy && inc.pregnancy[k]) cur.pregnancy[k] = inc.pregnancy[k]; });
+      /* 第 192 次：预产期按「一组」合并——本机两项都空才整组（lmp + dueDate + dateBasis）取导入的；
+         旧写法逐项补空，本机只有 LMP、导入只有预产期时会拼出两个互相矛盾的日期。 */
+      if (cur.pregnancy && inc.pregnancy && !cur.pregnancy.lmp && !cur.pregnancy.dueDate && (inc.pregnancy.lmp || inc.pregnancy.dueDate)) {
+        cur.pregnancy.lmp = inc.pregnancy.lmp || null; cur.pregnancy.dueDate = inc.pregnancy.dueDate || null;
+        cur.pregnancy.dateBasis = inc.pregnancy.dateBasis || null;
+        bump('预产期', 1);
+      }
       /* 宝宝层 */
       var incBabies = (inc.babies || []).slice();
       var incAct = inc.settings && inc.settings.activeBabyId;
