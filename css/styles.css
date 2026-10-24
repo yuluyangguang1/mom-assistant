@@ -3880,3 +3880,8 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
 .pack-item input[type="checkbox"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .pack-item .icon-btn { color: var(--muted); opacity: .55; transition: opacity .2s var(--ease), color .2s var(--ease); }
 .pack-item .icon-btn:hover, .pack-item .icon-btn:active { color: var(--danger); opacity: 1; }
+/* ⑫ 孕期设置：换算结果行（选完日期后淡入，主色弱底小卡） */
+.pg-derived { margin: 10px 0 0; padding: 0 12px; max-height: 0; opacity: 0; overflow: hidden; border-radius: var(--radius-sm); background: var(--primary-weak); color: var(--text); font-size: var(--fs-sm); line-height: 1.6; transition: max-height .3s var(--ease), opacity .25s var(--ease), padding .3s var(--ease); }
+.pg-derived.on { max-height: 80px; opacity: 1; padding: 10px 12px; }
+.pg-derived b { color: var(--primary-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#pgMode + .birth-field { margin-top: 2px; }

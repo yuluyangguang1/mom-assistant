@@ -45,10 +45,20 @@
       var html = '';
 
       html += '<div class="card"><h2>预产期设置</h2>';
-      html += Util.dateSlider({ id: 'lmp', title: '末次月经 (LMP)', value: pg.lmp || '', min: Util.addDays(Util.todayISO(), -320), max: Util.todayISO(), opt: { label: '未设置', invert: false } });
-      html += Util.dateSlider({ id: 'due', title: '预产期（可手动改，将联动 LMP）', value: pg.dueDate || '', min: Util.addDays(Util.todayISO(), -60), max: Util.addDays(Util.todayISO(), 130), opt: { label: '未设置', invert: false } });
+      /* 第 190 次：两条「月份 + 日」双滑杆（各带「未设置」勾选）→ 「我知道的是：预产期 | 末次月经」+ 一个原生日期框。
+         旧版问题：① 未设置时露出两条空轨、没有刻度，看不出怎么用；② 两项都有值时保存一律以 LMP 为准，
+         标题写「可手动改预产期」但改了不生效。现在只填一项，另一项实时算出来给看。
+         隐藏的 #lmp / #due 保留原 id，供保存与其它读取代码不变。 */
+      var pgMode = pg.dateBasis === 'lmp' || pg.dateBasis === 'due' ? pg.dateBasis : (pg.lmp && !pg.dueDate ? 'lmp' : 'due');
+      html += '<span class="lbl-text">我知道的是</span><div class="seg" id="pgMode">'
+        + '<button type="button" class="seg-btn' + (pgMode === 'due' ? ' active' : '') + '" data-pgm="due">预产期</button>'
+        + '<button type="button" class="seg-btn' + (pgMode === 'lmp' ? ' active' : '') + '" data-pgm="lmp">末次月经</button></div>';
+      html += '<label class="birth-field"><span id="pgDateTitle">' + (pgMode === 'due' ? '预产期（产检单上的日期）' : '末次月经第一天') + '</span>'
+        + '<input type="date" id="pgDate" value="' + Util.escapeHtml((pgMode === 'due' ? pg.dueDate : pg.lmp) || '') + '"></label>';
+      html += '<input type="hidden" id="lmp" value="' + Util.escapeHtml(pg.lmp || '') + '"><input type="hidden" id="due" value="' + Util.escapeHtml(pg.dueDate || '') + '">';
+      html += '<p class="pg-derived" id="pgDerived" aria-live="polite"></p>';
       html += '<button class="btn btn-primary btn-save" id="pgSave">保存</button>';
-      html += '<p class="hint">预产期 = 末次月经 + 280 天（40周）。修改任一项会自动同步另一项。</p></div>';
+      html += '<p class="hint">预产期 = 末次月经 + 280 天（40 周）。只填你手上有的那一个，另一个自动算。</p></div>';
 
       var cw = currentWeek();
       if (cw) {
@@ -178,18 +188,45 @@
       });
       Util.bindDateSliders(view);
 
+      var pgDateEl = view.querySelector('#pgDate'), pgLmpEl = view.querySelector('#lmp'), pgDueEl = view.querySelector('#due');
+      var pgDerEl = view.querySelector('#pgDerived'), pgTitleEl = view.querySelector('#pgDateTitle');
+      var today = Util.todayISO();
+      function pgFmt(iso) { return +iso.slice(0, 4) + ' 年 ' + (+iso.slice(5, 7)) + ' 月 ' + (+iso.slice(8, 10)) + ' 日'; }
+      function pgLimits() {
+        if (pgMode === 'due') { pgDateEl.min = Util.addDays(today, -60); pgDateEl.max = Util.addDays(today, 300); }
+        else { pgDateEl.min = Util.addDays(today, -320); pgDateEl.max = today; }
+      }
+      function pgSync() {
+        var v = pgDateEl.value;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { pgLmpEl.value = ''; pgDueEl.value = ''; pgDerEl.innerHTML = ''; pgDerEl.classList.remove('on'); return; }
+        var lmp = pgMode === 'lmp' ? v : Util.addDays(v, -280);
+        var due = pgMode === 'lmp' ? Util.addDays(v, 280) : v;
+        pgLmpEl.value = lmp; pgDueEl.value = due;
+        var days = Math.round((new Date(today + 'T00:00:00') - new Date(lmp + 'T00:00:00')) / 86400000);
+        var wk = days >= 0 ? '现在约孕 <b>' + Math.floor(days / 7) + ' 周 + ' + (days % 7) + ' 天</b>' : '';
+        pgDerEl.innerHTML = (pgMode === 'lmp' ? '预产期 <b>' + pgFmt(due) + '</b>' : '末次月经约 <b>' + pgFmt(lmp) + '</b>') + (wk ? ' · ' + wk : '');
+        pgDerEl.classList.add('on');
+      }
+      Array.prototype.forEach.call(view.querySelectorAll('[data-pgm]'), function (btn) {
+        btn.addEventListener('click', function () {
+          var m = btn.getAttribute('data-pgm');
+          if (m === pgMode) return;
+          var keep = m === 'lmp' ? pgLmpEl.value : pgDueEl.value; /* 切换口径时带上换算值，不清空 */
+          pgMode = m;
+          Array.prototype.forEach.call(view.querySelectorAll('[data-pgm]'), function (x) { x.classList.toggle('active', x === btn); });
+          pgTitleEl.textContent = m === 'due' ? '预产期（产检单上的日期）' : '末次月经第一天';
+          pgLimits(); pgDateEl.value = keep || ''; pgSync();
+        });
+      });
+      pgDateEl.addEventListener('input', pgSync);
+      pgDateEl.addEventListener('change', pgSync);
+      pgLimits(); pgSync();
+
       view.querySelector('#pgSave').addEventListener('click', function () {
-        var lmp = view.querySelector('#lmp').value;
-        var due = view.querySelector('#due').value;
-        if (lmp && due) {
-          pg.lmp = lmp; pg.dueDate = Util.addDays(lmp, 280);
-        } else if (lmp) {
-          pg.lmp = lmp; pg.dueDate = Util.addDays(lmp, 280);
-        } else if (due) {
-          pg.dueDate = due; pg.lmp = Util.addDays(due, -280);
-        } else {
-          Util.markInvalid([view.querySelector('#lmp'), view.querySelector('#due')], '请至少填写末次月经或预产期'); return;
-        }
+        pgSync();
+        var lmp = pgLmpEl.value, due = pgDueEl.value;
+        if (!lmp || !due) { Util.markInvalid(pgDateEl, '请选一个日期：预产期或末次月经'); return; }
+        pg.lmp = lmp; pg.dueDate = due; pg.dateBasis = pgMode; /* 记住用户按哪个填的，下次打开同一口径 */
         Storage.save();
         global.App.rerender();
       });
