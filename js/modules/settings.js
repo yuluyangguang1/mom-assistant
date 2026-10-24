@@ -617,7 +617,7 @@
     + '阶段由预产期/宝宝生日自动判定，这里可覆盖。</p></div>';
       html += '</details>';
 
-      html += sgOpen('sun', '外观', '主题 / 玻璃折射 / 触感 / 天空时刻预览');
+      html += sgOpen('sun', '外观', '主题 / 玻璃折射 / 触感 / 常亮 / 天空时刻预览');
       /* 主题四选（第 40 次移除顶栏按钮；第 41 次加「跟随系统」）：这里是唯一主题入口 */
       html += '<div class="card">';
       var MODES = [['time', '跟随时间'], ['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']];
@@ -680,6 +680,11 @@
         '<input type="checkbox" id="sHaptic"' + (s.settings.hapticEnabled !== false ? ' checked' : '') + '></div>';
       html += '<p class="hint">保存成功轻震一下、失败震两下。<b>仅安卓手机有效</b>：iPhone 的所有浏览器'
         + '都未实现网页震动，电脑无震动马达；不影响记录与保存。</p>';
+      /* 第 194 次：计时常亮开关（js/awake.js） */
+      html += '<div class="row-switch"><label for="sAwake">计时时屏幕常亮</label>' +
+        '<input type="checkbox" id="sAwake"' + (s.settings.keepAwake !== false ? ' checked' : '') + '></div>';
+      html += '<p class="hint">宫缩计时、胎动计数、亲喂计时进行中，屏幕不会自动变暗锁屏。睡眠计时不常亮，免得亮一整夜。'
+        + (('wakeLock' in navigator) ? '' : '<b>当前浏览器不支持</b>，iPhone 需 iOS 16.4 以上。') + '</p>';
       /* 第 100 次：底栏五口排列（取代第 87 次只镜像快记钮的「左手模式」开关）——
          left/right 时首页、日期记录、快记＋、宝宝切换、设置五口收进同侧竖排胶囊 */
       var HAND_OPTS = [['normal', '正常排列'], ['left', '左手模式'], ['right', '右手模式']];
@@ -1152,6 +1157,14 @@
         st.settings.realRefraction = refr.checked;
         Storage.save();
         if (global.Glass) global.Glass.setEnabled(refr.checked);
+      });
+
+      var awk = view.querySelector('#sAwake');
+      if (awk) awk.addEventListener('change', function () {
+        var st = Storage.get();
+        st.settings.keepAwake = awk.checked;
+        Storage.save();
+        Util.toast(awk.checked ? '已开启：计时时屏幕常亮' : '已关闭计时常亮', 'ok');
       });
 
       /* 第 45 次：保存触感开关。注意这里不要再手动震一次——上面的 Storage.save()

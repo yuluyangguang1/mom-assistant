@@ -64,9 +64,26 @@
           html += '<button class="btn" id="sPause">暂停</button> ';
         }
         html += '<button class="btn btn-primary" id="sEnd">结束并记录</button>';
+        /* 第 194 次：结束时间回填（对标 Cali 补记 endedAt；照搬亲喂 data-ftend 写法）。
+           首页「可能忘了结束（点进去可改结束时间）」此前在本页其实没有对应控件。 */
+        var osMs = Date.now() - new Date(os.start).getTime();
+        if (osMs > 6 * 3600000) {
+          html += '<p class="hint sl-stale">已经计时 ' + Math.floor(osMs / 3600000) + ' 小时了，是不是忘了按结束？可以按实际醒来时间回填。</p>';
+        }
+        html += '<div class="sl-back"><span class="hint">忘了按结束？按实际醒来时间：</span>'
+          + '<button type="button" class="btn-mini" data-slend="10">10 分钟前</button>'
+          + '<button type="button" class="btn-mini" data-slend="20">20 分钟前</button>'
+          + '<button type="button" class="btn-mini" data-slend="30">30 分钟前</button></div>';
+        html += '<div class="sl-endat"><label>或选醒来时间<input type="datetime-local" id="sEndAt" value="' + dtLocalValue(new Date()) + '"'
+          + ' min="' + dtLocalValue(new Date(new Date(os.start).getTime() + 60000)) + '" max="' + dtLocalValue(new Date()) + '"></label>'
+          + '<button type="button" class="btn" id="sEndAtGo">按这个时间结束</button></div>';
       } else {
         html += '<button class="btn btn-primary btn-save" id="sStart">开始睡眠计时</button>';
-        html += '<p class="hint">点开始后记录本次睡眠，可暂停/继续。</p>';
+        /* 第 194 次：哄睡着才想起来点开始——入睡时间往前拨 */
+        html += '<div class="sl-back"><span class="hint">已经睡着一会儿了？从这时开始算：</span>'
+          + '<button type="button" class="btn-mini" data-slstart="10">10 分钟前</button>'
+          + '<button type="button" class="btn-mini" data-slstart="20">20 分钟前</button>'
+          + '<button type="button" class="btn-mini" data-slstart="30">30 分钟前</button></div>';
       }
       html += '</div>';
 
@@ -158,10 +175,16 @@
       view.innerHTML = html;
       tick();
 
+      function startAt(agoMin) {
+        var st = agoMin ? dtLocalValue(new Date(Date.now() - agoMin * 60000)) + ':00' : Util.nowLocal();
+        d.openSleep = { id: Util.uid(), start: st, pausedMs: 0, pauseStart: null };
+        if (Storage.save() && agoMin) Util.toast('已从 ' + agoMin + ' 分钟前开始计时', 'ok');
+        global.App.rerender();
+      }
       var sStart = view.querySelector('#sStart');
-      if (sStart) sStart.addEventListener('click', function () {
-        d.openSleep = { id: Util.uid(), start: Util.nowLocal(), pausedMs: 0, pauseStart: null };
-        Storage.save(); global.App.rerender();
+      if (sStart) sStart.addEventListener('click', function () { startAt(0); });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-slstart]'), function (b) {
+        b.addEventListener('click', function () { startAt(parseInt(b.getAttribute('data-slstart'), 10) || 0); });
       });
       var sPause = view.querySelector('#sPause');
       if (sPause) sPause.addEventListener('click', function () {
@@ -176,16 +199,32 @@
           Storage.save(); global.App.rerender();
         }
       });
-      var sEnd = view.querySelector('#sEnd');
-      if (sEnd) sEnd.addEventListener('click', function () {
-        var os2 = d.openSleep;
-        var end = Date.now();
-        var paused = (os2.pausedMs || 0) + (os2.pauseStart ? end - os2.pauseStart : 0);
-        var totalMs = end - new Date(os2.start).getTime() - paused;
-        d.sleeps.push({ id: os2.id, start: os2.start, end: Util.nowLocal(), pausedMs: paused, note: null, wakings: null, longestMin: null });
+      /* 第 194 次：结束统一走 endAt(毫秒时间戳)；回填时间不能早于入睡、不能晚于现在。
+         暂停中结束：只把「暂停开始 → 结束」这段计入暂停（结束早于暂停开始则不计）。 */
+      function endAt(endMs) {
+        var os2 = d.openSleep; if (!os2) return;
+        var startMs = new Date(os2.start).getTime(), nowMs = Date.now();
+        if (!(endMs > startMs)) { Util.toast('醒来时间要晚于入睡时间（' + Util.fmtDateTime(os2.start) + '）', 'warn'); return; }
+        if (endMs > nowMs) endMs = nowMs;
+        var paused = (os2.pausedMs || 0) + (os2.pauseStart ? Math.max(0, endMs - os2.pauseStart) : 0);
+        var totalMs = endMs - startMs - paused;
+        d.sleeps.push({ id: os2.id, start: os2.start, end: dtLocalValue(new Date(endMs)) + ':' + ('0' + new Date(endMs).getSeconds()).slice(-2), pausedMs: paused, note: null, wakings: null, longestMin: null });
         d.openSleep = null;
         if (Storage.save()) Util.toast('已记录：睡眠 ' + Util.fmtDuration(Math.max(0, totalMs)), 'ok'); /* C1：计时类带时长 */
         global.App.rerender();
+      }
+      var sEnd = view.querySelector('#sEnd');
+      if (sEnd) sEnd.addEventListener('click', function () { endAt(Date.now()); });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-slend]'), function (b) {
+        b.addEventListener('click', function () { endAt(Date.now() - (parseInt(b.getAttribute('data-slend'), 10) || 0) * 60000); });
+      });
+      var sEndAtGo = view.querySelector('#sEndAtGo');
+      if (sEndAtGo) sEndAtGo.addEventListener('click', function () {
+        var el = view.querySelector('#sEndAt'), v = el && el.value;
+        if (!v) { Util.markInvalid(el, '请选醒来时间'); return; }
+        var ms = new Date(v + ':00').getTime();
+        if (!(ms > new Date(d.openSleep.start).getTime())) { Util.markInvalid(el, '醒来时间要晚于入睡时间'); return; }
+        endAt(ms);
       });
       /* 夜醒单点选择：写入 wakings 并折算 longestMin（U-16 四字段） */
       Array.prototype.forEach.call(view.querySelectorAll('#sWak [data-wak]'), function (b) {

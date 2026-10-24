@@ -2986,6 +2986,20 @@ body .tabbar .dock-btn[hidden] { display: none; }
   white-space: nowrap;
 }
 
+/* 第 194 次：睡眠页「往前拨开始 / 回填结束」三档，沿用亲喂 .ft-back 的等宽网格 */
+.sl-back {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+  margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border);
+}
+.sl-back .hint { grid-column: 1 / -1; margin: 0 0 2px; font-size: calc(12px * var(--fs-mul)); }
+.sl-back .btn-mini { width: 100%; padding: 0 4px; min-width: 0; font-size: calc(12.5px * var(--fs-mul)); white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; }
+/* 夜醒次数四档：「3 次以上」在 390 宽会折成两行，缩字距并禁折 */
+#sWak .seg-btn, #sManWak .seg-btn { white-space: nowrap; padding-left: 4px; padding-right: 4px; letter-spacing: -.01em; }
+.sl-endat { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.sl-endat label { display: flex; flex-direction: column; gap: 6px; font-size: calc(12px * var(--fs-mul)); color: var(--muted); }
+.sl-endat input { width: 100%; box-sizing: border-box; min-height: 44px; }
+.sl-stale { color: var(--warn-text); }
+
 /* ============================================================
    第 141 次（底栏定稿：纯图标 + ＋置右 + 二级页两端分布）
    ------------------------------------------------------------
