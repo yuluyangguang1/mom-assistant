@@ -26,8 +26,15 @@
   var TYPES = [
     { v: 'pink', t: '粉红噪音', desc: '柔和偏低沉，像细雨落在窗外' },
     { v: 'white', t: '白噪音', desc: '沙沙声，遮蔽突发声响更明显' },
-    { v: 'brown', t: '棕色噪音', desc: '更低更厚，像远处的风或海浪' }
+    { v: 'brown', t: '棕色噪音', desc: '更低更厚，像远处的风或海浪' },
+    /* 第 204 次：扩充四种，仍是本机合成、零音频文件。只描述听感，不宣称哪种更助眠。 */
+    { v: 'shush', t: '嘘声', desc: '「嘘——嘘——」一起一伏，像大人在耳边轻轻哄' },
+    { v: 'ocean', t: '海浪', desc: '低沉的浪声，约 8 秒一涨一落' },
+    { v: 'heart', t: '心跳', desc: '每分钟约 75 下的「咚—咚」，底下垫一层很轻的低噪。手机外放会偏薄，戴耳机或接音箱更像' },
+    { v: 'fan', t: '风扇', desc: '稳定的低沉气流声，没有起伏' }
   ];
+  /* 循环片段长度：海浪一个涨落周期 8 秒，其余 4 秒（嘘声 2 秒一下、心跳 0.8 秒一下，都能整除） */
+  function loopSec(type) { return type === 'ocean' ? 8 : 4; }
   var MINUTES = [10, 20, 30, 0]; /* 0 = 不限时（显式选择，且带提示） */
 
   /* ---------------- 音频引擎（状态活在页面里，不产生任何网络请求） ---------------- */
@@ -50,15 +57,55 @@
 
   /** 生成 4 秒可循环噪音缓冲：白 = 均匀随机；粉 / 棕 = 对白噪音做不同频率加权 */
   function noiseBuffer(ctx, type) {
-    var len = Math.floor(ctx.sampleRate * 4);
+    var len = Math.floor(ctx.sampleRate * loopSec(type));
     var buf = ctx.createBuffer(1, len, ctx.sampleRate);
-    fillNoise(buf.getChannelData(0), type);
+    fillNoise(buf.getChannelData(0), type, ctx.sampleRate);
     return buf;
   }
   /* 第 187 次：噪音样本生成抽出来，Web Audio 缓冲与 <audio> 用的 WAV 共用一套算法 */
-  function fillNoise(data, type) {
+  /* 把新声音的均方根响度对齐到粉红噪音的水平（约 0.12），切换类型时音量不跳 */
+  function normRms(data, target) {
+    var sum = 0, i, n = data.length;
+    for (i = 0; i < n; i++) sum += data[i] * data[i];
+    var rms = Math.sqrt(sum / Math.max(1, n));
+    if (rms > 0) { var k = target / rms; for (i = 0; i < n; i++) data[i] *= k; }
+    return data;
+  }
+  function fillNoise(data, type, sr) {
     var len = data.length;
     var i;
+    sr = sr || WAV_SR;
+    if (type === 'shush' || type === 'ocean' || type === 'fan' || type === 'heart') {
+      var TAU = Math.PI * 2, lp = 0, lp2 = 0, br = 0;
+      for (i = 0; i < len; i++) {
+        var w0 = Math.random() * 2 - 1, tt = i / sr;
+        if (type === 'shush') {
+          /* 高通后的嘶声 × 2 秒一次的起伏（0.25~1） */
+          lp += 0.08 * (w0 - lp);
+          var env = 0.25 + 0.75 * Math.pow(Math.sin(Math.PI * tt / 2), 2);
+          data[i] = (w0 - lp) * env;
+        } else if (type === 'ocean') {
+          /* 棕噪音 × 8 秒涨落，浪头处叠一点高频「碎浪」 */
+          br = (br + 0.02 * w0) / 1.02;
+          var sw = 0.5 - 0.5 * Math.cos(TAU * tt / 8);
+          data[i] = br * 6 * (0.2 + 0.8 * sw) + w0 * 0.05 * sw * sw;
+        } else if (type === 'fan') {
+          /* 两级低通的平稳气流 */
+          lp += 0.12 * (w0 - lp); lp2 += 0.12 * (lp - lp2);
+          data[i] = lp2;
+        } else {
+          /* 心跳：0.8 秒一拍，「咚」50 Hz 衰减 0.12 秒，0.3 秒后「哒」幅度 0.6；底噪很轻 */
+          /* 手机外放几乎放不出 100 Hz 以下，所以「咚」叠上 180 / 300 Hz 泛音，外放也听得见 */
+          var ph = tt % 0.8, th = 0;
+          function thump(x, a, k) { return a * Math.exp(-x / k) * (Math.sin(TAU * 60 * x) + 0.7 * Math.sin(TAU * 180 * x) + 0.4 * Math.sin(TAU * 300 * x)); }
+          if (ph < 0.15) th = thump(ph, 1, 0.04);
+          else if (ph >= 0.3 && ph < 0.45) th = thump(ph - 0.3, 0.6, 0.035);
+          br = (br + 0.02 * w0) / 1.02;
+          data[i] = th + br * 0.4;
+        }
+      }
+      return normRms(data, type === 'heart' ? 0.1 : 0.12);
+    }
     if (type === 'white') {
       for (i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * 0.6;
       return data;
@@ -99,7 +146,7 @@
      · 8 kHz / 16 bit 单声道：20 分钟约 19 MB 内存，30 分钟约 29 MB，用完即释放。 */
   var WAV_SR = 8000;
   function buildWav(type, volume, minutes) {
-    var base = fillNoise(new Float32Array(WAV_SR * 4), type);
+    var base = fillNoise(new Float32Array(WAV_SR * loopSec(type)), type, WAV_SR);
     var total = minutes > 0 ? minutes * 60 * WAV_SR : base.length;
     var g = gainOf(volume) * 1.6; /* 与 Web Audio 的听感大致对齐（低采样率高频少，略补一点） */
     var buf = new ArrayBuffer(44 + total * 2);
@@ -579,6 +626,8 @@
      本批的核心修复（等 resume）恰恰是运行时行为，静态断言验证不了它。
      前缀下划线与既有 _stop / _audioSupported 一致，属内部接口，不进 UI。 */
   Modules.whitenoise._startForTest = start;
+  Modules.whitenoise._fill = function (type, sr) { return fillNoise(new Float32Array((sr || WAV_SR) * loopSec(type)), type, sr || WAV_SR); };
+  Modules.whitenoise._wav = buildWav;
   Modules.whitenoise._ctxState = function () { return engine.ctx ? engine.ctx.state : null; };
   Modules.whitenoise._engine = engine;
 
