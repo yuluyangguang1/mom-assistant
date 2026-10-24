@@ -753,6 +753,130 @@
     },
 
     /** 从 JSON 文本导入（逐字段清洗，坏字段回退默认而非搞坏整个应用） */
+    /**
+     * 第 187 次（P0：增量导入）：把备份文件「合并」进本机，而不是覆盖。
+     * 规则：只加本机没有的——有 id 的按 id 去重，没 id 的按整条内容去重；
+     *       疫苗/儿保已完成按剂次 key 只补缺；进行中的计时（openSleep 等）一律保留本机的。
+     * 宝宝对应：同 id → 同名同生日 → 双方都只有一个宝宝时视为同一个 → 否则作为新档案加入。
+     * opts.dryRun=true 时只算「会新增多少」，不改本机（导入预览用）。
+     * 返回 { total, parts: [{ name, n }], newBabies }。
+     */
+    mergeJSON: function (text, opts) {
+      opts = opts || {};
+      var parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('数据格式错误');
+      var keep = this.data;
+      var inc;
+      try {
+        this.data = sanitize(parsed);
+        this._noSnapshot = true;
+        this.migrate();
+        inc = this.data;
+      } finally { this._noSnapshot = false; this.data = keep; }
+      var cur = opts.dryRun ? sanitize(JSON.parse(JSON.stringify(keep))) : keep;
+      var counts = {};
+      function bump(k, n) { if (n) counts[k] = (counts[k] || 0) + n; }
+      function fp(x) { try { return JSON.stringify(x); } catch (e) { return String(Math.random()); } }
+      function mergeArr(dst, src) {
+        if (!Array.isArray(src) || !src.length) return 0;
+        var ids = {}, fps = {}, n = 0;
+        dst.forEach(function (x) { if (x && x.id != null) ids[x.id] = 1; else fps[fp(x)] = 1; });
+        src.forEach(function (x) {
+          if (!x || typeof x !== 'object') return;
+          if (x.id != null) { if (ids[x.id]) return; ids[x.id] = 1; }
+          else { var f = fp(x); if (fps[f]) return; fps[f] = 1; }
+          dst.push(JSON.parse(JSON.stringify(x))); n++;
+        });
+        return n;
+      }
+      function mergeMap(dst, src) {
+        var n = 0;
+        if (!src || typeof src !== 'object') return 0;
+        Object.keys(src).forEach(function (k) { if (dst[k] == null && src[k] != null) { dst[k] = src[k]; n++; } });
+        return n;
+      }
+      var LABEL = { feedings: '喂养', sleeps: '睡眠', diapers: '尿布', growth: '生长', meds: '吃药', milestones: '里程碑',
+        milestoneObs: '发育观察', temps: '体温', baths: '洗澡', swims: '游泳', suns: '日晒', waters: '饮水', jaundices: '黄疸',
+        supplements: '补剂', supplementPlans: '补剂计划', periods: '经期', contractions: '宫缩', fetal: '胎动',
+        fetalSessions: '胎动计数', moods: '情绪', supplies: '囤货' };
+      var ARR_BABY = BABY_KEYS.filter(function (k) { return ARRAY_KEYS.indexOf(k) >= 0; });
+      function mergeBaby(dst, src) {
+        ARR_BABY.forEach(function (k) {
+          if (!Array.isArray(dst[k])) dst[k] = [];
+          bump(LABEL[k] || k, mergeArr(dst[k], src[k]));
+        });
+        ['vaccines', 'checkups'].forEach(function (k) {
+          var sv = src[k]; if (!sv || typeof sv !== 'object') return;
+          if (!dst[k] || typeof dst[k] !== 'object') dst[k] = { done: {} };
+          if (!dst[k].done || typeof dst[k].done !== 'object') dst[k].done = {};
+          bump(k === 'vaccines' ? '疫苗' : '儿保', mergeMap(dst[k].done, sv.done));
+          if (k === 'vaccines') {
+            if (Array.isArray(sv.subs)) { if (!Array.isArray(dst.vaccines.subs)) dst.vaccines.subs = []; bump('自费疫苗', mergeArr(dst.vaccines.subs, sv.subs)); }
+            if (sv.via && typeof sv.via === 'object') { if (!dst.vaccines.via || typeof dst.vaccines.via !== 'object') dst.vaccines.via = {}; mergeMap(dst.vaccines.via, sv.via); }
+          }
+        });
+      }
+      /* 妈妈 / 全家层 */
+      ARRAY_KEYS.forEach(function (k) {
+        if (k === 'babies' || BABY_KEYS.indexOf(k) >= 0) return;
+        if (!Array.isArray(cur[k])) cur[k] = [];
+        bump(LABEL[k] || k, mergeArr(cur[k], inc[k]));
+      });
+      [['prenatal', 'records', '产检记录'], ['prenatal', 'checks', '产检备注'], ['finance', 'records', '记账'],
+        ['packing', 'items', '待产包'], ['pregnancy', 'weights', '孕期体重']].forEach(function (t) {
+        var so = inc[t[0]]; if (!so || !Array.isArray(so[t[1]])) return;
+        if (!cur[t[0]] || typeof cur[t[0]] !== 'object') cur[t[0]] = {};
+        if (!Array.isArray(cur[t[0]][t[1]])) cur[t[0]][t[1]] = [];
+        bump(t[2], mergeArr(cur[t[0]][t[1]], so[t[1]]));
+      });
+      if (inc.prenatal && inc.prenatal.plan && typeof inc.prenatal.plan === 'object') {
+        if (!cur.prenatal.plan || typeof cur.prenatal.plan !== 'object') cur.prenatal.plan = {};
+        bump('产检预约', mergeMap(cur.prenatal.plan, inc.prenatal.plan));
+      }
+      ['lmp', 'dueDate'].forEach(function (k) { if (cur.pregnancy && !cur.pregnancy[k] && inc.pregnancy && inc.pregnancy[k]) cur.pregnancy[k] = inc.pregnancy[k]; });
+      /* 宝宝层 */
+      var incBabies = (inc.babies || []).slice();
+      var incAct = inc.settings && inc.settings.activeBabyId;
+      function incDataOf(b) { return (b.id === incAct || !b.rec) ? pickBaby(inc) : b.rec; }
+      if (!incBabies.length) incBabies = [{ id: null, name: '', birthDate: null, _top: true }];
+      var curBabies = cur.babies || [];
+      var curAct = cur.settings && cur.settings.activeBabyId;
+      var newBabies = 0;
+      incBabies.forEach(function (ib) {
+        var src = ib._top ? pickBaby(inc) : incDataOf(ib);
+        var hit = curBabies.filter(function (b) { return ib.id && b.id === ib.id; })[0]
+          || curBabies.filter(function (b) { return ib.name && b.name === ib.name && b.birthDate && b.birthDate === ib.birthDate; })[0]
+          || ((incBabies.length === 1 && curBabies.length <= 1) ? (curBabies[0] || { id: curAct, _top: true }) : null);
+        if (hit) {
+          if (hit._top || hit.id === curAct || !hit.rec) mergeBaby(cur, src);
+          else mergeBaby(hit.rec, src);
+          if (!hit._top && !hit.birthDate && ib.birthDate) hit.birthDate = ib.birthDate;
+        } else {
+          var nb = { id: ib.id || ('b' + Date.now().toString(36) + newBabies), name: ib.name || '宝宝', photo: ib.photo || null,
+            birthDate: ib.birthDate || null, rec: JSON.parse(JSON.stringify(src)) };
+          if (curBabies.filter(function (b) { return b.id === nb.id; }).length) nb.id += 'm';
+          curBabies.push(nb); newBabies++;
+          var nRec = 0;
+          ARR_BABY.forEach(function (k) { if (Array.isArray(src[k])) nRec += src[k].length; });
+          bump('新宝宝档案的记录', nRec);
+        }
+      });
+      cur.babies = curBabies;
+      if (cur.settings && cur.settings.baby && !cur.settings.baby.birthDate) {
+        var ab = curBabies.filter(function (b) { return b.id === curAct; })[0];
+        if (ab && ab.birthDate) cur.settings.baby.birthDate = ab.birthDate;
+      }
+      var parts = Object.keys(counts).map(function (k) { return { name: k, n: counts[k] }; })
+        .sort(function (a, b) { return b.n - a.n; });
+      var total = parts.reduce(function (s2, p) { return s2 + p.n; }, 0);
+      if (!opts.dryRun) {
+        this.data = sanitize(JSON.parse(JSON.stringify(cur)));
+        this.data.version = keep.version;
+        this.save();
+      }
+      return { total: total, parts: parts, newBabies: newBabies };
+    },
+
     importJSON: function (text) {
       var parsed = JSON.parse(text);
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('数据格式错误');
@@ -774,7 +898,8 @@
       var snapshot = null;
       try {
         snapshot = JSON.stringify(this.data);
-        localStorage.setItem(SNAPSHOT_PREFIX + v, snapshot);
+        /* 第 187 次：合并导入时迁移的是「文件里的数据」，不写回滚快照（那不是本机数据） */
+        if (!this._noSnapshot) localStorage.setItem(SNAPSHOT_PREFIX + v, snapshot);
         this._pruneSnapshots();
       } catch (e) { /* 快照写不进去（配额满）不阻断迁移，仅记录 */ }
       try {

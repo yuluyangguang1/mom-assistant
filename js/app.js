@@ -822,7 +822,9 @@
         }
         var incoming = null;
         try { incoming = JSON.parse(text); } catch (e) { /* 让 importJSON 给出解析错误 */ }
-        if (incoming && typeof incoming === 'object') {
+        /* 第 187 次：默认「合并导入」——先算出会新增哪些，确认后只加本机没有的；
+           整体覆盖降为次要入口（换手机恢复备份时用）。 */
+        function askOverwrite() {
           var cur = countRecords(Storage.get());
           var inc = countRecords(incoming);
           Util.confirm({
@@ -834,6 +836,35 @@
             extra: { text: '先导出现有数据', onClick: function () { exportAll(); } },
             onConfirm: doImport
           });
+        }
+        var preview = null;
+        if (incoming && typeof incoming === 'object' && !Array.isArray(incoming)) {
+          try { preview = Storage.mergeJSON(text, { dryRun: true }); } catch (e) { preview = null; }
+        }
+        if (preview) {
+          var lines = preview.parts.slice(0, 6).map(function (p) { return p.name + ' ' + p.n; }).join('、')
+            + (preview.parts.length > 6 ? ' 等' : '');
+          Util.confirm({
+            title: preview.total ? '合并导入：新增 ' + preview.total + ' 条' : '没有新记录',
+            message: preview.total
+              ? '只把文件里本机没有的记录加进来（' + lines + '）' + (preview.newBabies ? '，并新增 ' + preview.newBabies + ' 个宝宝档案' : '') + '。本机现有记录不改、不删。'
+              : '文件里的记录本机都已经有了。若想用文件整体替换本机数据，可以选「整体覆盖」。',
+            okText: preview.total ? '合并导入' : '知道了',
+            cancelText: '取消',
+            extra: { text: '整体覆盖…', onClick: askOverwrite },
+            onConfirm: function () {
+              if (!preview.total) return;
+              try {
+                var r = Storage.mergeJSON(text);
+                Util.toast('已合并 ' + r.total + ' 条记录。', 'ok');
+                rerender();
+              } catch (e) {
+                Util.toast('导入失败：' + (e && e.message ? e.message : e), 'error');
+              }
+            }
+          });
+        } else if (incoming && typeof incoming === 'object') {
+          askOverwrite();
         } else {
           doImport();
         }
@@ -999,6 +1030,7 @@
   global.App = {
     showTab: showTab,
     rerender: rerender,
+    currentTab: function () { return current; }, /* 第 187 次：record-edit.js 按当前模块找记录 */
     enterSub: enterSub,
     inSub: inSub,
     exitSub: function () { if (!popHistory()) exitSubNow(); },

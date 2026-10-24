@@ -31,10 +31,10 @@
   var MINUTES = [10, 20, 30, 0]; /* 0 = 不限时（显式选择，且带提示） */
 
   /* ---------------- 音频引擎（状态活在页面里，不产生任何网络请求） ---------------- */
-  var engine = { ctx: null, src: null, gain: null, playing: false, pending: null };
+  var engine = { ctx: null, src: null, gain: null, playing: false, pending: null, el: null, url: null, mode: null };
 
   function AudioCtx() { return global.AudioContext || global.webkitAudioContext || null; }
-  function audioSupported() { return !!AudioCtx(); }
+  function audioSupported() { return !!AudioCtx() || elemSupported(); }
   /* 第 116 次：iOS 判定（用于「侧边静音拨片」提示）。
      老 iOS UA 含 iPhone/iPad/iPod；新 iPadOS 报Macintosh，靠 maxTouchPoints 区分。
      不参与任何逻辑分支，只决定要不要显示那段排查提示。 */
@@ -52,11 +52,16 @@
   function noiseBuffer(ctx, type) {
     var len = Math.floor(ctx.sampleRate * 4);
     var buf = ctx.createBuffer(1, len, ctx.sampleRate);
-    var data = buf.getChannelData(0);
+    fillNoise(buf.getChannelData(0), type);
+    return buf;
+  }
+  /* 第 187 次：噪音样本生成抽出来，Web Audio 缓冲与 <audio> 用的 WAV 共用一套算法 */
+  function fillNoise(data, type) {
+    var len = data.length;
     var i;
     if (type === 'white') {
       for (i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * 0.6;
-      return buf;
+      return data;
     }
     if (type === 'brown') {
       /* 棕噪音：白噪音做积分（低频更重），加泄漏防直流漂移 */
@@ -66,7 +71,7 @@
         last = (last + 0.02 * w) / 1.02;
         data[i] = last * 6;
       }
-      return buf;
+      return data;
     }
     /* 粉红噪音：Paul Kellet 近似法（多级一阶滤波叠加），听感比白噪音柔和 */
     var b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
@@ -81,7 +86,104 @@
       data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
       b6 = white * 0.115926;
     }
-    return buf;
+    return data;
+  }
+
+  /* 第 187 次（P0：锁屏后继续播放）：
+     Web Audio 在 iOS 锁屏/切后台时会被系统挂起；<audio> 元素走媒体播放通道，锁屏可继续。
+     做法：本机把噪音写成 WAV（Blob URL，仍然零网络）交给 <audio> 播放。
+     · iOS 不允许脚本改 <audio>.volume → 音量直接烘焙进样本；
+     · 锁屏后页面脚本可能被冻结，setInterval 定时关不可靠 →
+       定时模式把「时长 + 开头 3 秒淡入 + 结尾 8 秒淡出」整段烘焙进文件，播完即停，
+       「限制使用时长」由音频本身保证，不依赖脚本是否还在跑；不限时则 4 秒片段 loop。
+     · 8 kHz / 16 bit 单声道：20 分钟约 19 MB 内存，30 分钟约 29 MB，用完即释放。 */
+  var WAV_SR = 8000;
+  function buildWav(type, volume, minutes) {
+    var base = fillNoise(new Float32Array(WAV_SR * 4), type);
+    var total = minutes > 0 ? minutes * 60 * WAV_SR : base.length;
+    var g = gainOf(volume) * 1.6; /* 与 Web Audio 的听感大致对齐（低采样率高频少，略补一点） */
+    var buf = new ArrayBuffer(44 + total * 2);
+    var v = new DataView(buf);
+    function str(o, t) { for (var k = 0; k < t.length; k++) v.setUint8(o + k, t.charCodeAt(k)); }
+    str(0, 'RIFF'); v.setUint32(4, 36 + total * 2, true); str(8, 'WAVE');
+    str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, WAV_SR, true); v.setUint32(28, WAV_SR * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    str(36, 'data'); v.setUint32(40, total * 2, true);
+    var fin = minutes > 0 ? 3 * WAV_SR : 0, fout = minutes > 0 ? 8 * WAV_SR : 0;
+    var blen = base.length;
+    for (var i = 0, o = 44; i < total; i++, o += 2) {
+      var env = 1;
+      if (i < fin) env = i / fin;
+      else if (fout && i > total - fout) env = (total - i) / fout;
+      var x = base[i % blen] * g * env;
+      if (x > 1) x = 1; else if (x < -1) x = -1;
+      v.setInt16(o, Math.round(x * 32767), true);
+    }
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+  function elemSupported() {
+    try { return typeof global.Audio === 'function' && typeof Blob === 'function' && !!(global.URL && URL.createObjectURL); }
+    catch (e) { return false; }
+  }
+  function releaseElem() {
+    var el = engine.el, url = engine.url;
+    engine.el = null; engine.url = null;
+    if (el) { try { el.onended = null; el.onplaying = null; el.pause(); el.removeAttribute('src'); el.load(); } catch (e) {} }
+    if (url) { try { URL.revokeObjectURL(url); } catch (e) {} }
+  }
+  function mediaSession(on) {
+    var ms = global.navigator && global.navigator.mediaSession;
+    if (!ms) return;
+    try {
+      if (on) {
+        if (global.MediaMetadata) ms.metadata = new global.MediaMetadata({ title: '哄睡白噪音', artist: '咿呀记' });
+        ['pause', 'stop'].forEach(function (a) {
+          try { ms.setActionHandler(a, function () { stop(); if (global.App) global.App.rerender(); }); } catch (e) {}
+        });
+        ms.playbackState = 'playing';
+      } else {
+        ms.playbackState = 'none';
+      }
+    } catch (e) {}
+  }
+  /** <audio> 路径。返回 true = 已发起播放；false = 本环境不支持，调用方回落 Web Audio */
+  function startElem(type, volume, minutes, linkSleep, prefMin) {
+    if (!elemSupported()) return false;
+    var el, url;
+    try {
+      /* iOS 17+：声明为播放型会话——不受静音拨片影响，锁屏继续 */
+      if (global.navigator && global.navigator.audioSession) global.navigator.audioSession.type = 'playback';
+    } catch (e) {}
+    try {
+      url = URL.createObjectURL(buildWav(type, volume, minutes));
+      el = new global.Audio();
+      el.src = url;
+      el.loop = !(minutes > 0);
+      el.setAttribute('playsinline', '');
+    } catch (e) { if (url) try { URL.revokeObjectURL(url); } catch (e2) {} return false; }
+    engine.el = el; engine.url = url; engine.playing = true; engine.mode = 'elem';
+    el.onplaying = function () {
+      if (engine.el !== el) return;
+      writeState(true, type, volume, prefMin != null ? prefMin : minutes, linkSleep);
+      if (minutes > 0) { var w0 = Storage.get().whitenoise; if (w0) { w0.until = Date.now() + minutes * 60000; Storage.save(); } }
+      mediaSession(true);
+    };
+    el.onended = function () {
+      if (engine.el !== el) return;
+      stop();
+      if (global.Util && Util.toast) Util.toast('白噪音已按 ' + minutes + ' 分钟定时关闭。', 'ok');
+      if (global.App) global.App.rerender();
+    };
+    var p;
+    try { p = el.play(); } catch (e) { releaseElem(); engine.playing = false; return false; }
+    if (p && p['catch']) p['catch'](function () {
+      if (engine.el !== el) return;
+      releaseElem(); engine.playing = false;
+      writeState(false);
+      if (global.Util && Util.toast) Util.toast('没能开始播放，请再点一次「开始播放」。', 'warn');
+      if (global.App) global.App.rerender();
+    });
+    return true;
   }
 
 
@@ -115,10 +217,12 @@
            （iOS 允许在后续任意用户手势里解锁）；
         3. 状态落库改为「确认 running 才写 playing=true」，避免界面撒谎；
            失败时返回 false，调用方负责 toast 提示。 */
-  function start(type, volume, minutes, linkSleep) {
+  function start(type, volume, minutes, linkSleep, prefMin) {
+    stopEngine(true);
+    if (startElem(type, volume, minutes, linkSleep, prefMin)) return true;
     var AC = AudioCtx();
     if (!AC) return false;
-    stopEngine(true);
+    engine.mode = 'ctx';
     var ctx = engine.ctx || new AC();
     engine.ctx = ctx;
 
@@ -233,6 +337,7 @@
   function stopEngine(immediate) {
     if (!engine.playing) return;
     engine.playing = false;
+    if (engine.mode === 'elem') { releaseElem(); mediaSession(false); engine.pending = null; return; }
     /* 第 116 次：清掉待定播放参数。
        否则「点开始 → 立刻点停止 → 此时 resume 才兑现」会让 pending 里的
        参数复活，把已停止的音频又淡入回来（用户听到停不下来的声音）。 */
@@ -279,6 +384,12 @@
     return '粉红噪音';
   }
 
+  /* 第 187 次：按剩余分钟重建（改音量用）；不限时则原样 */
+  function restartRemaining(cur) {
+    var left = cur.until ? Math.max(1, Math.ceil((cur.until - Date.now()) / 60000)) : 0;
+    start(cur.type, cur.volume, cur.minutes > 0 ? left : 0, cur.linkSleep, cur.minutes);
+  }
+
   /* 定时器：即使用户已经离开本页，到点也必须停 ——「限制使用时长」不能只存在于界面上 */
   setInterval(function () {
     /* 第 146 次：脚本解析即启动的定时器可能早于 Storage.load() 触发（实测偶发 pageerror），先判空 */
@@ -319,7 +430,7 @@
         if (isIOS()) {
           html += '<p class="hint">iPhone 没声音？先确认两件事：'
             + '① 侧边静音拨片不在静音位（拨片朝上）；'
-            + '② 锁屏后音频会被系统暂停，回到本页面再点一次开始播放即可。'
+            + '② 媒体音量没调到 0。锁屏后会继续播放，到时间自动停；也可以在锁屏的播放控件上点暂停。'
             + '外放没声音时，改用耳机或开免提再试。</p>';
         }
         html += '<button class="btn ' + (wn.playing ? '' : 'btn-primary') + '" id="wnToggle" type="button">'
@@ -411,7 +522,7 @@
           var cur = Storage.get().whitenoise;
           cur.type = r.value;
           Storage.save();
-          if (cur.playing) start(cur.type, cur.volume, cur.minutes, cur.linkSleep);
+          if (cur.playing) { if (engine.mode === 'elem') restartRemaining(cur); else start(cur.type, cur.volume, cur.minutes, cur.linkSleep); }
           global.App.rerender();
         });
       });
@@ -424,7 +535,12 @@
         var cur = Storage.get().whitenoise;
         cur.volume = v;
         Storage.save();
-        if (cur.playing && engine.playing) fadeTo(gainOf(v), 0.3); /* 播放中实时改音量 */
+        if (cur.playing && engine.playing && engine.mode !== 'elem') fadeTo(gainOf(v), 0.3); /* 播放中实时改音量 */
+      });
+      /* 第 187 次：<audio> 路径音量烘焙在文件里——松手后按剩余时长重建一次 */
+      if (volEl) volEl.addEventListener('change', function () {
+        var cur = Storage.get().whitenoise;
+        if (cur.playing && engine.playing && engine.mode === 'elem') restartRemaining(cur);
       });
 
       Array.prototype.forEach.call(view.querySelectorAll('#wnMin [data-min]'), function (b) {
@@ -434,6 +550,8 @@
           cur.minutes = m;
           cur.until = cur.playing ? (m > 0 ? Date.now() + m * 60000 : null) : null;
           Storage.save();
+          /* 第 187 次：<audio> 路径时长烘焙在文件里，改时长要重建 */
+          if (cur.playing && engine.playing && engine.mode === 'elem') start(cur.type, cur.volume, m, cur.linkSleep);
           /* 选「不限时」时再提醒一次：这是需要额外自律的选项 */
           if (m === 0 && cur.playing) {
             Util.toast('已设为不限时：请把音量压到最低，并且不要放在婴儿床里。', 'warn');
