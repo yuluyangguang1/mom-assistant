@@ -379,7 +379,7 @@
          items 与 removed 全空等价于没编辑过 → 回落 null（自动策展）。 */
       if (s.homeLayout && typeof s.homeLayout === 'object' && !Array.isArray(s.homeLayout)) {
         var hlItems = [];
-        (Array.isArray(s.homeLayout.items) ? s.homeLayout.items : []).slice(0, 24).forEach(function (it) {
+        (Array.isArray(s.homeLayout.items) ? s.homeLayout.items : []).slice(0, 48).forEach(function (it) {
           if (it && typeof it.id === 'string' && /^[a-z][a-z0-9-]{1,15}$/.test(it.id)
             && (it.size === 's' || it.size === 'l')
             && !hlItems.some(function (x) { return x.id === it.id; })) {
@@ -387,7 +387,7 @@
           }
         });
         var hlRemoved = [];
-        (Array.isArray(s.homeLayout.removed) ? s.homeLayout.removed : []).slice(0, 40).forEach(function (id) {
+        (Array.isArray(s.homeLayout.removed) ? s.homeLayout.removed : []).slice(0, 48).forEach(function (id) {
           if (typeof id === 'string' && /^[a-z][a-z0-9-]{1,15}$/.test(id) && hlRemoved.indexOf(id) < 0) hlRemoved.push(id);
         });
         base.settings.homeLayout = (hlItems.length || hlRemoved.length)

@@ -1205,7 +1205,7 @@ body.dark .set-group .sg-ico { background: rgba(255,255,255,.08); }
 /* 模块记录（第 56 次：单条信息行）——磁贴从多列网格改单列横条：
    每行 icon + 名称（左）+ 记录信息（右）+ 今日角标 + ›（第 57 次改左右分布），
    「今日概览」数字卡因此迁往日期记录页（数字不再与磁贴重复） */
-.record-grid { display: flex; flex-direction: column; gap: 10px; }
+.record-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .record-tile {
   /* 第 118 次（对标 Cali · P1）：触控行高下限 64px。改造前实测 ≈58px。
      与 .list li 同一口径：min-height 兜底而不用 padding 撑高，理由见 .list li 处注释。 */
@@ -1843,57 +1843,23 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 }
 
 
-/* ============================================================
-   第 173 次 · 首页提醒区（方案 A + B）
-   原「提醒卡」是白卡 → 标题 → 米色小卡 → 左边条三层嵌套，待补汇总行还被省略号截断。
-   现在：
-   · .rem-head  小节标题「提醒」，右侧挂「待补」小标签 .rem-pend（陈旧待办的计数入口）；
-   · .rem-group 此刻提醒，iOS 式分组列表：一个容器，行间细分隔线从图标右侧开始；
-   · .rem-ico   模块色小方块图标，用颜色区分来源，取代左边条；
-   · .is-urgent 已逾期 / 已到点的提醒，文字加粗。
-   触控：行 ≥ 56px，小标签 ≥ 44px（U-08）。
-   ============================================================ */
-.rem-head .rem-pend { margin: 10px 0 0; }
-.rem-pend {
-  display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 62%;
-  min-height: 44px; padding: 0 6px 0 12px; box-sizing: border-box;
-  background: transparent; border: 0; color: var(--muted);
-  font: inherit; font-size: var(--fs-sm); cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.rem-pend-k {
-  flex: none; padding: 2px 8px; border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); font-weight: 600;
-}
-.rem-pend-v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rem-pend .ico { flex: none; width: 14px; height: 14px; opacity: .6; }
-.rem-pend:active { opacity: .6; }
 
-.rem-group {
-  list-style: none; margin: 0 0 var(--space-md); padding: 0;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); box-shadow: var(--shadow-card); overflow: hidden;
-}
-.rem-row {
-  position: relative; display: flex; align-items: center; gap: 12px;
-  min-height: calc(56px * var(--fs-mul)); padding: 10px 12px 10px 14px; box-sizing: border-box;
-  cursor: pointer; -webkit-tap-highlight-color: transparent;
-}
-.rem-row + .rem-row::before {
-  content: ''; position: absolute; top: 0; right: 0; left: calc(14px + 32px + 12px);
-  height: 1px; background: var(--border); pointer-events: none;
-}
-.rem-row:active { background: var(--surface-2); }
-.rem-ico {
-  flex: none; width: 32px; height: 32px; border-radius: var(--radius-xs);
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--tile-weak, var(--primary-weak));
-}
-.rem-ico .ico { width: 18px; height: 18px; color: var(--tile, var(--primary)); }
-.rem-text { flex: 1 1 auto; min-width: 0; font-size: var(--fs-body); line-height: 1.45; color: var(--text); }
-.rem-row.is-urgent .rem-text { font-weight: 600; }
-.rem-arrow { flex: none; display: inline-flex; color: var(--muted); opacity: .5; }
-.rem-arrow .ico { width: 15px; height: 15px; }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* ============================================================
    第 80 次（宝宝档案）：设置页宝宝列表。行复用 .card .list 去壳样式
@@ -2145,52 +2111,7 @@ body.fs-xl {
   --fs-body:    calc(15px * var(--fs-mul)) !important;
   --fs-sm:      calc(13px * var(--fs-mul)) !important;
 }
-/* 滑杆大数字 .ruler-num b（46px）与直输层 .ruler-num-in（40px）：
-   旧版是两个写死的覆盖块（53px / 60px）。现在它们本身带 calc(Npx * var(--fs-mul))，
-   随档位自然放大（lg→52.9 / xl→61.2，与旧手选值 53/60 几乎重合），
-   所以那两个覆盖块删掉 —— 留着会让倍率被乘两次。 */
 
-
-/* ============================================================
-   第 118 次（对标 Cali）：新增页面的样式
-   ============================================================
-   本批三位同事新增了两个整页 + 两处区块，HTML 结构已就位但此前没有任何样式，
-   统一在这里补齐（**只追加，不改动上方任何既有规则**）：
-     A. 搜索入口        .home-search / .si-ico（首页与「全部功能」页共用同一结构）
-     B. 「全部功能」页   .tools-grid / .tool-item / .ti-ico / .ti-name / .ti-count
-                        .alltools-entry
-     C. 搜索页           .search-bar / .sb-ico / .search-input / .sb-clear /
-                        .search-hint / .search-count / .search-results / .search-empty /
-                        .sr-group / .sr-list / .sr-row / .sr-body / .sr-title / .sr-sub / .sr-hl
-     D. 设置·外观区       .theme-cards / .theme-card(--time/--system/--light/--dark) /
-                        .tc-view / .tc-chip / .tc-bar / .tc-line / .tc-name /
-                        .font-seg / .fs-sample / .fss-display / .fss-body
-
-   三条纪律（与上方既有约定一致，勿破）：
-     · 字号一律 calc(Npx * var(--fs-mul)) 或 var(--fs-*)——全文件不得出现硬编码 font-size px；
-     · 真实 UI 只用 :root token 派生，暗色模式自动生效；仅 .tc-view 微缩预览是纯装饰图形，
-       允许写死几个中性色 hex（它不参与任何真实元素配色）；
-     · 圆角只用 --radius* token 或既有白名单字面量（999px / 50% / 3px）。
-   触控目标：可点元素均给到 ≥44px（.home-search 48 / .sb-clear 44 / .theme-card 44）。
-   ============================================================ */
-
-/* ------------------------------------------------------------
-   A. 搜索入口（首页 + 「全部功能」页共用）
-   一个 <button>，但视觉上要像搜索框：整宽、flex 行、左图标 + 占位文案。
-   高度 ≥48px 由 min-height + padding 共同保证。
-   ------------------------------------------------------------ */
-.home-search {
-  display: flex; align-items: center; gap: 10px;
-  width: 100%; min-height: 48px;
-  margin: 0 0 var(--space-md); padding: 12px 15px;
-  border: 1px solid var(--border); border-radius: var(--radius);
-  background: var(--surface); color: var(--muted);
-  font-family: inherit; font-size: var(--fs-body); line-height: 1.4;
-  text-align: left; cursor: pointer;
-  box-shadow: var(--shadow-card);
-  transition: background .2s var(--ease), border-color .2s var(--ease),
-    box-shadow .2s var(--ease), transform .15s var(--spring);
-}
 /* 占位文案占满剩余宽度并单行省略（窄屏/放大档都不撑破行） */
 .home-search > span:last-child {
   flex: 1 1 auto; min-width: 0;
@@ -2203,18 +2124,7 @@ body.fs-xl {
 .home-search:active { transform: scale(.99); }
 .home-search:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
-/* ------------------------------------------------------------
-   B. 「全部功能」页（alltools.js）
-   模块磁贴网格：手机 3 列，图标在上、名字在下、居中。
-   底/描边走 .record-tile 同一套「奶油柔彩」token（--tile-weak / --tile）。
-   ⚠ .ti-name / .ti-ico / .ti-count 在「网格磁贴」与「整行入口」里是两种布局，
-     所以布局写进 .tools-grid .ti-* 与 .alltools-entry .ti-*，
-     .ti-* 本体只留字号/颜色/字重，避免两种形态互相打架。
-   ------------------------------------------------------------ */
-.tools-grid {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-sm); margin-bottom: var(--space-md);
-}
+
 .tool-item {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 7px; min-height: 84px; padding: 14px 6px;
@@ -2231,7 +2141,7 @@ body.fs-xl {
 /* 本体：只放字号/颜色/字重 */
 .ti-ico { color: var(--tile, var(--primary)); }
 .ti-name { font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
-.ti-count { font-size: calc(12.5px * var(--fs-mul)); color: var(--muted); }
+
 
 /* 网格磁贴里的布局：图标在上、名字在下 */
 .tools-grid .ti-ico { display: block; line-height: 1; }
@@ -2255,7 +2165,7 @@ body.fs-xl {
 .alltools-entry .ti-ico { display: inline-flex; flex: 0 0 auto; }
 .alltools-entry .ti-ico .ico { width: 20px; height: 20px; color: var(--tile, var(--primary)); }
 .alltools-entry .ti-name { flex: 0 0 auto; font-size: calc(14.5px * var(--fs-mul)); }
-.alltools-entry .ti-count { flex: 0 0 auto; margin-left: auto; padding-left: 12px; }
+
 /* 右箭头：.rt-arrow 的原样式只 scoped 在 .record-tile 下，这里补一套同款 */
 .alltools-entry .rt-arrow {
   flex: 0 0 auto; display: flex; align-items: center;
@@ -2448,14 +2358,8 @@ body.fs-xl {
   .tools-grid { gap: 8px; }
 }
 
-/* ============================================================
-   第 120 次：首页布局编辑（对标第五批 Cali 组件画布）
-   只新增类，不动既有规则；色板全部走现有 token，hc 模式天然继承。
-   ============================================================ */
 
-/* 段头：标题左 + 编辑/添加按钮右 */
-.sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.sec-head .section-title { margin-right: auto; }
+
 .home-edit-btn {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 5px 12px; min-height: 44px; min-width: 44px; box-sizing: border-box; /* 第 128 次：28→44px（U-08 下限） */
@@ -2469,7 +2373,7 @@ body.fs-xl {
 .home-edit-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* 手动布局：两列网格；整排卡跨双列，半宽卡隐藏摘要/角标/箭头（半宽只留名字） */
-.record-grid.is-custom { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.record-grid.is-custom { gap: 12px; }
 .record-grid.is-custom .record-tile.sz-l { grid-column: 1 / -1; }
 .record-grid.is-custom .record-tile.sz-s .rt-sum,
 .record-grid.is-custom .record-tile.sz-s .rt-badge,
@@ -2680,16 +2584,7 @@ body.dark .tile-size { background: rgba(255,255,255,.08); }
 }
 .empty-state .es-ico .ico { width: 44px; height: 44px; stroke-width: 1.3; }
 
-/* ============================================================
-   第 133 次 Phase 2（对齐 Cali · 上次 X 双列卡）
-   Cali 首页在日期下方是「上次喂奶 | 上次尿布」两列小卡：值 + 相对时间。
-   卡片结构与 .card 同族（白底/细描边/大圆角/柔影），但两列并排、信息更薄。
-   ============================================================ */
-.home-last2 {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-md);
-}
+
 .hl2 {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
   min-height: 88px;
@@ -3471,6 +3366,8 @@ body.dark .home-greet h1, body.dark .home-greet .hg-num { text-shadow: 0 1px 12p
   display: flex; align-items: center; gap: 8px; margin: 0 0 6px;
   font-size: calc(13px * var(--fs-mul)); font-weight: 600; letter-spacing: .04em;
   color: var(--hg-ink-2); white-space: nowrap;
+  /* 第 211 次：天空只留日期，日期行放大 */
+  font-size: calc(17px * var(--fs-mul)); font-weight: 700; color: var(--hg-ink); gap: 10px;
 }
 .home-greet .hg-date .hg-fest {
   color: var(--primary-text); font-weight: 700;
@@ -3496,39 +3393,19 @@ html[data-sky-ink="light"] .home-greet .hg-fest, body.dark .home-greet .hg-fest 
   margin: 0; color: var(--hg-ink); letter-spacing: .01em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.hg-stat { display: flex; align-items: flex-end; gap: 10px; margin: 10px 0 0; }
+
 .hg-num {
   font-size: calc(68px * var(--fs-display-mul, 1)); font-weight: 800; line-height: .8;
   letter-spacing: -.045em; color: var(--hg-ink); font-variant-numeric: tabular-nums;
 }
-.hg-stat-side { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding-bottom: 2px; }
-.hg-unit { font-size: calc(17px * var(--fs-mul)); font-weight: 700; line-height: 1; color: var(--hg-ink); }
-.home-greet .hg-cap {
-  font-size: calc(13px * var(--fs-mul)); line-height: 1.3; color: var(--hg-ink-2);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0;
-}
-.home-greet .hg-cap-solo { margin-top: 6px; font-size: calc(14px * var(--fs-mul)); }
-.home-greet .know-hint {
-  /* 第 63 次：小知识并入问候卡（用户点名整合「你好」与知识句），首页正文
-   独立行撤销。卡内用细分隔线分节（不再左侧 primary 竖条——那是给孤行的语言）。
-   注意 .home-greet p 的单行省略只该作用于副标题：知识句是多行内容，
-   这里显式恢复换行，否则整句被省略号吃掉。 */
-  margin: 9px 0 0; padding-top: 9px;
-  border-top: 1px solid var(--border);
-  white-space: normal; overflow: visible;
-  /* ↑ 第 171 次：同名选择器合并到此处 */
-  display: flex; gap: 8px; align-items: flex-start;
-  margin: 16px 0 0; padding: 10px 12px; border-top: 0;
-  border-radius: var(--radius-sm); white-space: normal; overflow: visible;
-  font-size: calc(13px * var(--fs-mul)); line-height: 1.55; color: var(--text);
-  background: rgba(255, 255, 255, .62);
-  border: 1px solid rgba(255, 255, 255, .7);
-  -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3);
-  box-shadow: 0 6px 20px -12px rgba(40, 40, 70, .35);
-}
-html[data-sky-ink="light"] .home-greet .know-hint { background: rgba(255, 255, 255, .7); }
-body.dark .home-greet .know-hint { background: rgba(40, 36, 32, .55); border-color: rgba(255, 255, 255, .1); color: rgba(255, 255, 255, .88); }
-.know-hint .kh-ico { flex: none; color: var(--primary); font-size: 12px; line-height: 1.9; }
+
+
+
+
+
+
+
+
 @media (min-width: 980px) { .home-greet h1 {
   font-size: calc(26px * var(--fs-mul));
   /* ↑ 第 171 次：同名选择器合并到此处 */ font-size: calc(28px * var(--fs-mul)); } }
@@ -4150,22 +4027,21 @@ body .tabbar.is-vertical .dock-now { margin: 4px 0; }
    · 模块记录（自动模式）：两列小方块，带就地记录的磁贴与「全部功能」仍占整行。
    只改呈现，data-go / id / 绑定一律不动。
    ============================================================ */
-.home-widgets { gap: 12px; }
-.home-widgets .hw {
+.record-grid .hw {
   position: relative; overflow: hidden; isolation: isolate;
   min-height: calc(118px * var(--fs-mul)); gap: 6px; padding: 14px 14px 13px;
   border: 0; border-radius: var(--radius-lg);
   background: linear-gradient(160deg, var(--tile-weak) 0%, color-mix(in srgb, var(--tile-weak) 45%, var(--surface)) 100%);
   box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--tile) 70%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--tile) 10%, transparent);
 }
-.home-widgets .hl2-head { width: 100%; gap: 8px; color: var(--tile-text); font-size: calc(13px * var(--fs-mul)); letter-spacing: .02em; }
+.record-grid .hw .hl2-head { width: 100%; gap: 8px; color: var(--tile-text); font-size: calc(13px * var(--fs-mul)); letter-spacing: .02em; }
 .hw-ico { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-xs); background: color-mix(in srgb, var(--tile) 16%, var(--surface)); }
 .hw-ico .ico { width: 16px; height: 16px; color: var(--tile); }
 .hw-arrow { margin-left: auto; display: flex; opacity: .45; }
 .hw-arrow .ico { width: 16px; height: 16px; color: var(--tile-text); }
-.home-widgets .hl2-val { font-size: calc(19px * var(--fs-mul)); font-weight: 700; margin-top: 4px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.home-widgets .hl2-gap { font-size: calc(12px * var(--fs-mul)); color: color-mix(in srgb, var(--tile-text) 60%, var(--muted)); }
-body.dark .home-widgets .hw {
+.record-grid .hw .hl2-val { font-size: calc(19px * var(--fs-mul)); font-weight: 700; margin-top: 4px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.record-grid .hw .hl2-gap { font-size: calc(12px * var(--fs-mul)); color: color-mix(in srgb, var(--tile-text) 60%, var(--muted)); }
+body.dark .record-grid .hw {
   background: linear-gradient(160deg, color-mix(in srgb, var(--tile) 22%, var(--surface)) 0%, var(--surface) 100%);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile) 16%, transparent);
 }
@@ -4174,16 +4050,16 @@ body.dark .hw-ico { background: color-mix(in srgb, var(--tile) 22%, transparent)
 .hw-wn { color: #FFF; }
 .hw-wn-bg { position: absolute; inset: 0; z-index: -2; background: #4E5688 center 35% / cover no-repeat; transition: transform .6s var(--ease); }
 .hw-wn::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(58, 64, 112, .55) 0%, rgba(58, 64, 112, .12) 45%, rgba(46, 50, 92, .72) 100%); }
-.home-widgets .hw-wn .hl2-head, .home-widgets .hw-wn .hl2-val { color: #FFF; }
-.home-widgets .hw-wn .hl2-gap { color: rgba(255, 255, 255, .82); }
+.record-grid .hw-wn .hl2-head, .record-grid .hw-wn .hl2-val { color: #FFF; }
+.record-grid .hw-wn .hl2-gap { color: rgba(255, 255, 255, .82); }
 .hw-wn .hw-ico { background: rgba(255, 255, 255, .2); }
 .hw-wn .hw-ico .ico, .hw-wn .hw-arrow .ico { color: #FFF; }
 .hw-wn.is-on .hl2-gap { color: #F4C6A5; font-weight: 600; }
 .hw-wn:active .hw-wn-bg { transform: scale(1.04); }
 
 /* 生长速览：去白卡壳，两格绿色小组件 */
-.home-main > .gs-card { background: none; border: 0; box-shadow: none; padding: 0; margin-bottom: var(--space-md); }
-.home-main > .gs-card > h2 { display: none; }
+.record-grid > .gs-card { background: none; border: 0; box-shadow: none; padding: 0; margin-bottom: var(--space-md); }
+.record-grid > .gs-card > h2 { display: none; }
 .gs-card .gs-row { gap: 12px; }
 .gs-card .gs-cell {
   cursor: pointer; padding: 14px; border-radius: var(--radius-lg); gap: 4px;
@@ -4202,52 +4078,132 @@ body.dark .hw-ico { background: color-mix(in srgb, var(--tile) 22%, transparent)
 body.dark .gs-card .gs-cell { background: linear-gradient(160deg, color-mix(in srgb, var(--tile) 22%, var(--surface)), var(--surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile) 16%, transparent); }
 
 /* 快记四键：模块色淡底方块 */
-.home-now .hn-q {
+.hn-quick .hn-q {
   border: 0; border-radius: var(--radius);
   background: linear-gradient(160deg, var(--tile-weak), color-mix(in srgb, var(--tile-weak) 50%, var(--surface)));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile) 12%, transparent);
   color: var(--tile-text);
 }
-.home-now .hn-q .ico { color: var(--tile); }
-body.dark .home-now .hn-q { background: color-mix(in srgb, var(--tile) 18%, var(--surface)); }
+.hn-quick .hn-q .ico { color: var(--tile); }
+body.dark .hn-quick .hn-q { background: color-mix(in srgb, var(--tile) 18%, var(--surface)); }
 
 /* 模块记录（自动模式）：两列小方块 */
-.record-grid:not(.is-custom):not(.is-editing) { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.record-grid:not(.is-custom):not(.is-editing) > button.record-tile {
+.record-grid > button.record-tile {
   display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto auto; align-items: center;
   column-gap: 8px; row-gap: 4px; min-height: calc(104px * var(--fs-mul)); padding: 14px;
   border: 0; border-radius: var(--radius-lg);
   background: linear-gradient(160deg, var(--tile-weak), color-mix(in srgb, var(--tile-weak) 40%, var(--surface)));
   box-shadow: 0 10px 24px -20px color-mix(in srgb, var(--tile) 70%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--tile) 10%, transparent);
 }
-.record-grid:not(.is-custom):not(.is-editing) > button.record-tile::before { display: none; }
-.record-grid:not(.is-custom):not(.is-editing) > button.record-tile .rt-ico {
+.record-grid > button.record-tile::before { display: none; }
+.record-grid > button.record-tile .rt-ico {
   grid-column: 1; grid-row: 1; width: 30px; height: 30px; padding: 7px; box-sizing: border-box;
   border-radius: var(--radius-xs); background: color-mix(in srgb, var(--tile) 16%, var(--surface));
 }
-.record-grid:not(.is-custom):not(.is-editing) > button.record-tile .rt-arrow { grid-column: 3; grid-row: 1; }
-.record-grid:not(.is-custom):not(.is-editing) > button.record-tile .rt-badge { grid-column: 2; grid-row: 1; justify-self: end; font-size: calc(11px * var(--fs-mul)); padding: 3px 7px; }
-.record-grid:not(.is-custom):not(.is-editing) > button.record-tile .rt-name { grid-column: 1 / -1; grid-row: 2; margin-top: 6px; font-size: calc(15px * var(--fs-mul)); }
-.record-grid:not(.is-custom):not(.is-editing) > button.record-tile .rt-sum {
+.record-grid > button.record-tile .rt-arrow { grid-column: 3; grid-row: 1; }
+.record-grid > button.record-tile .rt-badge { grid-column: 2; grid-row: 1; justify-self: end; font-size: calc(11px * var(--fs-mul)); padding: 3px 7px; }
+.record-grid > button.record-tile .rt-name { grid-column: 1 / -1; grid-row: 2; margin-top: 6px; font-size: calc(15px * var(--fs-mul)); }
+.record-grid > button.record-tile .rt-sum {
   grid-column: 1 / -1; grid-row: 3; margin: 0; padding: 0; text-align: left;
   white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   font-size: calc(12px * var(--fs-mul)); line-height: 1.4; color: color-mix(in srgb, var(--tile-text) 55%, var(--muted));
 }
-body.dark .record-grid:not(.is-custom):not(.is-editing) > button.record-tile {
+body.dark .record-grid > button.record-tile {
   background: linear-gradient(160deg, color-mix(in srgb, var(--tile) 20%, var(--surface)), var(--surface));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile) 16%, transparent);
 }
-body.dark .record-grid:not(.is-custom):not(.is-editing) > button.record-tile .rt-ico { background: color-mix(in srgb, var(--tile) 22%, transparent); }
+body.dark .record-grid > button.record-tile .rt-ico { background: color-mix(in srgb, var(--tile) 22%, transparent); }
 /* 就地记录磁贴（喂养 / 尿布）：同样换成模块色淡底；最近一次已在上方小组件里，这里不再重复长句 */
-.record-grid:not(.is-custom):not(.is-editing) > .record-tile.is-quick {
+.record-grid > .record-tile.is-quick {
   grid-column: 1 / -1; border: 0; border-radius: var(--radius-lg);
   background: linear-gradient(160deg, var(--tile-weak), color-mix(in srgb, var(--tile-weak) 35%, var(--surface)));
   box-shadow: 0 10px 24px -20px color-mix(in srgb, var(--tile) 70%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--tile) 10%, transparent);
 }
-.record-grid:not(.is-custom):not(.is-editing) > .record-tile.is-quick .rt-sum { display: none; }
-.record-grid:not(.is-custom):not(.is-editing) > .record-tile.is-quick .rt-ico {
+.record-grid > .record-tile.is-quick .rt-sum { display: none; }
+.record-grid > .record-tile.is-quick .rt-ico {
   width: 30px; height: 30px; padding: 7px; box-sizing: border-box; border-radius: var(--radius-xs);
   background: color-mix(in srgb, var(--tile) 16%, var(--surface));
 }
-.record-grid:not(.is-custom):not(.is-editing) > .record-tile.is-quick .rt-arrow { margin-left: auto; }
-body.dark .record-grid:not(.is-custom):not(.is-editing) > .record-tile.is-quick { background: linear-gradient(160deg, color-mix(in srgb, var(--tile) 18%, var(--surface)), var(--surface)); }
+.record-grid > .record-tile.is-quick .rt-arrow { margin-left: auto; }
+body.dark .record-grid > .record-tile.is-quick { background: linear-gradient(160deg, color-mix(in srgb, var(--tile) 18%, var(--surface)), var(--surface)); }
+
+/* ============================================================
+   第 211 次：首页 = 日期 + 今日宝宝卡 + 用户自选卡片
+   ============================================================ */
+/* 天空：只留日期 */
+.home-greet .hg-m { color: var(--hg-ink-2); }
+.hg-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.home-greet .hg-num { font-size: calc(76px * var(--fs-display-mul, 1)); line-height: .9; }
+.hg-search {
+  display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 4px;
+  border-radius: var(--radius-pill); border: 1px solid rgba(255, 255, 255, .45);
+  background: rgba(255, 255, 255, .38); color: var(--hg-ink); cursor: pointer;
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.hg-search .ico { width: 20px; height: 20px; }
+html[data-sky-ink="light"] .hg-search, body.dark .hg-search { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .22); }
+.hg-search:active { transform: scale(.94); }
+.hg-search:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* 今日宝宝卡 */
+.today-baby {
+  position: relative; margin: 0 0 var(--space-md); padding: 16px 16px 14px;
+  border-radius: var(--radius-lg); background: var(--surface);
+  box-shadow: var(--shadow-card); border: 1px solid var(--border);
+}
+.tb-head { display: flex; align-items: center; gap: 8px; font-size: calc(15px * var(--fs-mul)); }
+.tb-ico { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-xs); background: var(--primary-weak); }
+.tb-ico .ico { width: 16px; height: 16px; color: var(--primary-text); }
+.tb-today {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 2px; min-height: 32px; padding: 0 2px 0 8px;
+  border: 0; background: none; color: var(--muted); font: inherit; font-size: calc(13px * var(--fs-mul)); cursor: pointer;
+}
+.tb-today .ico { width: 15px; height: 15px; }
+.tb-body { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.tb-txt { flex: 1; min-width: 0; }
+.tb-big { margin: 0; font-size: calc(26px * var(--fs-mul)); font-weight: 800; letter-spacing: -.01em; line-height: 1.2; color: var(--text); }
+.tb-sub { margin: 6px 0 0; font-size: calc(13px * var(--fs-mul)); color: var(--muted); }
+.tb-foot { margin: 10px 0 0; font-size: calc(14px * var(--fs-mul)); font-weight: 600; color: var(--text); }
+.tb-ava {
+  flex: none; width: 84px; height: 84px; border-radius: var(--radius-lg); overflow: hidden;
+  background: linear-gradient(160deg, #FCE3E3, #F8D3D8); display: grid; place-items: center;
+  box-shadow: 0 8px 18px -12px rgba(200, 110, 120, .6);
+}
+.tb-ava > *, .tb-ava svg, .tb-ava img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tb-rems { list-style: none; margin: 12px 0 0; padding: 10px 0 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+.tb-rem { display: flex; align-items: center; gap: 8px; min-height: 32px; cursor: pointer; font-size: calc(13.5px * var(--fs-mul)); color: var(--text); }
+.tb-dot { flex: none; width: 7px; height: 7px; border-radius: var(--radius-pill); background: var(--tile, var(--primary)); }
+.tb-rem-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-rem.is-urgent .tb-rem-t { font-weight: 700; color: var(--primary-text); }
+.tb-pend .tb-rem-t { color: var(--muted); }
+.tb-rem:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--radius-xs); }
+.tb-more { font-size: calc(12px * var(--fs-mul)); color: var(--muted); padding-left: 15px; }
+.tb-know {
+  margin: 10px 0 0; padding: 9px 12px; border-radius: var(--radius-sm); background: var(--surface-2);
+  font-size: calc(12.5px * var(--fs-mul)); line-height: 1.5; color: var(--muted);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* 卡片网格里的小组件 / 快捷记录卡 */
+.record-grid > .hw { min-width: 0; }
+.record-grid > .hw.sz-l { grid-column: 1 / -1; }
+.hn-quick-card { padding: 12px; }
+.hn-quick-card .hn-quick { margin: 0; }
+.hn-quick-card .hn-hint { margin: 8px 2px 0; }
+.home-edit-row { display: flex; justify-content: center; gap: 10px; margin: var(--space-md) 0 0; }
+
+/* 模块卡：半宽也显示摘要（覆盖旧画布「半宽只留名字」的规则） */
+.record-grid.is-custom > button.record-tile.sz-s .rt-sum,
+.record-grid.is-custom > button.record-tile.sz-s .rt-badge,
+.record-grid.is-custom > button.record-tile.sz-s .rt-arrow { display: -webkit-box; }
+.record-grid.is-custom > button.record-tile.sz-s .rt-arrow,
+.record-grid.is-custom > button.record-tile.sz-s .rt-badge { display: flex; }
+
+/* 设置 · 首页卡片 */
+.hc-list { list-style: none; margin: 0; padding: 0; }
+.hc-row { display: flex; align-items: center; gap: 12px; min-height: 52px; border-top: 1px solid var(--border); }
+.hc-row:first-child { border-top: 0; }
+.hc-ico { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--radius-xs); background: var(--tile-weak, var(--surface-2)); }
+.hc-ico .ico { width: 16px; height: 16px; color: var(--tile, var(--primary)); }
+.hc-name { flex: 1; font-size: calc(15px * var(--fs-mul)); }
+.record-grid > .card { margin-bottom: 0; }

@@ -534,6 +534,28 @@
           + '</summary>';
       }
 
+      /* 第 211 次（用户：全部功能与模块横条挪到设置，自由选择首页显示哪些卡片）：
+         「首页卡片」分组——开关即增删首页卡片（写 settings.homeLayout，与首页编辑模式同一份数据）。 */
+      html += sgOpen('grid', '首页卡片', '选择首页显示的卡片 / 全部功能');
+      html += '<button class="alltools-entry" id="sAllTools" type="button"><span class="ti-ico">' + icon('grid') + '</span>'
+        + '<span class="ti-name">全部功能</span><span class="rt-arrow" aria-hidden="true">' + icon('chevron-right') + '</span></button>';
+      var hcat = (global.Modules && Modules.home && Modules.home._catalog) ? Modules.home._catalog() : [];
+      ['小组件', '功能模块', '记录卡'].forEach(function (gname) {
+        var rows = hcat.filter(function (c) { return c.group === gname; });
+        if (!rows.length) return;
+        html += '<div class="card hc-card"><h2>' + gname + '</h2><ul class="hc-list">';
+        rows.forEach(function (c) {
+          html += '<li class="hc-row row-switch" data-accent="' + c.accent + '"><span class="hc-ico">' + icon(c.icon) + '</span>'
+            + '<label class="hc-name" for="hc_' + c.id + '">' + Util.escapeHtml(c.name) + '</label>'
+            + '<input type="checkbox" id="hc_' + c.id + '" data-hc="' + c.id + '"' + (c.on ? ' checked' : '') + '></li>';
+        });
+        html += '</ul></div>';
+      });
+      html += '<p class="hint">打开就加到首页末尾。排序、改大小、删除也可以在首页底部点「编辑首页」直接操作。'
+        + '「上次喂奶」「生长速览」这类卡片在有记录后才会出现。</p>';
+      html += '<div class="row"><button class="btn" id="sHomeReset" type="button">恢复默认首页</button></div>';
+      html += '</details>';
+
       html += sgOpen('export', '数据与备份', '导出 / 导入 / CSV / 打印报告');
       html += '<div class="card"><h2>数据备份（唯一兜底手段）</h2>';
       /* 上次备份时间：纯本地应用的生命线提示 */
@@ -758,10 +780,7 @@
     + '<button type="button" class="seg-btn' + (effStage === 'pregnancy' ? ' active' : '') + '" data-stage-set="pregnancy">孕期中</button>'
     + '<button type="button" class="seg-btn' + (effStage === 'baby' ? ' active' : '') + '" data-stage-set="baby">宝宝已出生</button>'
     + '</div>';
-  html += '<div class="row-switch"><label for="sTileFilter">磁贴只看当前阶段</label>' +
-    '<input type="checkbox" id="sTileFilter"' + (s.settings.tilesByStage !== false ? ' checked' : '') + '></div>';
-  html += '<p class="hint">开启后首页只显示当前阶段的模块（计时中的磁贴不受影响、始终显示）；'
-    + '阶段由预产期/宝宝生日自动判定，这里可覆盖。</p></div>';
+  html += '<p class="hint">阶段由预产期/宝宝生日自动判定，这里可覆盖。</p></div>';
       html += '</details>';
 
       html += sgOpen('sun', '外观', '主题 / 玻璃折射 / 触感 / 常亮 / 天空时刻预览');
@@ -812,13 +831,7 @@
         + '<input type="checkbox" id="sHcMode"' + (hcOn ? ' checked' : '') + '></div>';
       html += '<p class="hint">开启后给卡片加一圈更明显的描边、并把模块淡色底提亮，'
         + '让它在色觉障碍或老年晶状体黄化下也能分清。给别人用、或觉得界面“太素”时可关掉。</p>';
-      /* 第 118 次：首页只显示常用（默认开）——落盘 settings.homeConverge 后重渲染，
-         首页据此只留当前阶段最常用模块，其余收进「全部功能」。 */
-      var convOn = s.settings.homeConverge !== false;
-      html += '<div class="row-switch"><label for="sHomeConverge">首页只显示常用</label>'
-        + '<input type="checkbox" id="sHomeConverge"' + (convOn ? ' checked' : '') + '></div>';
-      html += '<p class="hint">开启后首页只留当前阶段最常用的几个模块，其余全部收进首页底部的「全部功能」；'
-        + '没记过的模块不再占位。关掉就恢复全部磁贴。</p>';
+
       html += '<div class="row-switch"><label for="sRefract">真实玻璃折射</label>' +
         '<input type="checkbox" id="sRefract"' + (s.settings.realRefraction !== false ? ' checked' : '') + '></div>';
       html += '<p class="hint">开启后，玻璃卡片会折射背后的背景（更逼真的液态玻璃）。低端设备若出现卡顿可关闭。</p>';
@@ -945,6 +958,17 @@
            （复现：在某个分组里，经搜索/深链/代码路径 showTab('settings') 非 silent 重进）。 */
         view.classList.remove('sg-in');
       }
+      var sAll = view.querySelector('#sAllTools');
+      if (sAll) sAll.addEventListener('click', function () { global.App.showTab('alltools'); });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-hc]'), function (cb) {
+        cb.addEventListener('change', function () {
+          var id = cb.getAttribute('data-hc');
+          if (cb.checked) Modules.home._editAdd(id); else Modules.home._editDel(id);
+          Util.toast(cb.checked ? '已加到首页' : '已从首页移除', 'ok');
+        });
+      });
+      var sHR = view.querySelector('#sHomeReset');
+      if (sHR) sHR.addEventListener('click', function () { Modules.home._editReset(); Util.toast('首页已恢复默认卡片', 'ok'); });
       view.querySelector('#sExport').addEventListener('click', function () { global.App.exportAll(); });
       var exShare = view.querySelector('#sExportShare');
       if (exShare) exShare.addEventListener('click', function () { global.App.exportShare(); });

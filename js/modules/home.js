@@ -465,6 +465,7 @@
          未选时才回落到客观数据（孕周可推 / 宝宝已出生）。 */
       /* 第 120 次：全部磁贴构建完后的名字/分色快照——目录弹层渲染被删组件的行时用
          （画布不画被删磁贴，但目录仍需名字与图标色；本阶段未构建出的模块不进目录） */
+      var stageNow211 = (global.App && typeof App.stageOf === 'function') ? App.stageOf(d) : 'baby';
       var TILE_NAME = {}; var TILE_ACCENT = {};
       tiles.forEach(function (t) { TILE_NAME[t.id] = t.name; TILE_ACCENT[t.id] = t.accent; });
 
@@ -472,6 +473,11 @@
          自动模式（无布局无编辑）下这些对象不进渲染——卡片走上面的原位 HTML；
          布局/编辑分支把它们并入 tiles，与磁贴混排。 */
       var cardTiles = [];
+      /* 第 211 次：小组件卡（喂奶/尿布/睡眠/哄睡声音）与快捷记录卡 */
+      W_IDS.forEach(function (wid) {
+        if (wid === 'quick' && stageNow211 === 'pregnancy') return;
+        cardTiles.push({ id: wid, _card: true, name: CARDS_META[wid].name, icon: CARDS_META[wid].icon });
+      });
       if (feedNextReady()) cardTiles.push({ id: 'feednext', _card: true, name: CARDS_META['feednext'].name, icon: CARDS_META['feednext'].icon });
       if (growthSparkReady()) cardTiles.push({ id: 'growthspark', _card: true, name: CARDS_META['growthspark'].name, icon: CARDS_META['growthspark'].icon });
       /* 第 122 次：直接记录组件——条件永远成立（随时可记），与 last-* 同纪律：
@@ -638,6 +644,7 @@
           return '<div class="card' + cls + '"><h2>' + t.name + '</h2>'
             + '<p class="hint">暂无可显示的内容，满足条件后自动出现。</p>' + editBadges(t) + '</div>';
         }
+        if (W_HTML[t.id]) return W_HTML[t.id](cls, editBadges(t));
         if (t.id === 'feednext') return feedNextHTML(cls, editBadges(t));
         if (t.id === 'growthspark') return growthSparkHTML(cls, editBadges(t));
         if (t.id === 'rec-diaper') return recDiaperHTML(cls, editBadges(t));
@@ -667,59 +674,6 @@
          homeLayout 有效 → 顺序/大小/增删全部由用户布局决定（阶段筛选与收敛退位）；
          编辑模式 → 画布展示全量模块（被删的不画，目录可加回）；
          其余情况走原有自动管线（阶段筛选 + 收敛 + 截取前 8），行为逐行未动。 */
-      /* 第 168 次：自动管线（阶段筛选 + 收敛限额）抽成函数——编辑模式要用它算出
-         「首页现在实际显示的模块」作为画布基线，不能再把全部模块铺上去。 */
-      function autoPipeline(tiles) {
-        var tileDropped = false;
-      if (d.settings.tilesByStage !== false && (stage === 'pregnancy' || stage === 'baby')) {
-        var stageBefore = tiles.length;
-        tiles = tiles.filter(function (t) {
-          if (t.stages.indexOf(stage) >= 0) return true;
-          return (t.id === 'contraction' && ocTile) || (t.id === 'sleep' && osTile);
-        });
-        if (tiles.length < stageBefore) tileDropped = true;
-      }
-      /* 第 118 次（首页收敛 · 三态）：默认开启（homeConverge !== false）。
-         先过滤掉「回顾型 && empty」的噪声磁贴（引导型永远留下），
-         再按 ORDER 排序后截取前 8 个高频磁贴；被截掉的模块不会丢——
-         它们全在「全部功能」页里，网格下方固定挂一个入口兜住。
-         第 119 次措辞修正：本段「关闭时逐字等价」只针对磁贴逻辑成立——
-         新增的 .home-search 搜索入口（下方）是全局动作、不属收敛范围，
-         无条件渲染；.alltools-entry 则受 converge && tileDropped 双闸门，
-         关闭收敛时连入口也不出现。
-
-         第 118 次（冷启动保护）：一条「回顾型」记录都还没有时，跳过 empty 过滤。
-         理由：全空的首页上这些磁贴不是噪声，而是「你可以记什么」的功能地图；
-         此刻把它们清空，新用户第一眼只剩一个空壳。一旦有任何回顾型数据落库，
-         过滤即生效、收起噪声。截取前 8 个在任何情况下都照常执行——
-         所以冷启动首屏依旧是收敛后的短列表，不违反「首屏 6–8 个」的裁定。
-         （既有的「孕期缺胎动 / 育儿期喂养前置」用例正是全空冷启动场景，
-          这条保护让它们继续成立；详见交付说明。） */
-      var converge = d.settings.homeConverge !== false;
-      var HOME_CAP = 8;
-      if (converge && tiles.length > HOME_CAP) {
-        /* 第 142 次修复（用户报：点快捷记录后有些卡片消失）：
-           旧规则是「一旦有任何数据，就把所有空磁贴删掉」——
-           冷启动 8 个 → 记一次尿布后只剩 5 个，喂奶/睡眠/成长当场消失，
-           用户会以为功能没了。根因是把「收敛」实现成了硬过滤，而不是限额。
-           现在改为**限额择优**：固定 8 个名额，有数据的（和引导型）优先占位，
-           空磁贴补足剩余名额，再按 ORDER 排序展示。
-           效果：磁贴总数稳定，只有「超出 8 个的部分」才会被收起——
-           记录行为不再导致界面结构突变。 */
-        var filled = tiles.filter(function (t) { return t.guide || !t.empty; });
-        var blanks = tiles.filter(function (t) { return !t.guide && t.empty; });
-        var keep = filled.slice(0, HOME_CAP);
-        if (keep.length < HOME_CAP) keep = keep.concat(blanks.slice(0, HOME_CAP - keep.length));
-        if (keep.length < tiles.length) tileDropped = true;
-        tiles = keep;
-      }
-      tiles.sort(function (a, b) { return ORDER.indexOf(a.id) - ORDER.indexOf(b.id); });
-      if (converge && tiles.length > HOME_CAP) {
-        tiles = tiles.slice(0, HOME_CAP);
-        tileDropped = true;
-      }
-        return { tiles: tiles, dropped: tileDropped };
-      }
       var editing = !!Modules.home._edit;
       var ORDER = STAGE_ORDER[(stage === 'pregnancy') ? 'pregnancy' : 'baby'];
       var layout = Modules.home._layoutNormalize(d.settings.homeLayout, UNIVERSE());
@@ -737,10 +691,7 @@
         /* 第 168 次（用户反馈：一点编辑首页，所有隐藏的模块都冒出来）：
            没编辑过时，画布基线 = 自动模式下首页实际显示的磁贴（阶段筛选 + 收敛后），
            其余模块留在「添加组件」目录里等用户加，不再整张铺开。 */
-        var autoIds = layout ? [] : autoPipeline(tiles.slice()).tiles.map(function (t) { return t.id; });
-        var baseIds = layout
-          ? layout.items.map(function (it) { return it.id; })
-          : builtCardIds.concat(autoIds);
+        var baseIds = (layout || defaultLayout(d)).items.map(function (it) { return it.id; });
         baseIds.forEach(function (id) {
           if (!seenC[id] && (!layout || layout.removed.indexOf(id) < 0)) { seenC[id] = 1; canvasIds.push(id); }
         });
@@ -749,7 +700,7 @@
              last / rec 都是「可添加组件」，目录常驻；条件卡不在本轮构建时
              也不进画布（零惊吓）。 */
           if (LAST_DEFS_IDS.indexOf(id) >= 0) return;
-          if (CARDS_META[id] && builtCardIds.indexOf(id) < 0) return;
+          if (CARDS_META[id]) return;
           if (!seenC[id] && (!layout || layout.removed.indexOf(id) < 0)) { seenC[id] = 1; canvasIds.push(id); }
         });
         var cmap = {};
@@ -767,23 +718,18 @@
         tiles = canvasIds.filter(function (id) { return cmap[id]; }).map(function (id) {
           var t = cmap[id];
           var it = layout && layout.items.filter(function (x) { return x.id === id; })[0];
-          t._sz = it ? it.size : 'l';
+          t._sz = it ? it.size : defSize(id);
           return t;
         });
         if (layout && layout.removed.length) tileDropped = true;
         Modules.home._canvasIds = canvasIds;
-      } else if (layout) {
+      } else {
+        /* 第 211 次：没编辑过也走同一条布局管线，用默认卡片组合（defaultLayout） */
         /* 第 125 次：非编辑态清空画布基线，避免退出编辑模式后
            _ensureLayout 误用上一次会话的陈旧 _canvasIds 作物化基线。 */
         Modules.home._canvasIds = null;
-        tiles = Modules.home._layoutApply(tiles.concat(cardTiles), layout);
-        if (layout.removed.length) tileDropped = true;
-      } else {
-        Modules.home._canvasIds = null;
-        var autoR = autoPipeline(tiles);
-        tiles = autoR.tiles;
-        if (autoR.dropped) tileDropped = true;
-      } /* ── 第 120 次：else（自动管线）结束 ── */
+        tiles = Modules.home._layoutApply(tiles.concat(cardTiles), layout || defaultLayout(d));
+      }
 
       var html = '';
       /* 知识文案（对标 Cali「小知识」，对标报告 A2）：孕期按孕周分段、宝宝按月龄分段。
@@ -839,29 +785,91 @@
          随之删除 actBaby / avaSrc 两个变量（此前只服务这一个 <img>）。 */
       /* 日期行：今天是 M月D日 周X · 节日（节日来自农历+公历+母亲/父亲节，纯本地计算） */
       var fest = (Util.festivalOf) ? Util.festivalOf(nowD) : null;
+      /* 第 211 次（用户：顶部只显示日期，宝宝信息/提醒/生日压进第一张卡）：
+         天空里只留「M月 星期X」+ 大号日期，右侧一个搜索圆钮；问候、阶段数字、知识句移进「今日宝宝」卡。 */
+      var DOW_FULL = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
       html += '<section class="home-sky">'
         + '<canvas id="skyCanvas" class="sky-canvas" aria-hidden="true"></canvas>'
-        /* 第 85 次：移除日轮弧线与太阳/月亮圆点——用户反馈「挡住了」内容。
-           天空保留云/星/色板/环境光，问候卡直接叠在天空上不再被日轮穿插。 */
         + '<div class="sky-veil"></div>'
         + '<div class="home-greet">'
-        /* 第 155 次（hero 重设计 · 去卡片）：问候直接写在天空上，不再套一张灰卡。
-           次序：小日期行 → 时段问候 h1 → 阶段大数字 → 知识胶囊。
-           文字颜色跟天色走（sky.js 写 html[data-sky-ink]），白天深字、夜晚浅字。 */
-        + '<p class="hg-date">' + (nowD.getMonth() + 1) + '月' + nowD.getDate() + '日 ' + DOW[nowD.getDay()]
+        + '<p class="hg-date"><span class="hg-m">' + (nowD.getMonth() + 1) + '月</span>' + DOW_FULL[nowD.getDay()]
         + (fest ? '<b class="hg-fest">' + Util.escapeHtml(fest) + '</b>' : '') + '</p>'
-        + '<h1>' + Util.escapeHtml(greetWho) + '</h1>'
-        + (stat
-          ? '<div class="hg-stat"><b class="hg-num">' + Util.escapeHtml(stat.num) + '</b>'
-            + '<span class="hg-stat-side"><span class="hg-unit">' + Util.escapeHtml(stat.unit) + '</span>'
-            + '<span class="hg-cap">' + Util.escapeHtml(stat.cap) + '</span></span></div>'
-          : (greetSub ? '<p class="hg-cap hg-cap-solo">' + Util.escapeHtml(greetSub) + '</p>' : ''))
-        + (know ? '<p class="know-hint"><span class="kh-ico" aria-hidden="true">✦</span>' + Util.escapeHtml(know) + '</p>' : '')
+        + '<div class="hg-row"><b class="hg-num">' + nowD.getDate() + '</b>'
+        + '<button class="hg-search" data-go="search" type="button" aria-label="搜索记录、里程碑、用品">' + icon('search') + '</button></div>'
         + '</div>'
         + '</section>';
 
       /* 主体（单列） */
       html += '<div class="home-main">';
+
+      /* ============ 第 211 次：「今日宝宝」卡（首页第一张，固定） ============
+         宝宝信息、月龄、星座生肖、生日倒计时、今日提醒都压在这一张里（参考用户给的首页图）。 */
+      (function () {
+        var ab = (Storage.activeBaby) ? Storage.activeBaby() : null;
+        var ava = (ab && ab.photo) ? '<img class="tb-photo" src="' + Util.escapeHtml(ab.photo) + '" alt="">'
+          : (global.illo ? illo('avatar') : '');
+        var big = '', sub = [], foot = '';
+        if (ageDays !== null && ageDays >= 0) {
+          var bD0 = new Date(bd + 'T00:00:00');
+          var y0 = nowD.getFullYear() - bD0.getFullYear(), m0 = nowD.getMonth() - bD0.getMonth(), dd0 = nowD.getDate() - bD0.getDate();
+          if (dd0 < 0) { m0 -= 1; dd0 += new Date(nowD.getFullYear(), nowD.getMonth(), 0).getDate(); }
+          if (m0 < 0) { y0 -= 1; m0 += 12; }
+          if (ageDays === 0) big = '今天出生';
+          else if (y0 >= 1) big = y0 + ' 岁' + (m0 ? ' ' + m0 + ' 个月' : '') + (dd0 && !m0 ? ' ' + dd0 + ' 天' : '');
+          else if (m0 >= 1) big = m0 + ' 个月' + (dd0 ? ' ' + dd0 + ' 天' : '');
+          else big = '出生第 ' + ageDays + ' 天';
+          sub.push(starSign(bD0.getMonth() + 1, bD0.getDate()) + '座 · 属' + zodiacAnimal(bD0.getFullYear(), bD0.getMonth() + 1, bD0.getDate()));
+          foot = '出生第 ' + (ageDays + 1) + ' 天';
+          /* 生日倒计时：30 天内显示；当天显示「今天生日」 */
+          var nb = new Date(nowD.getFullYear(), bD0.getMonth(), bD0.getDate());
+          var t0 = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate());
+          if (nb < t0) nb = new Date(nowD.getFullYear() + 1, bD0.getMonth(), bD0.getDate());
+          var toB = Math.round((nb - t0) / 86400000);
+          var turn = nb.getFullYear() - bD0.getFullYear();
+          if (ageDays > 0 && toB === 0) foot += ' · 今天 ' + turn + ' 岁生日';
+          else if (ageDays > 0 && toB <= 30) foot += ' · ' + toB + ' 天后 ' + turn + ' 岁生日';
+        } else if (dl !== null) {
+          var wk2 = pregnancyWeek(d);
+          big = wk2 !== null ? ('孕 ' + wk2 + ' 周') : '孕期中';
+          if (dl > 0) sub.push('距预产期 ' + dl + ' 天');
+          else sub.push('已过预产期 ' + (-dl) + ' 天');
+        } else {
+          big = who ? ('你好，' + who) : '你好';
+          sub.push('在设置里填上宝宝生日或预产期');
+        }
+        var babyName = (ab && ab.name) ? ab.name : '今日宝宝';
+        var tb = '<section class="today-baby" aria-label="今日宝宝">'
+          + '<div class="tb-head"><span class="tb-ico">' + icon('calendar') + '</span><b>' + Util.escapeHtml(babyName) + '</b>'
+          + '<button class="tb-today" type="button" data-tb-go="calendar">今天' + icon('chevron-right') + '</button></div>'
+          + '<div class="tb-body"><div class="tb-txt">'
+          + '<p class="tb-big">' + Util.escapeHtml(big) + '</p>'
+          + (sub.length ? '<p class="tb-sub">' + Util.escapeHtml(sub.join(' · ')) + '</p>' : '')
+          + (foot ? '<p class="tb-foot">' + Util.escapeHtml(foot) + '</p>' : '')
+          + '</div><span class="tb-ava" aria-hidden="true">' + ava + '</span></div>';
+        /* 今日提醒：最多两条 + 待补标签，点一行进对应模块 */
+        if (global.Reminders && d.settings.remindersEnabled !== false) {
+          var rems0 = Reminders.evaluate(d) || [];
+          var pend0 = null, fresh0 = [];
+          rems0.forEach(function (r) { if (r.pending) pend0 = r; else fresh0.push(r); });
+          if (fresh0.length || pend0) {
+            tb += '<ul class="tb-rems">';
+            fresh0.slice(0, 2).forEach(function (r) {
+              tb += '<li class="tb-rem' + ((r.remLevel || 0) >= 2 ? ' is-urgent' : '') + '" data-accent="' + r.accent + '" data-tb-go="' + r.go + '" role="button" tabindex="0">'
+                + '<span class="tb-dot" aria-hidden="true"></span><span class="tb-rem-t">' + Util.escapeHtml(r.text) + '</span></li>';
+            });
+            if (pend0) {
+              var pl0 = (pend0.items || []).map(function (x) { return x.label; }).filter(Boolean);
+              tb += '<li class="tb-rem tb-pend" data-accent="' + pend0.accent + '" data-tb-go="' + pend0.go + '" role="button" tabindex="0">'
+                + '<span class="tb-dot" aria-hidden="true"></span><span class="tb-rem-t">待补：' + Util.escapeHtml(pl0.length ? (pl0[0] + (pl0.length > 1 ? ' 等 ' + pl0.length + ' 项' : '')) : pend0.text) + '</span></li>';
+            }
+            if (fresh0.length > 2) tb += '<li class="tb-more">还有 ' + (fresh0.length - 2) + ' 条提醒</li>';
+            tb += '</ul>';
+          }
+        }
+        if (know) tb += '<p class="tb-know">' + Util.escapeHtml(know.replace(/^宝宝 [^。]*。/, '')) + '</p>';
+        tb += '</section>';
+        html += tb;
+      })();
 
       /* ============ 第 146 次（P0-3 / P0-4）：首屏「此刻」条 ============
          审查结论：① 睡眠/亲喂/宫缩/洗澡计时启动后回到首页，看不出有东西在跑（计时磁贴在首屏以下）；
@@ -883,7 +891,7 @@
       }
       var nowStage = (global.App && typeof App.stageOf === 'function') ? App.stageOf(d) : 'baby';
       var showQuick = nowStage !== 'pregnancy';
-      if (runs.length || showQuick) {
+      if (runs.length) {
         html += '<div class="home-now">';
         runs.forEach(function (r) {
           var st = new Date(r.os.start).getTime();
@@ -899,18 +907,6 @@
             + (r.end ? '<button type="button" class="btn btn-mini hn-end" data-recsl="end">' + r.end + '</button>' : '')
             + '</div>';
         });
-        if (showQuick) {
-          var fedQ = (global.App && App._fedDefaults) ? App._fedDefaults() : null;
-          html += '<div class="hn-quick" role="group" aria-label="快速记录">'
-            + (fedQ ? '<button type="button" class="hn-q" data-hnq="feed" data-accent="feeding">' + icon('feeding') + '<span>喂奶</span></button>' : '')
-            + '<button type="button" class="hn-q" data-hnq="pee" data-accent="diaper">' + icon('pee') + '<span>尿了</span></button>'
-            + '<button type="button" class="hn-q" data-hnq="poop" data-accent="diaper">' + icon('poop') + '<span>拉了</span></button>'
-            /* 睡眠进行中时「醒了」已在上方计时条里，快记行不再重复 */
-            + (d.openSleep ? ''
-              : '<button type="button" class="hn-q" data-recsl="start" data-accent="sleep">' + icon('sleep') + '<span>睡了</span></button>')
-            + '</div>';
-          if (fedQ) html += '<p class="hn-hint">喂奶按上次：' + Util.escapeHtml(fedQ.label) + '</p>';
-        }
         html += '</div>';
       }
       /* 第 118 次（首页搜索入口）：放在 .home-main 最前面、紧贴问候卡下方——
@@ -919,10 +915,7 @@
          [data-go] 点击绑定接管（这段 HTML 在绑定之前就写进了 innerHTML）；
          ③ 放在 .record-grid 之前，不会挤进「模块记录」网格、也不干扰网格用例。
          icon('search') 由主理人在 icons.js 新增；未定义时 icon() 返回空串，不崩。 */
-      html += '<button class="home-search" data-go="search" type="button">'
-        + '<span class="si-ico">' + icon('search') + '</span>'
-        + '<span>搜索记录、里程碑、用品…</span>'
-        + '</button>';
+
 
       /* 第 133 次 Phase 2（对齐 Cali · 上次 X 双列卡）：
          Cali 首页在日期下方是「上次喂奶 | 上次尿布」两列小卡——一个值 + 一句相对时间，
@@ -938,7 +931,8 @@
          只读不写，点击进对应模块（data-go 走统一绑定）。 */
       var lsl = (d.sleeps || []).filter(function (r) { return r && r.start && r.end; })
         .sort(function (a, b) { return new Date(b.end) - new Date(a.end); })[0];
-      if (lf || ld || lsl) {
+      var W_HTML = {};
+      {
         var nowMs2 = sumNow.getTime();
         /* 卡里只需要「2 小时前」这种短说法：gapText 的「距今 X」前缀在
            「上次喂奶」标题下是重复信息，这里剥掉；不足 1 分钟说「刚刚」。 */
@@ -971,31 +965,45 @@
           slGap = '醒来 ' + gapShort(Math.max(0, nowMs2 - new Date(lsl.end).getTime()));
         }
         if (d.openSleep && d.openSleep.start) { slVal = '睡眠中'; slGap = '进行中'; }
-        function hw(acc, go, ic, label, val, gap) {
-          return '<button class="hl2 hw" data-accent="' + acc + '" data-go="' + go + '" type="button">'
+        function hw(cid, acc, go, ic, label, val, gap, cls, bd2) {
+          return '<button class="hl2 hw canvas-card' + (cls || '') + '" data-cid="' + cid + '" data-accent="' + acc + '" data-go="' + go + '" type="button">'
             + '<span class="hl2-head"><span class="hw-ico">' + icon(ic) + '</span>' + label
             + '<span class="hw-arrow" aria-hidden="true">' + icon('chevron-right') + '</span></span>'
             + '<b class="hl2-val">' + Util.escapeHtml(val) + '</b>'
             + '<span class="hl2-gap">' + Util.escapeHtml(gap || '还没有记录') + '</span>'
-            + '</button>';
+            + (bd2 || '') + '</button>';
         }
         var wnS = d.whitenoise || {};
         var WN_N = { pink: '粉红噪音', white: '白噪音', brown: '棕色噪音', shush: '嘘声', ocean: '海浪声', heart: '心跳声', fan: '风扇声', rain: '雨声', dryer: '吹风机' };
         var wnType = WN_N[wnS.type] ? wnS.type : 'pink';
         var wnRem = (Modules.whitenoise && Modules.whitenoise._remainingMin) ? Modules.whitenoise._remainingMin() : null;
         var wnSub = wnS.playing ? ('播放中' + (wnRem != null ? ' · 还剩 ' + wnRem + ' 分钟' : '')) : wnS.paused ? '已暂停' : '轻点挑一个声音';
-        html += '<div class="home-last2 home-widgets">'
-          + hw('feeding', 'feeding', 'feeding', '上次喂奶', feedVal, feedGap)
-          + hw('diaper', 'diaper', 'diaper', '上次尿布', diaVal, diaGap)
-          + hw('sleep', 'sleep', 'sleep', '上次睡眠', slVal, slGap)
-          + '<button class="hl2 hw hw-wn' + (wnS.playing ? ' is-on' : '') + '" data-accent="whitenoise" data-go="whitenoise" type="button">'
+        W_HTML['w-feed'] = function (cls, bd2) { return hw('w-feed', 'feeding', 'feeding', 'feeding', '上次喂奶', feedVal, feedGap, cls, bd2); };
+        W_HTML['w-diaper'] = function (cls, bd2) { return hw('w-diaper', 'diaper', 'diaper', 'diaper', '上次尿布', diaVal, diaGap, cls, bd2); };
+        W_HTML['w-sleep'] = function (cls, bd2) { return hw('w-sleep', 'sleep', 'sleep', 'sleep', '上次睡眠', slVal, slGap, cls, bd2); };
+        W_HTML['w-noise'] = function (cls, bd2) { return '<button class="hl2 hw hw-wn canvas-card' + (cls || '') + (wnS.playing ? ' is-on' : '') + '" data-cid="w-noise" data-accent="whitenoise" data-go="whitenoise" type="button">'
           + '<span class="hw-wn-bg" style="background-image:url(assets/sounds/' + wnType + '.webp)" aria-hidden="true"></span>'
           + '<span class="hl2-head"><span class="hw-ico">' + icon('whitenoise') + '</span>哄睡声音'
           + '<span class="hw-arrow" aria-hidden="true">' + icon('chevron-right') + '</span></span>'
           + '<b class="hl2-val">' + WN_N[wnType] + '</b>'
           + '<span class="hl2-gap">' + wnSub + '</span>'
-          + '</button>'
-          + '</div>';
+          + (bd2 || '') + '</button>'; };
+      }
+      if (showQuick) {
+        W_HTML['quick'] = function (cls, bd2) {
+          var h2 = '';
+          var fedQ = (global.App && App._fedDefaults) ? App._fedDefaults() : null;
+          h2 += '<div class="hn-quick" role="group" aria-label="快速记录">'
+            + (fedQ ? '<button type="button" class="hn-q"' + (editing ? ' disabled' : '') + ' data-hnq="feed" data-accent="feeding">' + icon('feeding') + '<span>喂奶</span></button>' : '')
+            + '<button type="button" class="hn-q"' + (editing ? ' disabled' : '') + ' data-hnq="pee" data-accent="diaper">' + icon('pee') + '<span>尿了</span></button>'
+            + '<button type="button" class="hn-q"' + (editing ? ' disabled' : '') + ' data-hnq="poop" data-accent="diaper">' + icon('poop') + '<span>拉了</span></button>'
+            /* 睡眠进行中时「醒了」已在上方计时条里，快记行不再重复 */
+            + (d.openSleep ? ''
+              : '<button type="button" class="hn-q"' + (editing ? ' disabled' : '') + ' data-recsl="start" data-accent="sleep">' + icon('sleep') + '<span>睡了</span></button>')
+            + '</div>';
+          if (fedQ) h2 += '<p class="hn-hint">喂奶按上次：' + Util.escapeHtml(fedQ.label) + '</p>';
+          return '<div class="card canvas-card hn-quick-card' + (cls || '') + '" data-cid="quick">' + h2 + (bd2 || '') + '</div>';
+        };
       }
       /* 第 91 次：底边过渡带已删除——融合改由画布自身淡出为透明完成
          （sky.js fadeBottomOut），交界处即页面真实背景，日夜零横带。 */
@@ -1005,42 +1013,7 @@
          U-04：可在设置里完全关闭；关掉后所有记录、导出、回顾功能照旧，无任何损失。
          页面内提醒不是系统推送——无网络、无 Service Worker，本地工具发不出推送，
          所以这里的开关属于「用户的注意力由用户决定」，不做任何诱导。 */
-      if (global.Reminders && d.settings.remindersEnabled !== false) {
-        var rems = Reminders.evaluate(d);
-        if (rems.length) {
-          /* 第 173 次（提醒区重做，方案 A + B）：
-             原来是「白卡 → 标题 → 米色小卡 → 左边条」三层嵌套，一两句话被三层装饰包着；
-             「待补」汇总行和「该喂奶了」长得一样，还被省略号截断。现在：
-             · 标题出卡，和「模块记录」一样用小节标题；
-             · 待补（陈旧待办）收成标题右侧一个小标签，点进去看明细，不占首屏；
-             · 此刻的提醒是一组 iOS 式分组列表：一个容器、行间细分隔线，
-               左侧模块色小方块图标标识来源，不再用左边条。 */
-          var pend = null, fresh = [];
-          rems.forEach(function (r) { if (r.pending) pend = r; else fresh.push(r); });
-          html += '<div class="sec-head rem-head"><h2 class="section-title">提醒</h2>';
-          if (pend) {
-            var pl = (pend.items || []).map(function (x) { return x.label; }).filter(Boolean);
-            var chip = pl.length ? (pl[0] + (pl.length > 1 ? ' +' + (pl.length - 1) : '')) : '查看';
-            html += '<button class="rem-pend" type="button" data-accent="' + pend.accent + '" data-go="' + pend.go + '"'
-              + ' aria-label="' + Util.escapeHtml(pend.text) + '">'
-              + '<span class="rem-pend-k">待补</span><span class="rem-pend-v">' + Util.escapeHtml(chip) + '</span>'
-              + icon('chevron-right') + '</button>';
-          }
-          html += '</div>';
-          if (fresh.length) {
-            html += '<ul class="rem-group">';
-            fresh.forEach(function (r) {
-              html += '<li class="rem-row' + ((r.remLevel || 0) >= 2 ? ' is-urgent' : '') + '"'
-                + ' data-accent="' + r.accent + '" data-go="' + r.go + '" role="button" tabindex="0">'
-                + '<span class="rem-ico">' + icon(r.accent === 'finance' ? 'export' : r.accent) + '</span>'
-                + '<span class="rem-text">' + Util.escapeHtml(r.text) + '</span>'
-                + '<span class="rem-arrow" aria-hidden="true">' + icon('chevron-right') + '</span>'
-                + '</li>';
-            });
-            html += '</ul>';
-          }
-        }
-      }
+      /* 第 211 次：提醒并入「今日宝宝」卡（见 home-main 开头），这里不再单独成区。 */
 
       /* 「宝宝已出生？」生命周期过渡卡（对标 Cali，报告 A5）：
          预产期已过且未设宝宝生日时出现，一次点击完成「孕期 → 育儿」的叙事切换。 */
@@ -1079,7 +1052,6 @@
         }
         return '';
       }
-      html += feedNextHTML();
       /* 条件满足判定（供 cardTiles 构建；与工厂同一口径，双遍历成本可忽略） */
       function feedNextReady() {
         if (!(bd && ageDays !== null && ageDays >= 0 && ageDays <= 730)) return false;
@@ -1134,40 +1106,16 @@
         inner += '</div>';
         return '<div class="card gs-card' + (extraCls || '') + '">' + inner + (badges || '') + '</div>';
       }
-      html += growthSparkHTML();
 
       /* 模块记录（第 56 次：单条信息行；第 57 次随用户反馈改左右结构）——
          每行：icon + 名称（左）+ 记录信息（右）+ 今日角标 + ›。
          名称与信息同一行左右分布，不再上下两行堆叠。 */
       /* 第 120 次：段头挂「编辑首页」入口（对标 Cali 顶栏 +/✓，收敛为段头文字钮——
          不动顶栏与天空，回归风险最小）。编辑中变为「完成」。 */
-      html += '<div class="sec-head"><h2 class="section-title">模块记录</h2>'
-        + (editing ? '<button class="home-edit-btn" id="homeSheetOpen" type="button">' + icon('plus') + '添加组件</button>' : '')
-        + '<button class="home-edit-btn" id="homeEdit" type="button">'
-        + (editing ? icon('check') + '完成' : icon('edit') + '编辑首页') + '</button></div>';
-      /* 第 118 次（首页收敛）：「全部功能」入口。仅在收敛开启、且本屏确实丢过模块
-         （阶段筛选或收敛截取）时渲染——关掉收敛即彻底回到改动前，连入口也不出现。
-         图标用 icon('grid')（主理人在 icons.js 新增；未定义时返回空串，不崩）。
-         它带 data-go="alltools"，由下方统一的 [data-go] 绑定接管，且此 HTML 在绑定前已写入。
-         N = 全部功能页的模块总数：优先读 alltools 的目录（生产环境已注册），
-         未注册（如 QA 沙箱未加载 alltools.js）时用同一份清单长度的常量兜底。
-         第 128 次（导航优化，10-11 实测后拍板）：入口从磁贴网格**之后**上移到网格**之前**——
-         实测它在网格后位于文档 ≈924px（冷启动）/ ≈1154px（普通日），视口 844px，
-         要滚 1.1–1.4 屏才够得着，而它是「一个入口都不丢」的唯一枢纽。
-         上移后首屏磁贴区上方即可见；不动第 118 次「底栏 2 页签」裁定。 */
-      var converge = d.settings.homeConverge !== false; /* 第 168 次：autoPipeline 内的同名变量是局部的，这里另取一次 */
-      if (tileDropped && (editing || layout || converge)) {
-        var alltoolsN = (global.Modules && Modules.alltools && Modules.alltools._modules
-          && Modules.alltools._modules.length) ? Modules.alltools._modules.length : 19;
-        html += '<button class="alltools-entry" data-go="alltools" type="button">'
-          + '<span class="ti-ico">' + icon('grid') + '</span>'
-          + '<span class="ti-name">全部功能</span>'
-          + '<span class="ti-count">' + alltoolsN + ' 项</span>'
-          + '<span class="rt-arrow" aria-hidden="true">' + icon('chevron-right') + '</span>'
-          + '</button>';
-      }
-
-      html += '<div class="record-grid' + (layout ? ' is-custom' : '') + (editing ? ' is-editing' : '') + '">';
+      /* 第 211 次（用户：全部功能和模块横条挪到设置里自由选择）：
+         去掉「模块记录」段头与「全部功能」入口；首页只剩用户挑的卡片，
+         增删在 设置 · 首页卡片，或网格下方「编辑首页」里直接删 / 拖动。 */
+      html += '<div class="record-grid is-custom' + (editing ? ' is-editing' : '') + '">';
       var quickTiles = [];   /* 第 137 次：本页要绑定的就地记录磁贴（id 列表） */
       tiles.forEach(function (t) {
         /* 第 121 次：卡组件与磁贴混排（画布模式）；自动模式 tiles 里没有卡对象 */
@@ -1176,7 +1124,7 @@
            点一下即落库、带撤销——不必再进模块页走一遍表单。
            仅自动模式生效：布局编辑/画布模式下磁贴要能被拖动改大小，内嵌控件会抢触摸，
            所以那两种模式仍渲染普通磁贴（功能不丢，只是没有就地记录）。 */
-        var qmod = (layout || editing) ? null : (global.Modules[t.id] || null);
+        var qmod = (editing || t._sz === 's') ? null : (global.Modules[t.id] || null);
         if (qmod && typeof qmod._quickHTML === 'function' && typeof qmod._quickBind === 'function') {
           /* 第 196 次：模块可返回空串表示「此刻没有可就地操作的」（如补剂没计划），回落普通磁贴 */
           var qh = qmod._quickHTML(d);
@@ -1186,7 +1134,7 @@
             return;
           }
         }
-        html += '<button class="record-tile' + ((layout || editing) ? (t._sz === 's' ? ' sz-s' : ' sz-l') : '') + '" data-accent="' + t.accent + '" data-go="' + t.id + '" type="button">'
+        html += '<button class="record-tile' + (t._sz === 's' ? ' sz-s' : ' sz-l') + '" data-accent="' + t.accent + '" data-go="' + t.id + '" type="button">'
           + '<span class="rt-ico">' + icon(t.id) + '</span>'
           + '<span class="rt-name">' + t.name + '</span>'
           + '<span class="rt-sum">' + t.sum + '</span>'
@@ -1200,6 +1148,10 @@
           + '</button>';
       });
       html += '</div>';
+      html += '<div class="home-edit-row">'
+        + (editing ? '<button class="home-edit-btn" id="homeSheetOpen" type="button">' + icon('plus') + '添加卡片</button>' : '')
+        + '<button class="home-edit-btn" id="homeEdit" type="button">'
+        + (editing ? icon('check') + '完成' : icon('edit') + '编辑首页') + '</button></div>';
 
 
       /* U-34 容量近上限：强提示常驻（不自动消失、可延迟关闭、不阻断当前操作、带立即导出出口）。
@@ -1288,6 +1240,12 @@
         }
       });
 
+      /* 第 211 次：今日宝宝卡里的「今天 ›」与提醒行 */
+      Array.prototype.forEach.call(view.querySelectorAll('[data-tb-go]'), function (c) {
+        function go() { global.App.showTab(c.getAttribute('data-tb-go')); }
+        c.addEventListener('click', go);
+        c.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+      });
       /* 第 210 次：生长小组件点进生长页（不用 data-go，避免被画布当成一个模块组件） */
       Array.prototype.forEach.call(view.querySelectorAll('[data-gs-go]'), function (c) {
         if (editing) return;
@@ -1647,8 +1605,14 @@
        占位卡（可删可排序），目录如实只在条件满足时列出——不显示空壳（冷启动保护延续）；
      · last-* 无数据时显示「暂无记录」空态而非消失——它的价值正是引导去记录。
      ============================================================ */
-  var CARD_IDS = ['feednext', 'growthspark', 'last-feeding', 'last-diaper', 'last-sleep', 'last-growth', 'last-temp', 'rec-diaper', 'rec-sleep', 'rec-bottle', 'rec-breast', 'rec-pump'];
+  var W_IDS = ['quick', 'w-feed', 'w-diaper', 'w-sleep', 'w-noise'];
+  var CARD_IDS = W_IDS.concat(['feednext', 'growthspark', 'last-feeding', 'last-diaper', 'last-sleep', 'last-growth', 'last-temp', 'rec-diaper', 'rec-sleep', 'rec-bottle', 'rec-breast', 'rec-pump']);
   var CARDS_META = {
+    'quick': { name: '快捷记录', icon: 'plus' },
+    'w-feed': { name: '上次喂奶', icon: 'feeding' },
+    'w-diaper': { name: '上次尿布', icon: 'diaper' },
+    'w-sleep': { name: '上次睡眠', icon: 'sleep' },
+    'w-noise': { name: '哄睡声音', icon: 'whitenoise' },
     'feednext': { name: '下次喂奶参考', icon: 'bottle' },
     'growthspark': { name: '生长速览', icon: 'growth' },
     /* 第 122 次：直接记录组件——画布内即记即走（对标第五批 Cali）。 */
@@ -1674,6 +1638,46 @@
     'last-temp': { list: 'temps', key: 'time', detail: function (r) { return (r && r.value != null) ? (r.value + '°C') : ''; } }
   };
   var LAST_DEFS_IDS = ['last-feeding', 'last-diaper', 'last-sleep', 'last-growth', 'last-temp'];
+  /* 第 211 次：默认卡片组合与默认大小。小组件、模块卡默认半宽；快捷记录与各类记录卡整排。 */
+  var DEFAULTS = {
+    baby: ['quick', 'w-feed', 'w-diaper', 'w-sleep', 'w-noise', 'growthspark', 'feednext'],
+    pregnancy: ['pregnancy', 'fetal', 'contraction', 'packing', 'mood', 'w-noise']
+  };
+  function defSize(id) {
+    if (id === 'quick' || id === 'growthspark' || id === 'feednext' || /^(rec|last)-/.test(id)) return 'l';
+    return 's';
+  }
+  function defaultLayout(d) {
+    var ids = DEFAULTS[editStage(d) === 'pregnancy' ? 'pregnancy' : 'baby'];
+    return {
+      items: ids.map(function (id) { return { id: id, size: defSize(id) }; }),
+      removed: UNIVERSE().filter(function (id) { return ids.indexOf(id) < 0 && !CARDS_META[id]; })
+    };
+  }
+  Modules.home._defaultLayout = defaultLayout;
+  Modules.home._defSize = defSize;
+  /* 设置 · 首页卡片用的目录：分组 + 是否在首页 */
+  Modules.home._catalog = function () {
+    var d = Storage.get();
+    var hl = Modules.home._layoutNormalize(d.settings.homeLayout, UNIVERSE()) || defaultLayout(d);
+    var on = {};
+    hl.items.forEach(function (it) { on[it.id] = 1; });
+    var names = {};
+    ((Modules.alltools && Modules.alltools._modules) || []).forEach(function (m) { names[m.id] = m.name; });
+    var out = [];
+    W_IDS.concat(['growthspark', 'feednext']).forEach(function (id) {
+      out.push({ id: id, name: CARDS_META[id].name, icon: CARDS_META[id].icon, accent: id === 'quick' ? 'feeding' : (id === 'w-noise' ? 'whitenoise' : id.replace(/^w-/, '').replace('feed', 'feeding').replace('growthspark', 'growth').replace('feedingnext', 'feeding')), group: '小组件', on: !!on[id] });
+    });
+    UNIVERSE().forEach(function (id) {
+      if (CARDS_META[id]) return;
+      out.push({ id: id, name: names[id] || id, icon: id, accent: id, group: '功能模块', on: !!on[id] });
+    });
+    CARD_IDS.forEach(function (id) {
+      if (!/^(rec|last)-/.test(id)) return;
+      out.push({ id: id, name: CARDS_META[id].name, icon: CARDS_META[id].icon, accent: CARDS_META[id].icon === 'breast' || CARDS_META[id].icon === 'pump' || CARDS_META[id].icon === 'bottle' ? 'feeding' : CARDS_META[id].icon, group: '记录卡', on: !!on[id] });
+    });
+    return out;
+  };
   function editStage(d) {
     return (global.App && typeof App.stageOf === 'function' && App.stageOf(d)) || 'baby';
   }
@@ -1745,11 +1749,9 @@
     var d = Storage.get();
     var hl = Modules.home._layoutNormalize(d.settings.homeLayout, UNIVERSE());
     if (hl) return hl;
-    var ids = (Modules.home._canvasIds && Modules.home._canvasIds.length)
-      ? Modules.home._canvasIds.slice()
-      : STAGE_ORDER[editStage(d)].slice();
+    var ids = defaultLayout(d).items.map(function (it) { return it.id; });
     var items = []; var seen = {};
-    ids.forEach(function (id) { if (!seen[id]) { seen[id] = 1; items.push({ id: id, size: 'l' }); } });
+    ids.forEach(function (id) { if (!seen[id]) { seen[id] = 1; items.push({ id: id, size: defSize(id) }); } });
     /* 第 168 次：没上画布的磁贴模块记进 removed——否则 _layoutApply 的「新模块殿后」
        会把它们全部补到首页末尾（用户看到的就是：编辑一次，隐藏的模块全出来了）。 */
     var removed = UNIVERSE().filter(function (id) {
@@ -1774,7 +1776,7 @@
   }); };
   Modules.home._editAdd = function (id) { withLayout(function (hl) {
     hl.removed = hl.removed.filter(function (x) { return x !== id; });
-    if (!hl.items.some(function (it) { return it.id === id; })) hl.items.push({ id: id, size: 'l' });
+    if (!hl.items.some(function (it) { return it.id === id; })) hl.items.push({ id: id, size: defSize(id) });
   }); };
   Modules.home._editSize = function (id) { withLayout(function (hl) {
     var it = null;
