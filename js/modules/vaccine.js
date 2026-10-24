@@ -92,6 +92,23 @@
     { name: '手足口（EV71）疫苗', fam: [] }
   ];
 
+  /* 第 199 次：每剂接种详情（部位 / 单位 / 批号 / 接种后反应 / 备注），对标 Cali 的接种记录字段。
+     数据：d.vaccines.notes[剂次 key] = { site, clinic, lot, react: [..], note }。
+     「预防」一行只写该疫苗针对的疾病名（公开事实），不写禁忌、反应处理等需医生判断的内容。
+     枚举一律查表显示，自由文本一律转义。 */
+  var PREVENTS = {
+    bcg: '结核病', hepb: '乙型肝炎', ipv: '脊髓灰质炎', bopv: '脊髓灰质炎', dtap: '百日咳、白喉、破伤风',
+    mena: '流行性脑脊髓膜炎', menc: '流行性脑脊髓膜炎', mmr: '麻疹、流行性腮腺炎、风疹', je: '流行性乙型脑炎', hepa: '甲型肝炎'
+  };
+  var VSITES = [['lua', '左上臂'], ['rua', '右上臂'], ['lth', '左大腿'], ['rth', '右大腿'], ['oral', '口服']];
+  var VREACT = [['none', '无明显反应'], ['fever', '发热'], ['swell', '红肿'], ['lump', '硬结'], ['fuss', '哭闹'], ['other', '其他']];
+  function lbl(tbl, v) { for (var i = 0; i < tbl.length; i++) if (tbl[i][0] === v) return tbl[i][1]; return ''; }
+  function noteOf(d, key) {
+    var n = d.vaccines && d.vaccines.notes && d.vaccines.notes[key];
+    return (n && typeof n === 'object' && !Array.isArray(n)) ? n : null;
+  }
+  var openDetail = null;  /* 当前展开详情的剂次 key（模块级临时态） */
+
   /** 由生日生成每剂排期（供模块页与提醒引擎共用） */
   function plan(birthDate) {
     if (!birthDate) return [];
@@ -201,14 +218,37 @@
           else if (left < 0) { status = '已过应种日 ' + (-left) + ' 天，请尽快补种'; cls = ' is-over'; }
           else if (left <= 7) { status = left === 0 ? '今天应种' : left + ' 天后应种'; cls = ' is-due'; }
           else { status = it.dueISO; cls = ''; }
+          var vn = doneDate ? noteOf(d, it.key) : null;
+          if (vn) {
+            var bits = [lbl(VSITES, vn.site)].concat((Array.isArray(vn.react) ? vn.react : []).map(function (r) { return lbl(VREACT, r); })).filter(Boolean);
+            if (bits.length) status += ' · ' + bits.join('、');
+          }
           html += '<li class="vac-item' + cls + '">'
             + '<span class="row-ico">' + icon(doneDate ? 'check' : 'vaccine') + '</span>'
             + '<span class="vac-main"><b>' + it.name + '</b> <i>' + it.dose + '</i><br><small>' + status + '</small></span>'
             + (doneDate
-              ? '<button class="btn btn-mini" data-vaxdate="' + it.key + '">改日期</button>'
+              ? '<button class="btn btn-mini" data-vacdet="' + it.key + '" aria-expanded="' + (openDetail === it.key) + '">详情</button>'
                 + '<button class="icon-btn" data-unvax="' + it.key + '" aria-label="取消已种" title="取消已种">' + icon('trash') + '</button>'
               : '<button class="btn btn-mini" data-vax="' + it.key + '">已接种</button>')
             + '</li>';
+          if (doneDate && openDetail === it.key) {
+            var n0 = vn || {}, rx = Array.isArray(n0.react) ? n0.react : [];
+            var fam = it.key.split('-')[0];
+            html += '<li class="vac-detail">'
+              + (PREVENTS[fam] ? '<p class="hint">预防：' + PREVENTS[fam] + '</p>' : '')
+              + '<div class="row vd-date"><span>接种日期 <b>' + Util.escapeHtml(doneDate) + '</b></span><button type="button" class="btn btn-mini" data-vaxdate="' + it.key + '">改日期</button></div>'
+              + '<span class="lbl-text">接种部位</span><div class="dp-flags" id="vdSite">'
+              + VSITES.map(function (o) { return '<button type="button" class="dp-pill' + (n0.site === o[0] ? ' active' : '') + '" data-vds="' + o[0] + '" aria-pressed="' + (n0.site === o[0]) + '">' + o[1] + '</button>'; }).join('')
+              + '</div><span class="lbl-text">接种后反应（可多选）</span><div class="dp-flags" id="vdReact">'
+              + VREACT.map(function (o) { var on = rx.indexOf(o[0]) >= 0; return '<button type="button" class="dp-pill' + (on ? ' active' : '') + '" data-vdr="' + o[0] + '" aria-pressed="' + on + '">' + o[1] + '</button>'; }).join('')
+              + '</div>'
+              + '<label>接种单位<input type="text" id="vdClinic" maxlength="30" placeholder="如 XX 社区卫生服务中心" value="' + Util.escapeHtml(n0.clinic || '') + '"></label>'
+              + '<label>疫苗批号<input type="text" id="vdLot" maxlength="30" placeholder="接种本上有" value="' + Util.escapeHtml(n0.lot || '') + '"></label>'
+              + '<label>备注<input type="text" id="vdNote" maxlength="60" placeholder="如 第二天退烧" value="' + Util.escapeHtml(n0.note || '') + '"></label>'
+              + '<button type="button" class="btn btn-primary btn-save" id="vdSave" data-key="' + it.key + '">保存详情</button>'
+              + '<p class="hint">接种后出现高热不退、大面积红肿、精神差或其他担心的情况，请联系接种门诊或就医。</p>'
+              + '</li>';
+          }
         });
         html += '</ul><p class="hint">时间表按《国家免疫规划疫苗儿童免疫程序及说明（2026 年版）》生成，仅供参考；同一天到期的国家免疫规划疫苗可以按程序同时接种，实际以接种门诊安排为准。</p></div>';
 
@@ -414,6 +454,52 @@
           }
         });
       });
+      /* 第 199 次：接种详情展开 / 部位单选 / 反应多选 / 保存 */
+      Array.prototype.forEach.call(view.querySelectorAll('[data-vacdet]'), function (b) {
+        b.addEventListener('click', function () {
+          var k = b.getAttribute('data-vacdet');
+          openDetail = (openDetail === k) ? null : k;
+          global.App.rerender();
+        });
+      });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-vds]'), function (b) {
+        b.addEventListener('click', function () {
+          var on = b.classList.contains('active');
+          Array.prototype.forEach.call(view.querySelectorAll('[data-vds]'), function (x) { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false'); });
+          if (!on) { b.classList.add('active'); b.setAttribute('aria-pressed', 'true'); }
+        });
+      });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-vdr]'), function (b) {
+        b.addEventListener('click', function () {
+          var v = b.getAttribute('data-vdr'), on = !b.classList.contains('active');
+          /* 「无明显反应」与其他项互斥 */
+          Array.prototype.forEach.call(view.querySelectorAll('[data-vdr]'), function (x) {
+            var xv = x.getAttribute('data-vdr');
+            if (on && ((v === 'none' && xv !== 'none') || (v !== 'none' && xv === 'none'))) { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false'); }
+          });
+          b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on));
+        });
+      });
+      var vdSave = view.querySelector('#vdSave');
+      if (vdSave) vdSave.addEventListener('click', function () {
+        var k = vdSave.getAttribute('data-key');
+        var s = Storage.get();
+        s.vaccines = s.vaccines || { done: {} };
+        if (!s.vaccines.notes || typeof s.vaccines.notes !== 'object' || Array.isArray(s.vaccines.notes)) s.vaccines.notes = {};
+        var siteB = view.querySelector('[data-vds].active');
+        var n = {
+          site: siteB ? siteB.getAttribute('data-vds') : null,
+          react: Array.prototype.map.call(view.querySelectorAll('[data-vdr].active'), function (x) { return x.getAttribute('data-vdr'); }),
+          clinic: view.querySelector('#vdClinic').value.trim().slice(0, 30) || null,
+          lot: view.querySelector('#vdLot').value.trim().slice(0, 30) || null,
+          note: view.querySelector('#vdNote').value.trim().slice(0, 60) || null
+        };
+        if (!n.site && !n.react.length && !n.clinic && !n.lot && !n.note) delete s.vaccines.notes[k];
+        else s.vaccines.notes[k] = n;
+        openDetail = null;
+        if (Storage.save()) Util.toast('已保存接种详情', 'ok');
+        global.App.rerender();
+      });
       Array.prototype.forEach.call(view.querySelectorAll('[data-vaxdate]'), function (b) {
         b.addEventListener('click', function () {
           var key = b.getAttribute('data-vaxdate');
@@ -426,6 +512,8 @@
           var uk = b.getAttribute('data-unvax');
           if (s.vaccines && s.vaccines.done) delete s.vaccines.done[uk];
           if (s.vaccines && s.vaccines.via) delete s.vaccines.via[uk];
+          if (s.vaccines && s.vaccines.notes) delete s.vaccines.notes[uk];
+          if (openDetail === uk) openDetail = null;
           Storage.save(); global.App.rerender();
         });
       });

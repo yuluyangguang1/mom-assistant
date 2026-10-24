@@ -32,6 +32,41 @@
     return '';
   }
 
+  /* 第 199 次：黄疸趋势。只画与最近一次同单位的记录（mg/dL 与 µmol/L 不混画），
+     横轴按时间，端点标出生第几天（有生日时）；不画任何分区/光疗线（刻意不做黄疸分区，见 Cali 对标结论）。
+     与体温图共用 .temp-chart 的线/点/网格样式。 */
+  function jaChart(recs, unit, birthDate) {
+    var pts = recs.filter(function (r) { return r.unit === unit && typeof r.value === 'number' && isFinite(r.value) && !isNaN(new Date(r.time).getTime()); })
+      .map(function (r) { return { t: new Date(r.time).getTime(), v: r.value, time: String(r.time) }; })
+      .sort(function (a, b) { return a.t - b.t; }).slice(-14);
+    if (pts.length < 2) return '';
+    var W = 320, H = 140, L = 34, R = 12, T = 12, B = 24;
+    var t0 = pts[0].t, t1 = pts[pts.length - 1].t; if (t1 === t0) t1 = t0 + 3600000;
+    var vs = pts.map(function (p) { return p.v; });
+    var step = unit === 'umol' ? 50 : 3;
+    var lo = Math.max(0, Math.floor(Math.min.apply(null, vs) / step) * step - step);
+    var hi = Math.ceil(Math.max.apply(null, vs) / step) * step + step;
+    function X(t) { return L + (W - L - R) * (t - t0) / (t1 - t0); }
+    function Y(v) { return T + (H - T - B) * (hi - v) / (hi - lo); }
+    var h = '<svg class="temp-chart ja-chart" viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="黄疸数值变化">';
+    for (var g = lo; g <= hi; g += step) {
+      h += '<line class="tc-grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(g).toFixed(1) + '" y2="' + Y(g).toFixed(1) + '"></line>'
+        + '<text class="tc-ax" x="' + (L - 4) + '" y="' + (Y(g) + 3).toFixed(1) + '" text-anchor="end">' + g + '</text>';
+    }
+    function lab(p) {
+      if (birthDate) {
+        var dd = Util.daysBetween(birthDate, p.time.slice(0, 10));
+        if (isFinite(dd) && dd >= 0) return '第 ' + (dd + 1) + ' 天';
+      }
+      return p.time.slice(5, 10).replace('-', '/');
+    }
+    h += '<text class="tc-ax" x="' + L + '" y="' + (H - 6) + '" text-anchor="start">' + lab(pts[0]) + '</text>'
+      + '<text class="tc-ax" x="' + (W - R) + '" y="' + (H - 6) + '" text-anchor="end">' + lab(pts[pts.length - 1]) + '</text>';
+    h += '<path class="tc-line" d="' + pts.map(function (p, i) { return (i ? 'L' : 'M') + X(p.t).toFixed(1) + ' ' + Y(p.v).toFixed(1); }).join(' ') + '"></path>';
+    pts.forEach(function (p) { h += '<circle class="tc-dot" cx="' + X(p.t).toFixed(1) + '" cy="' + Y(p.v).toFixed(1) + '" r="3"></circle>'; });
+    return h + '</svg>';
+  }
+
   Modules.jaundice = {
     id: 'jaundice',
     title: '黄疸',
@@ -75,6 +110,8 @@
           sub += ' · 较上次 ' + (diff > 0 ? '+' : '') + diff;
         }
         html += '<span class="hint">' + sub + '</span></div>';
+        var bd = (global.Storage && Storage.activeBaby && Storage.activeBaby() && Storage.activeBaby().birthDate) || (d.settings && d.settings.baby && d.settings.baby.birthDate) || null;
+        html += jaChart(all, last.unit, bd);
         html += '<p class="hint">数值高低本身不能说明问题——要不要处理，请拿这份记录问医生。</p>';
       } else {
         html += '<p class="hint">还没有测量记录。复诊时把每次的数值给医生看，比只记「黄不黄」有用得多。</p>';

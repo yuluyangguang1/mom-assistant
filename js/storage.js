@@ -830,6 +830,8 @@
           if (k === 'vaccines') {
             if (Array.isArray(sv.subs)) { if (!Array.isArray(dst.vaccines.subs)) dst.vaccines.subs = []; bump('自费疫苗', mergeArr(dst.vaccines.subs, sv.subs)); }
             if (sv.via && typeof sv.via === 'object') { if (!dst.vaccines.via || typeof dst.vaccines.via !== 'object') dst.vaccines.via = {}; mergeMap(dst.vaccines.via, sv.via); }
+            /* 第 199 次：接种详情按剂次合并（本机已有的不覆盖） */
+            if (sv.notes && typeof sv.notes === 'object' && !Array.isArray(sv.notes)) { if (!dst.vaccines.notes || typeof dst.vaccines.notes !== 'object') dst.vaccines.notes = {}; mergeMap(dst.vaccines.notes, sv.notes); }
           }
         });
       }

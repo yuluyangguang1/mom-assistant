@@ -3936,3 +3936,10 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
 .labor-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
 .labor-btns .btn { min-height: 48px; margin: 0; }
 .labor-ev .warn-box { margin: 4px 0 10px; }
+
+/* 第 199 次：疫苗剂次详情（展开在该剂次行下方） */
+.vac-list li.vac-detail { display: block; padding: 4px 0 14px 44px; }
+.vac-detail .vd-date { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 2px; }
+.vac-detail .lbl-text { display: block; margin-top: 10px; }
+.vac-detail .dp-flags { margin: 8px 0 6px; }
+@media (max-width: 360px) { .vac-list li.vac-detail { padding-left: 0; } }
