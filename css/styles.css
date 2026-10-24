@@ -1118,7 +1118,7 @@ body.in-home .mod-date { visibility: hidden; }
 .obs-area { flex: none; font-size: calc(11px * var(--fs-mul)); line-height: 1.6; color: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 1px 6px; margin-top: 1px; white-space: nowrap; }
 .obs-txt { flex: 1; font-size: calc(13.5px * var(--fs-mul)); line-height: 1.55; min-width: 0; }
 .obs-btns { flex: none; display: flex; gap: 6px; }
-.obs-btns .seg-btn { padding: 3px 10px; font-size: calc(12px * var(--fs-mul)); }
+.obs-btns .seg-btn { padding: 3px 10px; font-size: calc(12px * var(--fs-mul)); white-space: nowrap; flex: none; } /* 第 188 次：不折行，修「还/没」逐字竖排 */
 .obs-btns .seg-btn.active.no-sel { color: var(--warn); border-color: var(--warn); background: transparent; }
 
 /* 第 59 次：医学提示行（growth/vaccine/meds/pregnancy/contraction/period/fetal/temp 页脚）
@@ -1669,7 +1669,10 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 .row-switch input[type="checkbox"]:checked {
   background-color: var(--primary);
   border-color: var(--primary);
-  background-position: calc(100% - 22px) center; /* 开：旋钮居右（padding-box 内 42-20+2） */
+  /* 第 188 次修正：百分比定位按 (容器 − 图像) 计算，旧值 calc(100% − 22px) = 22 − 22 = 0，
+     「开」时旋钮实际停在左边（截图可见：主色底 + 左侧旋钮，开关状态自相矛盾）。 */
+  background-position: calc(100% - 2px) center;
+  background-image: radial-gradient(circle at center, #fff 0 8.5px, transparent 9px);
 }
 .row-switch input[type="checkbox"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .row-switch label { margin: 0; flex: 1 1 auto; font-size: var(--fs-body); color: var(--text); }
@@ -2229,7 +2232,7 @@ body.fs-xl {
 
 /* 网格磁贴里的布局：图标在上、名字在下 */
 .tools-grid .ti-ico { display: block; line-height: 1; }
-.tools-grid .ti-ico .ico { width: 24px; height: 24px; color: var(--tile, var(--primary)); }
+.tools-grid .ti-ico .ico { width: 28px; height: 28px; /* 第 188 次：24→28，磁贴 96px 高里图标太小、层级发虚 */ color: var(--tile, var(--primary)); }
 .tools-grid .ti-name {
   display: block; max-width: 100%; line-height: 1.3;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -3823,3 +3826,23 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
    避免「和什么有关」「想多说一句」贴着上一排药丸（情绪页实测 0–4px）。 */
 .mood-lv + .lbl-text, .mood-tags + .lbl-text, .mood-tags + label, .mood-lv + label,
 .seg + .lbl-text, .seg + label, .ruler + label, .ruler + .lbl-text { margin-top: 16px; }
+/* ⑤ 设置·数据统计：三列小格（数字在上、模块名在下），零记录淡显 */
+.kv-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.card .kv-stats li, .kv-stats li + li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 0; border-radius: var(--radius-sm); background: var(--surface-2); }
+.kv-stats li b { font-size: calc(18px * var(--fs-mul)); font-variant-numeric: tabular-nums; line-height: 1.2; }
+.kv-stats li span { font-size: calc(12px * var(--fs-mul)); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .kv-stats li.is-zero { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+.kv-stats li.is-zero b { color: var(--muted); font-weight: 500; }
+/* ⑥ seg-wrap2（设置·底栏快捷入口 8 枚 / 天空时刻 5 枚）：此前类名无规则，8 枚药丸挤一行
+   变成逐字竖排（不/显/示）。改为每行最多 4 枚、文字不折行，多的自然换行。 */
+.seg-wrap2 .seg-btn { flex: 0 0 calc(25% - 4.5px); white-space: nowrap; }
+/* ⑦ 一键记录 4 枚（吃药/维D）在 3 列网格里落单一枚 → 正好 4 枚时排成一行 4 列 */
+.quick-row:has(> .quick-btn:nth-child(4):last-child) { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-xs); }
+.quick-row:has(> .quick-btn:nth-child(4):last-child) .quick-btn { padding: 12px 4px; font-size: calc(13px * var(--fs-mul)); white-space: nowrap; }
+/* ⑨ 经期「症状」：原生小方框与上方经量/痛经的药丸语言不一致 → 同款药丸多选（勾选即主色弱底） */
+.chk-pills { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.chk-pills .chk { position: relative; display: inline-flex; align-items: center; margin: 0; padding: 9px 14px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface); cursor: pointer; transition: background-color .2s var(--ease), border-color .2s var(--ease), transform .12s var(--ease); }
+.chk-pills .chk input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.chk-pills .chk:active { transform: scale(.95); }
+.chk-pills .chk:has(input:checked) { background: var(--primary-weak); border-color: var(--primary); color: var(--primary-text); font-weight: 600; }
+.chk-pills .chk:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }

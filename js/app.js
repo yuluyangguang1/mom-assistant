@@ -234,6 +234,7 @@
     buildTabbar();
     var view = document.getElementById('view');
     view.innerHTML = '';
+    if (!(opts && opts.silent)) view.classList.remove('sg-in'); /* 第 188 次：设置二级态标记不跨页残留 */
     /* 模块页「分色身份」：给记录类模块页打 data-accent，让列表/图标/标题继承其柔彩色；
        首页（多模块聚合）与日历（自带 per-row 分色）必须清除，避免串色。
        第 118 次：alltools / search 也清除——它们不是"某个模块"，

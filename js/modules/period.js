@@ -151,7 +151,7 @@
       /* E2：经量/痛经轻量 chips（可选，不选不存；老数据无字段照常） */
       html += '<p class="hint">经量（可选）：</p>' + segHtml('pFlow', FLOWS, 'data-flow');
       html += '<p class="hint">痛经（可选）：</p>' + segHtml('pPain', PAINS, 'data-pain');
-      html += '<div class="chk-group">症状：';
+      html += '<span class="lbl-text">症状（可多选）</span><div class="chk-group chk-pills">';
       SYMPTOMS.forEach(function (s) {
         html += '<label class="chk"><input type="checkbox" class="pSym" value="' + s + '"> ' + s + '</label>';
       });

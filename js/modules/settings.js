@@ -462,9 +462,10 @@
       html += sgOpen('grid', '数据与统计', '各模块记录数 / 日的起始 / 本机占用 / 记录成本自测');
       /* 数据统计：各模块记录数一目了然，导出前确认数据完整 */
       var stats = Storage.stats();
-      html += '<div class="card"><h2>数据统计</h2><ul class="kv">';
-      stats.forEach(function (t) {
-        html += '<li data-accent="' + t.key + '"><b>' + t.count + '</b> 条 ' + t.name + '</li>';
+      /* 第 188 次：19 行「N 条 X」长列表改为三列小格，零记录的淡显，有记录的排前面 */
+      html += '<div class="card"><h2>数据统计</h2><ul class="kv kv-stats">';
+      stats.slice().sort(function (a2, b2) { return (b2.count > 0) - (a2.count > 0); }).forEach(function (t) {
+        html += '<li data-accent="' + t.key + '"' + (t.count ? '' : ' class="is-zero"') + '><b>' + t.count + '</b><span>' + t.name + '</span></li>';
       });
       html += '</ul>';
       /* U-34：本机占用如实展示（阈值是设计判断，报告未给上限，故只说不猜） */
@@ -786,7 +787,12 @@
       if (_sgCur != null && global.App && App.inSub && App.inSub()) {
         sgShow(_sgCur, false);
         App.enterSub(sgHide); /* 已在二级态：只换成新 DOM 的回调，不再多推一条 history */
-      } else { _sgCur = null; }
+      } else {
+        _sgCur = null;
+        /* 第 188 次：#view 节点跨渲染复用，二级态留下的 sg-in 会让目录页整页空白
+           （复现：在某个分组里，经搜索/深链/代码路径 showTab('settings') 非 silent 重进）。 */
+        view.classList.remove('sg-in');
+      }
       view.querySelector('#sExport').addEventListener('click', function () { global.App.exportAll(); });
       view.querySelector('#sImport').addEventListener('click', function () { global.App.importAll(); });
       view.querySelector('#sReset').addEventListener('click', function () { global.App.resetAll(); });
