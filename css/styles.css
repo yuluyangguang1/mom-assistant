@@ -3927,3 +3927,7 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
 @media (min-width: 700px) { #pgDate { max-width: 360px; } }
 
 #pgMode + .birth-field { margin-top: 2px; }
+
+/* 第 196 次：首页补剂磁贴就地打卡——名字最长 12 字，按钮内单行省略，不撑破磁贴 */
+.qk-sup { flex: 1 1 0; min-width: 0; gap: 6px; }
+.qk-sup span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

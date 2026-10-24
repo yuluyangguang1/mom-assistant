@@ -1153,9 +1153,13 @@
            所以那两种模式仍渲染普通磁贴（功能不丢，只是没有就地记录）。 */
         var qmod = (layout || editing) ? null : (global.Modules[t.id] || null);
         if (qmod && typeof qmod._quickHTML === 'function' && typeof qmod._quickBind === 'function') {
-          html += quickTileHTML(t, qmod._quickHTML(d));
-          quickTiles.push(t.id);
-          return;
+          /* 第 196 次：模块可返回空串表示「此刻没有可就地操作的」（如补剂没计划），回落普通磁贴 */
+          var qh = qmod._quickHTML(d);
+          if (qh) {
+            html += quickTileHTML(t, qh);
+            quickTiles.push(t.id);
+            return;
+          }
         }
         html += '<button class="record-tile' + ((layout || editing) ? (t._sz === 's' ? ' sz-s' : ' sz-l') : '') + '" data-accent="' + t.accent + '" data-go="' + t.id + '" type="button">'
           + '<span class="rt-ico">' + icon(t.id) + '</span>'

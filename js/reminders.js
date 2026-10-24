@@ -252,7 +252,13 @@
     /* 第 185 次：补剂计划优先——有计划、近 3 天在打卡、今天还没吃满 → 提醒具体名字 */
     var sups = d.supplements || [];
     var plans = (d.supplementPlans || []).filter(function (p) { return p && p.active !== false; });
-    if (plans.length && sups.some(function (r) { return r.time && new Date(r.time) >= cutoff && keyOf(r.time) !== dayNow; })) {
+    /* 第 196 次：设了提醒时刻（remindAt）的计划——到点还没吃满就提醒，不看历史；
+       没设时刻的仍走「近 3 天在打卡」老规则。到点判断用本地钟点，跨日起点不影响（照护日口径已在 dayNow 里）。 */
+    var nowD = new Date(now), hm = ('0' + nowD.getHours()).slice(-2) + ':' + ('0' + nowD.getMinutes()).slice(-2);
+    function raOf(p) { var v = p.remindAt; return (typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v)) ? v : null; }
+    var hasHistory = sups.some(function (r) { return r.time && new Date(r.time) >= cutoff && keyOf(r.time) !== dayNow; });
+    plans = plans.filter(function (p) { var ra = raOf(p); return ra ? hm >= ra : hasHistory; });
+    if (plans.length) {
       var todaySup = sups.filter(function (r) { return r.time && keyOf(r.time) === dayNow; });
       var missing = plans.filter(function (p) {
         var per = (typeof p.perDay === 'number' && p.perDay > 0) ? p.perDay : 1;

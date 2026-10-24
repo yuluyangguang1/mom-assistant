@@ -31,6 +31,13 @@
       });
   }
 
+  /* 第 196 次：计划可带提醒时刻 remindAt（"HH:MM"，选填）。读取一律过这个校验，导入的坏值当没设。 */
+  function remindAtOf(p) {
+    var v = p && p.remindAt;
+    return (typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v)) ? v : null;
+  }
+  function perOf(p) { return (typeof p.perDay === 'number' && p.perDay > 0) ? p.perDay : 1; }
+
   /* 今日某计划的打卡次数：优先按 planId 认，旧记录（无 planId）按名称兜底 */
   function takenCount(list, plan) {
     return list.filter(function (r) {
@@ -42,6 +49,36 @@
   Modules.supplement = {
     id: 'supplement',
     title: '补剂',
+    _remindAtOf: remindAtOf,
+    /* 第 196 次：首页补剂磁贴就地打卡（契约同 diaper._quickHTML/_quickBind）。
+       只列今天还没吃满的前 2 个计划；全吃满或没计划返回空串 → 首页回落普通磁贴。 */
+    _quickHTML: function (d) {
+      var DS = Util.dayStartHour(d), dayNow = Util.dayKeyOf(new Date(), DS);
+      var todayList = (d.supplements || []).filter(function (r) { return r && Util.dayKeyOf(r.time, DS) === dayNow; });
+      var left = activePlans(d).filter(function (p) { return takenCount(todayList, p) < perOf(p); }).slice(0, 2);
+      return left.map(function (p) {
+        return '<button type="button" class="qk-btn qk-sup" data-qk-sup="' + Util.escapeHtml(p.id) + '" aria-label="打卡 ' + Util.escapeHtml(p.name) + '">'
+          + icon('check') + '<span>' + Util.escapeHtml(p.name) + '</span></button>';
+      }).join('');
+    },
+    _quickBind: function (root, d, done) {
+      Array.prototype.forEach.call(root.querySelectorAll('[data-qk-sup]'), function (b) {
+        b.addEventListener('click', function (ev) {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          var plan = (d.supplementPlans || []).filter(function (p) { return p.id === b.getAttribute('data-qk-sup'); })[0];
+          if (!plan) return;
+          var rec = { id: Util.uid(), time: Util.nowLocal(), name: plan.name, planId: plan.id, dose: null, note: null };
+          d.supplements.push(rec);
+          if (Storage.save()) {
+            Util.toast('已打卡 ' + plan.name, 'ok', { label: '撤销', onClick: function () {
+              for (var i = d.supplements.length - 1; i >= 0; i--) if (d.supplements[i].id === rec.id) { d.supplements.splice(i, 1); break; }
+              Storage.save(); done();
+            } });
+          }
+          done();
+        });
+      });
+    },
     render: function (view) {
       var d = Storage.get();
       var DS = Util.dayStartHour(d);
@@ -99,7 +136,8 @@
              副文案被挤成「滴剂 · 每日…」——宁可少一项，不要省略号。 */
           html += '<li><span class="row-ico">' + icon('supplement') + '</span>'
             + '<span class="li-main"><b>' + Util.escapeHtml(p.name) + '</b></span>'
-            + '<span class="li-sub">' + (off ? '已停用' : ('每日 ' + perN + ' 次')) + '</span>'
+            + '<span class="li-sub">' + (off ? '已停用' : ('每日 ' + perN + ' 次' + (remindAtOf(p) ? ' · ' + remindAtOf(p) : ''))) + '</span>'
+            + '<button class="icon-btn" data-remind="' + p.id + '" aria-label="设置提醒时间" title="提醒时间">' + icon('bell') + '</button>'
             + '<button class="icon-btn" data-toggle="' + p.id + '" aria-label="' +
             (off ? '启用' : '停用') + '" title="' + (off ? '启用' : '停用') + '">' +
             icon(off ? 'refresh' : 'moon') + '</button>'
@@ -121,6 +159,7 @@
       html += '</select></label>';
       html += '<label>每日次数<input type="number" id="spPerDay" min="1" max="6" ' +
         'inputmode="numeric" value="1"></label>';
+      html += '<label>提醒时间（选填）<input type="time" id="spRemind"></label>';
       html += '<button class="btn btn-primary btn-save" id="spAdd">加入计划</button>';
       html += '</div>';
       html += '<p class="hint">吃多少、吃多久，按医嘱或说明书；这里只记「有没有吃」，不给剂量建议。</p>';
@@ -193,12 +232,36 @@
         /* 同名计划只允许一条：重复添加会让「今天该吃的」出现两行一样的 */
         var dup = (d.supplementPlans || []).some(function (p) { return p.name === nm && p.active !== false; });
         if (dup) { Util.toast('「' + nm + '」已经在计划里了', 'warn'); return; }
-        d.supplementPlans.push({
+        var ra = (view.querySelector('#spRemind').value || '').slice(0, 5);
+        var plan = {
           id: Util.uid(), name: nm, form: view.querySelector('#spForm').value || '滴剂',
           perDay: per, active: true, sortOrder: (d.supplementPlans || []).length
-        });
+        };
+        if (remindAtOf({ remindAt: ra })) plan.remindAt = ra;
+        d.supplementPlans.push(plan);
         if (Storage.save()) Util.toast('已加入计划：' + nm, 'ok');
         global.App.rerender();
+      });
+
+      /* 第 196 次：改提醒时间（清空 = 不定时，回到「近几天在吃才提醒」的老规则） */
+      Array.prototype.forEach.call(view.querySelectorAll('[data-remind]'), function (b) {
+        b.addEventListener('click', function () {
+          var p = (d.supplementPlans || []).filter(function (x) { return x.id === b.getAttribute('data-remind'); })[0];
+          if (!p) return;
+          Util.editText({
+            title: p.name + ' · 提醒时间',
+            message: '到点还没吃满，首页提醒里会出现。清空就不定时。',
+            value: remindAtOf(p) || '', placeholder: '如 09:00', maxlength: 5, okText: '保存',
+            onConfirm: function (v) {
+              v = (v || '').trim().replace('：', ':');
+              if (/^\d:\d\d$/.test(v)) v = '0' + v;
+              if (v && !remindAtOf({ remindAt: v })) { Util.toast('时间格式像 09:00 这样', 'warn'); return; }
+              if (v) p.remindAt = v; else delete p.remindAt;
+              if (Storage.save()) Util.toast(v ? '每天 ' + v + ' 提醒' : '已取消定时提醒', 'ok');
+              global.App.rerender();
+            }
+          });
+        });
       });
 
       /* 停用 / 启用 */
