@@ -24,6 +24,21 @@
     if (!(iv >= 1 && iv <= 30 && du >= 10 && du <= 180 && sp >= 10 && sp <= 240)) return null;
     return { iv: iv, dur: du, span: sp };
   }
+  /* 第 197 次：破水 / 见红事件。只记时刻与事实，提示语是通用就医信号，不判断是否临产。
+     显示只走这张表，导入的坏 type 查不到就不显示。 */
+  var LABOR = {
+    water: { label: '破水', tip: '破水后请尽快联系医院或前往就医，路上怎么做按医生交代。记下时间和羊水颜色，到医院告诉医生。' },
+    show:  { label: '见红', tip: '少量见红常见于临产前几天。若出血像月经量或更多、颜色鲜红，或伴持续腹痛、胎动明显减少，请立即就医。' }
+  };
+  function laborList(d) {
+    return (d.laborEvents || []).filter(function (e) { return e && LABOR[e.type] && e.time && !isNaN(new Date(e.time).getTime()); })
+      .sort(function (a, b) { return new Date(b.time) - new Date(a.time); });
+  }
+  function agoText(ms) {
+    var m = Math.max(0, Math.round(ms / 60000));
+    return m < 1 ? '不到 1 分钟' : m < 60 ? m + ' 分钟' : (Math.floor(m / 60) + ' 小时' + (m % 60 ? ' ' + (m % 60) + ' 分' : ''));
+  }
+
   Modules.contraction = {
     id: 'contraction',
     title: '宫缩',
@@ -49,6 +64,31 @@
       } else {
         html += '<button class="btn btn-primary btn-save" id="cStart">记录一次宫缩（开始）</button>';
         html += '<p class="hint">每次宫缩到来时点"开始"，结束时点"结束"。间隔按"下一次开始 − 本次开始"(START-to-START)计算。</p>';
+      }
+      html += '</div>';
+
+      /* 第 197 次：破水 / 见红——一键记录，最近 48 小时内的事件顶在卡里显示「已过多久」 */
+      var lev = laborList(d);
+      html += '<div class="card labor-ev"><h2>破水 · 见红</h2>';
+      var recent = lev.filter(function (e) { return Date.now() - new Date(e.time).getTime() <= 48 * 3600000; });
+      recent.slice(0, 2).forEach(function (e) {
+        var L = LABOR[e.type];
+        html += '<div class="warn-box"><p><b>' + L.label + '</b> ' + Util.fmtDateTime(e.time) + '，已过 ' + agoText(Date.now() - new Date(e.time).getTime()) + '。'
+          + L.tip + '</p></div>';
+      });
+      html += '<p class="hint">发生时点一下记下时间；不是现在发生的，先选时刻再点。</p>';
+      html += Util.timePickHTML('leTime');
+      html += '<div class="labor-btns">'
+        + '<button type="button" class="btn" data-labor="water">记录破水</button>'
+        + '<button type="button" class="btn" data-labor="show">记录见红</button></div>';
+      if (lev.length) {
+        html += '<ul class="list">';
+        lev.slice(0, 6).forEach(function (e) {
+          html += '<li>' + icon('contraction') + '<span class="li-main"><b>' + LABOR[e.type].label + '</b></span>'
+            + '<span class="li-sub">' + Util.fmtDateTime(e.time) + '</span>'
+            + '<button class="icon-btn" data-ledel="' + Util.escapeHtml(String(e.id)) + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
+        });
+        html += '</ul>';
       }
       html += '</div>';
 
@@ -170,6 +210,30 @@
       if (cCancel) cCancel.addEventListener('click', function () {
         d.openContraction = null; Storage.save(); global.App.rerender();
       });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-labor]'), function (b) {
+        b.addEventListener('click', function () {
+          var tp = b.getAttribute('data-labor');
+          var st = Util.stampFrom(view, 'leTime');
+          if (!st) return;
+          if (!Array.isArray(d.laborEvents)) d.laborEvents = [];
+          var ev = { id: Util.uid(), time: st, type: tp, note: null };
+          d.laborEvents.push(ev);
+          if (Storage.save()) Util.toast('已记录' + LABOR[tp].label + ' ' + st.slice(11, 16), 'ok', { label: '撤销', onClick: function () {
+            for (var i = d.laborEvents.length - 1; i >= 0; i--) if (d.laborEvents[i].id === ev.id) { d.laborEvents.splice(i, 1); break; }
+            Storage.save(); global.App.rerender();
+          } });
+          global.App.rerender();
+        });
+      });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-ledel]'), function (b) {
+        b.addEventListener('click', function () {
+          Util.removeWithUndo(d.laborEvents, b.getAttribute('data-ledel'), {
+            onSave: function () { Storage.save(); },
+            onAfter: function () { global.App.rerender(); },
+            deletedText: '已删除'
+          });
+        });
+      });
       var cExp = view.querySelector('#cExport');
       if (cExp) cExp.addEventListener('click', function () { exportTimeline(false); });
       var cExpJ = view.querySelector('#cExportJson');
@@ -198,6 +262,12 @@
             var iv = i > 0 ? Util.fmtDuration(new Date(cc.start).getTime() - new Date(arr[i - 1].start).getTime()) : '-';
             lines.push('第' + (i + 1) + '次 开始 ' + Util.fmtDateTime(cc.start) + ' 时长 ' + dur + ' 距上次 ' + iv
               + (cc.intensity ? ' 强度 ' + ({ 1: '轻', 2: '中', 3: '强' }[cc.intensity] || '') : ''));
+          }
+          /* 第 197 次：破水/见红一并写进时间线，按时刻正序 */
+          var le = laborList(d).slice().reverse();
+          if (le.length) {
+            lines.push('', '破水 / 见红');
+            le.forEach(function (e) { lines.push(LABOR[e.type].label + ' ' + Util.fmtDateTime(e.time)); });
           }
           Util.download('宫缩时间线_' + Util.todayISO() + '.txt', lines.join('\n'), 'text/plain;charset=utf-8');
         }

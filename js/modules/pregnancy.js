@@ -37,6 +37,34 @@
     };
   }
 
+  /* 第 197 次：孕期体重曲线（承接「记几次就能看到变化曲线」那句承诺，此前其实没有图）。
+     横轴按日期，端点标孕周；只画自己的记录，不画任何增重范围/达标线（U-25，与体重提示同口径）。
+     与体温图共用 .temp-chart 的线/点/网格样式。 */
+  function weightChart(sorted) {
+    var pts = sorted.filter(function (r) { return typeof r.kg === 'number' && isFinite(r.kg) && !isNaN(new Date(r.date).getTime()); })
+      .map(function (r) { return { t: new Date(r.date + 'T00:00:00').getTime(), v: r.kg, w: (typeof r.week === 'number' && isFinite(r.week)) ? r.week : null, ds: String(r.date) }; });
+    if (pts.length < 2) return '';
+    var W = 320, H = 140, L = 34, R = 12, T = 12, B = 24;
+    var t0 = pts[0].t, t1 = pts[pts.length - 1].t; if (t1 === t0) t1 = t0 + 86400000;
+    var vs = pts.map(function (p) { return p.v; });
+    var lo = Math.floor(Math.min.apply(null, vs) - 0.5), hi = Math.ceil(Math.max.apply(null, vs) + 0.5);
+    if (hi - lo < 4) { var mid = (hi + lo) / 2; lo = Math.floor(mid - 2); hi = lo + 4; }
+    var step = (hi - lo) > 12 ? 4 : ((hi - lo) > 6 ? 2 : 1);
+    function X(t) { return L + (W - L - R) * (t - t0) / (t1 - t0); }
+    function Y(v) { return T + (H - T - B) * (hi - v) / (hi - lo); }
+    var h = '<svg class="temp-chart wt-chart" viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="孕期体重变化">';
+    for (var g = Math.ceil(lo / step) * step; g <= hi; g += step) {
+      h += '<line class="tc-grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(g).toFixed(1) + '" y2="' + Y(g).toFixed(1) + '"></line>'
+        + '<text class="tc-ax" x="' + (L - 4) + '" y="' + (Y(g) + 3).toFixed(1) + '" text-anchor="end">' + g + '</text>';
+    }
+    function lab(p) { return p.w != null ? '孕' + p.w + '周' : p.ds.slice(5).replace('-', '/'); }
+    h += '<text class="tc-ax" x="' + L + '" y="' + (H - 6) + '" text-anchor="start">' + lab(pts[0]) + '</text>'
+      + '<text class="tc-ax" x="' + (W - R) + '" y="' + (H - 6) + '" text-anchor="end">' + lab(pts[pts.length - 1]) + '</text>';
+    h += '<path class="tc-line" d="' + pts.map(function (p, i) { return (i ? 'L' : 'M') + X(p.t).toFixed(1) + ' ' + Y(p.v).toFixed(1); }).join(' ') + '"></path>';
+    pts.forEach(function (p) { h += '<circle class="tc-dot" cx="' + X(p.t).toFixed(1) + '" cy="' + Y(p.v).toFixed(1) + '" r="3"></circle>'; });
+    return h + '</svg>';
+  }
+
   Modules.pregnancy = {
     _checks: CHECKS,
     id: 'pregnancy',
@@ -122,6 +150,7 @@
       if (mw.length) {
         var mwSorted = mw.slice().sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
         var mwGain = (mwSorted[mwSorted.length - 1].kg - mwSorted[0].kg).toFixed(1);
+        html += weightChart(mwSorted);
         html += '<p class="hint">从 ' + Util.fmtDate(mwSorted[0].date) + ' 到现在变化 ' + (mwGain > 0 ? '+' : '') + mwGain + ' kg。'
           + '孕期增重因人而异，具体范围请参考产检医生意见。</p>';
         html += '<ul class="list">';

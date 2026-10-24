@@ -38,7 +38,9 @@
        六者均为纯追加的记录列表，默认空数组即旧行为，DATA_VERSION 不动。 */
     'baths', 'swims', 'suns', 'waters', 'jaundices', 'supplements', 'supplementPlans',
     /* 第 186 次：胎动计数会话 { id, start, end, count } */
-    'fetalSessions'];
+    'fetalSessions',
+    /* 第 197 次：临产征兆事件 { id, time, type: 'water'|'show', note } —— 破水 / 见红，宫缩页一键记 */
+    'laborEvents'];
   /* 对象型字段（嵌套容器） */
   /* 第 136 次（缺陷修复）：feedingTimer 是「亲喂计时进行中」的持久状态，
      feeding.js 注释写着「跨刷新保留」，但它既不在 defaultData 也不在 OBJECT_KEYS，
@@ -215,6 +217,7 @@
       /* 胎动计数（对标 Cali 宝宝补齐的孕期刚需，2026-09-27）：{ id, time } */
       fetal: [],
       fetalSessions: [],
+      laborEvents: [],
       fetalSession: null,
       /* 第 107 次：消耗品与补货提醒。{ id, name, cat, date, price, availDays, qty, unit, history[] }
          起因是参考实现在真实使用中 54 行里出现 21 行重复（同「名称+购买日期」）。
@@ -812,7 +815,7 @@
       var LABEL = { feedings: '喂养', sleeps: '睡眠', diapers: '尿布', growth: '生长', meds: '吃药', milestones: '里程碑',
         milestoneObs: '发育观察', temps: '体温', baths: '洗澡', swims: '游泳', suns: '日晒', waters: '饮水', jaundices: '黄疸',
         supplements: '补剂', supplementPlans: '补剂计划', periods: '经期', contractions: '宫缩', fetal: '胎动',
-        fetalSessions: '胎动计数', moods: '情绪', supplies: '囤货' };
+        fetalSessions: '胎动计数', laborEvents: '破水见红', moods: '情绪', supplies: '囤货' };
       var ARR_BABY = BABY_KEYS.filter(function (k) { return ARRAY_KEYS.indexOf(k) >= 0; });
       function mergeBaby(dst, src) {
         ARR_BABY.forEach(function (k) {

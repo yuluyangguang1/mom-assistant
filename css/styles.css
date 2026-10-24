@@ -3931,3 +3931,8 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
 /* 第 196 次：首页补剂磁贴就地打卡——名字最长 12 字，按钮内单行省略，不撑破磁贴 */
 .qk-sup { flex: 1 1 0; min-width: 0; gap: 6px; }
 .qk-sup span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 第 197 次：宫缩页破水/见红两键并排 */
+.labor-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.labor-btns .btn { min-height: 48px; margin: 0; }
+.labor-ev .warn-box { margin: 4px 0 10px; }
