@@ -30,6 +30,8 @@
     return {
       week: Math.floor(elapsed / 7),
       day: elapsed % 7,
+      /* 第 193 次：已过预产期的天数（>0 才算过），页内改说「已过预产期 N 天」而不是「第 43 周」 */
+      over: elapsed > 280 ? elapsed - 280 : 0,
       percent: Math.min(100, Math.round(elapsed / 280 * 100)),
       due: pg.dueDate
     };
@@ -63,10 +65,12 @@
       var cw = currentWeek();
       if (cw) {
         html += '<div class="card"><h2>当前进度</h2><ul class="kv">';
-        html += '<li>孕周：<b>第 ' + cw.week + ' 周 + ' + cw.day + ' 天</b></li>';
+        html += cw.over ? '<li>状态：<b>已过预产期 ' + cw.over + ' 天</b></li>'
+          : '<li>孕周：<b>第 ' + cw.week + ' 周 + ' + cw.day + ' 天</b></li>';
         html += '<li>预产期：' + (cw.due ? Util.fmtDate(cw.due) : '未设置') + '</li>';
         html += '</ul><div class="progress"><div class="progress-bar" style="width:' + cw.percent + '%"></div></div>';
-        html += '<p class="hint">进度 ' + cw.percent + '%</p></div>';
+        html += cw.over ? '<p class="hint">宝宝已经出生的话，设置宝宝生日就会切换到育儿工具，孕期的记录都会保留。</p></div>'
+          : '<p class="hint">进度 ' + cw.percent + '%</p></div>';
       } else {
         html += '<div class="card"><p class="hint">设置末次月经或预产期后显示孕周进度。</p></div>';
       }
