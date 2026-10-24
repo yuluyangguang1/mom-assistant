@@ -140,6 +140,11 @@
     if (gearEl) { gearEl.classList.add('dock-btn'); bar.appendChild(gearEl); }
     /* 返回在 ＋ 之前：二级页里 CSS 让「返回靠左、＋ 靠右」，DOM 顺序即视觉顺序 */
     if (backEl) { backEl.classList.add('dock-btn'); bar.appendChild(backEl); }
+    /* 第 208 次：白噪音播放中，底栏里多一个「正在播放」入口（一级页是圆形缩略图，二级页展开成名字 + 剩余时间） */
+    try {
+      var nowEl = Modules.whitenoise && Modules.whitenoise._dockNode && Modules.whitenoise._dockNode();
+      if (nowEl) bar.appendChild(nowEl);
+    } catch (e) { /* 白噪音模块异常不影响底栏 */ }
     bar.appendChild(plus);
     if (hand === 'normal') {
       try { document.documentElement.style.setProperty('--dock-h', '0px'); } catch (e) {}

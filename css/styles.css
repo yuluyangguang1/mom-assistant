@@ -4011,20 +4011,6 @@ body.dark .wn-lib { background: linear-gradient(180deg, rgba(169, 174, 216, .08)
 .wn-eq i:nth-child(2) { animation-delay: -.35s; } .wn-eq i:nth-child(3) { animation-delay: -.7s; } .wn-eq i:nth-child(4) { animation-delay: -.2s; }
 @keyframes wnEq { 0%, 100% { transform: scaleY(.35); } 50% { transform: scaleY(1); } }
 
-.wn-mini {
-  position: sticky; bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 5;
-  display: flex; align-items: center; gap: 12px; width: 100%; margin: 0 0 16px; padding: 8px 10px 8px 8px;
-  border: 0; border-radius: var(--radius-pill); cursor: pointer; text-align: left; font: inherit; color: #F3F1F8;
-  background: linear-gradient(100deg, rgba(70, 78, 128, .94), rgba(92, 98, 150, .94)); -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3);
-  box-shadow: 0 18px 34px -18px rgba(62, 70, 120, .7), inset 0 1px 0 rgba(255, 255, 255, .16);
-}
-.wn-mini-art { flex: none; width: 46px; height: 46px; border-radius: 50%; background: center / cover no-repeat; box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
-.wn-mini-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.wn-mini-txt b { font-size: calc(15px * var(--fs-mul)); font-weight: 650; }
-.wn-mini-txt span { font-size: calc(12px * var(--fs-mul)); color: rgba(243, 241, 248, .7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-.wn-mini-btn { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: #3A4270; background: #FFF; }
-.wn-mini-btn svg { width: 20px; height: 20px; }
-
 /* —— 全屏播放页 —— */
 html.wp-lock, html.wp-lock body { overflow: hidden; }
 .wn-player {
@@ -4119,3 +4105,30 @@ body.dark .wn-art.on .wn-art-img { box-shadow: 0 0 0 3px var(--bg-end), 0 0 0 5.
   .wn-player { transition: opacity .2s ease; transform: none; }
   .wp-track i { transition: none; }
 }
+
+/* —— 第 208 次：底栏「正在播放」 ——
+   一级页（底栏页签多）：只是一颗 44px 圆形插画 + 剩余时间圆环 + 声波，和页签同尺寸；
+   二级页（底栏只有返回 / ＋）：展开成雾紫胶囊，带名字、剩余分钟和暂停键。 */
+.dock-now { display: inline-flex; align-items: center; flex: none; margin: 0 4px; border-radius: var(--radius-pill); color: #FFF; }
+.dn-open { display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent; }
+.dn-art { position: relative; flex: none; width: 44px; height: 44px; border-radius: 50%; background: #4E5688 center 30% / cover no-repeat; box-shadow: 0 4px 12px -4px rgba(62, 70, 120, .55); }
+.dn-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.dn-ring circle { fill: none; stroke-width: 2.5; stroke: rgba(255, 255, 255, .28); }
+.dn-ring .dn-fg { stroke: #F4C6A5; stroke-linecap: round; transition: stroke-dashoffset .6s linear; }
+.dn-eq { position: absolute; inset: 9px; display: flex; align-items: center; justify-content: center; gap: 2px; border-radius: 50%; background: rgba(52, 64, 107, .45); }
+.dn-eq i { width: 2.5px; height: 12px; border-radius: var(--radius-pill); background: #FFF; animation: wnEq 1.1s ease-in-out infinite; }
+.dn-eq i:nth-child(2) { animation-delay: -.4s; } .dn-eq i:nth-child(3) { animation-delay: -.75s; }
+.dn-txt { display: none; flex-direction: column; min-width: 0; line-height: 1.25; }
+.dn-txt b { font-size: calc(13px * var(--fs-mul)); font-weight: 600; white-space: nowrap; }
+.dn-txt span { font-size: calc(11px * var(--fs-mul)); color: rgba(255, 255, 255, .75); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dn-stop { display: none; place-items: center; flex: none; width: 34px; height: 34px; margin-left: 8px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; color: #3A4270; background: #FFF; }
+.dn-stop svg { width: 16px; height: 16px; }
+.dn-open:focus-visible, .dn-stop:focus-visible { outline: 2px solid var(--wn-glow, #F4C6A5); outline-offset: 2px; border-radius: var(--radius-pill); }
+body .tabbar.is-sub .dock-now { padding: 4px 4px 4px 4px; background: linear-gradient(100deg, #464E80, #5E6498); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16); }
+body .tabbar.is-sub .dn-art { width: 36px; height: 36px; box-shadow: none; }
+body .tabbar.is-sub .dn-eq { inset: 7px; }
+body .tabbar.is-sub .dn-txt { display: flex; }
+body .tabbar.is-sub .dn-stop { display: grid; }
+body .tabbar.is-vertical .dock-now { margin: 4px 0; }
+@media (max-width: 350px) { body .tabbar.is-sub .dn-txt b { max-width: 4.5em; overflow: hidden; text-overflow: ellipsis; } }
+@media (prefers-reduced-motion: reduce) { .dn-eq i { animation: none; } .dn-ring .dn-fg { transition: none; } }

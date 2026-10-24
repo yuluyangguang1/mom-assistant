@@ -639,14 +639,6 @@
       });
       html += '</div></section>';
 
-      /* 迷你播放条 */
-      if (wn.playing) {
-        html += '<button type="button" class="wn-mini" id="wnMini">'
-          + '<span class="wn-mini-art" style="background-image:url(' + ART(wn.type) + ')"></span>'
-          + '<span class="wn-mini-txt"><b>' + nameOf(wn.type) + '</b><span id="wnMiniState">' + playerState(wn) + '</span></span>'
-          + '<span class="wn-mini-btn" id="wnMiniStop" role="button" aria-label="停止播放">' + ICON.pause + '</span></button>';
-      }
-
       /* 安全三件事：一眼看到的版本；依据与细节收进折叠（内容与改版前一致） */
       html += '<div class="card wn-card"><div class="wn-head"><h2>用之前记住三件事</h2></div>'
         + '<div class="wn-rules">'
@@ -692,12 +684,6 @@
           global.App.rerender();
         });
       });
-      var mini = view.querySelector('#wnMini');
-      if (mini) mini.addEventListener('click', function (e) {
-        if (e.target.closest('#wnMiniStop')) { stop(); Util.toast('已停止播放', 'ok'); global.App.rerender(); return; }
-        Modules.whitenoise._open = true; global.App.rerender();
-      });
-
       syncPlayer();
 
       /* 每秒刷新剩余时间；离开本页时收起播放页并自停 */
@@ -712,10 +698,47 @@
         var w = Storage.get().whitenoise;
         var bar = document.getElementById('wpBar'); if (bar) bar.style.width = progressPct(w).toFixed(1) + '%';
         var st = document.getElementById('wpState'); if (st) st.textContent = playerState(w);
-        var ms = document.getElementById('wnMiniState'); if (ms) ms.textContent = playerState(w);
       }, 1000);
     }
   };
+
+  /* 第 208 次：底栏「正在播放」——播放中才出现；点它进白噪音页并展开播放页，点暂停直接停 */
+  function dockMin(wn) { var r = remainingMin(); return r != null ? r + ' 分钟' : '不限时'; }
+  Modules.whitenoise._dockNode = function () {
+    var wn = (Storage.get() || {}).whitenoise;
+    if (!wn || !wn.playing) return null;
+    var el = document.createElement('div');
+    el.className = 'dock-now'; el.id = 'dockNow';
+    var C = 2 * Math.PI * 17;
+    var frac = (wn.until && wn.minutes > 0) ? Math.max(0, Math.min(1, (wn.until - Date.now()) / (wn.minutes * 60000))) : 1;
+    el.innerHTML = '<button type="button" class="dn-open" aria-label="正在播放：' + nameOf(wn.type) + '，' + dockMin(wn) + '。打开播放页">'
+      + '<span class="dn-art" style="background-image:url(' + ART(wn.type) + ')">'
+      + '<svg class="dn-ring" viewBox="0 0 38 38" aria-hidden="true"><circle cx="19" cy="19" r="17"></circle>'
+      + '<circle class="dn-fg" cx="19" cy="19" r="17" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + (C * (1 - frac)).toFixed(1) + '"></circle></svg>'
+      + '<span class="dn-eq" aria-hidden="true"><i></i><i></i><i></i></span></span>'
+      + '<span class="dn-txt"><b>' + nameOf(wn.type) + '</b><span class="dn-t">' + dockMin(wn) + '</span></span></button>'
+      + '<button type="button" class="dn-stop" aria-label="停止播放">' + ICON.pause + '</button>';
+    el.querySelector('.dn-open').addEventListener('click', function () {
+      Modules.whitenoise._open = true;
+      if (global.App.currentTab() === 'whitenoise') global.App.rerender(); else global.App.showTab('whitenoise');
+    });
+    el.querySelector('.dn-stop').addEventListener('click', function () {
+      stop(); Util.toast('白噪音已停止', 'ok'); global.App.rerender();
+    });
+    return el;
+  };
+  setInterval(function () {
+    var el = document.getElementById('dockNow');
+    if (!el) return;
+    var wn = (Storage.get() || {}).whitenoise;
+    if (!wn || !wn.playing) return;
+    var t = el.querySelector('.dn-t'); if (t) t.textContent = dockMin(wn);
+    var fg = el.querySelector('.dn-fg');
+    if (fg && wn.until && wn.minutes > 0) {
+      var C = parseFloat(fg.getAttribute('stroke-dasharray'));
+      fg.setAttribute('stroke-dashoffset', (C * (1 - Math.max(0, Math.min(1, (wn.until - Date.now()) / (wn.minutes * 60000))))).toFixed(1));
+    }
+  }, 5000);
 
   /* 供首页 / 提醒卡复用：不打开页面也能知道还剩多久 */
   Modules.whitenoise._remainingMin = remainingMin;
