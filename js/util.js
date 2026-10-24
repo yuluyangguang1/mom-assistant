@@ -28,7 +28,7 @@
     /** 第 185 次：记录时刻选择。留空 = 现在；选了就按选的时刻落库（夜里量的第二天补记不再错时）。 */
     timePickHTML: function (id, value) {
       return '<label class="time-pick">时刻<input type="time" id="' + id + '" value="' + (value || '') + '">'
-        + '<span class="hint">留空＝现在</span></label>';
+        + '<span class="hint">不填就是现在</span></label>';
     },
     /** 读时刻：dateIso 为 yyyy-mm-dd（缺省今天）。选了未来时刻返回 null 并提示。 */
     stampFrom: function (root, id, dateIso) {

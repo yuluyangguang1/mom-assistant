@@ -42,6 +42,10 @@
           /* 老记录只有 amount：两项都没填时保留原 amount */
           if (bm || fm) r.amount = bm + fm;
           if (!r.amount) return '请填写奶量';
+          /* 第 195 次：手改了喝下量、和「冲 − 剩」对不上时，丢掉冲/剩信息，免得行里显示矛盾 */
+          if (r.leftover > 0 && ((r.preparedBm || 0) + (r.preparedFm || 0) - r.leftover) !== r.amount) {
+            delete r.leftover; delete r.preparedBm; delete r.preparedFm;
+          }
         }
         return null;
       }

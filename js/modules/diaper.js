@@ -19,6 +19,27 @@
     { v: 'red',    label: '红',   hex: '#C0392B', warn: true },
     { v: 'pale',   label: '灰白', hex: '#D9D4CB', warn: true }
   ];
+  /* 第 195 次（Cali consistency / hasMilkCurds / rash / cream 对标）：便便性状 4 档 + 三个开关。
+     只记录、不判读；唯一的安全兜底是「今天稀水样 ≥3 次」提示留意补液与就医信号。
+     显示一律走这张表查 label，不直接输出存储值（导入的坏值查不到就不显示）。 */
+  var CONS = [
+    { v: 'watery', label: '稀水样' },
+    { v: 'mushy',  label: '糊状' },
+    { v: 'formed', label: '成形' },
+    { v: 'hard',   label: '硬球' }
+  ];
+  function consOf(v) { for (var i = 0; i < CONS.length; i++) if (CONS[i].v === v) return CONS[i]; return null; }
+  var FLAGS = [
+    { k: 'curds', label: '有奶瓣', poopOnly: true },
+    { k: 'rash',  label: '红屁屁' },
+    { k: 'cream', label: '涂了护臀膏' }
+  ];
+  function tagsOf(r) {
+    var t = [], c = consOf(r.consistency);
+    if (c) t.push(c.label);
+    FLAGS.forEach(function (f) { if (r[f.k] === true) t.push(f.label); });
+    return t;
+  }
   function colorOf(v) { for (var i = 0; i < COLORS.length; i++) if (COLORS[i].v === v) return COLORS[i]; return null; }
   /* 刚记完便类记录后，就地追问颜色用的临时态（render 时若命中该条且尚未选色则展开选择卡）。 */
   var pendingColorFor = null;
@@ -63,19 +84,34 @@
       });
       html += '</div></div>';
 
-      /* 第 138 次：便类记录后的就地颜色追问卡（pendingColorFor 命中且尚未选色时显示）。 */
+      /* 第 138 次：便类记录后的就地颜色追问卡；第 195 次扩成「详情卡」：
+         便类 = 颜色 + 性状 + 奶瓣/红屁屁/护臀膏；尿 = 只有红屁屁/护臀膏（从行内「详情」进入，记尿不自动弹）。
+         每点一项即落库，点「完成」收起；全不填也没关系。 */
       if (pendingColorFor) {
         var pr = (d.diapers || []).filter(function (x) { return x.id === pendingColorFor; })[0];
-        if (pr && (pr.type === 'poop' || pr.type === 'both') && !pr.color) {
-          html += '<div class="card diaper-color" data-accent="diaper"><h2>这条便便什么颜色？</h2>'
-            + '<p class="hint">选一下，回看时能对照消化状况。无把握可不填。</p>'
-            + '<div class="color-chips">';
-          COLORS.forEach(function (c) {
-            html += '<button type="button" class="color-chip' + (c.warn ? ' warn' : '') + '" data-col="' + c.v + '" style="--chip:' + c.hex + '">'
-              + '<span class="chip-dot"></span><span>' + c.label + '</span></button>';
+        if (pr) {
+          var isPoop = pr.type === 'poop' || pr.type === 'both';
+          html += '<div class="card diaper-color" data-accent="diaper"><h2>' + (isPoop ? '这条便便怎么样？' : '这次换尿布') + '</h2>'
+            + '<p class="hint">' + Util.fmtDateTime(pr.time) + '（' + typeInfo(pr.type).t + '）· 点选即保存，没把握可以不填。</p>';
+          if (isPoop) {
+            html += '<span class="lbl-text">颜色</span><div class="color-chips">';
+            COLORS.forEach(function (c) {
+              html += '<button type="button" class="color-chip' + (c.warn ? ' warn' : '') + (pr.color === c.v ? ' active' : '') + '" data-col="' + c.v + '" style="--chip:' + c.hex + '" aria-pressed="' + (pr.color === c.v) + '">'
+                + '<span class="chip-dot"></span><span>' + c.label + '</span></button>';
+            });
+            html += '</div><span class="lbl-text">性状</span><div class="dp-cons">';
+            CONS.forEach(function (c) {
+              html += '<button type="button" class="dp-pill' + (pr.consistency === c.v ? ' active' : '') + '" data-cons="' + c.v + '" aria-pressed="' + (pr.consistency === c.v) + '">' + c.label + '</button>';
+            });
+            html += '</div>';
+          }
+          html += '<span class="lbl-text">' + (isPoop ? '其他' : '屁屁情况') + '</span><div class="dp-flags">';
+          FLAGS.forEach(function (f) {
+            if (f.poopOnly && !isPoop) return;
+            html += '<button type="button" class="dp-pill' + (pr[f.k] === true ? ' active' : '') + '" data-flag="' + f.k + '" aria-pressed="' + (pr[f.k] === true) + '">' + f.label + '</button>';
           });
           html += '</div>';
-          html += '<button type="button" class="btn" data-colskip="1">跳过</button></div>';
+          html += '<button type="button" class="btn btn-primary btn-save" data-colskip="1">完成</button></div>';
         }
       }
 
@@ -114,6 +150,13 @@
           + '若出现增多，或伴随哭闹不安、发热、食欲差、精神萎靡，<b>建议尽快联系医生</b>。</p></div>';
       }
 
+      /* 第 195 次：今天稀水样 ≥3 次——只提示留意补液和就医信号，不下「腹泻」结论 */
+      var wateryN = (d.diapers || []).filter(function (r) { return Util.dayKeyOf(r.time, DS) === dayNow && r.consistency === 'watery'; }).length;
+      if (wateryN >= 3) {
+        html += '<div class="warn-box"><p>今天记了 <b>' + wateryN + ' 次稀水样</b>便便。留意宝宝的尿量和精神；'
+          + '若尿明显变少、嘴唇发干、精神差、发热或便里带血，<b>建议尽快联系医生</b>。</p></div>';
+      }
+
       /* 最近记录 */
       html += '<div class="card"><h2>最近记录</h2>';
       var list = (d.diapers || []).slice().sort(function (a, b) { return new Date(b.time) - new Date(a.time); }).slice(0, 20);
@@ -126,8 +169,8 @@
           html += '<li><span class="row-ico">' + icon(ti.icon) + '</span>'
             /* 第 160 次：类型挪到第二行，第一行只放时间，窄屏也不被行内按钮挤成「10-…」 */
             + '<span class="li-main"><b>' + Util.fmtRowTime(r.time) + '</b></span>'
-            + '<span class="li-sub">' + Util.escapeHtml(ti.t) + dot + (r.note ? ' · ' + Util.escapeHtml(r.note) : '') + '</span>'
-            + '<button class="btn btn-mini" data-colorbtn="' + r.id + '" aria-label="' + (r.color ? '修改颜色' : '记录颜色') + '">颜色</button>'
+            + '<span class="li-sub">' + Util.escapeHtml(ti.t) + dot + tagsOf(r).map(function (t) { return ' · ' + t; }).join('') + (r.note ? ' · ' + Util.escapeHtml(r.note) : '') + '</span>'
+            + '<button class="btn btn-mini" data-colorbtn="' + r.id + '" aria-label="' + (tagsOf(r).length || r.color ? '修改详情' : '记录颜色、性状等详情') + '">详情</button>'
             + '<button class="btn btn-mini" data-note="' + r.id + '" aria-label="' + (r.note ? '修改备注' : '添加备注') + '">备注</button>'
             + '<button class="icon-btn" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
         });
@@ -168,20 +211,41 @@
           if (!pr) return;
           pr.color = b.getAttribute('data-col');
           var c = colorOf(pr.color);
-          if (Storage.save()) Util.toast(c && c.warn ? '已记录颜色（如有增多或异常请就医）' : '已记录颜色', 'ok');
-          pendingColorFor = null;
+          if (Storage.save() && c && c.warn) Util.toast('已记录颜色（如有增多或异常请就医）', 'ok');
+          /* 第 195 次：选完颜色不再收起，接着可选性状等；点「完成」才收起 */
           global.App.rerender();
         });
       });
+      function curRec() { return (d.diapers || []).filter(function (x) { return x.id === pendingColorFor; })[0]; }
+      Array.prototype.forEach.call(view.querySelectorAll('[data-cons]'), function (b) {
+        b.addEventListener('click', function () {
+          var pr = curRec(); if (!pr) return;
+          var v = b.getAttribute('data-cons');
+          pr.consistency = pr.consistency === v ? null : v; /* 再点同项取消 */
+          Storage.save(); global.App.rerender();
+        });
+      });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-flag]'), function (b) {
+        b.addEventListener('click', function () {
+          var pr = curRec(); if (!pr) return;
+          var k = b.getAttribute('data-flag');
+          if (pr[k] === true) delete pr[k]; else pr[k] = true;
+          Storage.save(); global.App.rerender();
+        });
+      });
       var colSkip = view.querySelector('[data-colskip]');
-      if (colSkip) colSkip.addEventListener('click', function () { pendingColorFor = null; global.App.rerender(); });
+      if (colSkip) colSkip.addEventListener('click', function () {
+        var pr = curRec(); pendingColorFor = null;
+        if (pr && (pr.color || tagsOf(pr).length)) Util.toast('已保存详情', 'ok');
+        global.App.rerender();
+      });
 
       /* 最近记录行的「颜色」按钮：点开即把该条设为待追问，重渲后顶部出现选择卡 */
       Array.prototype.forEach.call(view.querySelectorAll('[data-colorbtn]'), function (b) {
         b.addEventListener('click', function () {
           var rid = b.getAttribute('data-colorbtn');
           var it = (d.diapers || []).filter(function (x) { return x.id === rid; })[0];
-          if (!it || (it.type !== 'poop' && it.type !== 'both')) return;
+          if (!it) return;
           pendingColorFor = rid;
           global.App.rerender();
         });

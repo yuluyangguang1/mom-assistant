@@ -2923,7 +2923,24 @@ body .tabbar .dock-btn[hidden] { display: none; }
 .color-chip:active { transform: scale(.95); }
 .color-chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .color-chip .chip-dot { width: 16px; height: 16px; border-radius: 50%; background: var(--chip); box-shadow: inset 0 0 0 1px rgba(0,0,0,.14); }
-.color-chip.warn { border-color: var(--warn); }
+/* 第 195 次：「建议就医」色不再用整圈琥珀边——和选中态长得太像，看不出选的是哪个；改成色点外一圈细环 */
+.color-chip.warn .chip-dot { box-shadow: inset 0 0 0 1px rgba(0,0,0,.14), 0 0 0 2px var(--surface-2), 0 0 0 3.5px var(--warn); }
+/* 第 195 次：尿布详情卡——选中态、性状/开关药丸 */
+.color-chip.active { border-color: var(--primary); background: var(--primary-weak); box-shadow: inset 0 0 0 1px var(--primary); }
+.diaper-color .lbl-text { display: block; margin-top: 12px; }
+.dp-cons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 4px; }
+.dp-flags { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 14px; }
+.dp-pill {
+  min-height: 44px; padding: 0 14px; white-space: nowrap;
+  border: 1px solid var(--border); border-radius: var(--radius-pill);
+  background: var(--surface-2); color: var(--text);
+  font-family: inherit; font-size: calc(13.5px * var(--fs-mul)); font-weight: 600; cursor: pointer;
+  transition: transform .15s var(--spring), border-color .15s var(--ease);
+}
+.dp-cons .dp-pill { padding: 0 4px; }
+.dp-pill:active { transform: scale(.95); }
+.dp-pill:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.dp-pill.active { border-color: var(--primary); background: var(--primary-weak); color: var(--primary-text); box-shadow: inset 0 0 0 1px var(--primary); }
 .poop-dot {
   display: inline-block; width: 11px; height: 11px; border-radius: 50%;
   background: var(--dot); box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); vertical-align: middle;

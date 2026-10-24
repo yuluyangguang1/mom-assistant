@@ -383,6 +383,9 @@
         + Util.rulerHTML('fRulerBm', { unit: 'ml', label: '母乳量' }) + '</div>';
       html += '<div id="wrapRulerFm"><span class="lbl-text">配方奶（ml）</span>'
         + Util.rulerHTML('fRulerFm', { unit: 'ml', label: '配方奶量' }) + '</div>';
+      html += '<div id="wrapRulerLeft"><span class="lbl-text">剩下没喝完（ml，选填）</span>'
+        + Util.rulerHTML('fRulerLeft', { unit: 'ml', label: '剩余量' })
+        + '<p class="hint" id="fLeftHint">上面填冲了多少，这里填剩多少，记下的是实际喝下的量。</p></div>';
       /* 吸奶：单根奶量 + 复用上面的左右时长 */
       html += '<div id="wrapRulerPump"><span class="lbl-text">吸奶量（ml/g）</span>'
         + Util.rulerHTML('fRulerPump', { unit: 'ml', label: '吸奶量' }) + '</div>';
@@ -437,6 +440,9 @@
               var bp = [];
               if (r.amountBm) bp.push('母乳 ' + r.amountBm + ' ml');
               if (r.amountFm) bp.push('配方奶 ' + r.amountFm + ' ml');
+              /* 第 195 次：有剩余时补一句「冲 120 剩 30」（数值强转，导入坏值不输出） */
+              var lo = Number(r.leftover);
+              if (lo > 0 && isFinite(lo)) bp.push('冲 ' + ((Number(r.preparedBm) || 0) + (Number(r.preparedFm) || 0)) + ' 剩 ' + lo);
               detail = bp.join(' · ');
             }
           }
@@ -488,10 +494,12 @@
         R: { min: 0, max: 60, step: 1, dec: 0, anchor: 15 },
         Bm: { min: 0, max: 300, step: 5, dec: 0, anchor: 120 },
         Fm: { min: 0, max: 300, step: 5, dec: 0, anchor: 120 },
-        Pump: { min: 0, max: 400, step: 5, dec: 0, anchor: 100 }
+        Pump: { min: 0, max: 400, step: 5, dec: 0, anchor: 100 },
+        /* 第 195 次：瓶喂「剩下没喝完」——冲了多少填上面两根，剩多少填这根，实际喝下自动算 */
+        Left: { min: 0, max: 300, step: 5, dec: 0, anchor: 0 }
       };
       /* U-06 预填：各滑杆填上次的值（无记录则 null = 未设置，大数字半透明） */
-      var rv = { L: null, R: null, Bm: null, Fm: null, Pump: null };
+      var rv = { L: null, R: null, Bm: null, Fm: null, Pump: null, Left: null };
       if (lastDurRec) {
         if (lastDurRec.durationL != null) rv.L = lastDurRec.durationL;
         if (lastDurRec.durationR != null) rv.R = lastDurRec.durationR;
@@ -514,6 +522,11 @@
       if (lastAmtRec) {
         if (lastAmtRec.amountBm != null) rv.Bm = lastAmtRec.amountBm;
         if (lastAmtRec.amountFm != null) rv.Fm = lastAmtRec.amountFm;
+        /* 第 195 次：上次有剩余时，预填「冲的量」而不是「喝下的量」——下次冲奶照旧量冲 */
+        if (lastAmtRec.leftover > 0) {
+          if (lastAmtRec.preparedBm != null) rv.Bm = lastAmtRec.preparedBm;
+          if (lastAmtRec.preparedFm != null) rv.Fm = lastAmtRec.preparedFm;
+        }
         if (rv.Bm == null && rv.Fm == null && lastAmtRec.amount) rv.Bm = lastAmtRec.amount;
       }
       var lastPump = sorted.filter(function (r) { return r.type === 'pump' && r.amount; })[0];
@@ -526,7 +539,7 @@
           unit: (key === 'L' || key === 'R') ? '分' : 'ml', label: key
         });
       }
-      var PREFIX = { L: 'fRulerL', R: 'fRulerR', Bm: 'fRulerBm', Fm: 'fRulerFm', Pump: 'fRulerPump' };
+      var PREFIX = { L: 'fRulerL', R: 'fRulerR', Bm: 'fRulerBm', Fm: 'fRulerFm', Pump: 'fRulerPump', Left: 'fRulerLeft' };
       Object.keys(PREFIX).forEach(function (k) { paintR(k, PREFIX[k]); });
 
       function bindRuler(key, prefix) {
@@ -565,6 +578,7 @@
         showBox('wrapRulerR', isBreast || isPump);
         showBox('wrapRulerBm', isBottle);
         showBox('wrapRulerFm', isBottle);
+        showBox('wrapRulerLeft', isBottle);
         showBox('wrapRulerPump', isPump);
         var sw = view.querySelector('#ftStartWrap');
         if (sw) sw.style.display = isBreast ? '' : 'none';
@@ -704,6 +718,18 @@
           rec.amountFm = rv.Fm || null;
           rec.amount = (rv.Bm || 0) + (rv.Fm || 0) || null; /* 兼容旧字段与统计口径 */
           if (!rv.Bm && !rv.Fm) { Util.toast('请至少设置母乳或配方奶的量', 'warn'); return; }
+          /* 第 195 次：有剩余时 amount/amountBm/amountFm 记「实际喝下」（统计、预测口径不变），
+             按母乳/配方奶比例分摊剩余；冲的量另存 preparedBm/preparedFm，剩余存 leftover。 */
+          var leftMl = rv.Left || 0, prep = rec.amount;
+          if (leftMl > 0) {
+            if (leftMl >= prep) { Util.toast('剩下的不能比冲的还多（冲了 ' + prep + ' ml）', 'warn'); return; }
+            var drank = prep - leftMl;
+            rec.preparedBm = rec.amountBm; rec.preparedFm = rec.amountFm; rec.leftover = leftMl;
+            var bmD = rec.amountBm ? Math.round(rec.amountBm * drank / prep) : 0;
+            rec.amountBm = bmD || null;
+            rec.amountFm = rec.amountFm ? (drank - bmD) || null : null;
+            rec.amount = drank;
+          }
         } else {
           /* 辅食：种类与克数不成线性，滑杆暂不适用；用备注记。
              第 69 次（B3）：新食材可选字段——落库后由「辅食观察期」卡提示 2–3 天窗口 */
