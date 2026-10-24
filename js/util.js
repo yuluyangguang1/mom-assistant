@@ -402,11 +402,148 @@
   Util.birthInput = function (cfg) {
     var max = cfg.max || Util.todayISO();
     var min = cfg.min || Util.addDays(max, -1095);
-    return '<label class="birth-field">' + Util.escapeHtml(cfg.title || '宝宝生日')
-      + '<input type="date" id="' + cfg.id + '" min="' + min + '" max="' + max + '" value="' + Util.escapeHtml(cfg.value || '') + '">'
-      + (cfg.hint ? '<span class="hint">' + Util.escapeHtml(cfg.hint) + '</span>' : '')
-      + '</label>';
+    /* 第 212 次：生日支持农历选择。<input type=date> 仍是唯一取值口（各页保存逻辑不用改），
+       农历模式下三个下拉框换算成公历写回这个输入框，并在 data-lunar 上记下所选农历。 */
+    var L = global.Lunar && Lunar.ok;
+    var lun = (L && cfg.lunar && typeof cfg.lunar === 'object') ? cfg.lunar : null;
+    var html = '<div class="birth-field' + (lun ? ' is-lunar' : '') + '" data-bf="' + cfg.id + '" data-min="' + min + '" data-max="' + max + '">'
+      + '<div class="bf-head"><label for="' + cfg.id + '">' + Util.escapeHtml(cfg.title || '宝宝生日') + '</label>'
+      + (L ? '<div class="seg bf-cal" role="group" aria-label="历法">'
+        + '<button type="button" class="seg-btn' + (lun ? '' : ' active') + '" data-bf-cal="solar">公历</button>'
+        + '<button type="button" class="seg-btn' + (lun ? ' active' : '') + '" data-bf-cal="lunar">农历</button></div>' : '')
+      + '</div>'
+      + '<input type="date" id="' + cfg.id + '" min="' + min + '" max="' + max + '" value="' + Util.escapeHtml(cfg.value || '') + '"'
+      + (lun ? ' data-lunar="' + Util.escapeHtml(JSON.stringify(lun)) + '"' : '') + '>';
+    if (L) html += '<div class="bf-lunar">' + lunarSelects(min, max, lun) + '</div>';
+    html += (cfg.hint ? '<span class="hint">' + Util.escapeHtml(cfg.hint) + '</span>' : '') + '</div>';
+    return html;
   };
+  function lunarSelects(min, max, lun) {
+    var y0 = parseInt(min.slice(0, 4), 10) - 1, y1 = parseInt(max.slice(0, 4), 10);
+    var cur = lun || Lunar.of(new Date());
+    var y = Math.min(Math.max(cur.y, y0), y1);
+    var months = Lunar.yearOf(y);
+    var mi = 0;
+    months.forEach(function (m, i) { if (m.m === cur.m && !!m.leap === !!cur.leap) mi = i; });
+    var days = months[mi] ? months[mi].days : 30;
+    var h = '<select data-bl="y" data-prev="' + y + '" aria-label="农历年">';
+    for (var yy = y1; yy >= y0; yy--) {
+      var gz = Lunar.of(new Date(yy, 5, 1));
+      h += '<option value="' + yy + '"' + (yy === y ? ' selected' : '') + '>' + yy + (gz ? ' ' + gz.gz : '') + '年</option>';
+    }
+    h += '</select><select data-bl="m" aria-label="农历月">';
+    months.forEach(function (m, i) {
+      h += '<option value="' + i + '"' + (i === mi ? ' selected' : '') + '>' + Lunar.monthName(m.m, m.leap) + '</option>';
+    });
+    h += '</select><select data-bl="d" aria-label="农历日">';
+    for (var dd = 1; dd <= days; dd++) h += '<option value="' + dd + '"' + (dd === Math.min(cur.d, days) ? ' selected' : '') + '>' + Lunar.dayName(dd) + '</option>';
+    h += '</select>';
+    return h;
+  }
+  /* 读农历模式下选中的农历生日（公历模式或值对不上时返回 null） */
+  Util.birthLunarOf = function (id) {
+    var inp = document.getElementById(id);
+    if (!inp || !inp.closest) return null;
+    var box = inp.closest('.birth-field');
+    if (!box || !box.classList.contains('is-lunar')) return null;
+    try {
+      var l = JSON.parse(inp.getAttribute('data-lunar') || 'null');
+      if (l && global.Lunar && Lunar.toSolar(l.y, l.m, l.d, l.leap) === inp.value) return l;
+    } catch (e) {}
+    return null;
+  };
+  function bfApply(box) {
+    var inp = box.querySelector('input[type="date"]');
+    var sy = box.querySelector('[data-bl="y"]'), sm = box.querySelector('[data-bl="m"]'), sd = box.querySelector('[data-bl="d"]');
+    if (!inp || !sy || !sm || !sd) return;
+    var y = parseInt(sy.value, 10);
+    var months = Lunar.yearOf(y);
+    var mo = months[parseInt(sm.value, 10)] || months[0];
+    if (!mo) return;
+    var d = Math.min(parseInt(sd.value, 10) || 1, mo.days);
+    var solar = Lunar.toSolar(y, mo.m, d, mo.leap);
+    var mn = box.getAttribute('data-min'), mx = box.getAttribute('data-max');
+    if (!solar) return;
+    if ((mx && solar > mx) || (mn && solar < mn)) {
+      Util.toast(solar > mx ? '这个日子还没到' : '超出可选范围（最早 ' + mn + '）', 'warn');
+      /* 退回上一次有效的选择，免得下拉框和实际日期对不上 */
+      var prevL = null;
+      try { prevL = JSON.parse(inp.getAttribute('data-lunar') || 'null'); } catch (e) {}
+      if (!prevL && inp.value) prevL = Lunar.of(new Date(inp.value + 'T00:00:00'));
+      var bl = box.querySelector('.bf-lunar');
+      bl.innerHTML = lunarSelects(mn, mx, prevL);
+      if (inp.value) { var hp = document.createElement('p'); hp.className = 'bf-solar'; hp.textContent = '对应公历 ' + inp.value; bl.appendChild(hp); }
+      return;
+    }
+    inp.value = solar;
+    inp.setAttribute('data-lunar', JSON.stringify({ y: y, m: mo.m, d: d, leap: !!mo.leap }));
+    var hint = box.querySelector('.bf-solar');
+    if (!hint) { hint = document.createElement('p'); hint.className = 'bf-solar'; box.querySelector('.bf-lunar').appendChild(hint); }
+    hint.textContent = '对应公历 ' + solar;
+    ['input', 'change'].forEach(function (t) {
+      var ev; try { ev = new Event(t, { bubbles: true }); } catch (e) { ev = document.createEvent('Event'); ev.initEvent(t, true, true); }
+      ev._bfSynth = true;
+      inp.dispatchEvent(ev);
+    });
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('[data-bf-cal]') : null;
+      if (!b) return;
+      var box = b.closest('.birth-field');
+      if (!box) return;
+      var lunar = b.getAttribute('data-bf-cal') === 'lunar';
+      box.classList.toggle('is-lunar', lunar);
+      Array.prototype.forEach.call(box.querySelectorAll('[data-bf-cal]'), function (x) { x.classList.toggle('active', x === b); });
+      var inp = box.querySelector('input[type="date"]');
+      if (lunar) {
+        /* 已有公历生日 → 下拉框定位到对应农历 */
+        if (inp && inp.value) {
+          var l = Lunar.of(new Date(inp.value + 'T00:00:00'));
+          if (l) box.querySelector('.bf-lunar').innerHTML = lunarSelects(box.getAttribute('data-min'), box.getAttribute('data-max'), l);
+          inp.setAttribute('data-lunar', JSON.stringify({ y: l.y, m: l.m, d: l.d, leap: l.leap }));
+          var hint = document.createElement('p'); hint.className = 'bf-solar'; hint.textContent = '对应公历 ' + inp.value;
+          box.querySelector('.bf-lunar').appendChild(hint);
+        } else bfApply(box);
+      } else if (inp) {
+        inp.removeAttribute('data-lunar');
+      }
+    });
+    document.addEventListener('change', function (e) {
+      var t = e.target;
+      if (!t || !t.getAttribute) return;
+      var k = t.getAttribute('data-bl');
+      var box = t.closest ? t.closest('.birth-field') : null;
+      if (!box) return;
+      if (k === 'y' || k === 'm') {
+        /* 换年 / 换月：重建月份（闰月因年而异）与天数 */
+        var y = parseInt(box.querySelector('[data-bl="y"]').value, 10);
+        var months = Lunar.yearOf(y);
+        var sm = box.querySelector('[data-bl="m"]');
+        var prev = (k === 'y') ? Lunar.yearOf(parseInt(t.getAttribute('data-prev') || y, 10)) : months;
+        var old = prev[parseInt(sm.value, 10)] || {};
+        var mi = 0;
+        months.forEach(function (m, i) { if (m.m === old.m && !!m.leap === !!old.leap) mi = i; else if (m.m === old.m && !old.leap && mi === 0) mi = i; });
+        if (k === 'y') {
+          sm.innerHTML = months.map(function (m, i) { return '<option value="' + i + '"' + (i === mi ? ' selected' : '') + '>' + Lunar.monthName(m.m, m.leap) + '</option>'; }).join('');
+          t.setAttribute('data-prev', String(y));
+        }
+        var mo = months[parseInt(sm.value, 10)] || months[0];
+        var sd = box.querySelector('[data-bl="d"]');
+        var dv = Math.min(parseInt(sd.value, 10) || 1, mo.days);
+        var h = '';
+        for (var dd = 1; dd <= mo.days; dd++) h += '<option value="' + dd + '"' + (dd === dv ? ' selected' : '') + '>' + Lunar.dayName(dd) + '</option>';
+        sd.innerHTML = h;
+      }
+      if (k) { bfApply(box); return; }
+      /* 农历模式下直接改了公历框：退回公历模式 */
+      if (t.type === 'date' && !e._bfSynth && box.classList.contains('is-lunar')) {
+        box.classList.remove('is-lunar');
+        t.removeAttribute('data-lunar');
+        Array.prototype.forEach.call(box.querySelectorAll('[data-bf-cal]'), function (x) { x.classList.toggle('active', x.getAttribute('data-bf-cal') === 'solar'); });
+      }
+    });
+  }
 
   /* 第 186 次：生成 .ics（全天事件，前一天 9:00 提醒）。
      events: [{ uid, date: 'YYYY-MM-DD', title, desc }]。只在本机生成，不上传。 */

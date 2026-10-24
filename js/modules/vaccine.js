@@ -176,7 +176,7 @@
 
       /* 宝宝生日（与生长模块共用 settings.baby.birthDate） */
       html += '<div class="card"><h2>宝宝生日</h2>';
-      html += Util.birthInput({ id: 'vBirth', title: '出生日期', value: baby.birthDate || '' });
+      html += Util.birthInput({ id: 'vBirth', title: '出生日期', value: baby.birthDate || '', lunar: baby.birthLunar });
       html += '<p class="hint">与「生长」模块共用同一生日，改一处两边生效。</p></div>';
 
       if (!baby.birthDate) {
@@ -399,6 +399,7 @@
         var s = Storage.get();
         s.settings.baby = s.settings.baby || { sex: 'boy', birthDate: null, preterm: false, birthGestWeeks: 40 };
         s.settings.baby.birthDate = e.target.value || null;
+        s.settings.baby.birthLunar = Util.birthLunarOf ? Util.birthLunarOf('vBirth') : null;
         /* 第 80 次（宝宝档案）：生日改动同步回当前宝宝档案 */
         if (Storage.syncBabyFromSettings) Storage.syncBabyFromSettings();
         Storage.save(); global.App.rerender();

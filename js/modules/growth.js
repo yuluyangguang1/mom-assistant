@@ -79,7 +79,7 @@
       html += '<button type="button" class="seg-btn' + (baby.sex !== 'girl' ? ' active' : '') + '" data-s="boy">男</button>';
       html += '<button type="button" class="seg-btn' + (baby.sex === 'girl' ? ' active' : '') + '" data-s="girl">女</button>';
       html += '</div>';
-      html += Util.birthInput({ id: 'bBirth', title: '出生日期', value: baby.birthDate || '' });
+      html += Util.birthInput({ id: 'bBirth', title: '出生日期', value: baby.birthDate || '', lunar: baby.birthLunar });
       html += '<label class="chk"><input type="checkbox" id="bPreterm"' + (baby.preterm ? ' checked' : '') + '> 早产儿（需矫正月龄）</label>';
       html += '<label id="lblGest">出生孕周（周）<input type="number" id="bGest" min="22" max="39" value="' + Util.escapeHtml(baby.birthGestWeeks || 36) + '"></label>';
       html += '<button class="btn" id="bSave">保存宝宝信息</button>';
@@ -190,6 +190,7 @@
           d.settings.baby = Object.assign({}, d.settings.baby || {}, {
             sex: view.querySelector('#bSex .active').getAttribute('data-s'),
             birthDate: view.querySelector('#bBirth').value || null,
+            birthLunar: Util.birthLunarOf ? Util.birthLunarOf('bBirth') : null,
             preterm: view.querySelector('#bPreterm').checked,
             birthGestWeeks: parseInt(view.querySelector('#bGest').value, 10) || 36
           });

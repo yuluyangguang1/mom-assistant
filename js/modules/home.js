@@ -787,15 +787,23 @@
       var fest = (Util.festivalOf) ? Util.festivalOf(nowD) : null;
       /* 第 211 次（用户：顶部只显示日期，宝宝信息/提醒/生日压进第一张卡）：
          天空里只留「M月 星期X」+ 大号日期，右侧一个搜索圆钮；问候、阶段数字、知识句移进「今日宝宝」卡。 */
+      /* 第 212 次：农历日期（设置可关）+ 真实天气（设置里联网开关，默认关） */
+      var lunarNow = (d.settings.lunarDate !== false && global.Lunar && Lunar.ok) ? Lunar.of(nowD) : null;
+      var wxCfg = d.settings.weather || { on: false };
+      var wxNow = (wxCfg.on && global.Weather) ? Weather.cached() : null;
       var DOW_FULL = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
       html += '<section class="home-sky">'
         + '<canvas id="skyCanvas" class="sky-canvas" aria-hidden="true"></canvas>'
         + '<div class="sky-veil"></div>'
+        + '<canvas id="wxCanvas" class="wx-canvas" aria-hidden="true"></canvas>'
         + '<div class="home-greet">'
-        + '<p class="hg-date"><span class="hg-m">' + (nowD.getMonth() + 1) + '月</span>' + DOW_FULL[nowD.getDay()]
+        + '<div class="hg-top"><p class="hg-date"><span class="hg-m">' + (nowD.getMonth() + 1) + '月</span>' + DOW_FULL[nowD.getDay()]
         + (fest ? '<b class="hg-fest">' + Util.escapeHtml(fest) + '</b>' : '') + '</p>'
-        + '<div class="hg-row"><b class="hg-num">' + nowD.getDate() + '</b>'
         + '<button class="hg-search" data-go="search" type="button" aria-label="搜索记录、里程碑、用品">' + icon('search') + '</button></div>'
+        + '<div class="hg-row"><div class="hg-day"><b class="hg-num">' + nowD.getDate() + '</b>'
+        + (lunarNow ? '<span class="hg-lunar"><i>' + Util.escapeHtml(lunarNow.gz) + '年 · ' + Util.escapeHtml(lunarNow.animal) + '</i><b>' + Util.escapeHtml(lunarNow.text) + '</b></span>' : '')
+        + '</div>' + wxBlockHTML(wxCfg, wxNow) + '</div>'
+        + (wxNow && Weather.tipOf(wxNow) ? '<p class="hg-tip">' + Util.escapeHtml(Weather.tipOf(wxNow)) + '</p>' : '<p class="hg-tip" hidden></p>')
         + '</div>'
         + '</section>';
 
@@ -821,13 +829,22 @@
           sub.push(starSign(bD0.getMonth() + 1, bD0.getDate()) + '座 · 属' + zodiacAnimal(bD0.getFullYear(), bD0.getMonth() + 1, bD0.getDate()));
           foot = '出生第 ' + (ageDays + 1) + ' 天';
           /* 生日倒计时：30 天内显示；当天显示「今天生日」 */
-          var nb = new Date(nowD.getFullYear(), bD0.getMonth(), bD0.getDate());
+          /* 第 212 次：选了农历生日的宝宝按农历过生日 */
+          var bl = (d.settings.baby && d.settings.baby.birthLunar) || (ab && ab.birthLunar) || null;
           var t0 = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate());
-          if (nb < t0) nb = new Date(nowD.getFullYear() + 1, bD0.getMonth(), bD0.getDate());
+          var nb, turn, lunarTag = '';
+          var lnb = (bl && global.Lunar && Lunar.ok) ? Lunar.nextBirthday(bl, nowD) : null;
+          if (lnb) {
+            nb = lnb.date; turn = lnb.lunarYear - bl.y; lunarTag = '农历';
+            sub.push('农历' + Lunar.monthName(bl.m, bl.leap) + Lunar.dayName(bl.d) + '生');
+          } else {
+            nb = new Date(nowD.getFullYear(), bD0.getMonth(), bD0.getDate());
+            if (nb < t0) nb = new Date(nowD.getFullYear() + 1, bD0.getMonth(), bD0.getDate());
+            turn = nb.getFullYear() - bD0.getFullYear();
+          }
           var toB = Math.round((nb - t0) / 86400000);
-          var turn = nb.getFullYear() - bD0.getFullYear();
-          if (ageDays > 0 && toB === 0) foot += ' · 今天 ' + turn + ' 岁生日';
-          else if (ageDays > 0 && toB <= 30) foot += ' · ' + toB + ' 天后 ' + turn + ' 岁生日';
+          if (ageDays > 0 && turn >= 1 && toB === 0) foot += ' · 今天' + lunarTag + ' ' + turn + ' 岁生日';
+          else if (ageDays > 0 && turn >= 1 && toB <= 30) foot += ' · ' + toB + ' 天后' + lunarTag + ' ' + turn + ' 岁生日';
         } else if (dl !== null) {
           var wk2 = pregnancyWeek(d);
           big = wk2 !== null ? ('孕 ' + wk2 + ' 周') : '孕期中';
@@ -837,7 +854,8 @@
           big = who ? ('你好，' + who) : '你好';
           sub.push('在设置里填上宝宝生日或预产期');
         }
-        var babyName = (ab && ab.name) ? ab.name : '今日宝宝';
+        var babyName = (Storage.babyLabel && (ab || (d.settings.baby && d.settings.baby.nickname))) ? Storage.babyLabel(ab) : '今日宝宝';
+        if (babyName === '宝宝') babyName = '今日宝宝';
         var tb = '<section class="today-baby" aria-label="今日宝宝">'
           + '<div class="tb-head"><span class="tb-ico">' + icon('calendar') + '</span><b>' + Util.escapeHtml(babyName) + '</b>'
           + '<button class="tb-today" type="button" data-tb-go="calendar">今天' + icon('chevron-right') + '</button></div>'
@@ -1558,6 +1576,44 @@
       /* 启动天空（离开首页时 canvas 被移除，循环自动停止） */
       var canvas = view.querySelector('#skyCanvas');
       if (global.Sky && canvas) global.Sky.mount(canvas);
+      /* 第 212 次：天气——先用缓存画，后台刷新后原地替换天气块，不整页重绘 */
+      (function () {
+        var sky = view.querySelector('.home-sky');
+        function bindWx() {
+          Array.prototype.forEach.call(view.querySelectorAll('[data-wx-setup]'), function (b) {
+            b.addEventListener('click', function () {
+              if (global.App && App.openSettingsGroup) App.openSettingsGroup('天气');
+            });
+          });
+        }
+        function apply(w) {
+          if (!sky) return;
+          var k = w ? Weather.codeInfo(w.code).k : '';
+          ['wx-clear', 'wx-partly', 'wx-cloudy', 'wx-fog', 'wx-rain', 'wx-snow', 'wx-thunder'].forEach(function (x) { sky.classList.toggle(x, x === 'wx-' + k); });
+          Weather.mountFx(view.querySelector('#wxCanvas'), k);
+        }
+        bindWx();
+        if (!global.Weather) return;
+        var cfg = d.settings.weather || {};
+        if (!cfg.on) { apply(null); return; }
+        apply(wxNow);
+        Weather.load(cfg).then(function (w) {
+          if (!view.isConnected || !sky || !sky.isConnected) return;
+          var old = sky.querySelector('.hg-wx');
+          if (old) {
+            var tmp = document.createElement('div');
+            tmp.innerHTML = wxBlockHTML(cfg, w);
+            if (tmp.firstChild) old.parentNode.replaceChild(tmp.firstChild, old);
+          }
+          var tip = sky.querySelector('.hg-tip');
+          if (tip) { var t = Weather.tipOf(w); tip.textContent = t; tip.hidden = !t; }
+          apply(w);
+          bindWx();
+        }, function (err) {
+          var old = sky && sky.querySelector('.hg-wx.is-loading .wx-desc');
+          if (old) old.textContent = (err && err.message === 'denied') ? '没有定位权限，点这里选城市' : '天气暂时取不到';
+        });
+      })();
     }
   };
 
@@ -1678,6 +1734,28 @@
     });
     return out;
   };
+  /* 第 212 次：天空右侧的天气块（开着天气才显示；没开且没拒绝过时给一个「开启天气」小钮） */
+  function wxBlockHTML(cfg, w) {
+    if (!global.Weather) return '';
+    if (!cfg || !cfg.on) {
+      if (cfg && cfg.dismissed) return '';
+      return '<button class="hg-wx hg-wx-off" type="button" data-wx-setup>' + Weather.icon(1, true) + '<span>开启天气</span></button>';
+    }
+    if (!w) return '<button class="hg-wx is-loading" type="button" data-wx-setup aria-label="天气加载中"><span class="wx-ico">' + Weather.icon(2, true) + '</span>'
+      + '<span class="wx-main"><b class="wx-temp">--°</b><i class="wx-desc">正在获取天气</i></span></button>';
+    var ci = Weather.codeInfo(w.code);
+    var meta = [];
+    if (w.max != null && w.min != null) meta.push(w.min + '° / ' + w.max + '°');
+    var aq = Weather.aqiText(w.aqi);
+    if (aq) meta.push(aq);
+    return '<button class="hg-wx" type="button" data-wx-setup data-wx-kind="' + ci.k + '" aria-label="' + Util.escapeHtml(ci.t + ' ' + w.temp + '度') + '">'
+      + '<span class="wx-ico">' + Weather.icon(w.code, w.day) + '</span>'
+      + '<span class="wx-main"><b class="wx-temp">' + w.temp + '°</b>'
+      + '<i class="wx-desc">' + Util.escapeHtml(ci.t + (w.city ? ' · ' + w.city : '')) + '</i>'
+      + (meta.length ? '<i class="wx-meta">' + Util.escapeHtml(meta.join(' · ')) + '</i>' : '')
+      + '</span></button>';
+  }
+  Modules.home._wxBlockHTML = wxBlockHTML;
   function editStage(d) {
     return (global.App && typeof App.stageOf === 'function' && App.stageOf(d)) || 'baby';
   }

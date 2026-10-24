@@ -516,7 +516,77 @@
   }
 
   var _sgCur = null, _sgY = 0; /* 第 182 次：当前打开的设置分组（跨 silent 重绘保持） */
+  /* ============================================================
+     第 212 次：宝宝资料表单（添加 / 编辑共用）
+     名字、小名、性别、生日（公历 / 农历）。小名设了之后首页、切换面板都显示小名。
+     ============================================================ */
+  function openBabyForm(id) {
+    var root = document.getElementById('modalRoot');
+    if (!root) return;
+    var st = Storage.get();
+    var isAct = id && id === st.settings.activeBabyId;
+    var b = id ? ((st.babies || []).filter(function (x) { return x.id === id; })[0] || null) : null;
+    if (id && !b) return;
+    var sb = isAct ? (st.settings.baby || {}) : {};
+    var cur = {
+      name: b && b.name !== '宝宝' ? b.name : '',
+      nickname: (b && b.nickname) || sb.nickname || '',
+      sex: (b && b.sex) || sb.sex || null,
+      birthDate: (b && b.birthDate) || null,
+      birthLunar: (b && b.birthLunar) || sb.birthLunar || null,
+      photo: null
+    };
+    function sexBtn(v, t) { return '<button type="button" class="seg-btn' + (cur.sex === v ? ' active' : '') + '" data-bf-sex="' + v + '">' + t + '</button>'; }
+    root.innerHTML = '<div class="modal-mask" data-nb-mask><div class="modal baby-form" role="dialog" aria-modal="true" aria-labelledby="nbTitle">'
+      + '<h2 id="nbTitle">' + (b ? '宝宝资料' : '添加宝宝') + '</h2>'
+      + '<label>小名<input type="text" id="nbNick" maxlength="12" placeholder="比如：小汤圆（首页显示这个）" value="' + Util.escapeHtml(cur.nickname) + '"></label>'
+      + '<label>大名（可留空）<input type="text" id="nbName" maxlength="12" placeholder="比如：林一一" value="' + Util.escapeHtml(cur.name) + '"></label>'
+      + '<span class="lbl-text">性别</span><div class="seg" id="nbSex">' + sexBtn('boy', '男宝') + sexBtn('girl', '女宝') + sexBtn('', '不设置') + '</div>'
+      + Util.birthInput({ id: 'nbBirth', title: '生日（可先不填）', value: cur.birthDate || '', lunar: cur.birthLunar })
+      + (b ? '' : '<button type="button" class="btn" id="nbPhoto" style="width:100%;margin-right:0">选一张照片（可跳过）</button>'
+        + '<p class="hint">照片在本机压缩到 288px 后保存，不会离开这台设备。</p>')
+      + '<div class="modal-actions"><button type="button" class="btn" data-nb-cancel>取消</button>'
+      + '<button type="button" class="btn btn-primary" data-nb-ok>' + (b ? '保存' : '添加') + '</button></div>'
+      + '</div></div>';
+    var mask = root.querySelector('[data-nb-mask]');
+    function close() { root.innerHTML = ''; }
+    Array.prototype.forEach.call(root.querySelectorAll('[data-bf-sex]'), function (x) {
+      x.addEventListener('click', function () {
+        cur.sex = x.getAttribute('data-bf-sex') || null;
+        Array.prototype.forEach.call(root.querySelectorAll('[data-bf-sex]'), function (y) { y.classList.toggle('active', y === x); });
+      });
+    });
+    var nbPhoto = root.querySelector('#nbPhoto');
+    if (nbPhoto) nbPhoto.addEventListener('click', function () {
+      Util.pickPhoto(function (dataURL) { if (!dataURL) return; cur.photo = dataURL; nbPhoto.textContent = '已选好照片 ✓'; });
+    });
+    root.querySelector('[data-nb-cancel]').addEventListener('click', close);
+    mask.addEventListener('click', function (e) { if (e.target === mask) close(); });
+    root.querySelector('[data-nb-ok]').addEventListener('click', function () {
+      var f = {
+        name: root.querySelector('#nbName').value.trim(),
+        nickname: root.querySelector('#nbNick').value.trim(),
+        sex: cur.sex,
+        birthDate: root.querySelector('#nbBirth').value || null,
+        birthLunar: Util.birthLunarOf('nbBirth')
+      };
+      if (!f.name && f.nickname) f.name = f.nickname;
+      close();
+      if (b) {
+        Storage.updateBaby(b.id, f);
+      } else {
+        f.photo = cur.photo;
+        Storage.addBaby(f);
+      }
+      if (global.App.refreshHeaderAvatar) global.App.refreshHeaderAvatar();
+      global.App.rerender();
+      Util.toast(b ? '已保存' : '已添加并切换到「' + (f.nickname || f.name || '宝宝') + '」', 'ok');
+    });
+    try { root.querySelector('#nbNick').focus(); } catch (e) {}
+  }
+
   Modules.settings = {
+    _babyForm: function (id) { openBabyForm(id); },
     id: 'settings',
     title: '设置',
     render: function (view) {
@@ -554,6 +624,33 @@
       html += '<p class="hint">打开就加到首页末尾。排序、改大小、删除也可以在首页底部点「编辑首页」直接操作。'
         + '「上次喂奶」「生长速览」这类卡片在有记录后才会出现。</p>';
       html += '<div class="row"><button class="btn" id="sHomeReset" type="button">恢复默认首页</button></div>';
+      html += '</details>';
+
+      /* 第 212 次：天气与农历。天气是本应用唯一会联网的功能，默认关，开了也只发经纬度。 */
+      var wxc = s.settings.weather || { on: false, mode: 'auto', city: null };
+      html += sgOpen('sun', '天气', '首页天气 / 联网开关 / 城市 / 农历');
+      html += '<div class="card"><h2>首页天气</h2>';
+      html += '<div class="row-switch"><label for="sWxOn">显示真实天气（需联网）</label>'
+        + '<input type="checkbox" id="sWxOn"' + (wxc.on ? ' checked' : '') + '></div>';
+      html += '<p class="hint">打开后首页右上角显示当地气温、天气、空气质量和一句带娃出门提示，天空也会跟着下雨下雪。'
+        + '只会把大致位置（经纬度保留两位小数）发给 Open-Meteo 天气服务，任何记录都不会离开这台设备；关掉就不再联网。</p>';
+      if (wxc.on) {
+        html += '<span class="lbl-text">位置</span><div class="seg" id="sWxMode">'
+          + '<button type="button" class="seg-btn' + (wxc.mode !== 'city' ? ' active' : '') + '" data-wx-mode="auto">自动定位</button>'
+          + '<button type="button" class="seg-btn' + (wxc.mode === 'city' ? ' active' : '') + '" data-wx-mode="city">选择城市</button></div>';
+        if (wxc.mode === 'city') {
+          html += '<p class="hint">当前城市：' + (wxc.city ? Util.escapeHtml(wxc.city.name) : '还没选') + '</p>'
+            + '<div class="wx-search"><input type="search" id="sWxCity" maxlength="24" placeholder="输入城市名，比如：深圳">'
+            + '<button type="button" class="btn" id="sWxFind">搜索</button></div><ul class="wx-results" id="sWxRes"></ul>';
+        } else {
+          html += '<p class="hint">第一次会请求定位权限；不想给定位可以改成「选择城市」。</p>';
+        }
+        html += '<div class="row"><button type="button" class="btn" id="sWxRefresh">立即刷新天气</button></div>';
+      }
+      html += '</div>';
+      html += '<div class="card"><h2>农历</h2><div class="row-switch"><label for="sLunar">首页日期显示农历</label>'
+        + '<input type="checkbox" id="sLunar"' + (s.settings.lunarDate !== false ? ' checked' : '') + '></div>'
+        + '<p class="hint">首页大日期旁显示干支年、生肖和农历月日。宝宝生日也可以按农历选，在宝宝资料里切换「农历」。</p></div>';
       html += '</details>';
 
       html += sgOpen('export', '数据与备份', '导出 / 导入 / CSV / 打印报告');
@@ -734,15 +831,17 @@
           var isAct = b.id === actId;
           var ava = b.photo ? ('<img class="baby-ava" src="' + Util.escapeHtml(b.photo) + '" alt="">')
             : '<span class="baby-ava baby-ava-fallback">' + icon('pregnancy') + '</span>';
-          var sub = b.birthDate ? ('生日 ' + b.birthDate) : '未设置生日';
+          var sub = b.birthDate ? ('生日 ' + b.birthDate + (b.birthLunar && global.Lunar ? '（农历' + Lunar.monthName(b.birthLunar.m, b.birthLunar.leap) + Lunar.dayName(b.birthLunar.d) + '）' : '')) : '未设置生日';
+          var lbl = Storage.babyLabel ? Storage.babyLabel(b) : b.name;
+          if (lbl !== b.name && b.name && b.name !== '宝宝') sub = b.name + ' · ' + sub;
           html += '<li data-baby-id="' + Util.escapeHtml(b.id) + '" role="button" tabindex="0"'
             + (isAct ? ' data-baby-active="1"' : '') + '>'
             + ava
-            + '<span class="li-main"><b>' + Util.escapeHtml(b.name) + '</b>'
+            + '<span class="li-main"><b>' + Util.escapeHtml(lbl) + '</b>'
             + '<i class="baby-sub">' + Util.escapeHtml(sub) + '</i></span>'
             + (isAct ? '<span class="baby-badge">当前</span>' : '')
             + '<span class="baby-ops">'
-            + '<button type="button" class="btn-mini" data-baby-rename="' + Util.escapeHtml(b.id) + '">改名</button>'
+            + '<button type="button" class="btn-mini" data-baby-rename="' + Util.escapeHtml(b.id) + '">资料</button>'
             + '<button type="button" class="btn-mini" data-baby-photo="' + Util.escapeHtml(b.id) + '">照片</button>'
             + '<button type="button" class="btn-mini" data-baby-del="' + Util.escapeHtml(b.id) + '">删除</button>'
             + '</span></li>';
@@ -958,6 +1057,67 @@
            （复现：在某个分组里，经搜索/深链/代码路径 showTab('settings') 非 silent 重进）。 */
         view.classList.remove('sg-in');
       }
+      function wxSet(patch) {
+        var st = Storage.get();
+        st.settings.weather = Object.assign({ on: false, mode: 'auto', city: null }, st.settings.weather || {}, patch);
+        Storage.save();
+        if (global.Weather) Weather.clearCache();
+        global.App.rerender();
+      }
+      var wxOn = view.querySelector('#sWxOn');
+      if (wxOn) wxOn.addEventListener('change', function () {
+        wxSet({ on: wxOn.checked, dismissed: !wxOn.checked });
+        Util.toast(wxOn.checked ? '已打开天气，回首页就能看到' : '已关闭天气，不再联网', 'ok');
+      });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-wx-mode]'), function (b) {
+        b.addEventListener('click', function () { wxSet({ mode: b.getAttribute('data-wx-mode') }); });
+      });
+      var wxFind = view.querySelector('#sWxFind'), wxCity = view.querySelector('#sWxCity'), wxRes = view.querySelector('#sWxRes');
+      function wxSearch() {
+        var q = (wxCity.value || '').trim();
+        if (!q || !global.Weather) return;
+        wxRes.innerHTML = '<li class="hint">搜索中…</li>';
+        Weather.searchCity(q).then(function (list) {
+          if (!list.length) { wxRes.innerHTML = '<li class="hint">没找到，换个写法试试</li>'; return; }
+          wxRes.innerHTML = list.map(function (c, i) {
+            return '<li><button type="button" class="wx-res" data-wx-pick="' + i + '"><b>' + Util.escapeHtml(c.name) + '</b><i>' + Util.escapeHtml(c.area) + '</i></button></li>';
+          }).join('');
+          Array.prototype.forEach.call(wxRes.querySelectorAll('[data-wx-pick]'), function (b) {
+            b.addEventListener('click', function () {
+              var c = list[parseInt(b.getAttribute('data-wx-pick'), 10)];
+              wxSet({ mode: 'city', city: { name: c.name, lat: c.lat, lon: c.lon } });
+              Util.toast('天气城市：' + c.name, 'ok');
+            });
+          });
+        }, function () { wxRes.innerHTML = '<li class="hint">网络不通，稍后再试</li>'; });
+      }
+      if (wxFind) wxFind.addEventListener('click', wxSearch);
+      if (wxCity) wxCity.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); wxSearch(); } });
+      var wxRf = view.querySelector('#sWxRefresh');
+      if (wxRf) wxRf.addEventListener('click', function () {
+        if (!global.Weather) return;
+        wxRf.disabled = true; wxRf.textContent = '刷新中…';
+        Weather.load(Storage.get().settings.weather, true).then(function (w) {
+          wxRf.disabled = false; wxRf.textContent = '立即刷新天气';
+          Util.toast((w.city ? w.city + ' ' : '') + Weather.codeInfo(w.code).t + ' ' + w.temp + '°', 'ok');
+        }, function (err) {
+          wxRf.disabled = false; wxRf.textContent = '立即刷新天气';
+          Util.toast(err && err.message === 'denied' ? '没有定位权限，可以改成「选择城市」' : '天气暂时取不到，检查一下网络', 'warn');
+        });
+      });
+      var sLunar = view.querySelector('#sLunar');
+      if (sLunar) sLunar.addEventListener('change', function () {
+        var st = Storage.get(); st.settings.lunarDate = sLunar.checked; Storage.save();
+        Util.toast(sLunar.checked ? '首页显示农历' : '首页不再显示农历', 'ok');
+      });
+      /* 从首页「开启天气」等入口直达某个分组 */
+      if (Modules.settings._want) {
+        var want = Modules.settings._want; Modules.settings._want = null;
+        Array.prototype.forEach.call(sgGroups, function (g, i) {
+          var b = g.querySelector('.sg-txt b');
+          if (b && b.textContent === want) sgShow(i, true);
+        });
+      }
       var sAll = view.querySelector('#sAllTools');
       if (sAll) sAll.addEventListener('click', function () { global.App.showTab('alltools'); });
       Array.prototype.forEach.call(view.querySelectorAll('[data-hc]'), function (cb) {
@@ -1078,16 +1238,7 @@
         var photoId = t.getAttribute ? t.getAttribute('data-baby-photo') : null;
         var delId = t.getAttribute ? t.getAttribute('data-baby-del') : null;
         if (renameId) {
-          var cur = (Storage.get().babies.filter(function (x) { return x.id === renameId; })[0] || {}).name || '';
-          Util.editText({
-            title: '宝宝称呼', value: cur, placeholder: '比如：豆豆、二宝', maxlength: 12, okText: '保存',
-            onConfirm: function (v) {
-              Storage.renameBaby(renameId, v);
-              if (global.App.refreshHeaderAvatar) global.App.refreshHeaderAvatar();
-              global.App.rerender();
-              Util.toast('已改名', 'ok');
-            }
-          });
+          openBabyForm(renameId);
           return;
         }
         if (photoId) {
@@ -1137,55 +1288,13 @@
           if (b) {
             if (global.App.refreshHeaderAvatar) global.App.refreshHeaderAvatar();
             global.App.rerender();
-            Util.toast('已切换到「' + b.name + '」', 'ok');
+            Util.toast('已切换到「' + Storage.babyLabel(b) + '」', 'ok');
           }
         }
       });
       /* 添加宝宝：自建表单弹层（confirm 的 message 不接受 HTML，走 modal 基座） */
       var babyAdd = view.querySelector('#sBabyAdd');
-      if (babyAdd) babyAdd.addEventListener('click', function () {
-        var root = document.getElementById('modalRoot');
-        if (!root) return;
-        var draft = { name: '', birthDate: null, photo: null };
-        root.innerHTML =
-          '<div class="modal-mask" data-nb-mask>' +
-            '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="nbTitle">' +
-              '<h2 id="nbTitle">添加宝宝</h2>' +
-              '<label>称呼（可留空）<input type="text" id="nbName" maxlength="12" placeholder="比如：豆豆、二宝"></label>' +
-              '<label>生日（可先不填）<input type="date" id="nbBirth"></label>' +
-              '<button type="button" class="btn" id="nbPhoto" style="width:100%;margin-right:0">选一张照片（可跳过）</button>' +
-              '<p class="hint">照片在本机压缩到 288px 后保存，不会离开这台设备。</p>' +
-              '<div class="modal-actions">' +
-                '<button type="button" class="btn" data-nb-cancel>取消</button>' +
-                '<button type="button" class="btn btn-primary" data-nb-ok>添加</button>' +
-              '</div>' +
-            '</div>' +
-          '</div>';
-        var mask = root.querySelector('[data-nb-mask]');
-        var nbPhoto = root.querySelector('#nbPhoto');
-        if (nbPhoto) nbPhoto.addEventListener('click', function () {
-          Util.pickPhoto(function (dataURL) {
-            if (!dataURL) return;
-            draft.photo = dataURL;
-            nbPhoto.textContent = '已选好照片 ✓';
-          });
-        });
-        function close() { root.innerHTML = ''; }
-        root.querySelector('[data-nb-cancel]').addEventListener('click', close);
-        mask.addEventListener('click', function (e) { if (e.target === mask) close(); });
-        root.querySelector('[data-nb-ok]').addEventListener('click', function () {
-          var nm = root.querySelector('#nbName');
-          var bi = root.querySelector('#nbBirth');
-          draft.name = nm ? nm.value.trim() : '';
-          draft.birthDate = (bi && bi.value) ? bi.value : null;
-          close();
-          Storage.addBaby(draft);
-          if (global.App.refreshHeaderAvatar) global.App.refreshHeaderAvatar();
-          global.App.rerender();
-          Util.toast('已添加并切换到「' + (draft.name || '宝宝') + '」', 'ok');
-        });
-        try { root.querySelector('#nbName').focus(); } catch (e) {}
-      });
+      if (babyAdd) babyAdd.addEventListener('click', function () { openBabyForm(null); });
       var babyPhotoCur = view.querySelector('#sBabyPhotoCur');
       if (babyPhotoCur) babyPhotoCur.addEventListener('click', function () {
         if (!Storage.activeBaby()) { Util.toast('先添加一个宝宝档案', 'warn'); return; }

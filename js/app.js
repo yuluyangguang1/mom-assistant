@@ -544,49 +544,91 @@
   /* 第 82 次（用户反馈：左上角不该进设置）：底部宝宝切换面板。
      点行切换（同步镜像生日/称呼、刷新头像、重绘当前页），底部「管理宝宝档案」
      去设置——添加/改名/照片/删除仍在设置页宝宝档案卡做，面板只管「切换」。 */
+  /* 第 212 次（用户：多个宝宝切换会混乱、要显示小名）：宝宝面板重做。
+     「当前宝宝」大卡（头像 + 小名 + 月龄，点开改资料）→「切换到」其余宝宝 → 添加宝宝 / 宝宝设置。
+     名字一律走 Storage.babyLabel（小名优先），切换前先把当前宝宝资料收回档案，不再串名。 */
+  function babyAge(bd) {
+    if (!bd) return '还没填生日';
+    var b = new Date(bd + 'T00:00:00'), n = new Date();
+    var days = Math.floor((new Date(n.getFullYear(), n.getMonth(), n.getDate()) - b) / 86400000);
+    if (days < 0) return '预产期 ' + bd;
+    var y = n.getFullYear() - b.getFullYear(), m = n.getMonth() - b.getMonth(), d = n.getDate() - b.getDate();
+    if (d < 0) m -= 1;
+    if (m < 0) { y -= 1; m += 12; }
+    if (y >= 1) return y + ' 岁' + (m ? ' ' + m + ' 个月' : '');
+    if (m >= 1) return m + ' 个月';
+    return '出生第 ' + (days + 1) + ' 天';
+  }
   function openBabySheet() {
     var root = document.getElementById('modalRoot');
     if (!root) return;
     var s = Storage.get();
     var babies = s.babies || [];
     var cur = s.settings.activeBabyId;
-    var rows = babies.map(function (b) {
-      var ava = b.photo
-        ? '<img src="' + Util.escapeHtml(b.photo) + '" alt="">'
-        : '<span class="sheet-ava">' + Util.escapeHtml((b.name || '宝').charAt(0)) + '</span>';
-      return '<li><button type="button" class="sheet-row' + (b.id === cur ? ' active' : '') + '" data-pick="' + b.id + '">'
-        + ava
-        + '<span class="sheet-name">' + Util.escapeHtml(b.name || '宝宝') + '</span>'
-        + (b.id === cur ? '<span class="sheet-check">当前</span>' : '')
-        + '</button></li>';
-    }).join('');
-    if (!babies.length) {
-      rows = '<li class="sheet-empty">还没有宝宝档案，先去设置里建一个。</li>';
+    function ava(b) {
+      return b.photo ? '<img src="' + Util.escapeHtml(b.photo) + '" alt="">'
+        : '<span class="bs-ava-ill">' + (global.illo ? illo('avatar') : '') + '</span>';
     }
-    root.innerHTML = '<div class="modal-mask sheet-mask" data-sheet-mask>'
-      + '<div class="sheet" role="dialog" aria-modal="true" aria-label="切换宝宝">'
-      + '<h2>切换宝宝</h2>'
-      + '<ul class="sheet-list">' + rows + '</ul>'
-      + '<div class="sheet-actions"><button type="button" class="btn" id="sheetManage">管理宝宝档案</button></div>'
-      + '</div></div>';
+    var act = babies.filter(function (b) { return b.id === cur; })[0] || null;
+    var others = babies.filter(function (b) { return b.id !== cur; });
+    var html = '<div class="modal-mask sheet-mask" data-sheet-mask>'
+      + '<div class="sheet baby-sheet" role="dialog" aria-modal="true" aria-label="宝宝资料">'
+      + '<h2>宝宝资料</h2>';
+    if (act) {
+      html += '<p class="bs-label">当前宝宝</p>'
+        + '<button type="button" class="bs-cur" data-bs-edit="' + Util.escapeHtml(act.id) + '">'
+        + '<span class="bs-ava">' + ava(act) + '</span>'
+        + '<span class="bs-txt"><b>' + Util.escapeHtml(Storage.babyLabel(act)) + '</b><i>' + Util.escapeHtml(babyAge(act.birthDate)) + '</i></span>'
+        + '<span class="bs-chv" aria-hidden="true">' + icon('chevron-right') + '</span></button>'
+        + '<p class="bs-note">首页、回顾和新记录都会用当前宝宝。</p>';
+    } else {
+      html += '<p class="bs-note">还没有宝宝档案，先添加一个。</p>';
+    }
+    if (others.length) {
+      html += '<p class="bs-label">切换到</p><ul class="bs-list">';
+      others.forEach(function (b) {
+        html += '<li><button type="button" class="bs-row" data-pick="' + Util.escapeHtml(b.id) + '">'
+          + '<span class="bs-ava bs-ava-s">' + ava(b) + '</span>'
+          + '<span class="bs-txt"><b>' + Util.escapeHtml(Storage.babyLabel(b)) + '</b><i>' + Util.escapeHtml(babyAge(b.birthDate)) + '</i></span>'
+          + '<span class="bs-switch">切换</span></button></li>';
+      });
+      html += '</ul>';
+    }
+    html += '<ul class="bs-list bs-actions">'
+      + '<li><button type="button" class="bs-row" id="sheetAdd"><span class="bs-act-ico">' + icon('plus') + '</span><span class="bs-txt"><b>添加宝宝</b></span>'
+      + '<span class="bs-chv" aria-hidden="true">' + icon('chevron-right') + '</span></button></li>'
+      + '<li><button type="button" class="bs-row" id="sheetManage"><span class="bs-act-ico">' + icon('baby') + '</span><span class="bs-txt"><b>宝宝设置</b><i>管理资料、头像和删除</i></span>'
+      + '<span class="bs-chv" aria-hidden="true">' + icon('chevron-right') + '</span></button></li>'
+      + '</ul></div></div>';
+    root.innerHTML = html;
     var close = function () { root.innerHTML = ''; };
     root.querySelector('[data-sheet-mask]').addEventListener('click', function (e) {
       if (e.target === e.currentTarget) close();
     });
-    root.querySelector('.sheet-list').addEventListener('click', function (ev) {
-      var btn = ev.target.closest ? ev.target.closest('[data-pick]') : null;
-      if (!btn) return;
-      var b = Storage.switchBaby(btn.getAttribute('data-pick'));
+    Array.prototype.forEach.call(root.querySelectorAll('[data-pick]'), function (btn) {
+      btn.addEventListener('click', function () {
+        var b = Storage.switchBaby(btn.getAttribute('data-pick'));
+        close();
+        if (b) {
+          refreshHeaderAvatar();
+          App.rerender();
+          Util.toast('已切换到「' + Storage.babyLabel(b) + '」', 'ok');
+        }
+      });
+    });
+    var ed = root.querySelector('[data-bs-edit]');
+    if (ed) ed.addEventListener('click', function () {
+      var id = ed.getAttribute('data-bs-edit');
       close();
-      if (b) {
-        refreshHeaderAvatar();
-        App.rerender();
-        Util.toast('已切换到「' + b.name + '」', 'ok');
-      }
+      if (global.Modules && Modules.settings && Modules.settings._babyForm) Modules.settings._babyForm(id);
+    });
+    root.querySelector('#sheetAdd').addEventListener('click', function () {
+      close();
+      if (global.Modules && Modules.settings && Modules.settings._babyForm) Modules.settings._babyForm(null);
     });
     root.querySelector('#sheetManage').addEventListener('click', function () {
       close();
-      showTab('settings');
+      App.openSettingsGroup('称呼与阶段');
     });
   }
 
@@ -759,6 +801,7 @@
         var pre = root.querySelector('#obPreterm');
         if (nick) draft.baby.nickname = nick.value.trim().slice(0, 12);
         if (birth) draft.baby.birthDate = birth.value || null;
+        if (birth) draft.baby.birthLunar = Util.birthLunarOf ? Util.birthLunarOf('obBirth') : null;
         if (pre) draft.baby.preterm = !!pre.checked;
       }
     }
@@ -1060,7 +1103,7 @@
       + '<div class="ob-group">'
       + '<label class="ob-field">小名<span class="ob-opt">可留空</span><input type="text" id="obNick" maxlength="12" placeholder="比如：小汤圆" value="' + Util.escapeHtml(b.nickname || '') + '"></label>'
       + (preg ? '' :
-        Util.birthInput({ id: 'obBirth', title: '出生日期', value: b.birthDate || '' })
+        Util.birthInput({ id: 'obBirth', title: '出生日期', value: b.birthDate || '', lunar: b.birthLunar })
         + '<p class="ob-nudge" id="obBirthNudge" role="status" hidden>还没填生日：疫苗排期和生长曲线都要用它。不确定的话，再点一次「下一步」先跳过，之后在「疫苗」或「生长」页补。</p>'
         + '<div class="ob-field"><span>性别</span><div class="seg" id="obSex">'
         + sexBtn('boy', '男宝', b.sex !== 'girl' && !b.sexUnknown)
@@ -1098,6 +1141,11 @@
     enterSub: enterSub,
     inSub: inSub,
     exitSub: function () { if (!popHistory()) exitSubNow(); },
+    /* 第 212 次：直达设置里的某个分组（首页「开启天气」等入口用） */
+    openSettingsGroup: function (title) {
+      if (global.Modules && Modules.settings) Modules.settings._want = title;
+      showTab('settings');
+    },
     refreshHeaderAvatar: refreshHeaderAvatar, /* 第 80 次：设置页改照片/切宝宝后刷新左上角 */
     /* C7（操作便捷性研究）：一次性日期覆盖。日历空日「补记」入口设置它再跳模块，
        模块在 render 时读取并立即清空（消费式），保存即落到该日期。默认 null。 */

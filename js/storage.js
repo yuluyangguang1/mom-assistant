@@ -137,6 +137,16 @@
     return typeof v === 'string' && v.length <= 300000 && PHOTO_RE.test(v);
   }
 
+  /* 第 212 次：农历生日 {y,m,d,leap} 形状校验 */
+  function cleanLunar(v) {
+    if (!v || typeof v !== 'object') return null;
+    var y = v.y, m = v.m, d = v.d;
+    if (typeof y !== 'number' || y < 1900 || y > 2100 || typeof m !== 'number' || m < 1 || m > 12
+      || typeof d !== 'number' || d < 1 || d > 30) return null;
+    return { y: Math.round(y), m: Math.round(m), d: Math.round(d), leap: v.leap === true };
+  }
+  var PROFILE_KEYS = ['nickname', 'sex', 'preterm', 'birthGestWeeks', 'birthLunar'];
+
   function defaultData() {
     return {
       version: DATA_VERSION,
@@ -146,6 +156,9 @@
         /* 第 120 次（首页布局编辑）：null = 自动策展（阶段筛选 + 收敛，改动前行为）；
            用户在编辑模式改过之后才落 { v:1, items:[{id,size}], removed:[id] }。 */
         homeLayout: null,
+        /* 第 212 次：首页天气（联网，默认关）与农历日期（默认开） */
+        weather: { on: false, mode: 'auto', city: null },
+        lunarDate: true,
         /* U-09：夜间（22:00–06:00）自动进入暗色；用户手动切主题会置为 false */
         themeAuto: true,
         /* 首次引导与身份（O 系列）：只存身份与称呼，不采集姓名/手机号/邮箱 */
@@ -297,6 +310,7 @@
         if (typeof sb.name === 'string') sb.name = sb.name.slice(0, 24);
         if (typeof sb.nickname === 'string') sb.nickname = sb.nickname.slice(0, 24);
         if (typeof sb.birthDate === 'string' && !/^\d{4}-\d{2}-\d{2}$/.test(sb.birthDate)) sb.birthDate = null;
+        sb.birthLunar = cleanLunar(sb.birthLunar);
         if (sb.sex !== 'girl' && sb.sex !== 'boy') sb.sex = null;
         sb.sexUnknown = sb.sexUnknown === true;
         sb.preterm = sb.preterm === true;
@@ -305,6 +319,18 @@
         base.settings.baby = sb;
       }
       if (typeof s.realRefraction === 'boolean') base.settings.realRefraction = s.realRefraction;
+      if (typeof s.lunarDate === 'boolean') base.settings.lunarDate = s.lunarDate;
+      if (s.weather && typeof s.weather === 'object' && !Array.isArray(s.weather)) {
+        var wc = s.weather.city;
+        base.settings.weather = {
+          on: s.weather.on === true,
+          dismissed: s.weather.dismissed === true,
+          mode: s.weather.mode === 'city' ? 'city' : 'auto',
+          city: (wc && typeof wc === 'object' && typeof wc.lat === 'number' && typeof wc.lon === 'number'
+            && Math.abs(wc.lat) <= 90 && Math.abs(wc.lon) <= 180)
+            ? { name: String(wc.name || '').slice(0, 24), lat: wc.lat, lon: wc.lon } : null
+        };
+      }
       if (typeof s.lastExportISO === 'string') base.settings.lastExportISO = s.lastExportISO;
       if (typeof s.backupSnoozeISO === 'string') base.settings.backupSnoozeISO = s.backupSnoozeISO;
       if (typeof s.exportNoticeShown === 'boolean') base.settings.exportNoticeShown = s.exportNoticeShown;
@@ -501,6 +527,13 @@
         name: (typeof b.name === 'string' && b.name.trim()) ? b.name.trim().slice(0, 12) : '宝宝',
         photo: validPhoto(b.photo) ? b.photo : null,
         birthDate: (typeof b.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.birthDate)) ? b.birthDate : null,
+        /* 第 212 次：小名 / 性别 / 早产 / 农历生日跟着档案走（之前只在 settings.baby，切换宝宝会串） */
+        nickname: (typeof b.nickname === 'string') ? b.nickname.trim().slice(0, 12) : '',
+        sex: (b.sex === 'girl' || b.sex === 'boy') ? b.sex : null,
+        preterm: b.preterm === true,
+        birthGestWeeks: (typeof b.birthGestWeeks === 'number' && b.birthGestWeeks >= 22 && b.birthGestWeeks <= 43) ? Math.round(b.birthGestWeeks) : null,
+        birthLunar: cleanLunar(b.birthLunar),
+        hasProfile: b.hasProfile === true,
         /* 第 146 次：非当前宝宝的记录包。用同一套 sanitize 清洗（只取 BABY_KEYS），坏数据同样被挡住 */
         rec: (b.rec && typeof b.rec === 'object' && !Array.isArray(b.rec)) ? pickBaby(sanitize(b.rec)) : null
       };
@@ -610,8 +643,16 @@
       var b = this.activeBaby();
       if (!b) return;
       this.data.settings.baby = this.data.settings.baby || {};
-      this.data.settings.baby.name = b.name;
-      this.data.settings.baby.birthDate = b.birthDate;
+      var sb = this.data.settings.baby;
+      sb.name = b.name;
+      sb.birthDate = b.birthDate;
+      /* 第 212 次：小名/性别/早产/农历生日一并换成这个宝宝自己的（档案还没存过资料的老数据保持现状） */
+      sb.nickname = b.nickname || '';
+      sb.birthLunar = b.birthLunar || null;
+      if (b.hasProfile) {
+        PROFILE_KEYS.forEach(function (k) { sb[k] = (b[k] === undefined) ? null : b[k]; });
+        if (!sb.nickname) sb.nickname = '';
+      }
     },
 
     /** 切换当前宝宝（id 无效则不动作，返回 null） */
@@ -619,6 +660,7 @@
       var d = this.data;
       var hit = (d.babies || []).filter(function (b) { return b.id === id; })[0];
       if (!hit) return null;
+      if (this.activeBaby()) this.syncBabyFromSettings();   /* 第 212 次：先把当前宝宝的资料收回档案，避免切换后串名 */
       if (hit.id !== d.settings.activeBabyId) {
         this._stashActive();
         this._loadBaby(hit);
@@ -677,7 +719,12 @@
         id: 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
         name: (typeof opts.name === 'string' && opts.name.trim()) ? opts.name.trim().slice(0, 12) : '宝宝',
         photo: validPhoto(opts.photo) ? opts.photo : null,
-        birthDate: (typeof opts.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(opts.birthDate)) ? opts.birthDate : null
+        birthDate: (typeof opts.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(opts.birthDate)) ? opts.birthDate : null,
+        nickname: (typeof opts.nickname === 'string') ? opts.nickname.trim().slice(0, 12) : '',
+        sex: (opts.sex === 'girl' || opts.sex === 'boy') ? opts.sex : null,
+        preterm: false, birthGestWeeks: null,
+        birthLunar: cleanLunar(opts.birthLunar),
+        hasProfile: true
       };
       /* 第 146 次：先把上一个宝宝的数据收好，新宝宝从空白开始。
          还没有任何档案、但顶层已有宝宝信息或记录时，这些数据属于「隐含的第一个宝宝」：
@@ -692,6 +739,7 @@
         }
       }
       if (this.data.babies.length) {
+        this.syncBabyFromSettings();
         this._stashActive();
         this._loadBaby(b);
       }
@@ -725,6 +773,7 @@
     renameBaby: function (id, name) {
       var b = (this.data.babies || []).filter(function (x) { return x.id === id; })[0];
       if (!b) return false;
+      if (b.id === this.data.settings.activeBabyId) this.syncBabyFromSettings();
       b.name = (typeof name === 'string' && name.trim()) ? name.trim().slice(0, 12) : '宝宝';
       if (b.id === this.data.settings.activeBabyId) this._mirrorActive();
       this.save();
@@ -759,6 +808,44 @@
       }
       if (typeof sb.name === 'string' && sb.name.trim()) b.name = sb.name.trim().slice(0, 12);
       if (typeof sb.birthDate === 'string' || sb.birthDate === null) b.birthDate = sb.birthDate || null;
+      b.nickname = (typeof sb.nickname === 'string') ? sb.nickname.trim().slice(0, 12) : '';
+      b.sex = (sb.sex === 'girl' || sb.sex === 'boy') ? sb.sex : null;
+      b.preterm = sb.preterm === true;
+      b.birthGestWeeks = (typeof sb.birthGestWeeks === 'number') ? sb.birthGestWeeks : null;
+      /* 农历生日只在公历生日没被别处改动时保留（生长/疫苗页改了公历生日 → 农历失效） */
+      var bl = cleanLunar(sb.birthLunar);
+      if (bl && global.Lunar && Lunar.ok && b.birthDate && Lunar.toSolar(bl.y, bl.m, bl.d, bl.leap) !== b.birthDate) bl = null;
+      b.birthLunar = bl;
+      sb.birthLunar = bl;
+      b.hasProfile = true;
+    },
+
+    /** 第 212 次：改档案资料（名字/小名/生日/农历/性别）；当前宝宝同步镜像 */
+    updateBaby: function (id, f) {
+      var b = (this.data.babies || []).filter(function (x) { return x.id === id; })[0];
+      if (!b || !f) return false;
+      if (b.id === this.data.settings.activeBabyId) this.syncBabyFromSettings();
+      if ('name' in f) b.name = (typeof f.name === 'string' && f.name.trim()) ? f.name.trim().slice(0, 12) : '宝宝';
+      if ('nickname' in f) b.nickname = (typeof f.nickname === 'string') ? f.nickname.trim().slice(0, 12) : '';
+      if ('birthDate' in f) b.birthDate = (typeof f.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(f.birthDate)) ? f.birthDate : null;
+      if ('birthLunar' in f) b.birthLunar = cleanLunar(f.birthLunar);
+      if ('sex' in f) b.sex = (f.sex === 'girl' || f.sex === 'boy') ? f.sex : null;
+      b.hasProfile = true;
+      if (b.id === this.data.settings.activeBabyId) this._mirrorActive();
+      this.save();
+      return true;
+    },
+
+    /** 第 212 次：宝宝显示名——小名优先，其次名字，都没有才叫「宝宝」 */
+    babyLabel: function (b) {
+      b = b || this.activeBaby();
+      var sb = (this.data && this.data.settings && this.data.settings.baby) || {};
+      var isAct = b && this.data && b.id === this.data.settings.activeBabyId;
+      var nick = (b && b.nickname) || ((!b || isAct) ? sb.nickname : '') || '';
+      if (!b && sb.name && sb.name !== '宝宝' && !nick) return String(sb.name);
+      if (nick) return String(nick);
+      if (b && b.name && b.name !== '宝宝') return b.name;
+      return '宝宝';
     },
 
     /** 清空全部数据 */
