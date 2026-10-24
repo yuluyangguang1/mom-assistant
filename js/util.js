@@ -319,14 +319,14 @@
     var okText = opts.okText || '确认';
     var cancelText = opts.cancelText || '取消';
     var danger = !!opts.danger;
-    var leadIcon = (window.icon && icon('heart')) ? icon('heart') : '';
+    var leadIcon = window.icon ? (icon(danger ? 'alert' : 'heart') || '') : '';
 
     root.innerHTML =
       '<div class="modal-mask" data-cfm-mask>' +
         '<div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="cfmTitle" aria-describedby="cfmMsg">' +
           '<h2 id="cfmTitle">' + leadIcon + Util.escapeHtml(title) + '</h2>' +
           '<p id="cfmMsg">' + Util.escapeHtml(message) + '</p>' +
-          '<div class="modal-actions">' +
+          '<div class="modal-actions' + (opts.extra && opts.extra.text ? ' has-extra' : '') + (danger ? ' is-danger' : '') + '">' +
             (opts.extra && opts.extra.text
               ? '<button type="button" class="btn" data-cfm-extra>' + Util.escapeHtml(opts.extra.text) + '</button>' : '') +
             '<button type="button" class="btn" data-cfm-cancel>' + Util.escapeHtml(cancelText) + '</button>' +
@@ -356,7 +356,8 @@
     document.addEventListener('keydown', onKey);
 
     /* 焦点管理：危险操作默认聚焦“取消”，避免误触销毁 */
-    (danger ? cancelBtn : okBtn).focus();
+    /* 第 189 次：focusVisible:false——触屏打开时不画粗焦点环（键盘用户 Tab 后仍正常显示） */
+    try { (danger ? cancelBtn : okBtn).focus({ focusVisible: false }); } catch (e) { (danger ? cancelBtn : okBtn).focus(); }
   };
 
   /* -----------------------------------------------------------

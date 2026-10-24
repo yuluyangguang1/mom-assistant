@@ -740,7 +740,7 @@ body.dark .list li .li-num.sup-ok  { color: #8FCDB2; }
    整行（除删除键外）都是勾选热区。 */
 .pack-item label {
   display: flex; align-items: center; flex: 1 1 auto; min-width: 0;
-  min-height: 44px; box-sizing: border-box; cursor: pointer;
+  min-height: 44px; box-sizing: border-box; cursor: pointer; gap: 12px;
 }
 .pack-item.done label { text-decoration: line-through; color: var(--muted); }
 
@@ -1744,6 +1744,11 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
   to { transform: translateX(305%) skewX(-18deg); }
 }
 
+/* 第 189 次：iPad 竖屏（768–979）此前仍按手机 640 封顶，两侧各空 ~90–170px，内容像被捏在中间。
+   放宽到 720，四宫格/统计卡呼吸感跟上屏幕，同时行长仍在舒适阅读范围内。 */
+@media (min-width: 768px) and (max-width: 979px) {
+  .view, .app-header { max-width: 720px; }
+}
 @media (min-width: 980px) {
   .view, .app-header { max-width: 860px; } /* 底栏已改 max-content 自适应宽，不再需要宽屏上限 */
   /* 第 56 次：磁贴已是单列信息行，宽屏只放宽呼吸感；统计卡（日期记录页）回 auto-fit */
@@ -3846,3 +3851,32 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
 .chk-pills .chk:active { transform: scale(.95); }
 .chk-pills .chk:has(input:checked) { background: var(--primary-weak); border-color: var(--primary); color: var(--primary-text); font-weight: 600; }
 .chk-pills .chk:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+/* ⑩ 确认框三钮（出口 + 取消 + 确认）：320px 宽里三钮横排，「先导出备份」「仍要清空」各折两行。
+   有出口按钮时改竖排：确认在上、出口居中、取消在底（iOS 警示框惯例）；危险框标题图标改警示三角。 */
+.modal-actions.has-extra { flex-direction: column; gap: var(--space-xs); }
+.modal-actions.has-extra .btn { flex: none; width: 100%; min-height: 46px; white-space: nowrap; }
+.modal-actions.has-extra [data-cfm-ok] { order: 1; }
+.modal-actions.has-extra [data-cfm-extra] { order: 2; }
+.modal-actions.has-extra [data-cfm-cancel] { order: 3; border-color: transparent; background: transparent; box-shadow: none; }
+.modal h2 .ico { vertical-align: -3px; }
+.modal:has(.modal-actions.is-danger) h2 .ico { color: var(--danger); }
+/* ⑪ 待产包清单：行高 80px + 原生小方框 + 每行一个主色垃圾桶，长清单满屏红点、节奏松散。
+   行压到 52px；勾选框改 22px 圆形（勾选后主色实心 + 白勾，划线淡显）；删除键平时淡灰，按下才转危险色。 */
+.card .list li.pack-item { min-height: 52px; padding: 2px 0; gap: 8px; }
+.pack-item input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none; flex: none; width: 22px; height: 22px; margin: 0;
+  border: 1.5px solid var(--border-input); border-radius: 50%; background: var(--surface-solid);
+  display: inline-grid; place-content: center; cursor: pointer;
+  transition: background-color .2s var(--ease), border-color .2s var(--ease), transform .15s var(--spring);
+}
+.pack-item input[type="checkbox"]::after {
+  content: ""; width: 10px; height: 6px; margin-top: -2px;
+  border: solid #fff; border-width: 0 0 2px 2px; transform: rotate(-45deg) scale(0);
+  transition: transform .2s var(--spring);
+}
+.pack-item input[type="checkbox"]:checked { background: var(--primary); border-color: var(--primary); }
+.pack-item input[type="checkbox"]:checked::after { transform: rotate(-45deg) scale(1); }
+.pack-item input[type="checkbox"]:active { transform: scale(.88); }
+.pack-item input[type="checkbox"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.pack-item .icon-btn { color: var(--muted); opacity: .55; transition: opacity .2s var(--ease), color .2s var(--ease); }
+.pack-item .icon-btn:hover, .pack-item .icon-btn:active { color: var(--danger); opacity: 1; }
