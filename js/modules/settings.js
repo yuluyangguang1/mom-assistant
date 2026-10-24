@@ -11,6 +11,98 @@
   /* ---- 第 71 次（C1）：就诊摘要构建器（纯函数，QA 直接消费） ----
      只做拼装呈现，不做任何解读与判断（红线：不诊断、不评分）；
      全部数据在本机拼装，无网络请求。摘要节次与「打印成长报告」互补。 */
+  /* ---- 第 203 次：交接班摘要（纯函数）——白天换奶奶 / 晚上换爸爸带时，一段文字说清
+     「上次吃 / 睡 / 换尿布是什么时候、近 12 小时多少、用过什么药」。只陈述记录，不做判断。 ---- */
+  function buildHandoff(d) {
+    var now = Date.now(), L = [];
+    function t(x) { var dt = new Date(x); return isNaN(dt.getTime()) ? null : dt; }
+    function hm(x) { return String(x || '').slice(11, 16); }
+    function dur(ms) {
+      var m = Math.max(0, Math.round(ms / 60000)), h = Math.floor(m / 60); m = m % 60;
+      return h ? h + ' 小时' + (m ? ' ' + m + ' 分' : '') : m + ' 分钟';
+    }
+    function ago(x) { var dt = t(x); return dt ? dur(now - dt.getTime()) + '前' : ''; }
+    function within(arr, key, hrs) {
+      return (arr || []).filter(function (r) { var dt = r && t(r[key]); return dt && dt.getTime() <= now + 60000 && now - dt.getTime() <= hrs * 3600000; })
+        .sort(function (a, b) { return t(b[key]) - t(a[key]); });
+    }
+    function ok(v) { return typeof v === 'number' && isFinite(v) && v > 0; }
+    var baby = (d.settings && d.settings.baby) || {};
+    L.push('【交接班】' + (baby.nickname ? String(baby.nickname).slice(0, 12) + ' · ' : '') + Util.nowLocal().slice(5, 16).replace('T', ' '));
+    L.push('');
+    /* 吃：不算吸奶 */
+    var feeds = within(Util.babyFeeds ? Util.babyFeeds(d.feedings) : d.feedings, 'start', 12);
+    var FT = { breast: '亲喂', bottle: '奶瓶', formula: '奶粉', solid: '辅食' };
+    L.push('◆ 吃');
+    if (feeds.length) {
+      var f = feeds[0], det = [];
+      if (f.type === 'breast') {
+        if (ok(f.durationL)) det.push('左 ' + f.durationL + ' 分');
+        if (ok(f.durationR)) det.push('右 ' + f.durationR + ' 分');
+        if (!det.length && ok(f.durationMin)) det.push(f.durationMin + ' 分');
+      } else if (ok(f.amount)) det.push(f.amount + (f.type === 'solid' ? ' g' : ' ml'));
+      L.push('上次 ' + hm(f.start) + ' ' + (FT[f.type] || '') + (det.length ? ' ' + det.join(' ') : '') + '（' + ago(f.start) + '）');
+      var ml = feeds.reduce(function (a, r) { return a + ((r.type === 'bottle' || r.type === 'formula') && ok(r.amount) ? r.amount : 0); }, 0);
+      L.push('近 12 小时 ' + feeds.length + ' 次' + (ml ? '，瓶喂共 ' + ml + ' ml' : ''));
+    } else L.push('近 12 小时没有记录');
+    L.push('');
+    /* 睡 */
+    L.push('◆ 睡');
+    var os = d.openSleep && t(d.openSleep.start);
+    if (os) {
+      var pz = (typeof d.openSleep.pausedMs === 'number' && d.openSleep.pausedMs > 0 ? d.openSleep.pausedMs : 0)
+        + (d.openSleep.pauseStart && t(d.openSleep.pauseStart) ? now - t(d.openSleep.pauseStart).getTime() : 0);
+      L.push('正在睡：' + hm(d.openSleep.start) + ' 睡着，已 ' + dur(now - os.getTime() - pz));
+    }
+    var sl = within(d.sleeps, 'end', 12).filter(function (r) { return t(r.start) && t(r.end) > t(r.start); });
+    if (sl.length) {
+      var s0 = sl[0];
+      if (!os) L.push('上次 ' + hm(s0.end) + ' 醒（' + ago(s0.end) + '），那一觉 ' + dur(t(s0.end) - t(s0.start)));
+      var tot = sl.reduce(function (a, r) { return a + (t(r.end) - t(r.start)); }, 0);
+      L.push('近 12 小时睡了 ' + sl.length + ' 段，共 ' + dur(tot));
+    } else if (!os) L.push('近 12 小时没有记录');
+    L.push('');
+    /* 尿布 */
+    L.push('◆ 尿布');
+    var dp = within(d.diapers, 'time', 12);
+    var DT = { pee: '尿', poop: '便', both: '尿+便' };
+    if (dp.length) {
+      L.push('上次 ' + hm(dp[0].time) + ' ' + (DT[dp[0].type] || '') + '（' + ago(dp[0].time) + '）');
+      var pee = dp.filter(function (r) { return r.type === 'pee' || r.type === 'both'; }).length;
+      var poo = dp.filter(function (r) { return r.type === 'poop' || r.type === 'both'; }).length;
+      L.push('近 12 小时 尿 ' + pee + ' 次，便 ' + poo + ' 次');
+    } else L.push('近 12 小时没有记录');
+    /* 用药 / 体温：近 24 小时有才出 */
+    var md = within(d.meds, 'time', 24).filter(function (r) { return r.name; });
+    if (md.length) {
+      L.push(''); L.push('◆ 用药（近 24 小时）');
+      md.forEach(function (r) { L.push(hm(r.time) + ' ' + String(r.name).slice(0, 20) + (r.dose ? ' ' + String(r.dose).slice(0, 20) : '')); });
+    }
+    var tp = within(d.temps, 'time', 24).filter(function (r) { return typeof r.value === 'number' && isFinite(r.value); });
+    if (tp.length) {
+      L.push(''); L.push('◆ 体温（近 24 小时）');
+      L.push('最近 ' + tp[0].value + '°C（' + hm(tp[0].time) + '）' + (tp.length > 1 ? '，共量 ' + tp.length + ' 次' : ''));
+    }
+    /* 补剂：今天已打卡 */
+    var today = Util.todayISO();
+    var sup = (d.supplements || []).filter(function (r) { return r && r.name && String(r.time || '').slice(0, 10) === today; });
+    var plans = (d.supplementPlans || []).filter(function (p) { return p && p.name && !p.paused; });
+    if (sup.length || plans.length) {
+      var doneN = {}; sup.forEach(function (r) { doneN[String(r.name)] = 1; });
+      var todo = plans.filter(function (p) { return !doneN[String(p.name)]; }).map(function (p) { return String(p.name).slice(0, 12); });
+      L.push(''); L.push('◆ 补剂（今天）');
+      L.push((Object.keys(doneN).length ? '已吃 ' + Object.keys(doneN).map(function (k) { return k.slice(0, 12); }).join('、') : '还没打卡')
+        + (todo.length ? '；未打卡 ' + todo.join('、') : ''));
+    }
+    /* 储奶 */
+    var st = (d.milkStash || []).filter(function (x) { return x && !x.usedAt && ok(x.amount) && (x.place === 'fridge' || x.place === 'freezer'); });
+    if (st.length) {
+      var fr = 0, fz = 0; st.forEach(function (x) { if (x.place === 'fridge') fr += x.amount; else fz += x.amount; });
+      L.push(''); L.push('◆ 储奶  冷藏 ' + fr + ' ml，冷冻 ' + fz + ' ml');
+    }
+    return L.join('\n');
+  }
+
   function buildVisitSummary(d) {
     var L = [];
     var baby = (d.settings && d.settings.baby) || {};
@@ -502,6 +594,8 @@
       html += '<p class="hint">生成一页式汇总（宝宝信息、生长、疫苗、近期喂养/尿布统计），可直接打印或另存 PDF 带给医生。</p>';
       /* 第 71 次（C1）：就诊摘要——把本地记录拼成给医生看的一段文字。
          与打印报告互补：打印是版式化的「报告」，这个是随手可发微信的「文字」。 */
+      html += '<button class="btn" id="sHandoff">交接班摘要（发给接手的家人）</button>';
+      html += '<p class="hint">上次吃 / 睡 / 换尿布的时间、近 12 小时次数，以及近 24 小时用药体温，拼成一段文字直接发。</p>';
       html += '<button class="btn" id="sVisit">生成就诊摘要（文字版 · 可分享）</button>';
       html += '<p class="hint">把生长、疫苗、儿保体检、发育观察点、里程碑与近期日常拼成一段给医生看的文字：'
         + '能分享就直接调起系统分享，不行就复制 + 存成 txt。全部在本机拼装，不经任何网络。</p>';
@@ -856,6 +950,18 @@
       if (exShare) exShare.addEventListener('click', function () { global.App.exportShare(); });
       view.querySelector('#sImport').addEventListener('click', function () { global.App.importAll(); });
       view.querySelector('#sReset').addEventListener('click', function () { global.App.resetAll(); });
+      view.querySelector('#sHandoff').addEventListener('click', function () {
+        var text = buildHandoff(Storage.get());
+        function copyOnly() {
+          function done(okk) { Util.toast(okk ? '交接班摘要已复制，粘贴到微信即可' : '复制失败，请重试', okk ? 'ok' : 'error'); }
+          try {
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') { navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); }); return; }
+          } catch (e) { /* fallthrough */ }
+          done(false);
+        }
+        if (typeof navigator.share === 'function') navigator.share({ title: '交接班', text: text }).catch(function (e) { if (!e || e.name !== 'AbortError') copyOnly(); });
+        else copyOnly();
+      });
       /* ---- 第 71 次（C1）：就诊摘要——优先系统分享，无能力则复制 + 下载 txt ---- */
       view.querySelector('#sVisit').addEventListener('click', function () {
         var text = buildVisitSummary(Storage.get());
@@ -1424,6 +1530,7 @@
   };
   /* 第 71 次（C1）：摘要构建器供 QA 运行时直测（纯函数，无 DOM 依赖） */
   Modules.settings._visitSummary = buildVisitSummary;
+  Modules.settings._handoff = buildHandoff;
   /* 第 83 次（C2）：分享卡片数据构建器供 QA 运行时直测（纯函数，无 DOM 依赖） */
   Modules.settings._shareCardData = buildShareCardData;
 })(window);
