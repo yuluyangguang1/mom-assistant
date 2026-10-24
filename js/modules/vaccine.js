@@ -138,7 +138,9 @@
         html += '<div class="card"><h2>接种进度</h2>';
         html += '<div class="progress"><div class="progress-bar" style="width:' + Math.round(doneN / items.length * 100) + '%"></div></div>';
         html += '<p class="hint">已完成 ' + doneN + ' / ' + items.length + ' 剂'
-          + (next ? '，下一剂：' + next.name + next.dose + '（' + next.dueISO + '）' : '，全部完成！') + '</p></div>';
+          + (next ? '，下一剂：' + next.name + next.dose + '（' + next.dueISO + '）' : '，全部完成！') + '</p>'
+          /* 第 186 次：未种剂次 + 未做儿保 → 系统日历（.ics，前一天 9 点提醒） */
+          + '<div class="row"><button class="btn btn-mini" type="button" id="vIcs">导出到系统日历</button></div></div>';
 
         /* 第 146 次：多剂「过了应种日还没记录」时，最常见的原因是「其实种过了、只是没在本机记」。
            给一键补记出口（按应种日记、可逐条改），并说清楚没种的该怎么办。 */
@@ -205,6 +207,26 @@
       html += '<p class="hint med-note">接种时间以社区卫生服务中心 / 接种门诊的通知为准，本页仅作记录，不构成医疗建议；接种前有疑问请咨询医生。</p>';
 
       view.innerHTML = html;
+      var vIcs = view.querySelector('#vIcs');
+      if (vIcs) vIcs.addEventListener('click', function () {
+        var bdv = (d.settings.baby || {}).birthDate; if (!bdv) return;
+        var dn = (d.vaccines && d.vaccines.done) || {}, ck = (d.checkups && d.checkups.done) || {};
+        var t0 = Util.todayISO(), byDay = {};
+        plan(bdv).forEach(function (it) {
+          if (dn[it.key] || it.dueISO < t0) return;
+          (byDay[it.dueISO] = byDay[it.dueISO] || []).push(it.name + it.dose);
+        });
+        var evs = Object.keys(byDay).sort().map(function (k) {
+          return { uid: 'vac-' + k, date: k, title: '疫苗参考日：' + byDay[k].join('、'), desc: '按国家免疫规划程序推算的参考日期，以接种门诊预约为准。' };
+        });
+        planCheckups(bdv).forEach(function (it) {
+          if (ck[it.key] || it.dueISO < t0) return;
+          evs.push({ uid: 'ck-' + it.key, date: it.dueISO, title: '儿保：' + it.name, desc: it.content + '（参考时间，以体检机构安排为准）' });
+        });
+        if (!evs.length) { Util.toast('没有待接种或待体检的项目', 'ok'); return; }
+        Util.shareOrDownload('咿呀记_疫苗与儿保.ics', Util.buildICS('宝宝疫苗与儿保', evs), 'text/calendar');
+        Util.toast('已生成 ' + evs.length + ' 个日历事件', 'ok');
+      });
       Util.bindDateSliders(view);
 
       view.querySelector('#vBirth').addEventListener('change', function (e) {

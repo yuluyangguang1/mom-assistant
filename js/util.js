@@ -407,6 +407,53 @@
       + '</label>';
   };
 
+  /* 第 186 次：生成 .ics（全天事件，前一天 9:00 提醒）。
+     events: [{ uid, date: 'YYYY-MM-DD', title, desc }]。只在本机生成，不上传。 */
+  Util.buildICS = function (calName, events) {
+    function esc(t) { return String(t || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
+    function ymd(iso) { return String(iso).replace(/-/g, ''); }
+    var now = new Date();
+    var stamp = now.getUTCFullYear() + pad(now.getUTCMonth() + 1) + pad(now.getUTCDate()) + 'T'
+      + pad(now.getUTCHours()) + pad(now.getUTCMinutes()) + pad(now.getUTCSeconds()) + 'Z';
+    var L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Yiya//CN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:' + esc(calName)];
+    (events || []).forEach(function (e) {
+      if (!e || !/^\d{4}-\d{2}-\d{2}$/.test(e.date || '')) return;
+      L.push('BEGIN:VEVENT', 'UID:' + esc(e.uid) + '@yiya.local', 'DTSTAMP:' + stamp,
+        'DTSTART;VALUE=DATE:' + ymd(e.date), 'DTEND;VALUE=DATE:' + ymd(Util.addDays(e.date, 1)),
+        'SUMMARY:' + esc(e.title));
+      if (e.desc) L.push('DESCRIPTION:' + esc(e.desc));
+      L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + esc(e.title), 'TRIGGER:-PT15H', 'END:VALARM', 'END:VEVENT');
+    });
+    L.push('END:VCALENDAR');
+    return L.join('\r\n') + '\r\n';
+  };
+  /* 优先系统分享（iOS 可直接「添加到日历」），不支持再下载 */
+  Util.shareOrDownload = function (filename, text, mime) {
+    try {
+      if (typeof File === 'function' && navigator.canShare) {
+        var f = new File([text], filename, { type: mime });
+        if (navigator.canShare({ files: [f] })) {
+          navigator.share({ files: [f], title: filename }).catch(function () {});
+          return;
+        }
+      }
+    } catch (e) { /* 落到下载 */ }
+    Util.download(filename, text, mime);
+  };
+
+  /* 第 186 次：新生儿第 1–7 天每日湿尿布常见参考（母乳喂养宣教常用口径：
+     第 1 天 ≥1、第 2 天 ≥2 …… 第 5 天起 ≥6）。只作参考，不是诊断阈值。
+     返回 { day, ref } 或 null（不在第 1–7 天 / 无生日）。 */
+  Util.newbornWetRef = function (d, now) {
+    var bd = d && d.settings && d.settings.baby && d.settings.baby.birthDate;
+    if (!bd || !/^\d{4}-\d{2}-\d{2}$/.test(bd)) return null;
+    var n = now ? new Date(now) : new Date();
+    var t = n.getFullYear() + '-' + pad(n.getMonth() + 1) + '-' + pad(n.getDate());
+    var day = Util.daysBetween(bd, t) + 1;
+    if (!(day >= 1 && day <= 7)) return null;
+    return { day: day, ref: day >= 5 ? 6 : day };
+  };
+
   /* 第 185 次：记录类日期的最早可选日——有生日用生日，否则 3 年前 */
   Util.recordFloor = function (d) {
     var max = Util.todayISO();

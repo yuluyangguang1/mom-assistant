@@ -33,9 +33,35 @@
         html += '<span class="hint">今天还没有记录。</span>';
       }
       html += '</div>';
+      /* 第 186 次：计数会话——「开始一次计数」后每次 +1 归入本次，结束时记下用时与次数。
+         不设达标线、不自动结束：数多久、数到几次，按产检医生教的方法（U-25）。 */
+      var sess = d.fetalSession;
+      if (sess) {
+        var sessCnt = (d.fetal || []).filter(function (r) { return r.time >= sess.start; }).length;
+        html += '<div class="backfill-note feed-live"><p class="hint"><b>本次计数中</b> · 从 ' + Util.fmtDateTime(sess.start).slice(-5)
+          + ' 开始，已 <b id="fsElapsed">' + Util.fmtClock(Date.now() - new Date(sess.start).getTime()) + '</b>，本次 <b>' + sessCnt + '</b> 次</p>'
+          + '<div class="row"><button type="button" class="btn-mini" id="fsEnd">结束本次</button>'
+          + '<button type="button" class="btn-mini" id="fsCancel">取消</button></div></div>';
+      }
       html += '<button type="button" class="btn btn-primary fetal-add" id="ftAdd">' + icon('fetal') + '动了一下，记一次</button>';
+      if (!sess) html += '<div class="row"><button type="button" class="btn-mini" id="fsStart">开始一次计数（记用时）</button></div>';
       html += '<p class="hint">一般建议孕 28 周后每天固定时间数胎动；怎么数、数多久，以产检医生教你的方法为准。这里只帮你记，不评好坏。</p>';
       html += '</div>';
+
+      /* 第 186 次：最近几次计数会话 */
+      var sessions = (d.fetalSessions || []).slice().sort(function (a, b) { return new Date(b.start) - new Date(a.start); }).slice(0, 10);
+      if (sessions.length) {
+        html += '<div class="card"><h2>最近几次计数</h2><ul class="list">';
+        sessions.forEach(function (r) {
+          var ms = new Date(r.end) - new Date(r.start);
+          html += '<li><span class="row-ico">' + icon('fetal') + '</span>'
+            + '<span class="li-main"><b>' + Util.escapeHtml(Util.fmtDateTime(r.start)) + '</b></span>'
+            + '<span class="li-sub">用时 ' + Util.escapeHtml(Util.fmtDuration(ms)) + '</span>'
+            + '<span class="li-num">' + (r.count | 0) + ' 次</span>'
+            + '<button class="icon-btn" data-sdel="' + Util.escapeHtml(r.id) + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
+        });
+        html += '</ul></div>';
+      }
 
       /* 最近记录 */
       html += '<div class="card"><h2>最近记录</h2>';
@@ -72,6 +98,43 @@
           });
         }
         global.App.rerender();
+      });
+      var fsStart = view.querySelector('#fsStart');
+      if (fsStart) fsStart.addEventListener('click', function () {
+        d.fetalSession = { start: Util.nowLocal() };
+        Storage.save(); global.App.rerender();
+      });
+      var fsEnd = view.querySelector('#fsEnd');
+      if (fsEnd) fsEnd.addEventListener('click', function () {
+        var s0 = d.fetalSession; if (!s0) return;
+        var cnt = (d.fetal || []).filter(function (r) { return r.time >= s0.start; }).length;
+        if (!d.fetalSessions) d.fetalSessions = [];
+        var end = Util.nowLocal();
+        d.fetalSessions.push({ id: Util.uid(), start: s0.start, end: end, count: cnt });
+        d.fetalSession = null;
+        Storage.save();
+        Util.toast('本次 ' + cnt + ' 次，用时 ' + Util.fmtDuration(new Date(end) - new Date(s0.start)), 'ok');
+        global.App.rerender();
+      });
+      var fsCancel = view.querySelector('#fsCancel');
+      if (fsCancel) fsCancel.addEventListener('click', function () {
+        d.fetalSession = null; Storage.save(); Util.toast('已取消本次计数（胎动记录保留）', 'ok'); global.App.rerender();
+      });
+      var fsEl = view.querySelector('#fsElapsed');
+      if (fsEl && d.fetalSession) {
+        var fsTick = setInterval(function () {
+          if (!view.contains(fsEl) || !d.fetalSession) { clearInterval(fsTick); return; }
+          fsEl.textContent = Util.fmtClock(Date.now() - new Date(d.fetalSession.start).getTime());
+        }, 1000);
+      }
+      Array.prototype.forEach.call(view.querySelectorAll('[data-sdel]'), function (b) {
+        b.addEventListener('click', function () {
+          Util.removeWithUndo(d.fetalSessions, b.getAttribute('data-sdel'), {
+            onSave: function () { Storage.save(); },
+            onAfter: function () { global.App.rerender(); },
+            deletedText: '已删除这次计数'
+          });
+        });
       });
       Array.prototype.forEach.call(view.querySelectorAll('[data-del]'), function (b) {
         b.addEventListener('click', function () {

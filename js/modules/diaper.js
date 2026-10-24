@@ -95,6 +95,12 @@
       } else {
         html += '<p class="hint">今天还没有换尿布记录。</p>';
       }
+      /* 第 186 次：新生儿第 1–7 天湿尿布参考（中性，一句话） */
+      var wr = Util.newbornWetRef(d);
+      if (wr) {
+        html += '<p class="hint">出生第 ' + wr.day + ' 天，湿尿布常见参考约每天 ' + wr.ref + ' 片' + (wr.day >= 5 ? '以上' : '')
+          + '，今天已记 ' + (todayList.length ? peeN : 0) + ' 片。各家医院口径略有不同，有担心问医生或护士。</p>';
+      }
       html += '</div>';
 
       /* 第 138 次：今天有黑/红/灰白等「建议就医」色便便时，页面顶部给一条红线提示。

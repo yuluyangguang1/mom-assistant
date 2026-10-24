@@ -36,7 +36,9 @@
   var ARRAY_KEYS = ['periods', 'feedings', 'sleeps', 'contractions', 'growth', 'diapers', 'meds', 'milestones', 'milestoneObs', 'fetal', 'temps', 'moods', 'babies', 'supplies',
     /* 第 132 次（对标 Cali 21 工具补缺）：洗澡 / 游泳 / 日晒 / 饮水 / 黄疸 / 补剂。
        六者均为纯追加的记录列表，默认空数组即旧行为，DATA_VERSION 不动。 */
-    'baths', 'swims', 'suns', 'waters', 'jaundices', 'supplements', 'supplementPlans'];
+    'baths', 'swims', 'suns', 'waters', 'jaundices', 'supplements', 'supplementPlans',
+    /* 第 186 次：胎动计数会话 { id, start, end, count } */
+    'fetalSessions'];
   /* 对象型字段（嵌套容器） */
   /* 第 136 次（缺陷修复）：feedingTimer 是「亲喂计时进行中」的持久状态，
      feeding.js 注释写着「跨刷新保留」，但它既不在 defaultData 也不在 OBJECT_KEYS，
@@ -211,6 +213,8 @@
       milestoneObs: [],
       /* 胎动计数（对标 Cali 宝宝补齐的孕期刚需，2026-09-27）：{ id, time } */
       fetal: [],
+      fetalSessions: [],
+      fetalSession: null,
       /* 第 107 次：消耗品与补货提醒。{ id, name, cat, date, price, availDays, qty, unit, history[] }
          起因是参考实现在真实使用中 54 行里出现 21 行重复（同「名称+购买日期」）。
          availDays 语义 = 这一行总共还剩多少天；剩余天数是渲染期派生量，不落库。
@@ -432,6 +436,10 @@
     /* 进行中状态（openSleep/openContraction）：start 不可解析则视为无进行中，避免计时器读到 NaN */
     if (raw.openSleep && typeof raw.openSleep === 'object'
       && !isNaN(new Date(raw.openSleep.start).getTime())) base.openSleep = raw.openSleep;
+    /* 第 186 次：胎动计数会话进行中 */
+    base.fetalSession = (raw.fetalSession && typeof raw.fetalSession === 'object'
+      && !isNaN(new Date(raw.fetalSession.start).getTime()))
+      ? { start: String(raw.fetalSession.start).slice(0, 19) } : null;
     if (raw.openContraction && typeof raw.openContraction === 'object'
       && !isNaN(new Date(raw.openContraction.start).getTime())) base.openContraction = raw.openContraction;
     /* 第 138 次：openCare 与 openSleep 同口径——kind 必须在白名单内、start 必须可解析。
@@ -451,7 +459,14 @@
        注意 OBJECT_KEYS 的浅拷贝会把整个对象连坏值一起搬过来，所以这里必须显式重判一次。 */
     if (raw.feedingTimer && typeof raw.feedingTimer === 'object'
       && !isNaN(new Date(raw.feedingTimer.start).getTime())) {
-      base.feedingTimer = { start: String(raw.feedingTimer.start).slice(0, 19) };
+      /* 第 186 次修复：第 140 次加了分侧字段，这里却只留 start——刷新后换边累计全丢 */
+      var rft = raw.feedingTimer;
+      base.feedingTimer = { start: String(rft.start).slice(0, 19) };
+      if (rft.side === 'left' || rft.side === 'right') base.feedingTimer.side = rft.side;
+      if (rft.sideStart && !isNaN(new Date(rft.sideStart).getTime())) base.feedingTimer.sideStart = String(rft.sideStart).slice(0, 19);
+      ['accL', 'accR'].forEach(function (k) {
+        if (typeof rft[k] === 'number' && isFinite(rft[k]) && rft[k] >= 0 && rft[k] < 864e5) base.feedingTimer[k] = rft[k];
+      });
     } else {
       base.feedingTimer = null;
     }

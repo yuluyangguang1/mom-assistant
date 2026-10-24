@@ -287,6 +287,45 @@
     };
   }
 
+  /* 第 186 次：产检预约——今天或明天有预约且未勾「做了」 */
+  function rulePrenatalAppt(d, now) {
+    var pl = d.prenatal && d.prenatal.plan;
+    var pg = global.Modules && global.Modules.pregnancy;
+    if (!pl || typeof pl !== 'object' || !pg || !pg._checks) return null;
+    var nd = new Date(now);
+    var t0 = nd.getFullYear() + '-' + ('0' + (nd.getMonth() + 1)).slice(-2) + '-' + ('0' + nd.getDate()).slice(-2);
+    var hit = null;
+    pg._checks.forEach(function (c) {
+      var st = pl['w' + c.week];
+      if (!st || st.done || typeof st.appt !== 'string') return;
+      var dl = daysBetween(t0, st.appt);
+      if (dl >= 0 && dl <= 1 && (!hit || dl < hit.dl)) hit = { c: c, dl: dl };
+    });
+    if (!hit) return null;
+    return {
+      accent: 'pregnancy', go: 'pregnancy', remLevel: 1,
+      text: (hit.dl === 0 ? '今天' : '明天') + '约了产检：' + hit.c.title + '，记得带产检本和医保卡。'
+    };
+  }
+
+  /* 第 186 次：新生儿第 1–7 天，18 点后湿尿布少于常见参考 → 温和提一句（不下结论） */
+  function ruleNewbornWet(d, now) {
+    if (!window.Util || !Util.newbornWetRef) return null;
+    var wr = Util.newbornWetRef(d, now);
+    if (!wr) return null;
+    var nd = new Date(now);
+    if (nd.getHours() < 18) return null;
+    var dayKey = nd.getFullYear() + '-' + ('0' + (nd.getMonth() + 1)).slice(-2) + '-' + ('0' + nd.getDate()).slice(-2);
+    var wet = (d.diapers || []).filter(function (r) {
+      return r.time && String(r.time).slice(0, 10) === dayKey && (r.type === 'pee' || r.type === 'both');
+    }).length;
+    if (wet >= wr.ref) return null;
+    return {
+      accent: 'diaper', go: 'diaper', remLevel: 1,
+      text: '今天湿尿布记了 ' + wet + ' 片，出生第 ' + wr.day + ' 天的常见参考约 ' + wr.ref + ' 片。可以留意一下喂养，有担心问医生或护士。'
+    };
+  }
+
   /* 尿布间隔：有记录习惯时，距上次含尿 >8 小时 / 含便 >48 小时 → 温和提示留意 */
   function ruleDiaperGap(d, now) {
     var ds = d.diapers || [];
@@ -413,7 +452,7 @@
      settings.lastExportISO 自己算天数，不再经过提醒引擎）。
      ruleBackup 函数保留（不删）是因为它同时被启动时的容量/备份提示复用，
      只是不再进入 evaluate 的常规提醒流。 */
-  var RULES = [ruleSleep, ruleContraction, ruleWhiteNoise, ruleFeeding, ruleVaccine, ruleCheckup, ruleMeds, ruleDiaperGap, rulePacking, rulePeriod, ruleFetal, ruleMilestone];
+  var RULES = [ruleSleep, ruleContraction, ruleWhiteNoise, ruleFeeding, ruleVaccine, ruleCheckup, rulePrenatalAppt, ruleMeds, ruleNewbornWet, ruleDiaperGap, rulePacking, rulePeriod, ruleFetal, ruleMilestone];
 
   /* 第 109 次：提醒的收敛与排序。
      此前 evaluate 按 RULES 数组固定顺序输出、不排序、也不设上限——

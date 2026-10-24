@@ -75,6 +75,42 @@
     return idxByRecord;
   }
 
+  /* 第 186 次：体温趋势（最近 72 小时）+ 用药时刻竖线。
+     只画记录，不画「发热线」之外的任何判读；HIGH 虚线与今日小结同一口径。 */
+  function tempChart(temps, meds, HIGHV) {
+    var now = Date.now(), from = now - 72 * 3600000;
+    var pts = temps.filter(function (r) {
+      var t = new Date(r.time).getTime();
+      return typeof r.value === 'number' && isFinite(r.value) && t >= from && t <= now + 60000;
+    }).map(function (r) { return { t: new Date(r.time).getTime(), v: r.value }; })
+      .sort(function (a, b) { return a.t - b.t; });
+    if (pts.length < 2) return '';
+    var t0 = Math.max(from, pts[0].t - 3600000), t1 = now;
+    var ms = meds.filter(function (r) { var t = new Date(r.time).getTime(); return t >= t0 && t <= t1; })
+      .map(function (r) { return { t: new Date(r.time).getTime(), n: String(r.name || '用药') }; });
+    var W = 320, H = 150, L = 30, R = 10, T = 12, B = 24;
+    var vmin = Math.min(36, Math.min.apply(null, pts.map(function (p) { return p.v; }))) - 0.2;
+    var vmax = Math.max(38.5, Math.max.apply(null, pts.map(function (p) { return p.v; }))) + 0.2;
+    function X(t) { return L + (W - L - R) * (t - t0) / Math.max(1, t1 - t0); }
+    function Y(v) { return T + (H - T - B) * (vmax - v) / (vmax - vmin); }
+    var h = '<svg class="temp-chart" viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="最近 72 小时体温趋势">';
+    [36, 37, 38, 39, 40].forEach(function (g) {
+      if (g < vmin || g > vmax) return;
+      h += '<line class="tc-grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(g).toFixed(1) + '" y2="' + Y(g).toFixed(1) + '"></line>'
+        + '<text class="tc-ax" x="' + (L - 4) + '" y="' + (Y(g) + 3).toFixed(1) + '" text-anchor="end">' + g + '</text>';
+    });
+    if (HIGHV >= vmin && HIGHV <= vmax) h += '<line class="tc-high" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(HIGHV).toFixed(1) + '" y2="' + Y(HIGHV).toFixed(1) + '"></line>';
+    ms.forEach(function (m) {
+      var x = X(m.t).toFixed(1);
+      h += '<line class="tc-med" x1="' + x + '" x2="' + x + '" y1="' + T + '" y2="' + (H - B) + '"></line>'
+        + '<text class="tc-medt" x="' + x + '" y="' + (H - B + 12) + '" text-anchor="middle">' + Util.escapeHtml(m.n.slice(0, 3)) + '</text>';
+    });
+    h += '<path class="tc-line" d="' + pts.map(function (p, i) { return (i ? 'L' : 'M') + X(p.t).toFixed(1) + ' ' + Y(p.v).toFixed(1); }).join(' ') + '"></path>';
+    pts.forEach(function (p) { h += '<circle class="tc-dot" cx="' + X(p.t).toFixed(1) + '" cy="' + Y(p.v).toFixed(1) + '" r="3"></circle>'; });
+    h += '</svg>';
+    return h;
+  }
+
   Modules.temp = {
     id: 'temp',
     title: '体温',
@@ -140,6 +176,17 @@
         html += '<p class="hint">今天还没有记录。平时不用天天测，发热期按需记录即可。</p>';
       }
       html += '</div>';
+
+      /* 第 186 次：距上次用药 + 趋势图（吃药页 d.meds 的记录，24 小时内才提） */
+      var medsAll = (d.meds || []).filter(function (r) { return r && r.time && !isNaN(new Date(r.time).getTime()) && new Date(r.time).getTime() <= Date.now() + 60000; });
+      var lastMed = medsAll.slice().sort(function (a, b) { return new Date(b.time) - new Date(a.time); })[0];
+      var chartHtml = tempChart(d.temps || [], medsAll, HIGH);
+      var medLine = (lastMed && Date.now() - new Date(lastMed.time).getTime() < 24 * 3600000)
+        ? '<p class="hint">距上次用药（' + Util.escapeHtml(lastMed.name || '用药') + '）已 <b>' + Util.escapeHtml(Util.fmtDuration(Date.now() - new Date(lastMed.time).getTime())) + '</b>。两次用药间隔请按医嘱或说明书。</p>' : '';
+      if (chartHtml || medLine) {
+        html += '<div class="card"><h2>最近 72 小时</h2>' + chartHtml
+          + (chartHtml ? '<p class="hint">竖线是吃药页记下的用药时刻。</p>' : '') + medLine + '</div>';
+      }
 
       /* 最近记录 */
       html += '<div class="card"><h2>最近记录</h2>';

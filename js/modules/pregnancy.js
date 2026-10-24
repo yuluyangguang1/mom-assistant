@@ -36,6 +36,7 @@
   }
 
   Modules.pregnancy = {
+    _checks: CHECKS,
     id: 'pregnancy',
     title: '孕期',
     render: function (view) {
@@ -61,17 +62,29 @@
       }
 
       // 产检日历（P2-13：下一个未到节点给「下一个」高亮 tag，回答「现在该做什么」）
-      var nextCheck = cw ? CHECKS.filter(function (c) { return c.week > cw.week; })[0] : null;
+      /* 第 186 次：每个节点可勾「做了」+ 填预约日期；预约前一天/当天首页提醒，可导出系统日历。
+         数据：d.prenatal.plan = { w<周>: { appt: 'YYYY-MM-DD'|null, done: 'YYYY-MM-DD'|null } } */
+      var pplan = (d.prenatal.plan && typeof d.prenatal.plan === 'object') ? d.prenatal.plan : {};
+      var nextCheck = cw ? CHECKS.filter(function (c) { return c.week > cw.week && !(pplan['w' + c.week] || {}).done; })[0] : null;
       html += '<div class="card"><h2>产检日历</h2><ul class="list">';
       CHECKS.forEach(function (c) {
+        var k = 'w' + c.week, st = pplan[k] || {};
+        var okDate = function (v) { return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ''; };
+        var doneD = okDate(st.done), appt = okDate(st.appt);
         var status;
-        if (cw && cw.week >= c.week) status = '<span class="tag">已过</span>';
+        if (doneD) status = '<span class="tag">已做 ' + doneD.slice(5) + '</span>';
+        else if (appt) status = '<span class="tag tag-accent">约 ' + appt.slice(5) + '</span>';
+        else if (cw && cw.week >= c.week) status = '<span class="tag">已过</span>';
         else if (c === nextCheck) status = '<span class="tag tag-accent">下一个</span>';
         else status = '<span class="tag">未到</span>';
-        html += '<li>' + icon('calendar') + '<span>孕' + c.week + '周：' + c.title + '<br><small>' + c.desc + '</small></span>' +
-          status + '</li>';
+        html += '<li class="pn-item' + (doneD ? ' is-done' : '') + '">' + icon(doneD ? 'check' : 'calendar')
+          + '<span>孕' + c.week + '周：' + c.title + '<br><small>' + c.desc + '</small>'
+          + (doneD || !(appt || c === nextCheck || (cw ? (c.week >= cw.week - 2 && c.week <= cw.week + 6) : c === CHECKS[0])) ? '' : '<label class="pn-appt">预约<input type="date" data-pnappt="' + k + '" value="' + appt + '"></label>')
+          + '</span>' + status
+          + '<button type="button" class="btn btn-mini" data-pndone="' + k + '">' + (doneD ? '撤销' : '做了') + '</button></li>';
       });
       html += '</ul>';
+      html += '<div class="row"><button type="button" class="btn btn-mini" id="pnIcs">预约导出到系统日历</button></div>';
       html += '<label>自定义产检备注（孕周）<input type="number" id="ckWeek" min="0" max="45" placeholder="如 30" value="' + (cw ? cw.week : '') + '"></label>';
       html += '<label>内容<input type="text" id="ckNote" placeholder="如 已做B超，宝宝偏大"></label>';
       html += '<button class="btn" id="ckAdd">添加备注</button>';
@@ -131,6 +144,38 @@
       html += '<p class="hint med-note">孕周与预产期为估算值；产检安排与一切医学判断请遵医嘱。</p>';
 
       view.innerHTML = html;
+      function pnState(k) {
+        if (!d.prenatal.plan || typeof d.prenatal.plan !== 'object') d.prenatal.plan = {};
+        if (!d.prenatal.plan[k] || typeof d.prenatal.plan[k] !== 'object') d.prenatal.plan[k] = {};
+        return d.prenatal.plan[k];
+      }
+      Array.prototype.forEach.call(view.querySelectorAll('[data-pnappt]'), function (inp) {
+        inp.addEventListener('change', function () {
+          var v = inp.value;
+          pnState(inp.getAttribute('data-pnappt')).appt = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+          if (Storage.save()) Util.toast(v ? '已记下预约 ' + v + '，前一天会提醒' : '已清除预约', 'ok');
+          global.App.rerender();
+        });
+      });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-pndone]'), function (b) {
+        b.addEventListener('click', function () {
+          var stt = pnState(b.getAttribute('data-pndone'));
+          stt.done = stt.done ? null : (stt.appt && stt.appt <= Util.todayISO() ? stt.appt : Util.todayISO());
+          Storage.save(); global.App.rerender();
+        });
+      });
+      var pnIcs = view.querySelector('#pnIcs');
+      if (pnIcs) pnIcs.addEventListener('click', function () {
+        var pl = d.prenatal.plan || {}, t0 = Util.todayISO();
+        var evs = CHECKS.map(function (c) {
+          var st2 = pl['w' + c.week] || {};
+          if (st2.done || !st2.appt || st2.appt < t0) return null;
+          return { uid: 'pn-w' + c.week, date: st2.appt, title: '产检：' + c.title, desc: c.desc + '。记得带产检本和医保卡。' };
+        }).filter(Boolean);
+        if (!evs.length) { Util.toast('还没有填未来的产检预约日期', 'warn'); return; }
+        Util.shareOrDownload('咿呀记_产检预约.ics', Util.buildICS('产检预约', evs), 'text/calendar');
+        Util.toast('已生成 ' + evs.length + ' 个日历事件', 'ok');
+      });
       Util.bindDateSliders(view);
 
       view.querySelector('#pgSave').addEventListener('click', function () {
