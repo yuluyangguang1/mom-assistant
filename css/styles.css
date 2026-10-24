@@ -4141,3 +4141,113 @@ body .tabbar.is-vertical .dock-now { margin: 4px 0; }
 /* 第 209 次：播放页停止钮在未播放时置灰；暂停时画面停止呼吸 */
 .wn-player .wp-side:disabled { opacity: .4; cursor: default; }
 .wn-player.is-paused .wp-bg { animation-play-state: paused; }
+
+/* ============================================================
+   第 210 次：首页视觉化（对标用户给的参考图：彩色小组件网格）
+   · 上次喂奶 / 尿布 / 睡眠 + 哄睡声音：2×2 彩色小组件，模块色淡渐变底、图标胶囊、大数值；
+   · 生长速览：两格绿色小组件，可点进生长页；
+   · 快记四键：模块色淡底的圆角方块；
+   · 模块记录（自动模式）：两列小方块，带就地记录的磁贴与「全部功能」仍占整行。
+   只改呈现，data-go / id / 绑定一律不动。
+   ============================================================ */
+.home-widgets { gap: 12px; }
+.home-widgets .hw {
+  position: relative; overflow: hidden; isolation: isolate;
+  min-height: calc(118px * var(--fs-mul)); gap: 6px; padding: 14px 14px 13px;
+  border: 0; border-radius: var(--radius-lg);
+  background: linear-gradient(160deg, var(--tile-weak) 0%, color-mix(in srgb, var(--tile-weak) 45%, var(--surface)) 100%);
+  box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--tile) 70%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--tile) 10%, transparent);
+}
+.home-widgets .hl2-head { width: 100%; gap: 8px; color: var(--tile-text); font-size: calc(13px * var(--fs-mul)); letter-spacing: .02em; }
+.hw-ico { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-xs); background: color-mix(in srgb, var(--tile) 16%, var(--surface)); }
+.hw-ico .ico { width: 16px; height: 16px; color: var(--tile); }
+.hw-arrow { margin-left: auto; display: flex; opacity: .45; }
+.hw-arrow .ico { width: 16px; height: 16px; color: var(--tile-text); }
+.home-widgets .hl2-val { font-size: calc(19px * var(--fs-mul)); font-weight: 700; margin-top: 4px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.home-widgets .hl2-gap { font-size: calc(12px * var(--fs-mul)); color: color-mix(in srgb, var(--tile-text) 60%, var(--muted)); }
+body.dark .home-widgets .hw {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--tile) 22%, var(--surface)) 0%, var(--surface) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile) 16%, transparent);
+}
+body.dark .hw-ico { background: color-mix(in srgb, var(--tile) 22%, transparent); }
+/* 哄睡声音：插画铺底 + 雾紫渐变压字 */
+.hw-wn { color: #FFF; }
+.hw-wn-bg { position: absolute; inset: 0; z-index: -2; background: #4E5688 center 35% / cover no-repeat; transition: transform .6s var(--ease); }
+.hw-wn::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(58, 64, 112, .55) 0%, rgba(58, 64, 112, .12) 45%, rgba(46, 50, 92, .72) 100%); }
+.home-widgets .hw-wn .hl2-head, .home-widgets .hw-wn .hl2-val { color: #FFF; }
+.home-widgets .hw-wn .hl2-gap { color: rgba(255, 255, 255, .82); }
+.hw-wn .hw-ico { background: rgba(255, 255, 255, .2); }
+.hw-wn .hw-ico .ico, .hw-wn .hw-arrow .ico { color: #FFF; }
+.hw-wn.is-on .hl2-gap { color: #F4C6A5; font-weight: 600; }
+.hw-wn:active .hw-wn-bg { transform: scale(1.04); }
+
+/* 生长速览：去白卡壳，两格绿色小组件 */
+.home-main > .gs-card { background: none; border: 0; box-shadow: none; padding: 0; margin-bottom: var(--space-md); }
+.home-main > .gs-card > h2 { display: none; }
+.gs-card .gs-row { gap: 12px; }
+.gs-card .gs-cell {
+  cursor: pointer; padding: 14px; border-radius: var(--radius-lg); gap: 4px;
+  background: linear-gradient(160deg, var(--tile-weak), color-mix(in srgb, var(--tile-weak) 45%, var(--surface)));
+  box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--tile) 70%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--tile) 10%, transparent);
+  transition: transform .2s var(--spring);
+}
+.gs-card .gs-cell:active { transform: scale(.975); }
+.gs-card .gs-cell:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.gs-card .gs-lbl { display: flex; align-items: center; gap: 6px; color: var(--tile-text); font-size: calc(13px * var(--fs-mul)); }
+.gs-card .gs-lbl .ico { width: 16px; height: 16px; color: var(--tile); }
+.gs-card .gs-val { color: var(--text); font-size: calc(22px * var(--fs-mul)); }
+.gs-card .spark { height: 34px; margin-top: 6px; }
+.gs-card .spark polyline { stroke: var(--tile); stroke-width: 2.4; }
+.gs-card .spark circle { fill: var(--tile); }
+body.dark .gs-card .gs-cell { background: linear-gradient(160deg, color-mix(in srgb, var(--tile) 22%, var(--surface)), var(--surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile) 16%, transparent); }
+
+/* 快记四键：模块色淡底方块 */
+.home-now .hn-q {
+  border: 0; border-radius: var(--radius);
+  background: linear-gradient(160deg, var(--tile-weak), color-mix(in srgb, var(--tile-weak) 50%, var(--surface)));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile) 12%, transparent);
+  color: var(--tile-text);
+}
+.home-now .hn-q .ico { color: var(--tile); }
+body.dark .home-now .hn-q { background: color-mix(in srgb, var(--tile) 18%, var(--surface)); }
+
+/* 模块记录（自动模式）：两列小方块 */
+.record-grid:not(.is-custom):not(.is-editing) { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.record-grid:not(.is-custom):not(.is-editing) > button.record-tile {
+  display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto auto; align-items: center;
+  column-gap: 8px; row-gap: 4px; min-height: calc(104px * var(--fs-mul)); padding: 14px;
+  border: 0; border-radius: var(--radius-lg);
+  background: linear-gradient(160deg, var(--tile-weak), color-mix(in srgb, var(--tile-weak) 40%, var(--surface)));
+  box-shadow: 0 10px 24px -20px color-mix(in srgb, var(--tile) 70%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--tile) 10%, transparent);
+}
+.record-grid:not(.is-custom):not(.is-editing) > button.record-tile::before { display: none; }
+.record-grid:not(.is-custom):not(.is-editing) > button.record-tile .rt-ico {
+  grid-column: 1; grid-row: 1; width: 30px; height: 30px; padding: 7px; box-sizing: border-box;
+  border-radius: var(--radius-xs); background: color-mix(in srgb, var(--tile) 16%, var(--surface));
+}
+.record-grid:not(.is-custom):not(.is-editing) > button.record-tile .rt-arrow { grid-column: 3; grid-row: 1; }
+.record-grid:not(.is-custom):not(.is-editing) > button.record-tile .rt-badge { grid-column: 2; grid-row: 1; justify-self: end; font-size: calc(11px * var(--fs-mul)); padding: 3px 7px; }
+.record-grid:not(.is-custom):not(.is-editing) > button.record-tile .rt-name { grid-column: 1 / -1; grid-row: 2; margin-top: 6px; font-size: calc(15px * var(--fs-mul)); }
+.record-grid:not(.is-custom):not(.is-editing) > button.record-tile .rt-sum {
+  grid-column: 1 / -1; grid-row: 3; margin: 0; padding: 0; text-align: left;
+  white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  font-size: calc(12px * var(--fs-mul)); line-height: 1.4; color: color-mix(in srgb, var(--tile-text) 55%, var(--muted));
+}
+body.dark .record-grid:not(.is-custom):not(.is-editing) > button.record-tile {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--tile) 20%, var(--surface)), var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile) 16%, transparent);
+}
+body.dark .record-grid:not(.is-custom):not(.is-editing) > button.record-tile .rt-ico { background: color-mix(in srgb, var(--tile) 22%, transparent); }
+/* 就地记录磁贴（喂养 / 尿布）：同样换成模块色淡底；最近一次已在上方小组件里，这里不再重复长句 */
+.record-grid:not(.is-custom):not(.is-editing) > .record-tile.is-quick {
+  grid-column: 1 / -1; border: 0; border-radius: var(--radius-lg);
+  background: linear-gradient(160deg, var(--tile-weak), color-mix(in srgb, var(--tile-weak) 35%, var(--surface)));
+  box-shadow: 0 10px 24px -20px color-mix(in srgb, var(--tile) 70%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--tile) 10%, transparent);
+}
+.record-grid:not(.is-custom):not(.is-editing) > .record-tile.is-quick .rt-sum { display: none; }
+.record-grid:not(.is-custom):not(.is-editing) > .record-tile.is-quick .rt-ico {
+  width: 30px; height: 30px; padding: 7px; box-sizing: border-box; border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--tile) 16%, var(--surface));
+}
+.record-grid:not(.is-custom):not(.is-editing) > .record-tile.is-quick .rt-arrow { margin-left: auto; }
+body.dark .record-grid:not(.is-custom):not(.is-editing) > .record-tile.is-quick { background: linear-gradient(160deg, color-mix(in srgb, var(--tile) 18%, var(--surface)), var(--surface)); }

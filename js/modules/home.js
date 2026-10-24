@@ -933,7 +933,12 @@
         .sort(function (a, b) { return new Date(b.start) - new Date(a.start); })[0];
       var ld = (d.diapers || []).filter(function (r) { return r && r.time; })
         .sort(function (a, b) { return new Date(b.time) - new Date(a.time); })[0];
-      if (lf || ld) {
+      /* 第 210 次（首页视觉化 · 对标用户给的参考图）：「上次 X」两列小卡升级为一组彩色小组件——
+         喂奶 / 尿布 / 睡眠 + 哄睡声音插画卡，2×2 排布；每块：图标胶囊 + 标题 + ›、一个大值、底部相对时间。
+         只读不写，点击进对应模块（data-go 走统一绑定）。 */
+      var lsl = (d.sleeps || []).filter(function (r) { return r && r.start && r.end; })
+        .sort(function (a, b) { return new Date(b.end) - new Date(a.end); })[0];
+      if (lf || ld || lsl) {
         var nowMs2 = sumNow.getTime();
         /* 卡里只需要「2 小时前」这种短说法：gapText 的「距今 X」前缀在
            「上次喂奶」标题下是重复信息，这里剥掉；不足 1 分钟说「刚刚」。 */
@@ -951,25 +956,44 @@
           if (amt) {
             feedVal += ' · ' + amt + 'mL';
           } else if (lf.type === 'breast') {
-            var sp = [];
-            if (lf.durationL) sp.push('左 ' + lf.durationL + ' 分');
-            if (lf.durationR) sp.push('右 ' + lf.durationR + ' 分');
-            if (sp.length) feedVal += ' · ' + sp.join(' ');
+            /* 第 210 次：小组件里只放总时长，左右分开写会被截断 */
+            var bt = lf.durationMin || ((lf.durationL || 0) + (lf.durationR || 0));
+            if (bt) feedVal += ' · ' + bt + ' 分钟';
           }
           feedGap = gapShort(Math.max(0, nowMs2 - new Date(lf.start).getTime()));
         }
         var diaVal = ld ? (DT[ld.type] || '换尿布') : '—';
         var diaGap = ld ? gapShort(Math.max(0, nowMs2 - new Date(ld.time).getTime())) : '';
-        html += '<div class="home-last2">'
-          + '<button class="hl2" data-accent="feeding" data-go="feeding" type="button">'
-          + '<span class="hl2-head">' + icon('feeding') + '上次喂奶</span>'
-          + '<b class="hl2-val">' + Util.escapeHtml(feedVal) + '</b>'
-          + '<span class="hl2-gap">' + Util.escapeHtml(feedGap || '还没有记录') + '</span>'
-          + '</button>'
-          + '<button class="hl2" data-accent="diaper" data-go="diaper" type="button">'
-          + '<span class="hl2-head">' + icon('diaper') + '上次尿布</span>'
-          + '<b class="hl2-val">' + Util.escapeHtml(diaVal) + '</b>'
-          + '<span class="hl2-gap">' + Util.escapeHtml(diaGap || '还没有记录') + '</span>'
+        var slVal = '—', slGap = '';
+        if (lsl) {
+          var slMin = Math.max(0, Math.round((new Date(lsl.end) - new Date(lsl.start) - (lsl.pausedMs || 0)) / 60000));
+          slVal = slMin >= 60 ? (Math.floor(slMin / 60) + ' 小时' + (slMin % 60 ? ' ' + (slMin % 60) + ' 分' : '')) : (slMin + ' 分钟');
+          slGap = '醒来 ' + gapShort(Math.max(0, nowMs2 - new Date(lsl.end).getTime()));
+        }
+        if (d.openSleep && d.openSleep.start) { slVal = '睡眠中'; slGap = '进行中'; }
+        function hw(acc, go, ic, label, val, gap) {
+          return '<button class="hl2 hw" data-accent="' + acc + '" data-go="' + go + '" type="button">'
+            + '<span class="hl2-head"><span class="hw-ico">' + icon(ic) + '</span>' + label
+            + '<span class="hw-arrow" aria-hidden="true">' + icon('chevron-right') + '</span></span>'
+            + '<b class="hl2-val">' + Util.escapeHtml(val) + '</b>'
+            + '<span class="hl2-gap">' + Util.escapeHtml(gap || '还没有记录') + '</span>'
+            + '</button>';
+        }
+        var wnS = d.whitenoise || {};
+        var WN_N = { pink: '粉红噪音', white: '白噪音', brown: '棕色噪音', shush: '嘘声', ocean: '海浪声', heart: '心跳声', fan: '风扇声', rain: '雨声', dryer: '吹风机' };
+        var wnType = WN_N[wnS.type] ? wnS.type : 'pink';
+        var wnRem = (Modules.whitenoise && Modules.whitenoise._remainingMin) ? Modules.whitenoise._remainingMin() : null;
+        var wnSub = wnS.playing ? ('播放中' + (wnRem != null ? ' · 还剩 ' + wnRem + ' 分钟' : '')) : wnS.paused ? '已暂停' : '轻点挑一个声音';
+        html += '<div class="home-last2 home-widgets">'
+          + hw('feeding', 'feeding', 'feeding', '上次喂奶', feedVal, feedGap)
+          + hw('diaper', 'diaper', 'diaper', '上次尿布', diaVal, diaGap)
+          + hw('sleep', 'sleep', 'sleep', '上次睡眠', slVal, slGap)
+          + '<button class="hl2 hw hw-wn' + (wnS.playing ? ' is-on' : '') + '" data-accent="whitenoise" data-go="whitenoise" type="button">'
+          + '<span class="hw-wn-bg" style="background-image:url(assets/sounds/' + wnType + '.webp)" aria-hidden="true"></span>'
+          + '<span class="hl2-head"><span class="hw-ico">' + icon('whitenoise') + '</span>哄睡声音'
+          + '<span class="hw-arrow" aria-hidden="true">' + icon('chevron-right') + '</span></span>'
+          + '<b class="hl2-val">' + WN_N[wnType] + '</b>'
+          + '<span class="hl2-gap">' + wnSub + '</span>'
           + '</button>'
           + '</div>';
       }
@@ -1095,19 +1119,20 @@
           return '<svg class="spark" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true">'
             + '<polyline points="' + pts + '"/><circle cx="' + last[0] + '" cy="' + last[1] + '" r="2.5"/></svg>';
         }
+        /* 第 210 次：两格改成可点的绿色小组件，去掉说明句（点进生长页看曲线） */
         var inner = '<h2>生长速览</h2><div class="gs-row">';
         if (wPts.length >= 2) {
-          inner += '<div class="gs-cell"><span class="gs-lbl">体重（最近 ' + wPts.length + ' 次）</span>'
+          inner += '<div class="gs-cell" data-accent="growth" data-gs-go="growth" role="button" tabindex="0"><span class="gs-lbl">' + icon('growth') + '体重</span>'
             + '<span class="gs-val">' + wPts[wPts.length - 1].weightKg + ' kg</span>'
             + spark(wPts.map(function (r) { return r.weightKg; })) + '</div>';
         }
         if (hPts.length >= 2) {
-          inner += '<div class="gs-cell"><span class="gs-lbl">身长（最近 ' + hPts.length + ' 次）</span>'
+          inner += '<div class="gs-cell" data-accent="growth" data-gs-go="growth" role="button" tabindex="0"><span class="gs-lbl">' + icon('growth') + '身长</span>'
             + '<span class="gs-val">' + hPts[hPts.length - 1].heightCm + ' cm</span>'
             + spark(hPts.map(function (r) { return r.heightCm; })) + '</div>';
         }
-        inner += '</div><p class="hint">看趋势不看单次；点「生长」磁贴可看生长曲线。</p>';
-        return '<div class="card' + (extraCls || '') + '">' + inner + (badges || '') + '</div>';
+        inner += '</div>';
+        return '<div class="card gs-card' + (extraCls || '') + '">' + inner + (badges || '') + '</div>';
       }
       html += growthSparkHTML();
 
@@ -1256,11 +1281,19 @@
       Array.prototype.forEach.call(view.querySelectorAll('[data-go]'), function (b) {
         if (editing && b.classList && (b.classList.contains('record-tile') || b.classList.contains('canvas-card'))) return;
         b.addEventListener('click', function () { global.App.showTab(b.getAttribute('data-go')); });
-        if (b.tagName === 'LI') {
+        if (b.tagName === 'LI' || b.tagName === 'DIV') {
           b.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); global.App.showTab(b.getAttribute('data-go')); }
           });
         }
+      });
+
+      /* 第 210 次：生长小组件点进生长页（不用 data-go，避免被画布当成一个模块组件） */
+      Array.prototype.forEach.call(view.querySelectorAll('[data-gs-go]'), function (c) {
+        if (editing) return;
+        function go() { global.App.showTab('growth'); }
+        c.addEventListener('click', go);
+        c.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
       });
 
       /* U-34 容量近上限强提示卡：立即导出 / 延迟 3 天（不自动消失，可再次触发） */
