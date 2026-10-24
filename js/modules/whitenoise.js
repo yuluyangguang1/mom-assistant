@@ -31,10 +31,13 @@
     { v: 'shush', t: '嘘声', desc: '「嘘——嘘——」一起一伏，像大人在耳边轻轻哄' },
     { v: 'ocean', t: '海浪', desc: '低沉的浪声，约 8 秒一涨一落' },
     { v: 'heart', t: '心跳', desc: '每分钟约 75 下的「咚—咚」，底下垫一层很轻的低噪。手机外放会偏薄，戴耳机或接音箱更像' },
-    { v: 'fan', t: '风扇', desc: '稳定的低沉气流声，没有起伏' }
+    { v: 'fan', t: '风扇', desc: '稳定的低沉气流声，没有起伏' },
+    /* 第 206 次：再加两种，凑成 3×3 的声音库；同样本机合成 */
+    { v: 'rain', t: '雨声', desc: '绵密的雨幕里零星落下雨滴，没有雷声' },
+    { v: 'dryer', t: '吹风机', desc: '偏亮的稳定风声，带一点电机的嗡嗡声，不少宝宝听了会安静下来' }
   ];
   /* 循环片段长度：海浪一个涨落周期 8 秒，其余 4 秒（嘘声 2 秒一下、心跳 0.8 秒一下，都能整除） */
-  var TAGS = { pink: '细雨', white: '沙沙', brown: '远风', shush: '轻哄', ocean: '涨落', heart: '75 拍', fan: '气流' };
+  var TAGS = { pink: '细雨', white: '沙沙', brown: '远风', shush: '轻哄', ocean: '涨落', heart: '75 拍', fan: '气流', rain: '雨夜', dryer: '暖风' };
   var SHORT = { pink: '粉红噪音', white: '白噪音', brown: '棕噪音' };
   TYPES.forEach(function (t) { t.tag = TAGS[t.v] || ''; t.short = SHORT[t.v] || t.t; });
   function typeInfo(v) { for (var i = 0; i < TYPES.length; i++) if (TYPES[i].v === v) return TYPES[i]; return null; }
@@ -49,6 +52,7 @@
     heart: svg('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/><path d="M7 12h2.5l1.2-2 1.8 4 1.2-2H17"/>'),
     fan: svg('<circle cx="12" cy="12" r="1.6"/><path d="M12 10.4c0-3.4 1-6.4 3.4-6.4 2 0 2.4 3-1 5.2"/><path d="M13.6 12c3.4 0 6.4 1 6.4 3.4 0 2-3 2.4-5.2-1"/><path d="M12 13.6c0 3.4-1 6.4-3.4 6.4-2 0-2.4-3 1-5.2"/><path d="M10.4 12C7 12 4 11 4 8.6c0-2 3-2.4 5.2 1"/>'),
     play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor"/></svg>',
+    pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1.4" fill="currentColor"/><rect x="13.5" y="5" width="4" height="14" rx="1.4" fill="currentColor"/></svg>',
     stop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5" fill="currentColor"/></svg>',
     volLo: svg('<path d="M4 10v4h3l4 3.5v-11L7 10H4z"/><path d="M15 10a3 3 0 0 1 0 4"/>'),
     volHi: svg('<path d="M4 10v4h3l4 3.5v-11L7 10H4z"/><path d="M15 9.5a3.5 3.5 0 0 1 0 5"/><path d="M17.5 7a7 7 0 0 1 0 10"/>'),
@@ -56,16 +60,6 @@
     dist: svg('<path d="M3 12h18"/><path d="M6 9l-3 3 3 3M18 9l3 3-3 3"/>'),
     lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>')
   };
-  function ringOffset(wn, C) {
-    if (!wn.playing) return C;
-    if (!wn.until || !(wn.minutes > 0)) return 0;
-    var f = Math.max(0, Math.min(1, (wn.until - Date.now()) / (wn.minutes * 60000)));
-    return C * (1 - f);
-  }
-  function stateLine(wn, rem) {
-    if (!wn.playing) return (wn.minutes > 0 ? wn.minutes + ' 分钟后自动关闭' : '不限时') + ' · 音量 ' + wn.volume;
-    return rem != null ? '还剩约 ' + rem + ' 分钟' : '正在播放 · 不限时';
-  }
   function loopSec(type) { return type === 'ocean' ? 8 : 4; }
   var MINUTES = [10, 20, 30, 0]; /* 0 = 不限时（显式选择，且带提示） */
 
@@ -107,8 +101,8 @@
     var len = data.length;
     var i;
     sr = sr || WAV_SR;
-    if (type === 'shush' || type === 'ocean' || type === 'fan' || type === 'heart') {
-      var TAU = Math.PI * 2, lp = 0, lp2 = 0, br = 0;
+    if (type === 'shush' || type === 'ocean' || type === 'fan' || type === 'heart' || type === 'rain' || type === 'dryer') {
+      var TAU = Math.PI * 2, lp = 0, lp2 = 0, br = 0, de = 0, dk = Math.exp(-1 / (0.004 * sr));
       for (i = 0; i < len; i++) {
         var w0 = Math.random() * 2 - 1, tt = i / sr;
         if (type === 'shush') {
@@ -121,6 +115,16 @@
           br = (br + 0.02 * w0) / 1.02;
           var sw = 0.5 - 0.5 * Math.cos(TAU * tt / 8);
           data[i] = br * 6 * (0.2 + 0.8 * sw) + w0 * 0.05 * sw * sw;
+        } else if (type === 'rain') {
+          /* 雨幕（低通噪声）+ 随机雨滴：每秒约 60 滴，每滴是 4 毫秒衰减的高频脆响 */
+          lp += 0.25 * (w0 - lp); lp2 += 0.02 * (w0 - lp2);
+          if (Math.random() < 60 / sr) de = 0.3 + 0.7 * Math.random();
+          de *= dk;
+          data[i] = lp * 0.9 + (w0 - lp2) * de * 0.8;
+        } else if (type === 'dryer') {
+          /* 吹风机：偏亮的气流（轻高通）+ 200/400 Hz 电机嗡声；整数赫兹在 4 秒片段里首尾相接 */
+          lp += 0.05 * (w0 - lp); lp2 += 0.35 * (w0 - lp2);
+          data[i] = (lp2 - lp) * 1.1 + 0.06 * Math.sin(TAU * 200 * tt) + 0.03 * Math.sin(TAU * 400 * tt);
         } else if (type === 'fan') {
           /* 两级低通的平稳气流 */
           lp += 0.12 * (w0 - lp); lp2 += 0.12 * (lp - lp2);
@@ -482,73 +486,165 @@
     }
   }, 1000);
 
+  /* ============================================================
+     第 206 次（按用户给的参考图重做）：插画式声音库 + 全屏沉浸播放页。
+     · 页面：每种声音一幅暖光插画，拱形画卡 3 列；播放中底部出现迷你播放条。
+     · 点画卡 = 选中并开始播放（默认音量 3、20 分钟定时不变），同时打开全屏播放页。
+     · 播放页挂在 body 上（避免 #view 的变换让 fixed 失效），随页面重绘同步、离开本页即移除。
+     · 安全三件事 + 依据折叠保留在声音库下面，内容与此前一致。
+     ============================================================ */
+  var ART = function (v) { return 'assets/sounds/' + v + '.webp'; };
+  var NAMES = { pink: '粉红噪音', white: '白噪音', brown: '棕色噪音', shush: '嘘声', ocean: '海浪声', heart: '心跳声', fan: '风扇声', rain: '雨声', dryer: '吹风机' };
+  function nameOf(v) { return NAMES[v] || typeName(v); }
+  function minLabel(m) { return m > 0 ? m + ' 分钟' : '不限时'; }
+
+  function playerState(wn) {
+    if (!wn.playing) return '轻点播放 · ' + (wn.minutes > 0 ? wn.minutes + ' 分钟后自动关闭' : '不限时');
+    var r = remainingMin();
+    return r != null ? '播放中 · 还剩约 ' + r + ' 分钟' : '播放中 · 不限时';
+  }
+  function progressPct(wn) {
+    if (!wn.playing || !wn.until || !(wn.minutes > 0)) return wn.playing ? 100 : 0;
+    return Math.max(0, Math.min(100, 100 - (wn.until - Date.now()) / (wn.minutes * 600)));
+  }
+
+  function playerHTML(wn) {
+    var info = typeInfo(wn.type) || TYPES[0];
+    var d = Storage.get();
+    var sleeping = !!d.openSleep;
+    return '<div class="wp-bg" style="background-image:url(' + ART(info.v) + ')"></div><div class="wp-shade"></div>'
+      + '<button type="button" class="wp-round wp-close" id="wpClose" aria-label="收起">' + svg('<path d="M6 9l6 6 6-6"/>') + '</button>'
+      + '<div class="wp-body">'
+      + '<button type="button" class="wp-pill" id="wpSleep">' + ICON.moon + (sleeping ? '睡眠计时中<span class="wp-dot"></span>' : '同时开始睡眠计时') + '</button>'
+      + '<p class="wp-kicker">' + info.tag + ' · 本机生成</p>'
+      + '<h2 class="wp-title">' + nameOf(info.v) + '</h2>'
+      + '<p class="wp-desc">' + info.desc + '</p>'
+      + '<div class="wp-track"><i id="wpBar" style="width:' + progressPct(wn).toFixed(1) + '%"></i></div>'
+      + '<p class="wp-state" id="wpState">' + playerState(wn) + '</p>'
+      + '<div class="wp-vol">' + ICON.volLo + '<input type="range" id="wpVol" min="1" max="10" step="1" value="' + wn.volume + '" aria-label="音量" style="--p:' + ((wn.volume - 1) / 9 * 100).toFixed(1) + '%">' + ICON.volHi + '</div>'
+      + '<div class="wp-ctrl">'
+      + '<button type="button" class="wp-round wp-side" id="wpTimer" aria-label="定时：' + minLabel(wn.minutes) + '">'
+      + svg('<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2"/><path d="M9.5 3h5"/>') + '<span>' + (wn.minutes > 0 ? wn.minutes + '分' : '不限') + '</span></button>'
+      + '<button type="button" class="wp-play" id="wpToggle" aria-label="' + (wn.playing ? '停止播放' : '开始播放') + '">' + (wn.playing ? ICON.pause : ICON.play) + '</button>'
+      + '<button type="button" class="wp-round wp-side" id="wpStop" aria-label="停止并收起">' + ICON.stop + '<span>收起</span></button>'
+      + '</div>'
+      + (wn.minutes === 0 ? '<p class="wp-warn">不限时：请把音量压到最低，设备不要放进婴儿床。</p>' : '<p class="wp-tip">放在宝宝头部的位置听，应该很轻、不刺耳</p>')
+      + '</div>';
+  }
+
+  function closePlayer() {
+    Modules.whitenoise._open = false;
+    var el = document.getElementById('wnPlayer');
+    if (!el) return;
+    el.classList.remove('open');
+    document.documentElement.classList.remove('wp-lock');
+    setTimeout(function () { if (el.parentNode && !Modules.whitenoise._open) el.parentNode.removeChild(el); }, 320);
+  }
+
+  function syncPlayer() {
+    var el = document.getElementById('wnPlayer');
+    if (!Modules.whitenoise._open) { if (el) closePlayer(); return; }
+    var fresh = !el;
+    if (fresh) {
+      el = document.createElement('div');
+      el.id = 'wnPlayer'; el.className = 'wn-player';
+      el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', '声音播放');
+      document.body.appendChild(el);
+    }
+    var wn = Storage.get().whitenoise;
+    el.innerHTML = playerHTML(wn);
+    el.classList.toggle('is-playing', !!wn.playing);
+    document.documentElement.classList.add('wp-lock');
+    if (fresh) { void el.offsetWidth; el.classList.add('open'); }
+    else el.classList.add('open');
+    bindPlayer(el);
+  }
+
+  function toggleFor(type) {
+    var cur = Storage.get().whitenoise;
+    if (cur.playing && cur.type === type) { stop(); return true; }
+    cur.type = type; Storage.save();
+    if (cur.playing && engine.mode === 'elem') { restartRemaining(cur); return true; }
+    var ok = start(type, cur.volume, cur.minutes, cur.linkSleep);
+    if (!ok) Util.toast('这个环境无法播放声音，请在浏览器中打开本页。', 'error');
+    return ok;
+  }
+
+  function bindPlayer(el) {
+    function on(id, fn) { var b = el.querySelector('#' + id); if (b) b.addEventListener('click', fn); }
+    on('wpClose', function () { closePlayer(); global.App.rerender(); });
+    on('wpToggle', function () { toggleFor(Storage.get().whitenoise.type); global.App.rerender(); });
+    on('wpStop', function () { if (Storage.get().whitenoise.playing) stop(); closePlayer(); global.App.rerender(); });
+    on('wpTimer', function () {
+      var cur = Storage.get().whitenoise;
+      var m = MINUTES[(MINUTES.indexOf(cur.minutes) + 1) % MINUTES.length];
+      cur.minutes = m;
+      cur.until = cur.playing ? (m > 0 ? Date.now() + m * 60000 : null) : null;
+      Storage.save();
+      if (cur.playing && engine.playing && engine.mode === 'elem') start(cur.type, cur.volume, m, cur.linkSleep);
+      Util.toast(m > 0 ? '定时 ' + m + ' 分钟后关闭' : '已设为不限时：请把音量压到最低', m > 0 ? 'ok' : 'warn');
+      global.App.rerender();
+    });
+    on('wpSleep', function () {
+      var d = Storage.get();
+      if (d.openSleep) { closePlayer(); global.App.showTab('sleep'); return; }
+      d.whitenoise.linkSleep = true;
+      if (d.whitenoise.playing) d.openSleep = { id: Util.uid(), start: Util.nowLocal(), pausedMs: 0, pauseStart: null };
+      Storage.save();
+      Util.toast(d.whitenoise.playing ? '已开始睡眠计时' : '开始播放时会同时开始睡眠计时', 'ok');
+      global.App.rerender();
+    });
+    var vol = el.querySelector('#wpVol');
+    if (vol) {
+      vol.addEventListener('input', function () {
+        var v = parseInt(vol.value, 10);
+        vol.style.setProperty('--p', ((v - 1) / 9 * 100).toFixed(1) + '%');
+        var cur = Storage.get().whitenoise; cur.volume = v; Storage.save();
+        if (cur.playing && engine.playing && engine.mode !== 'elem') fadeTo(gainOf(v), 0.3);
+      });
+      vol.addEventListener('change', function () {
+        var cur = Storage.get().whitenoise;
+        if (cur.playing && engine.playing && engine.mode === 'elem') restartRemaining(cur);
+      });
+    }
+    el.onkeydown = function (e) { if (e.key === 'Escape') { closePlayer(); global.App.rerender(); } };
+  }
+
   Modules.whitenoise = {
     id: 'whitenoise',
     title: '哄睡白噪音',
     render: function (view) {
-      /* 第 205 次（设计改版样板页）：从「白卡 + 小标题 + 一段说明」改成播放器式布局——
-         夜空舞台（大圆播放键 + 剩余时间圆环 + 声波）→ 声音方块 → 音量/定时 → 安全三件事；
-         长说明全部收进「为什么」折叠，页面上只留必须一眼看到的那一句。原有安全信息一条不删。 */
       var d = Storage.get();
       var wn = d.whitenoise;
       var supported = audioSupported();
-      var rem = remainingMin();
       var html = '';
-      var cur0 = typeInfo(wn.type) || TYPES[0];
 
       if (!supported) {
         html += '<div class="card"><h2>哄睡声音</h2><p class="hint">当前环境不支持音频播放（例如部分内嵌浏览器未开启声音权限）。'
           + '用手机 / 电脑的浏览器直接打开本页即可使用；不支持的设备上其余功能不受影响，也不影响你的记录。</p></div>';
-      } else {
-        var C = 2 * Math.PI * 76;
-        html += '<section class="wn-stage' + (wn.playing ? ' is-playing' : '') + '" aria-label="播放器">'
-          + '<div class="wn-stars" aria-hidden="true"></div>'
-          + '<div class="wn-orb">'
-          + '<svg class="wn-ring" viewBox="0 0 168 168" aria-hidden="true">'
-          + '<circle class="wn-ring-bg" cx="84" cy="84" r="76"></circle>'
-          + '<circle class="wn-ring-fg" id="wnRing" cx="84" cy="84" r="76" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + ringOffset(wn, C).toFixed(1) + '"></circle>'
-          + '</svg>'
-          + '<button class="wn-play" id="wnToggle" type="button" aria-label="' + (wn.playing ? '停止播放' : '开始播放') + '">'
-          + (wn.playing ? ICON.stop : ICON.play) + '</button>'
-          + '</div>'
-          + '<div class="wn-now">'
-          + '<p class="wn-name">' + cur0.t + '</p>'
-          + '<p class="noise-state" id="wnState">' + stateLine(wn, rem) + '</p>'
-          + '</div>'
-          + '<div class="wn-wave" aria-hidden="true">' + new Array(29).join('<i></i>') + '</div>'
-          + '</section>';
-        html += '<p class="wn-local">' + ICON.lock + '声音在本机实时生成，不联网，飞行模式也能用</p>';
+      }
 
-        /* 声音方块：图标 + 名字 + 两个字的听感；选中项的完整描述放在方块下面一行 */
-        html += '<div class="card wn-card"><div class="wn-head"><h2>声音</h2><span class="wn-sub">哪种都行，看宝宝是否更放松</span></div>'
-          + '<div class="wn-grid" role="radiogroup" aria-label="声音类型">';
-        TYPES.forEach(function (t) {
-          html += '<label class="wn-tile' + (wn.type === t.v ? ' on' : '') + '" for="wnT_' + t.v + '">'
-            + '<input type="radio" name="wnType" id="wnT_' + t.v + '" value="' + t.v + '"' + (wn.type === t.v ? ' checked' : '') + '>'
-            + '<span class="wn-ico">' + (ICON[t.v] || '') + '</span>'
-            + '<span class="wn-tn">' + t.short + '</span>'
-            + '<span class="wn-tg">' + t.tag + '</span></label>';
-        });
-        html += '</div><p class="wn-desc">' + cur0.desc + '。</p></div>';
+      /* 声音库：拱形画卡 */
+      html += '<section class="wn-lib" aria-label="声音">'
+        + '<div class="wn-lib-head"><h2>安抚声音</h2><span>' + ICON.lock + '本机生成 · 不联网</span></div>'
+        + '<div class="wn-arts">';
+      TYPES.forEach(function (t) {
+        var isOn = wn.type === t.v, isPlay = isOn && wn.playing;
+        html += '<button type="button" class="wn-art' + (isOn ? ' on' : '') + (isPlay ? ' playing' : '') + '" data-type="' + t.v + '" aria-pressed="' + isOn + '">'
+          + '<span class="wn-art-img" style="background-image:url(' + ART(t.v) + ')">'
+          + (isPlay ? '<span class="wn-eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>' : '')
+          + '</span>'
+          + '<span class="wn-art-name">' + nameOf(t.v) + '</span>'
+          + '<span class="wn-art-tag">' + t.tag + '</span></button>';
+      });
+      html += '</div></section>';
 
-        /* 音量与定时 */
-        html += '<div class="card wn-card">'
-          + '<div class="wn-head"><h2>音量</h2><span class="wn-val"><b id="wnVolVal">' + wn.volume + '</b> / 10</span></div>'
-          + '<div class="wn-vol">' + ICON.volLo
-          + '<input type="range" id="wnVol" min="1" max="10" step="1" value="' + wn.volume + '" aria-label="音量" style="--p:' + ((wn.volume - 1) / 9 * 100).toFixed(1) + '%">'
-          + ICON.volHi + '</div>'
-          + '<p class="wn-tip">把手机放在宝宝头部的位置听：应该很轻、不刺耳。</p>'
-          + '<div class="wn-head wn-head2"><h2>定时关闭</h2></div>'
-          + '<div class="wn-chips" id="wnMin">';
-        MINUTES.forEach(function (m) {
-          html += '<button type="button" class="wn-chip' + (wn.minutes === m ? ' active' : '') + '" data-min="' + m + '">'
-            + (m === 0 ? '不限时' : '<b>' + m + '</b> 分') + '</button>';
-        });
-        html += '</div>';
-        if (wn.minutes === 0) html += '<p class="wn-tip wn-warn">不限时：请把音量压到最低，设备不要放进婴儿床。</p>';
-        html += '<div class="row-switch wn-link"><label for="wnLink">' + ICON.moon + '同时开始睡眠计时</label>'
-          + '<input type="checkbox" id="wnLink"' + (wn.linkSleep ? ' checked' : '') + '></div>'
-          + '</div>';
+      /* 迷你播放条 */
+      if (wn.playing) {
+        html += '<button type="button" class="wn-mini" id="wnMini">'
+          + '<span class="wn-mini-art" style="background-image:url(' + ART(wn.type) + ')"></span>'
+          + '<span class="wn-mini-txt"><b>' + nameOf(wn.type) + '</b><span id="wnMiniState">' + playerState(wn) + '</span></span>'
+          + '<span class="wn-mini-btn" id="wnMiniStop" role="button" aria-label="停止播放">' + ICON.pause + '</span></button>';
       }
 
       /* 安全三件事：一眼看到的版本；依据与细节收进折叠（内容与改版前一致） */
@@ -566,6 +662,7 @@
         + '<li><b>早产，或有听力 / 神经发育情况的宝宝</b>：先问儿科或耳鼻喉科医生，不要照网页自行设定。</li>'
         + '<li><b>不替代安全睡眠</b>：床内不用枕头、松软被褥、防撞垫、填充玩具。安全永远排在「睡得久」之前。</li>'
         + '<li><b>「不限时」</b>：通常是家里环境噪音大时才需要，那就更要把音量压到最低。</li>'
+        + '<li><b>哪种声音都行</b>：没有证据说明某一种对婴儿更好，看宝宝是否更放松；都不喜欢就别硬放，稳定的生活声（风扇、空调）往往就够了。</li>'
         + '</ul></details>'
         + '<details class="wn-more"><summary>想少用一点的时候</summary>'
         + '<p class="hint">白噪音更像一个「该睡觉了」的情境线索（和关灯、换睡衣一样），不是药物依赖，也没有「几岁必须戒」的说法。可以这样慢慢退：</p>'
@@ -584,89 +681,39 @@
       view.innerHTML = html;
 
       /* ---- 交互 ---- */
-      var toggler = view.querySelector('#wnToggle');
-      if (toggler) toggler.addEventListener('click', function () {
-        var cur = Storage.get().whitenoise;
-        var link = view.querySelector('#wnLink');
-        if (cur.playing) {
-          stop();
-          Util.toast('已停止播放', 'ok');
-        } else {
-          var ok = start(cur.type, cur.volume, cur.minutes, link ? link.checked : cur.linkSleep);
-          if (!ok) { Util.toast('这个环境无法播放声音，请在浏览器中打开本页。', 'error'); return; }
-          Util.toast('已开始（' + (cur.minutes > 0 ? cur.minutes + ' 分钟后自动关闭' : '不限时') + '）', 'ok');
-        }
-        global.App.rerender();
-      });
-
-      /* 播放中切换类型：直接换声，不让用户先停再开 */
-      Array.prototype.forEach.call(view.querySelectorAll('input[name="wnType"]'), function (r) {
-        r.addEventListener('change', function () {
-          var cur = Storage.get().whitenoise;
-          cur.type = r.value;
-          Storage.save();
-          if (cur.playing) { if (engine.mode === 'elem') restartRemaining(cur); else start(cur.type, cur.volume, cur.minutes, cur.linkSleep); }
-          global.App.rerender();
-        });
-      });
-
-      var volEl = view.querySelector('#wnVol');
-      if (volEl) volEl.addEventListener('input', function () {
-        var v = parseInt(volEl.value, 10);
-        var label = view.querySelector('#wnVolVal');
-        if (label) label.textContent = v;
-        volEl.style.setProperty('--p', ((v - 1) / 9 * 100).toFixed(1) + '%');
-        var cur = Storage.get().whitenoise;
-        cur.volume = v;
-        Storage.save();
-        if (cur.playing && engine.playing && engine.mode !== 'elem') fadeTo(gainOf(v), 0.3); /* 播放中实时改音量 */
-      });
-      /* 第 187 次：<audio> 路径音量烘焙在文件里——松手后按剩余时长重建一次 */
-      if (volEl) volEl.addEventListener('change', function () {
-        var cur = Storage.get().whitenoise;
-        if (cur.playing && engine.playing && engine.mode === 'elem') restartRemaining(cur);
-      });
-
-      Array.prototype.forEach.call(view.querySelectorAll('#wnMin [data-min]'), function (b) {
+      Array.prototype.forEach.call(view.querySelectorAll('.wn-art'), function (b) {
         b.addEventListener('click', function () {
+          var t = b.getAttribute('data-type');
           var cur = Storage.get().whitenoise;
-          var m = parseInt(b.getAttribute('data-min'), 10);
-          cur.minutes = m;
-          cur.until = cur.playing ? (m > 0 ? Date.now() + m * 60000 : null) : null;
-          Storage.save();
-          /* 第 187 次：<audio> 路径时长烘焙在文件里，改时长要重建 */
-          if (cur.playing && engine.playing && engine.mode === 'elem') start(cur.type, cur.volume, m, cur.linkSleep);
-          /* 选「不限时」时再提醒一次：这是需要额外自律的选项 */
-          if (m === 0 && cur.playing) {
-            Util.toast('已设为不限时：请把音量压到最低，并且不要放在婴儿床里。', 'warn');
+          if (!(cur.playing && cur.type === t)) {
+            if (!toggleFor(t)) return;
           }
+          Modules.whitenoise._open = true;
           global.App.rerender();
         });
       });
-
-      var linkEl = view.querySelector('#wnLink');
-      if (linkEl) linkEl.addEventListener('change', function () {
-        Storage.get().whitenoise.linkSleep = linkEl.checked;
-        Storage.save();
+      var mini = view.querySelector('#wnMini');
+      if (mini) mini.addEventListener('click', function (e) {
+        if (e.target.closest('#wnMiniStop')) { stop(); Util.toast('已停止播放', 'ok'); global.App.rerender(); return; }
+        Modules.whitenoise._open = true; global.App.rerender();
       });
 
-      /* 声音条横向滑动：重绘后把选中的方块滚进视野 */
-      var gridEl = view.querySelector('.wn-grid'), onEl = gridEl && gridEl.querySelector('.wn-tile.on');
-      if (gridEl && onEl && onEl.offsetLeft + onEl.offsetWidth > gridEl.clientWidth) gridEl.scrollLeft = onEl.offsetLeft - 16;
+      syncPlayer();
 
-      /* 第 205 次：圆环与剩余时间每秒走一格；离开本页（节点不在文档里）就自停 */
+      /* 每秒刷新剩余时间；离开本页时收起播放页并自停 */
       if (Modules.whitenoise._tick) clearInterval(Modules.whitenoise._tick);
-      var ringEl = view.querySelector('#wnRing');
-      if (ringEl && Storage.get().whitenoise.playing) {
-        var CC = parseFloat(ringEl.getAttribute('stroke-dasharray'));
-        Modules.whitenoise._tick = setInterval(function () {
-          if (!document.body.contains(ringEl)) { clearInterval(Modules.whitenoise._tick); return; }
-          var w = Storage.get().whitenoise;
-          ringEl.setAttribute('stroke-dashoffset', ringOffset(w, CC).toFixed(1));
-          var st = view.querySelector('#wnState');
-          if (st) st.textContent = stateLine(w, remainingMin());
-        }, 1000);
-      }
+      var anchor = view.querySelector('.wn-lib');
+      Modules.whitenoise._tick = setInterval(function () {
+        if (!anchor || !document.body.contains(anchor)) {
+          clearInterval(Modules.whitenoise._tick);
+          if (Modules.whitenoise._open) closePlayer();
+          return;
+        }
+        var w = Storage.get().whitenoise;
+        var bar = document.getElementById('wpBar'); if (bar) bar.style.width = progressPct(w).toFixed(1) + '%';
+        var st = document.getElementById('wpState'); if (st) st.textContent = playerState(w);
+        var ms = document.getElementById('wnMiniState'); if (ms) ms.textContent = playerState(w);
+      }, 1000);
     }
   };
 

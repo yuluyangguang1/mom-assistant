@@ -426,7 +426,7 @@
     }
     /* 白噪音状态逐字段清洗：类型/音量/时长都给枚举与区间兜底，坏值回退默认 */
     if (raw.whitenoise && typeof raw.whitenoise === 'object' && !Array.isArray(raw.whitenoise)) {
-      var wn = raw.whitenoise, vt = ['white', 'pink', 'brown', 'shush', 'ocean', 'heart', 'fan'];
+      var wn = raw.whitenoise, vt = ['white', 'pink', 'brown', 'shush', 'ocean', 'heart', 'fan', 'rain', 'dryer'];
       base.whitenoise = {
         playing: wn.playing === true,
         type: vt.indexOf(wn.type) >= 0 ? wn.type : 'pink',
