@@ -4121,14 +4121,23 @@ body.dark .wn-art.on .wn-art-img { box-shadow: 0 0 0 3px var(--bg-end), 0 0 0 5.
 .dn-txt { display: none; flex-direction: column; min-width: 0; line-height: 1.25; }
 .dn-txt b { font-size: calc(13px * var(--fs-mul)); font-weight: 600; white-space: nowrap; }
 .dn-txt span { font-size: calc(11px * var(--fs-mul)); color: rgba(255, 255, 255, .75); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.dn-stop { display: none; place-items: center; flex: none; width: 34px; height: 34px; margin-left: 8px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; color: #3A4270; background: #FFF; }
-.dn-stop svg { width: 16px; height: 16px; }
-.dn-open:focus-visible, .dn-stop:focus-visible { outline: 2px solid var(--wn-glow, #F4C6A5); outline-offset: 2px; border-radius: var(--radius-pill); }
+.dn-pp { display: none; place-items: center; flex: none; width: 34px; height: 34px; margin-left: 8px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; color: #3A4270; background: #FFF; }
+.dn-pp svg { width: 16px; height: 16px; }
+.dn-stop { display: none; place-items: center; flex: none; width: 28px; height: 28px; margin-left: 4px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; color: rgba(255, 255, 255, .8); background: rgba(255, 255, 255, .14); }
+.dn-stop svg { width: 14px; height: 14px; stroke-width: 2; }
+/* 暂停：声波收起、画面略暗 */
+.dock-now.is-paused .dn-eq i { animation: none; height: 4px; }
+.dock-now.is-paused .dn-art { filter: saturate(.75) brightness(.9); }
+.dn-open:focus-visible, .dn-pp:focus-visible, .dn-stop:focus-visible { outline: 2px solid var(--wn-glow, #F4C6A5); outline-offset: 2px; border-radius: var(--radius-pill); }
 body .tabbar.is-sub .dock-now { padding: 4px 4px 4px 4px; background: linear-gradient(100deg, #464E80, #5E6498); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16); }
 body .tabbar.is-sub .dn-art { width: 36px; height: 36px; box-shadow: none; }
 body .tabbar.is-sub .dn-eq { inset: 7px; }
 body .tabbar.is-sub .dn-txt { display: flex; }
-body .tabbar.is-sub .dn-stop { display: grid; }
+body .tabbar.is-sub .dn-pp, body .tabbar.is-sub .dn-stop { display: grid; }
 body .tabbar.is-vertical .dock-now { margin: 4px 0; }
 @media (max-width: 350px) { body .tabbar.is-sub .dn-txt b { max-width: 4.5em; overflow: hidden; text-overflow: ellipsis; } }
 @media (prefers-reduced-motion: reduce) { .dn-eq i { animation: none; } .dn-ring .dn-fg { transition: none; } }
+
+/* 第 209 次：播放页停止钮在未播放时置灰；暂停时画面停止呼吸 */
+.wn-player .wp-side:disabled { opacity: .4; cursor: default; }
+.wn-player.is-paused .wp-bg { animation-play-state: paused; }
