@@ -193,6 +193,132 @@
     };
   }
 
+  /* 第 201 次：储奶（吸出来存冰箱 / 冰柜的奶）。
+     时长参照 CDC《Breast Milk Storage and Preparation》（2026-08）：新鲜吸出的奶冷藏最多 4 天；
+     冷冻约 6 个月内最好，最长 12 个月。只按记录的吸出时间算「已存几天」并对照这几个时长，
+     不判断能不能喝——冰箱温度、解冻情况本工具不知道。先吸的先用，列表按吸出时间从早到晚。 */
+  var STASH_PLACE = { fridge: '冷藏', freezer: '冷冻' };
+  function stashValid(x) {
+    return x && typeof x === 'object' && x.id && STASH_PLACE[x.place] && typeof x.amount === 'number' && isFinite(x.amount) && x.amount > 0
+      && !isNaN(new Date(x.time).getTime());
+  }
+  function stashAge(x) {
+    var ms = Date.now() - new Date(x.time).getTime();
+    var days = Math.floor(ms / 86400000);
+    var tag = '';
+    if (x.place === 'fridge' && ms > 4 * 86400000) tag = '已超过冷藏 4 天';
+    else if (x.place === 'freezer' && days > 365) tag = '已超过冷冻 12 个月';
+    else if (x.place === 'freezer' && days > 182) tag = '已超过冷冻 6 个月';
+    return { text: days < 1 ? '不到 1 天' : '已存 ' + days + ' 天', tag: tag };
+  }
+  function stashCard(d, sortedFeeds) {
+    var all = Array.isArray(d.milkStash) ? d.milkStash.filter(stashValid) : [];
+    var lastPump = sortedFeeds.filter(function (r) { return r.type === 'pump' && typeof r.amount === 'number' && r.amount > 0; })[0];
+    if (!all.length && !lastPump) return '';
+    var inStock = all.filter(function (x) { return !x.usedAt; }).sort(function (a, b) { return new Date(a.time) - new Date(b.time); });
+    var h = '<div class="card stash-card" id="stashCard"><h2>储奶</h2>';
+    var sum = { fridge: [0, 0], freezer: [0, 0] };
+    inStock.forEach(function (x) { sum[x.place][0]++; sum[x.place][1] += x.amount; });
+    h += '<div class="stat-row">'
+      + '<div class="stat"><span class="stat-num">' + sum.fridge[1] + '<i class="stat-unit">ml</i></span><span class="hint">冷藏 ' + sum.fridge[0] + ' 份</span></div>'
+      + '<div class="stat"><span class="stat-num">' + sum.freezer[1] + '<i class="stat-unit">ml</i></span><span class="hint">冷冻 ' + sum.freezer[0] + ' 份</span></div></div>';
+    var stashedIds = {};
+    all.forEach(function (x) { if (x.fromId) stashedIds[x.fromId] = 1; });
+    if (lastPump && !stashedIds[lastPump.id]) {
+      h += '<div class="row stash-quick"><button type="button" class="btn" data-stash-from="' + Util.escapeHtml(String(lastPump.id)) + '" data-place="fridge">把最近一次吸奶 ' + lastPump.amount + ' ml 存冷藏</button>'
+        + '<button type="button" class="btn" data-stash-from="' + Util.escapeHtml(String(lastPump.id)) + '" data-place="freezer">存冷冻</button></div>';
+    }
+    h += '<details class="stash-add"><summary>手动存一份</summary>'
+      + '<label>奶量（ml）<input type="number" id="stAmt" min="1" max="1000" step="5" inputmode="numeric" placeholder="如 120"></label>'
+      + '<div class="seg" id="stPlace"><button type="button" class="seg-btn active" data-stp="fridge" aria-pressed="true">冷藏</button><button type="button" class="seg-btn" data-stp="freezer" aria-pressed="false">冷冻</button></div>'
+      + Util.timePickHTML('stTime')
+      + '<button type="button" class="btn btn-primary btn-save" id="stSave">存入</button></details>';
+    if (inStock.length) {
+      h += '<ul class="list stash-list">';
+      inStock.forEach(function (x, i) {
+        var ag = stashAge(x);
+        h += '<li><span class="st-main"><b>' + x.amount + ' ml</b> <span class="stash-tag' + (x.place === 'freezer' ? ' stash-freezer' : '') + '">' + STASH_PLACE[x.place] + '</span>'
+          + (i === 0 ? ' <span class="stash-tag stash-first">先用这份</span>' : '') + '</span>'
+          + '<span class="st-sub">' + Util.fmtDateTime(x.time) + ' 吸 · ' + ag.text + (ag.tag ? ' · <b class="stash-old">' + ag.tag + '</b>' : '') + '</span>'
+          + '<span class="stash-acts">'
+          + (x.place === 'fridge' ? '<button type="button" class="btn btn-mini" data-stash-freeze="' + x.id + '">转冷冻</button>' : '')
+          + '<button type="button" class="btn btn-mini" data-stash-use="' + x.id + '">用掉</button>'
+          + '<button type="button" class="icon-btn" data-stash-del="' + x.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></span></li>';
+      });
+      h += '</ul>';
+    } else {
+      h += '<p class="hint">现在没有存着的奶。</p>';
+    }
+    h += '<p class="hint">参照 CDC：新鲜吸出的奶冷藏最多 4 天；冷冻约 6 个月内最好，最长 12 个月。解冻后的奶冷藏 24 小时内用完，不要再冻。转冷冻后仍按吸出时间算。</p></div>';
+    return h;
+  }
+  function bindStash(view) {
+    function list() { var s = Storage.get(); if (!Array.isArray(s.milkStash)) s.milkStash = []; return s.milkStash; }
+    function find(id) { return list().filter(function (x) { return x.id === id; })[0]; }
+    Array.prototype.forEach.call(view.querySelectorAll('[data-stash-from]'), function (b) {
+      b.addEventListener('click', function () {
+        var fid = b.getAttribute('data-stash-from');
+        var src = (Storage.get().feedings || []).filter(function (r) { return String(r.id) === fid; })[0];
+        if (!src || !(src.amount > 0)) return;
+        var place = b.getAttribute('data-place') === 'freezer' ? 'freezer' : 'fridge';
+        var rec = { id: Util.uid(), amount: src.amount, time: src.start, place: place, usedAt: null, fromId: src.id };
+        list().push(rec);
+        if (Storage.save()) Util.toast('已存入' + STASH_PLACE[place] + ' ' + src.amount + ' ml', 'ok', { label: '撤销', onClick: function () {
+          var l = list(); for (var i = l.length - 1; i >= 0; i--) if (l[i].id === rec.id) { l.splice(i, 1); break; }
+          Storage.save(); global.App.rerender();
+        } });
+        global.App.rerender();
+      });
+    });
+    Array.prototype.forEach.call(view.querySelectorAll('[data-stp]'), function (b) {
+      b.addEventListener('click', function () {
+        Array.prototype.forEach.call(view.querySelectorAll('[data-stp]'), function (x) { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false'); });
+        b.classList.add('active'); b.setAttribute('aria-pressed', 'true');
+      });
+    });
+    var sv = view.querySelector('#stSave');
+    if (sv) sv.addEventListener('click', function () {
+      var amt = Math.round(parseFloat(view.querySelector('#stAmt').value));
+      if (!(amt > 0 && amt <= 1000)) { Util.toast('请填 1–1000 之间的奶量', 'warn'); return; }
+      var pb = view.querySelector('[data-stp].active');
+      var place = pb && pb.getAttribute('data-stp') === 'freezer' ? 'freezer' : 'fridge';
+      var when = Util.stampFrom(view, 'stTime');
+      if (!when) return;
+      list().push({ id: Util.uid(), amount: amt, time: when, place: place, usedAt: null });
+      if (Storage.save()) Util.toast('已存入' + STASH_PLACE[place] + ' ' + amt + ' ml', 'ok');
+      global.App.rerender();
+    });
+    Array.prototype.forEach.call(view.querySelectorAll('[data-stash-use]'), function (b) {
+      b.addEventListener('click', function () {
+        var x = find(b.getAttribute('data-stash-use')); if (!x) return;
+        x.usedAt = Util.nowLocal();
+        if (Storage.save()) Util.toast('已标记用掉 ' + x.amount + ' ml', 'ok', { label: '撤销', onClick: function () {
+          x.usedAt = null; Storage.save(); global.App.rerender();
+        } });
+        global.App.rerender();
+      });
+    });
+    Array.prototype.forEach.call(view.querySelectorAll('[data-stash-freeze]'), function (b) {
+      b.addEventListener('click', function () {
+        var x = find(b.getAttribute('data-stash-freeze')); if (!x) return;
+        x.place = 'freezer';
+        if (Storage.save()) Util.toast('已转冷冻', 'ok', { label: '撤销', onClick: function () { x.place = 'fridge'; Storage.save(); global.App.rerender(); } });
+        global.App.rerender();
+      });
+    });
+    Array.prototype.forEach.call(view.querySelectorAll('[data-stash-del]'), function (b) {
+      b.addEventListener('click', function () {
+        var id = b.getAttribute('data-stash-del');
+        var l = list(), idx = -1;
+        for (var i = 0; i < l.length; i++) if (l[i].id === id) idx = i;
+        if (idx < 0) return;
+        var gone = l.splice(idx, 1)[0];
+        if (Storage.save()) Util.toast('已删除', 'ok', { label: '撤销', onClick: function () { list().push(gone); Storage.save(); global.App.rerender(); } });
+        global.App.rerender();
+      });
+    });
+  }
+
   Modules.feeding = {
     id: 'feeding',
     title: '喂养',
@@ -411,6 +537,8 @@
         html += '<p class="hint" id="solidHint" style="display:none">辅食的种类与克数不成线性，暂不提供滑杆——请在备注里写明（如「南瓜泥 60g」）。</p>';
       html += '<button class="btn btn-primary btn-save" id="fSave">保存</button></div>';
 
+      html += stashCard(d, sorted);
+
       html += '<div class="card"><h2>最近记录</h2>';
       var list = d.feedings.slice().sort(function (a, b) { return new Date(b.start) - new Date(a.start); }).slice(0, 20);
       if (list.length) {
@@ -484,6 +612,7 @@
       html += '</div>';
 
       view.innerHTML = html;
+      bindStash(view);
 
       var type = defType;   /* U-06：跟随上次记录的类型 */
 

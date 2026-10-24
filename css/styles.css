@@ -3950,3 +3950,24 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
 /* 引导全屏层（z 2000）打开时，确认弹层与 toast 要盖在它上面（第 200 次从引导里发起恢复时发现被压住） */
 body.ob-open .modal-mask { z-index: 2100; }
 body.ob-open #toastRoot { z-index: 2200; }
+
+/* 第 201 次：储奶卡 */
+.stash-quick { display: flex; gap: 8px; margin: 10px 0; }
+.stash-quick .btn:first-child { flex: 1 1 auto; }
+.stash-quick .btn:last-child { flex: 0 0 auto; }
+.stash-add { margin: 8px 0 12px; }
+.stash-add summary { cursor: pointer; color: var(--primary-text); padding: 8px 0; min-height: 44px; display: flex; align-items: center; }
+.stash-add .seg { margin: 10px 0; }
+.stash-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; row-gap: 2px; align-items: center; }
+.stash-list li .st-main { grid-column: 1 / -1; grid-row: 1; }
+.stash-list li .st-sub { grid-column: 1; grid-row: 2; color: var(--muted); font-size: calc(13px * var(--fs-mul)); line-height: 1.5; }
+.stash-list li .stash-acts { grid-column: 2; grid-row: 2; display: flex; align-items: center; gap: 6px; }
+@media (max-width: 360px) {
+  .stash-list li .st-sub { grid-column: 1 / -1; }
+  .stash-list li .stash-acts { grid-column: 1 / -1; grid-row: 3; justify-content: flex-end; }
+}
+.stash-tag { display: inline-block; font-size: calc(12px * var(--fs-mul)); font-weight: 500; line-height: 1.6; padding: 0 8px; border-radius: var(--radius-pill); vertical-align: 1px;
+  background: rgba(120, 110, 100, .12); color: var(--text); }
+.stash-tag.stash-freezer { background: rgba(70, 130, 180, .16); }
+.stash-tag.stash-first { background: rgba(214, 120, 90, .16); color: var(--primary-text); }
+.stash-old { color: var(--warn-text); font-weight: 600; }
