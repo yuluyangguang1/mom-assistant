@@ -850,6 +850,15 @@
     if (ticks) {
       var tk = spec.min + '|' + spec.max + '|' + spec.step + '|' + spec.dec;
       if (ticks._tk !== tk) { ticks._tk = tk; Util.rulerTicks(ticks, spec); }
+      /* 第 188 次：指针压在刻度数字上时（如 36.9 被拇指盖住半截），把那枚数字淡出，
+         不出现「被遮一半的数字」。只切 5 个节点的 class，拖动每帧也无负担。 */
+      var cp = (parseFloat(range.value) - spec.min) / (spec.max - spec.min) * 100;
+      var rts = ticks.children;
+      for (var ri = 0; ri < rts.length; ri++) {
+        var lp = parseFloat(rts[ri].style.left);
+        var near = Math.abs(lp - cp) < 7;
+        if (rts[ri]._near !== near) { rts[ri]._near = near; rts[ri].classList.toggle('is-covered', near); }
+      }
     }
     return parseFloat(range.value);
   };

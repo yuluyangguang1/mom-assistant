@@ -231,7 +231,7 @@
         /* 当日记录明细 */
         var items = dayIdx[calState.sel] || [];
         out += '<div class="day-detail">';
-        out += '<h3>' + (calState.sel === today ? '今天' : calState.sel) + ' 的记录</h3>';
+        out += '<h3>' + (calState.sel === today ? '今天的记录' : calState.sel + ' 的记录') + '</h3>';
         if (items.length) {
           out += '<ul class="day-list">';
           items.forEach(function (it) {
