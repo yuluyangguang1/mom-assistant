@@ -632,7 +632,7 @@
       html += '<div class="card"><h2>首页天气</h2>';
       html += '<div class="row-switch"><label for="sWxOn">显示真实天气（需联网）</label>'
         + '<input type="checkbox" id="sWxOn"' + (wxc.on ? ' checked' : '') + '></div>';
-      html += '<p class="hint">打开后首页右上角显示当地气温、天气、空气质量和一句带娃出门提示，天空也会跟着下雨下雪。'
+      html += '<p class="hint">打开后首页的天空背景会跟着真实天气变：晴、多云、阴、雨、雪、雾；日期旁带一行小字的天气和气温。'
         + '只会把大致位置（经纬度保留两位小数）发给 Open-Meteo 天气服务，任何记录都不会离开这台设备；关掉就不再联网。</p>';
       if (wxc.on) {
         html += '<span class="lbl-text">位置</span><div class="seg" id="sWxMode">'

@@ -92,7 +92,7 @@
         if (pr) {
           var isPoop = pr.type === 'poop' || pr.type === 'both';
           html += '<div class="card diaper-color" data-accent="diaper"><h2>' + (isPoop ? '这条便便怎么样？' : '这次换尿布') + '</h2>'
-            + '<p class="hint">' + Util.fmtDateTime(pr.time) + '（' + typeInfo(pr.type).t + '）· 点选即保存，没把握可以不填。</p>';
+            + '<p class="hint">' + Util.fmtDateTime(pr.time) + '（' + Util.escapeHtml(typeInfo(pr.type).t) + '）· 点选即保存，没把握可以不填。</p>';
           if (isPoop) {
             html += '<span class="lbl-text">颜色</span><div class="color-chips">';
             COLORS.forEach(function (c) {

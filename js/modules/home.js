@@ -798,12 +798,11 @@
         + '<canvas id="wxCanvas" class="wx-canvas" aria-hidden="true"></canvas>'
         + '<div class="home-greet">'
         + '<div class="hg-top"><p class="hg-date"><span class="hg-m">' + (nowD.getMonth() + 1) + '月</span>' + DOW_FULL[nowD.getDay()]
-        + (fest ? '<b class="hg-fest">' + Util.escapeHtml(fest) + '</b>' : '') + '</p>'
+        + (fest ? '<b class="hg-fest">' + Util.escapeHtml(fest) + '</b>' : '') + wxTextHTML(wxNow) + '</p>'
         + '<button class="hg-search" data-go="search" type="button" aria-label="搜索记录、里程碑、用品">' + icon('search') + '</button></div>'
         + '<div class="hg-row"><div class="hg-day"><b class="hg-num">' + nowD.getDate() + '</b>'
         + (lunarNow ? '<span class="hg-lunar"><i>' + Util.escapeHtml(lunarNow.gz) + '年 · ' + Util.escapeHtml(lunarNow.animal) + '</i><b>' + Util.escapeHtml(lunarNow.text) + '</b></span>' : '')
-        + '</div>' + wxBlockHTML(wxCfg, wxNow) + '</div>'
-        + (wxNow && Weather.tipOf(wxNow) ? '<p class="hg-tip">' + Util.escapeHtml(Weather.tipOf(wxNow)) + '</p>' : '<p class="hg-tip" hidden></p>')
+        + '</div></div>'
         + '</div>'
         + '</section>';
 
@@ -1579,40 +1578,22 @@
       /* 第 212 次：天气——先用缓存画，后台刷新后原地替换天气块，不整页重绘 */
       (function () {
         var sky = view.querySelector('.home-sky');
-        function bindWx() {
-          Array.prototype.forEach.call(view.querySelectorAll('[data-wx-setup]'), function (b) {
-            b.addEventListener('click', function () {
-              if (global.App && App.openSettingsGroup) App.openSettingsGroup('天气');
-            });
-          });
-        }
         function apply(w) {
           if (!sky) return;
           var k = w ? Weather.codeInfo(w.code).k : '';
           ['wx-clear', 'wx-partly', 'wx-cloudy', 'wx-fog', 'wx-rain', 'wx-snow', 'wx-thunder'].forEach(function (x) { sky.classList.toggle(x, x === 'wx-' + k); });
           Weather.mountFx(view.querySelector('#wxCanvas'), k);
         }
-        bindWx();
         if (!global.Weather) return;
         var cfg = d.settings.weather || {};
         if (!cfg.on) { apply(null); return; }
         apply(wxNow);
         Weather.load(cfg).then(function (w) {
           if (!view.isConnected || !sky || !sky.isConnected) return;
-          var old = sky.querySelector('.hg-wx');
-          if (old) {
-            var tmp = document.createElement('div');
-            tmp.innerHTML = wxBlockHTML(cfg, w);
-            if (tmp.firstChild) old.parentNode.replaceChild(tmp.firstChild, old);
-          }
-          var tip = sky.querySelector('.hg-tip');
-          if (tip) { var t = Weather.tipOf(w); tip.textContent = t; tip.hidden = !t; }
+          var old = sky.querySelector('.hg-wx-txt');
+          if (old) { old.textContent = Weather.codeInfo(w.code).t + ' ' + w.temp + '°'; old.hidden = false; }
           apply(w);
-          bindWx();
-        }, function (err) {
-          var old = sky && sky.querySelector('.hg-wx.is-loading .wx-desc');
-          if (old) old.textContent = (err && err.message === 'denied') ? '没有定位权限，点这里选城市' : '天气暂时取不到';
-        });
+        }, function () {});
       })();
     }
   };
@@ -1734,28 +1715,12 @@
     });
     return out;
   };
-  /* 第 212 次：天空右侧的天气块（开着天气才显示；没开且没拒绝过时给一个「开启天气」小钮） */
-  function wxBlockHTML(cfg, w) {
-    if (!global.Weather) return '';
-    if (!cfg || !cfg.on) {
-      if (cfg && cfg.dismissed) return '';
-      return '<button class="hg-wx hg-wx-off" type="button" data-wx-setup>' + Weather.icon(1, true) + '<span>开启天气</span></button>';
-    }
-    if (!w) return '<button class="hg-wx is-loading" type="button" data-wx-setup aria-label="天气加载中"><span class="wx-ico">' + Weather.icon(2, true) + '</span>'
-      + '<span class="wx-main"><b class="wx-temp">--°</b><i class="wx-desc">正在获取天气</i></span></button>';
-    var ci = Weather.codeInfo(w.code);
-    var meta = [];
-    if (w.max != null && w.min != null) meta.push(w.min + '° / ' + w.max + '°');
-    var aq = Weather.aqiText(w.aqi);
-    if (aq) meta.push(aq);
-    return '<button class="hg-wx" type="button" data-wx-setup data-wx-kind="' + ci.k + '" aria-label="' + Util.escapeHtml(ci.t + ' ' + w.temp + '度') + '">'
-      + '<span class="wx-ico">' + Weather.icon(w.code, w.day) + '</span>'
-      + '<span class="wx-main"><b class="wx-temp">' + w.temp + '°</b>'
-      + '<i class="wx-desc">' + Util.escapeHtml(ci.t + (w.city ? ' · ' + w.city : '')) + '</i>'
-      + (meta.length ? '<i class="wx-meta">' + Util.escapeHtml(meta.join(' · ')) + '</i>' : '')
-      + '</span></button>';
+  /* 第 212 次（用户：不要单独的天气模块，天空背景直接显示天气）：
+     天气只体现在天空本身（阴天压暗、雨雪粒子、雾），日期行末尾跟一行小字「多云 18°」，不做卡片 */
+  function wxTextHTML(w) {
+    if (!w || !global.Weather) return '<span class="hg-wx-txt" hidden></span>';
+    return '<span class="hg-wx-txt">' + Util.escapeHtml(Weather.codeInfo(w.code).t + ' ' + w.temp + '°') + '</span>';
   }
-  Modules.home._wxBlockHTML = wxBlockHTML;
   function editStage(d) {
     return (global.App && typeof App.stageOf === 'function' && App.stageOf(d)) || 'baby';
   }
