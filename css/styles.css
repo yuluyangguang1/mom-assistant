@@ -3943,3 +3943,10 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
 .vac-detail .lbl-text { display: block; margin-top: 10px; }
 .vac-detail .dp-flags { margin: 8px 0 6px; }
 @media (max-width: 360px) { .vac-list li.vac-detail { padding-left: 0; } }
+
+/* 第 200 次：欢迎页「从备份恢复」次要入口 */
+.ob-foot.ob-foot-2 { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.ob-restore { background: none; border: 0; color: var(--muted); font: inherit; font-size: calc(14px * var(--fs-mul)); padding: 10px; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+/* 引导全屏层（z 2000）打开时，确认弹层与 toast 要盖在它上面（第 200 次从引导里发起恢复时发现被压住） */
+body.ob-open .modal-mask { z-index: 2100; }
+body.ob-open #toastRoot { z-index: 2200; }

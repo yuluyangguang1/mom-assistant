@@ -679,7 +679,8 @@
       Array.prototype.forEach.call(obRoot.querySelectorAll('[data-ob]'), function (btn) {
         btn.addEventListener('click', function () {
           var act = btn.getAttribute('data-ob');
-          if (act === 'skip') { collectStep(); finish(); return; } /* 跳过 = 已填的保留、其余留空，功能不受影响 */
+          if (act === 'skip') { collectStep(); finish(); return; }
+          if (act === 'restore') { restoreFromBackup(); return; } /* 跳过 = 已填的保留、其余留空，功能不受影响 */
           if (act === 'next' || act === 'back') {
             collectStep();
             if (act === 'back' && step === 0) return;
@@ -699,6 +700,47 @@
           if (act === 'done') { collectStep(); finish(); }
         });
       });
+    }
+
+    /* 第 200 次：欢迎页「从备份恢复」——换手机/清了浏览器的老用户不必先走四步引导再去设置里找导入。
+       新设备上没有数据，直接整体导入；确认弹层里把第 4 步的数据说明讲完（只存本机、记得定期导出），
+       确认即视为已了解，不再重复弹引导。恢复后保留备份里的称呼/阶段/宝宝信息，不用 draft 覆盖。 */
+    function restoreFromBackup() {
+      var inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'application/json,.json';
+      inp.addEventListener('change', function () {
+        if (!inp.files || !inp.files[0]) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+          var text = String(reader.result), obj = null;
+          try { obj = JSON.parse(text); } catch (e) { obj = null; }
+          if (!obj || typeof obj !== 'object' || Array.isArray(obj)) { Util.toast('这个文件不是咿呀记的备份，请选「设置 → 导出」存下的 .json 文件。', 'error'); return; }
+          var n = countRecords(obj);
+          Util.confirm({
+            title: '从备份恢复',
+            message: '文件里有 ' + n + ' 条记录，恢复后就能接着用。提醒一下：记录仍然只存在这台手机上，清理浏览器或换手机会丢，记得定期在「设置 → 导出」备份。',
+            okText: '恢复', cancelText: '取消',
+            onConfirm: function () {
+              try {
+                Storage.importJSON(text);
+                var d = Storage.get();
+                d.settings.privacyAccepted = true;
+                d.settings.onboardingDone = true;
+                Storage.save();
+                obRoot.innerHTML = '';
+                document.body.classList.remove('ob-open');
+                refreshHeaderAvatar();
+                rerender();
+                Util.toast('已恢复 ' + n + ' 条记录。', 'ok');
+              } catch (e) {
+                Util.toast('恢复失败：' + (e && e.message ? e.message : e), 'error');
+              }
+            }
+          });
+        };
+        reader.readAsText(inp.files[0]);
+      });
+      inp.click();
     }
 
     /* 只读当前这一步的输入，避免未渲染的字段被清空 */
@@ -739,7 +781,9 @@
       + '<li>' + (global.icon ? global.icon('vaccine') : '') + '<span>按生日自动排疫苗与体检</span></li>'
       + '<li>' + (global.icon ? global.icon('heart') : '') + '<span>数据只存在这台手机，不注册</span></li>'
       + '</ul></div>'
-      + obFoot('开始设置') ;
+      + '<div class="ob-foot ob-foot-2">'
+      + '<button type="button" class="btn btn-primary ob-cta" data-ob="next">开始设置</button>'
+      + '<button type="button" class="ob-restore" data-ob="restore">换手机了？从备份文件恢复</button></div>';
   }
 
   /* 引导第 2 步：阶段 */
