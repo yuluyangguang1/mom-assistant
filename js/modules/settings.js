@@ -466,6 +466,8 @@
       }
       html += '<button class="btn btn-primary" id="sExport">导出全部数据（JSON · 可迁移）</button>';
       html += '<p class="hint">完整备份，可在任何设备导入恢复——换机或交接前请先导出。</p>';
+      html += '<button class="btn" id="sExportShare" type="button">导出给家人 / 医生（不含妈妈私密记录）</button>';
+      html += '<p class="hint">去掉情绪、经期、记账，其余照常；不算完整备份。</p>';
       html += '<p class="hint">导出文件是明文，含敏感健康数据：只放你信任的位置，'
         + '别放公共目录或自动同步云端的文件夹；这里不提供加密——'
         + '无账号体系下加密密码一旦忘记，等于又丢一次数据。</p>';
@@ -850,6 +852,8 @@
         view.classList.remove('sg-in');
       }
       view.querySelector('#sExport').addEventListener('click', function () { global.App.exportAll(); });
+      var exShare = view.querySelector('#sExportShare');
+      if (exShare) exShare.addEventListener('click', function () { global.App.exportShare(); });
       view.querySelector('#sImport').addEventListener('click', function () { global.App.importAll(); });
       view.querySelector('#sReset').addEventListener('click', function () { global.App.resetAll(); });
       /* ---- 第 71 次（C1）：就诊摘要——优先系统分享，无能力则复制 + 下载 txt ---- */

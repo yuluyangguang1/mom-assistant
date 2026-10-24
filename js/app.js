@@ -811,6 +811,20 @@
     Storage.save();
   }
 
+  /* 第 202 次：不含妈妈私密记录（情绪 / 经期 / 记账）的导出，给家人或带去看医生用。
+     不算作「备份」：不更新 lastExportISO，以免备份提醒误以为私密记录也备份过了。 */
+  function exportShare() {
+    Util.confirm({
+      title: '导出给家人 / 医生',
+      message: '这份文件不含妈妈的情绪、经期和记账，其余宝宝与孕期记录照常包含，仍是明文。它不算完整备份——换手机请用「导出全部数据」。',
+      okText: '导出', cancelText: '取消',
+      onConfirm: function () {
+        var text = Storage.exportJSON({ excludePrivate: true });
+        Util.download('咿呀记数据_不含私密_' + Util.todayISO() + '.json', text, 'application/json');
+      }
+    });
+  }
+
   function exportAll() {
     var s = Storage.get();
     if (s.settings.exportNoticeShown) { doExport(); return; }
@@ -1085,6 +1099,7 @@
     pendingDate: null,
     startOnboarding: showOnboarding, /* 设置页「重新开始首次引导」入口（调用前需先把 privacyAccepted 置回 false） */
     exportAll: exportAll,
+    exportShare: exportShare,
     importAll: importAll,
     resetAll: resetAll,
     applyTheme: applyTheme,

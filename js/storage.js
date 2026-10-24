@@ -768,7 +768,15 @@
     },
 
     /** 导出为格式化的 JSON 文本 */
-    exportJSON: function () {
+    exportJSON: function (opts) {
+      /* 第 202 次：opts.excludePrivate —— 给家人 / 医生的副本，去掉妈妈的情绪、经期、记账。
+         只清空这三项，结构保持完整，对方导入（默认合并）不会动到他本机这几项。 */
+      if (opts && opts.excludePrivate) {
+        var c = JSON.parse(JSON.stringify(this.data));
+        c.moods = []; c.periods = []; c.finance = { records: [] };
+        c._exportNote = 'excludePrivate';
+        return JSON.stringify(c, null, 2);
+      }
       return JSON.stringify(this.data, null, 2);
     },
 
