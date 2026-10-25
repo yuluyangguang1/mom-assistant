@@ -69,34 +69,22 @@
   ];
   function amtOf(v) { for (var i = 0; i < AMOUNTS.length; i++) if (AMOUNTS[i].v === v) return AMOUNTS[i]; return null; }
   var TYPE_LONG = { pee: '尿尿', poop: '便便', both: '尿+便' };
-  var ART = 'assets/hero/diaper.webp'; /* 与页头插画同一张，风格统一 */
-
-  function dropSVG(cls) {
-    return '<svg class="' + (cls || 'dp-drop') + '" viewBox="0 0 24 30" aria-hidden="true"><defs><linearGradient id="dpDropG" x1="0" y1="0" x2="0" y2="1">'
-      + '<stop offset="0" stop-color="#D6E8F6"/><stop offset="1" stop-color="#8DB6DA"/></linearGradient></defs>'
-      + '<path d="M12 1.5C12 1.5 3 12.6 3 19a9 9 0 0 0 18 0C21 12.6 12 1.5 12 1.5Z" fill="url(#dpDropG)" stroke="#7FA5C8" stroke-width="1"/>'
-      + '<ellipse cx="8.6" cy="18.5" rx="1.9" ry="3.2" fill="#fff" opacity=".7"/></svg>';
+  /* 第 228 次：类型卡、颜色、时间轴一律用「摊开的真实尿布 + 对应污渍」成品图（assets/diaper/），不再用表情式小标。
+     图由本项目自己生成（一张平铺尿布 + 程序合成污渍，颜色与 COLORS 一一对应），不使用竞品素材。 */
+  var DIMG = 'assets/diaper/';
+  function stainSrc(t, color) {
+    if (t === 'pee') return DIMG + 'pee.webp';
+    if (t === 'both') return DIMG + 'both.webp';
+    if (t === 'poop') return DIMG + 'poop_' + (colorOf(color) ? color : 'gold') + '.webp';
+    return DIMG + 'clean.webp';
   }
-  function swirlSVG(hex, cls) {
-    var c = hex || '#A9713F';
-    return '<svg class="' + (cls || 'dp-swirl') + '" viewBox="0 0 32 28" aria-hidden="true" style="--sw:' + c + '">'
-      + '<ellipse cx="16" cy="22.5" rx="13" ry="4.8" fill="var(--sw)"/>'
-      + '<ellipse cx="16" cy="16.5" rx="10" ry="4.4" fill="var(--sw)"/>'
-      + '<path d="M10.5 11.5c0-3.6 3-5.2 5.5-9 1 2.4 6 3.7 6 9 0 2.2-2.6 3.4-5.8 3.4s-5.7-1.2-5.7-3.4Z" fill="var(--sw)"/>'
-      + '<path d="M5 22c3 2.4 19 2.4 22 0M8 16c2.6 2 13.4 2 16 0" fill="none" stroke="#000" stroke-opacity=".12" stroke-width="1.1" stroke-linecap="round"/>'
-      + '<ellipse cx="12" cy="9.5" rx="1.6" ry="1" fill="#fff" opacity=".45"/></svg>';
+  function diaperImg(src, cls) {
+    return '<img class="' + cls + '" src="' + src + '" alt="" width="360" height="360" decoding="async">';
   }
-  /* 类型插画：同一张尿布 + 水滴 / 便便 / 两个 */
-  function typeArt(t, hex) {
-    var badge = t === 'pee' ? dropSVG() : t === 'poop' ? swirlSVG(hex) : (dropSVG() + swirlSVG(hex));
-    return '<span class="dpt-art"><img src="' + ART + '" alt="" width="480" height="480" decoding="async"><span class="dpt-badge">' + badge + '</span></span>';
+  function typeArt(t, color) {
+    return '<span class="dpt-art">' + diaperImg(stainSrc(t, color), 'dpt-img') + '</span>';
   }
-  function miniIco(r) {
-    var c = colorOf(r.color);
-    if (r.type === 'pee') return dropSVG('tl-svg');
-    if (r.type === 'poop') return swirlSVG(c && c.hex, 'tl-svg');
-    return '<span class="tl-pair">' + dropSVG('tl-svg') + swirlSVG(c && c.hex, 'tl-svg') + '</span>';
-  }
+  function miniIco(r) { return diaperImg(stainSrc(r.type, r.color), 'tl-img'); }
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function agoText(iso) {
     var t = new Date(iso).getTime();
@@ -198,7 +186,7 @@
       TYPES.forEach(function (t) {
         var on = st.type === t.v;
         h += '<button type="button" class="dp-type' + (on ? ' on' : '') + '" data-t="' + t.v + '" role="radio" aria-checked="' + on + '">'
-          + typeArt(t.v, c && c.hex) + '<span class="dpt-name">' + TYPE_LONG[t.v] + '</span>'
+          + typeArt(t.v, st.color) + '<span class="dpt-name">' + TYPE_LONG[t.v] + '</span>'
           + '<i class="dpt-check" aria-hidden="true">' + icon('check') + '</i></button>';
       });
       h += '</div>';
@@ -212,7 +200,7 @@
         COLORS.forEach(function (cc) {
           var on = st.color === cc.v;
           h += '<button type="button" class="dp-col' + (on ? ' on' : '') + (cc.warn ? ' warn' : '') + '" data-col="' + cc.v + '" aria-pressed="' + on + '" aria-label="' + cc.label + '">'
-            + swirlSVG(cc.hex, 'dpc-svg') + '<span>' + cc.label + '</span></button>';
+            + diaperImg(DIMG + 'poop_' + cc.v + '.webp', 'dpc-img') + '<span>' + cc.label + '</span></button>';
         });
         h += '</div>';
         if (c && c.warn) h += '<p class="rs-warn">这个颜色建议留意：如果再次出现，或宝宝精神、吃奶不好，尽快联系医生。</p>';
@@ -355,7 +343,7 @@
       var tail = stockNote(touched);
       if (!Storage.save()) return;
       /* 「已记录」：面板内闪一下插画 + 勾，再收起 */
-      box.innerHTML = '<div class="rs-done" role="status">' + typeArt(r.type, colorOf(r.color) && colorOf(r.color).hex)
+      box.innerHTML = '<div class="rs-done" role="status">' + typeArt(r.type, r.color)
         + '<span class="rs-done-ok">' + icon('check') + '</span><p>' + (editing ? '已保存' : '已记录') + '</p></div>';
       setTimeout(function () {
         close();
