@@ -100,11 +100,8 @@
     } else if (k === 'sleep-end') {
       var os = d.openSleep;
       if (!os || !os.start) return;
-      var end = Date.now();
-      var paused = (os.pausedMs || 0) + (os.pauseStart ? end - os.pauseStart : 0);
-      d.sleeps.push({ id: os.id, start: os.start, end: Util.nowLocal(), pausedMs: paused, note: null, wakings: null, longestMin: null });
-      d.openSleep = null;
-      if (Storage.save()) Util.toast('已记录：睡眠 ' + Util.fmtDuration(Math.max(0, end - ms(os.start) - paused)), 'ok');
+      /* 第 241 次：和睡眠页同一个出口（带上全屏里记的醒来次数） */
+      if (M.sleep && M.sleep._end) { M.sleep._end(Date.now()); if (M.sleep._closeFull) M.sleep._closeFull(); }
     }
     if (Util.haptic) Util.haptic('ok');
     if (global.App && App.rerender) App.rerender(); else DL.render();
@@ -115,6 +112,7 @@
     if (r.k === 'whitenoise' && M.whitenoise) M.whitenoise._open = true;
     if (global.App) App.showTab(r.go);
     if (r.k === 'breast' && M.breast && M.breast._openFull) setTimeout(function () { M.breast._openFull(); }, 0);
+    if (r.k === 'sleep' && M.sleep && M.sleep._openFull) setTimeout(function () { M.sleep._openFull(); }, 0);
   }
 
   function ensure() {

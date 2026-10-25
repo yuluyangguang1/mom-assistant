@@ -1653,12 +1653,8 @@
       Array.prototype.forEach.call(view.querySelectorAll('[data-recsl="end"]'), function (recSlEnd) { recSlEnd.addEventListener('click', function () {
         var os2 = d.openSleep;
         if (!os2 || !os2.start) return;
-        var end = Date.now();
-        var paused = (os2.pausedMs || 0) + (os2.pauseStart ? end - os2.pauseStart : 0);
-        var totalMs = end - new Date(os2.start).getTime() - paused;
-        d.sleeps.push({ id: os2.id, start: os2.start, end: Util.nowLocal(), pausedMs: paused, note: null, wakings: null, longestMin: null });
-        d.openSleep = null;
-        if (Storage.save()) Util.toast('已记录：睡眠 ' + Util.fmtDuration(Math.max(0, totalMs)), 'ok');
+        /* 第 241 次：与睡眠页同一个出口，全屏里记的醒来次数一并落库 */
+        Modules.sleep._end(Date.now());
         global.App.rerender();
       }); });
 

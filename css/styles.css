@@ -2856,19 +2856,7 @@ body .tabbar .dock-btn[hidden] { display: none; }
   white-space: nowrap;
 }
 
-/* 第 194 次：睡眠页「往前拨开始 / 回填结束」三档，沿用亲喂 .ft-back 的等宽网格 */
-.sl-back {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
-  margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border);
-}
-.sl-back .hint { grid-column: 1 / -1; margin: 0 0 2px; font-size: calc(12px * var(--fs-mul)); }
-.sl-back .btn-mini { width: 100%; padding: 0 4px; min-width: 0; font-size: calc(12.5px * var(--fs-mul)); white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; }
-/* 夜醒次数四档：「3 次以上」在 390 宽会折成两行，缩字距并禁折 */
-#sWak .seg-btn, #sManWak .seg-btn { white-space: nowrap; padding-left: 4px; padding-right: 4px; letter-spacing: -.01em; }
-.sl-endat { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
-.sl-endat label { display: flex; flex-direction: column; gap: 6px; font-size: calc(12px * var(--fs-mul)); color: var(--muted); }
-.sl-endat input { width: 100%; box-sizing: border-box; min-height: 44px; }
-.sl-stale { color: var(--warn-text); }
+/* 第 194 次的睡眠页回填三档 / 夜醒四档已随第 241 次睡眠页重做移除（回填挪进全屏计时的结束确认） */
 
 /* ============================================================
    第 141 次（底栏定稿：纯图标 + ＋置右 + 二级页两端分布）
@@ -4921,3 +4909,49 @@ html[data-nav] #dockOrb:not([hidden]) { view-transition-name: dock-orb; }
   #dockOrb.dock-orb { --orb: 54px; left: calc(50% - var(--dock-w, 240px) / 2 - 31px); bottom: calc(14px + env(safe-area-inset-bottom)); }
   body.has-orb #tabbar:not(.is-vertical) { left: calc(50% + 31px); }
 }
+
+/* ============================================================
+   第 241 次：睡眠页（照用户参考截图）——与亲喂 / 瓶喂同骨架，薰衣草紫；
+   全屏睡眠计时：夜里的婴儿床，可关掉夜景成纯黑；停止要两步确认。
+   ============================================================ */
+.ft-page[data-accent="sleep"], .ftf-sleep, .ft-sheet[data-accent="sleep"], .ft-mini[data-accent="sleep"], .ft-split[data-accent="sleep"] {
+  --tile: #9C96EC; --tile-text: #4D47A6; --tile-weak: #EEEDFB; --tile-on: #1E1A3A; }
+body.dark .ft-page[data-accent="sleep"], body.dark .ftf-sleep, body.dark .ft-sheet[data-accent="sleep"], body.dark .ft-mini[data-accent="sleep"], body.dark .ft-split[data-accent="sleep"] {
+  --tile: #B2ACF6; --tile-text: #B2ACF6; --tile-weak: rgba(178,172,246,.16); --tile-on: #1E1A3A; }
+.mod-hero[data-hero="sleep"] .hero-art { width: 84px; height: 84px; }
+.mod-hero[data-hero="sleep"] .hero-art img { width: 72px; height: 72px; }
+.tl-f-sleep .tl-dot { background: var(--tile); }
+.tl-f-sleep .tl-ico .ico { color: var(--tile-text); }
+.ft-sum .ms-ago { margin-left: .35em; color: var(--muted); font-weight: 400; }
+.ft-ins .sl-dash { margin: 0; padding: 0; background: none; box-shadow: none; border: 0; }
+
+.ftf-sleep { background: #0F0D14; --tile: #B2ACF6; --tile-on: #1E1A3A; }
+.ftf-sleep .ftf-bg { background: url(../assets/sleep/nursery.webp) center top / 100% auto no-repeat; }
+.ftf-sleep .ftf-bg::after { background: linear-gradient(180deg, rgba(15,13,20,0) 0%, rgba(15,13,20,0) 52%, rgba(15,13,20,.8) 66%, #0F0D14 76%); }
+.ftf-sleep.is-dark { background: #151513; }
+.ftf-sleep.is-dark .ftf-bg { display: none; }
+.ftf-sleep .ftf-ib { background: rgba(38,36,44,.78); }
+.ftf-sleep .ftf-chip { background: rgba(38,36,46,.86); color: #fff; }
+.ftf-sleep .ftf-chip .ico, .ftf-sleep .ftf-chip > svg:first-child { width: 20px; height: 20px; color: var(--tile); }
+.ftf-sleep .ftf-chip i { background: var(--tile); }
+.sl-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.ftf-lull { border: none; font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; }
+.ftf-sleep .ftf-lull > svg:first-child { color: #fff; }
+.ftf-lull > svg:last-child { width: 16px; height: 16px; opacity: .6; margin-left: -2px; }
+.sl-dk { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.sl-dk-ico .ico { width: 72px; height: 72px; color: var(--tile); }
+.sl-dk b { font-size: 24px; font-weight: 800; }
+.sl-big { font-size: clamp(64px, 22vw, 96px); margin-top: 4px; }
+.sl-wk { border: none; background: transparent; color: inherit; font: inherit; padding: 0; cursor: pointer; }
+.sl-wk b u { width: 8px; height: 8px; margin-left: 4px; border-radius: 50%; background: var(--tile); text-decoration: none; }
+.ftf-sleep .ftf-rb { background: rgba(38,36,44,.92); }
+.ftf-sleep .sl-wake svg { width: 30px; height: 30px; }
+.ftf-sleep .sl-wake.is-on { color: var(--tile); }
+.ftf-sleep .ftf-main-btn { background: var(--tile); color: var(--tile-on); }
+.sl-two { display: grid; grid-template-columns: 1fr 2fr; gap: 14px; width: 100%; max-width: 420px; margin-top: 6px; }
+.sl-cancel { min-height: 64px; border: none; border-radius: var(--radius-pill); background: rgba(38,36,44,.92); color: #fff; font: inherit; font-size: 20px; font-weight: 800; cursor: pointer; }
+.sl-endbtn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; font-size: 20px; letter-spacing: 1px; }
+.sl-endbtn svg { width: 26px; height: 26px; }
+.sl-back { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; max-width: 420px; font-size: 13px; color: rgba(255,255,255,.7); text-align: center; }
+.sl-back span { width: 100%; }
+.sl-back button { min-height: 38px; padding: 0 14px; border: none; border-radius: var(--radius-pill); background: rgba(178,172,246,.18); color: var(--tile); font: inherit; font-weight: 700; cursor: pointer; }

@@ -67,10 +67,12 @@
       fields: [
         { k: 'start', l: '入睡', t: 'dt' },
         { k: 'end', l: '醒来', t: 'dt', show: function (r) { return !!r.end; } },
+        { k: 'wakings', l: '中途醒来（次）', t: 'num', min: 0, max: 30, step: 1 },
         NOTE
       ],
       fix: function (r) {
         if (r.end && !(new Date(r.end).getTime() > new Date(r.start).getTime())) return '醒来时间要晚于入睡时间';
+        r.longestMin = null; /* 第 241 次：时长或醒来次数改了，最长连续按新值重新折算 */
         return null;
       }
     },

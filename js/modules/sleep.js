@@ -1,19 +1,21 @@
 /**
- * sleep.js - 哄睡 / 睡眠计时 + 四字段记录
- * 开始 / 暂停 / 继续 / 结束；记录时长；基础作息列表。
- *
- * 依市场研究报告 Ch6 规范条款改造：
- * - U-16 四字段：入睡时间、醒来时间、夜醒次数（0/1/2/3+ 单点选择）、最长连续睡眠。
- *   最长连续由「时长 ÷ (夜醒次数+1)」折算并标注「约」，是自报数据的合理估计，不显示睡眠效率（U-19）。
- * - U-24 参照只用用户自身近 7 天区间，不给任何外部人群参照值（U-18）。
- * - U-11 漏记不清零：手动补记入口常在，48 小时为设计判断，实际不设惩罚性时限。
- * - 第 73 次（C2/C3）：睡眠参考卡（清醒窗口/猛长期，Knowledge 底座）——
- *   教育性科普，不与用户数据对照，统计口径不变。
+ * sleep.js - 睡眠
+ * 第 241 次：照用户给的参考截图重做（与亲喂 / 瓶喂同一套骨架）：
+ *   页面：摘要句 → 洞察小按钮（今日睡眠 / 作息 / 睡眠参考）→ 最近记录（竖向时间轴）
+ *         → 底部「▷ 开始睡眠 | ⊕ 补记」；睡眠中换成迷你条（时间 · 暂停 · 醒了）。
+ *   全屏计时：夜里的婴儿床（可关灯成纯黑）、「睡眠中 ●」「哄睡 >」、大号计时，
+ *         开始时刻（可改）/ 醒来次数 / 已暂停；底部 宝宝醒了 +1 · 暂停/继续 · 停止，
+ *         停止后变「取消 | ■ 结束睡眠」两步确认，免得半夜误触。
+ * 数据不变形：仍是 d.openSleep { id, start, pausedMs, pauseStart }，多一个 wakes（中途醒来次数），
+ * 结束写 d.sleeps，wakings = wakes，longestMin 仍按「时长 ÷ (醒来+1)」折算（U-16）。
+ * 只和宝宝自己比（U-18 / U-24），不给睡眠效率（U-19）；漏记随时补（U-11）。
  */
 (function (global) {
   'use strict';
   var Storage = global.Storage, Util = global.Util;
   var Modules = global.Modules = global.Modules || {};
+  var esc = function (s) { return Util.escapeHtml(String(s == null ? '' : s)); };
+  var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
 
   function openSleep() { return (Storage.get() || {}).openSleep || null; } /* 第 146 次：早于 load 的定时器调用时判空 */
 
@@ -25,25 +27,206 @@
     return Math.max(0, Math.round(durMs(s) / 60000 / (w + 1)));
   }
   function fmtH(h) { return (Math.round(h * 10) / 10).toFixed(1); }
-  function wakText(s) { return s.wakings == null ? '未填' : (s.wakings >= 3 ? '3 次以上' : s.wakings + ' 次'); }
-  function wakSeg(id, attr) {
-    return '<div class="seg" id="' + id + '">' + ['0', '1', '2', '3'].map(function (k) {
-      return '<button type="button" class="seg-btn' + (k === '0' ? ' active' : '') + '" ' + attr + '="' + k + '">'
-        + (k === '3' ? '3 次以上' : k + ' 次') + '</button>';
-    }).join('') + '</div>';
+  function loc(t) {
+    var d = new Date(t);
+    return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + 'T' + p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds());
   }
-  function dtLocalValue(d) {
-    function p(n) { return n < 10 ? '0' + n : '' + n; }
-    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+  function hm(t) { var d = new Date(t); return p2(d.getHours()) + ':' + p2(d.getMinutes()); }
+  function tms(s) { var t = new Date(s).getTime(); return isFinite(t) ? t : NaN; }
+  function clock(v) { return Util.fmtClock(v).replace(/^0(\d:)/, '$1'); }
+  /* 「1 分钟」「2 小时 5 分」 */
+  function fmtMin(min) {
+    min = Math.max(0, Math.round(min || 0));
+    if (min < 60) return min + ' 分钟';
+    return Math.floor(min / 60) + ' 小时' + (min % 60 ? ' ' + (min % 60) + ' 分' : '');
+  }
+  function osState(os, now) {
+    var paused = (os.pausedMs || 0) + (os.pauseStart ? Math.max(0, now - os.pauseStart) : 0);
+    return { el: Math.max(0, now - tms(os.start) - paused), paused: paused, isPaused: !!os.pauseStart, wakes: Math.max(0, os.wakes | 0) };
   }
 
-  function tick() {
+  var SVs = {
+    /* 宝宝醒了：睁眼的小脸 + 小星星 */
+    wake: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11.5" cy="13" r="7.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M8.6 7.2c.9-1.3 2.4-1.8 3.6-1.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="9" cy="12.4" r="1.15" fill="currentColor"/><circle cx="14" cy="12.4" r="1.15" fill="currentColor"/><path d="M9.3 15.6c1.3 1.1 3.1 1.1 4.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M19.5 2.8l.55 1.45 1.45.55-1.45.55-.55 1.45-.55-1.45-1.45-.55 1.45-.55z" fill="currentColor"/></svg>',
+    lullaby: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18.5V7.5l8-2v10" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="18.5" r="2.2" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="15" cy="15.5" r="2.2" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M2.5 4h2.6L2.5 7h2.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    chev: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    lightOff: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20L20 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    hourglass: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12.5" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v4.5l3 1.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>'
+  };
+  function UI() { return global.FTUI || null; }
+
+  /* ---------- 开始 / 结束（首页、dock 胶囊也走这里） ---------- */
+  function startSleep(atMs) {
+    var d = Storage.get();
+    d.openSleep = { id: Util.uid(), start: loc(atMs || Date.now()), pausedMs: 0, pauseStart: null, wakes: 0 };
+    return Storage.save();
+  }
+  function endSleep(endMs) {
+    var d = Storage.get(), os2 = d.openSleep; if (!os2) return false;
+    var startMs = tms(os2.start), nowMs = Date.now();
+    if (!(endMs > startMs)) { Util.toast('醒来时间要晚于入睡时间（' + Util.fmtDateTime(os2.start) + '）', 'warn'); return false; }
+    if (endMs > nowMs) endMs = nowMs;
+    var paused = (os2.pausedMs || 0) + (os2.pauseStart ? Math.max(0, endMs - os2.pauseStart) : 0);
+    var totalMs = endMs - startMs - paused;
+    var wk = os2.wakes != null ? Math.max(0, os2.wakes | 0) : null;
+    d.sleeps.push({ id: os2.id, start: os2.start, end: loc(endMs), pausedMs: paused, note: null, wakings: wk,
+      longestMin: wk == null ? null : Math.max(0, Math.round(totalMs / 60000 / (wk + 1))) });
+    d.openSleep = null;
+    if (Storage.save()) Util.toast('已记录：睡眠 ' + Util.fmtDuration(Math.max(0, totalMs)) + (wk ? '，中途醒来 ' + wk + ' 次' : ''), 'ok'); /* C1：计时类带时长 */
+    return true;
+  }
+  function togglePause() {
+    var d = Storage.get(), os = d.openSleep; if (!os) return;
+    if (os.pauseStart) { os.pausedMs = (os.pausedMs || 0) + (Date.now() - os.pauseStart); os.pauseStart = null; }
+    else os.pauseStart = Date.now();
+    Storage.save();
+  }
+
+  /* ---------- 全屏计时 ---------- */
+  var fullEl = null, fullTick = null, fullDim = false, fullConfirm = false;
+  function closeFull() {
+    if (fullTick) { clearInterval(fullTick); fullTick = null; }
+    if (fullEl && fullEl.parentNode) fullEl.parentNode.removeChild(fullEl);
+    if (fullEl) document.body.classList.remove('ftf-open'); /* 亲喂全屏也用这个类：没开过就别动它 */
+    fullEl = null; fullConfirm = false;
+  }
+  function openFull() {
+    if (!openSleep()) { closeFull(); return; }
+    if (!fullEl) {
+      fullEl = document.createElement('div');
+      fullEl.className = 'ftf ftf-sleep';
+      fullEl.setAttribute('data-accent', 'sleep');
+      fullEl.setAttribute('role', 'dialog');
+      fullEl.setAttribute('aria-label', '睡眠计时');
+      document.body.appendChild(fullEl);
+      document.body.classList.add('ftf-open');
+      fullEl.addEventListener('click', onFullClick);
+    }
+    paintFull();
+    if (!fullTick) fullTick = setInterval(tickFull, 500);
+  }
+  function paintFull() {
     var os = openSleep();
-    var el = document.getElementById('sleepTimer');
-    if (!os || !el) return;
-    var now = Date.now();
-    var paused = (os.pausedMs || 0) + (os.pauseStart ? now - os.pauseStart : 0);
-    el.textContent = Util.fmtDuration(now - new Date(os.start).getTime() - paused);
+    if (!os || !fullEl) { closeFull(); return; }
+    var s = osState(os, Date.now());
+    var sv = (UI() && UI().SV) || {};
+    fullEl.classList.toggle('is-dark', fullDim);
+    var stateTxt = s.isPaused ? '已暂停' : '睡眠中';
+    var lull = '<button type="button" class="ftf-chip ftf-lull" data-f="lull">' + SVs.lullaby + '<span>哄睡</span>' + SVs.chev + '</button>';
+    fullEl.innerHTML = '<div class="ftf-bg" aria-hidden="true"></div>'
+      + '<div class="ftf-top"><button type="button" class="ftf-ib" data-f="down" aria-label="收起">' + (sv.down || '') + '</button>'
+      + '<span class="ftf-tr"><button type="button" class="ftf-ib ftf-del" data-f="cancel" aria-label="放弃这次计时">' + icon('trash') + '</button>'
+      + '<button type="button" class="ftf-ib" data-f="dim" aria-label="' + (fullDim ? '打开夜景' : '关掉夜景') + '" aria-pressed="' + (fullDim ? 'true' : 'false') + '">' + (fullDim ? SVs.lightOff : (sv.bright || '')) + '</button></span></div>'
+      + (fullDim ? '<div class="sl-dk"><span class="sl-dk-ico">' + icon('sleep') + '</span><b>' + stateTxt + '</b>' + lull + '</div>' : '')
+      + '<div class="ftf-main">'
+      + (fullDim ? '' : '<div class="sl-chips"><p class="ftf-chip">' + icon('sleep') + '<span>' + stateTxt + '</span><i class="' + (s.isPaused ? 'is-off' : '') + '"></i></p>' + lull + '</div>')
+      + '<span class="ftf-big sl-big" data-fv="el">' + clock(s.el) + '</span>'
+      + '<div class="ftf-stats">'
+      + '<label class="ftf-st ftf-start"><i>' + (sv.clock || '') + '</i><b>' + hm(tms(os.start)) + ' <em>' + (sv.pen || '') + '</em></b><span>开始</span>'
+      + '<input type="time" data-f="start" value="' + hm(tms(os.start)) + '" aria-label="修改入睡时刻"></label>'
+      + '<button type="button" class="ftf-st sl-wk" data-f="unwake" aria-label="中途醒来 ' + s.wakes + ' 次' + (s.wakes ? '，点按减一' : '') + '"><i>' + SVs.wake + '</i><b data-fv="wk">' + s.wakes + (s.wakes ? '<u></u>' : '') + '</b><span>醒来</span></button>'
+      + '<div class="ftf-st"><i>' + SVs.hourglass + '</i><b data-fv="pz">' + clock(s.paused) + '</b><span>已暂停</span></div>'
+      + '</div>'
+      + (fullConfirm
+        ? endBackHTML(os) + '<div class="sl-two"><button type="button" class="sl-cancel" data-f="noend">取消</button>'
+          + '<button type="button" class="ftf-main-btn sl-endbtn" data-f="end">' + (sv.stop || '') + '<span>结束睡眠</span></button></div>'
+        : '<div class="ftf-ctl"><button type="button" class="ftf-rb sl-wake' + (s.wakes ? ' is-on' : '') + '" data-f="wake" aria-label="宝宝醒了一次">' + SVs.wake + '</button>'
+          + '<button type="button" class="ftf-main-btn" data-f="pause">' + (s.isPaused ? '继续' : '暂停') + '</button>'
+          + '<button type="button" class="ftf-rb" data-f="stop" aria-label="结束睡眠">' + (sv.stop || '') + '</button></div>')
+      + '</div>';
+    var si = fullEl.querySelector('input[data-f="start"]');
+    if (si) si.addEventListener('change', function () {
+      var dd = Storage.get(), o = dd.openSleep; if (!o || !/^\d{2}:\d{2}/.test(si.value)) return;
+      var now = Date.now(), cand = tms(loc(now).slice(0, 10) + 'T' + si.value.slice(0, 5) + ':00');
+      if (cand > now) cand -= 864e5;
+      o.start = loc(cand);
+      Storage.save(); paintFull();
+      if (global.App && App.currentTab && App.currentTab() === 'sleep') App.rerender();
+    });
+  }
+  /* 计时超过 6 小时：多半是忘了按结束，结束前可以按实际醒来时间回填（第 194 次的回填挪到这里） */
+  function endBackHTML(os) {
+    if (Date.now() - tms(os.start) < 6 * 3600000) return '';
+    return '<div class="sl-back" role="group" aria-label="实际醒来时间"><span>已经计时 ' + Math.floor((Date.now() - tms(os.start)) / 3600000) + ' 小时，按实际醒来时间：</span>'
+      + [10, 20, 30].map(function (m) { return '<button type="button" data-f="endago" data-m="' + m + '">' + m + ' 分钟前</button>'; }).join('') + '</div>';
+  }
+  function tickFull() {
+    var os = openSleep();
+    if (!os) { if (fullEl) closeFull(); return; }
+    var s = osState(os, Date.now());
+    if (fullEl) {
+      var a = fullEl.querySelector('[data-fv="el"]'), b = fullEl.querySelector('[data-fv="pz"]');
+      if (a) a.textContent = clock(s.el);
+      if (b) b.textContent = clock(s.paused);
+    }
+    var mini = document.querySelector('[data-sl-mini]');
+    if (mini) mini.textContent = clock(s.el);
+  }
+  function after() {
+    if (fullEl) paintFull();
+    if (global.App && App.currentTab && App.currentTab() === 'sleep') App.rerender();
+    else if (global.DockLive) try { DockLive.render(); } catch (e) { /* */ }
+  }
+  function onFullClick(e) {
+    var b = e.target.closest ? e.target.closest('[data-f]') : null;
+    if (!b || b.tagName === 'INPUT') return;
+    var k = b.getAttribute('data-f'), d = Storage.get(), os = d.openSleep;
+    if (k === 'down') { closeFull(); if (global.App) App.rerender(); return; }
+    if (k === 'dim') { fullDim = !fullDim; paintFull(); return; }
+    if (k === 'lull') { closeFull(); if (Modules.whitenoise) Modules.whitenoise._open = true; if (global.App) App.showTab('whitenoise'); return; }
+    if (!os) { closeFull(); return; }
+    if (k === 'cancel') {
+      Util.confirm({ title: '放弃这次计时？', message: '这一觉不会被记录。', okText: '放弃', danger: true, onConfirm: function () {
+        var dd = Storage.get(); dd.openSleep = null; Storage.save(); closeFull(); Util.toast('已放弃这次计时', 'ok'); if (global.App) App.rerender();
+      } });
+      return;
+    }
+    if (k === 'wake') { os.wakes = Math.max(0, os.wakes | 0) + 1; Storage.save(); if (Util.haptic) Util.haptic('ok'); after(); return; }
+    if (k === 'unwake') { if ((os.wakes | 0) > 0) { os.wakes = (os.wakes | 0) - 1; Storage.save(); Util.toast('醒来次数改为 ' + os.wakes, 'ok'); after(); } return; }
+    if (k === 'pause') { togglePause(); if (Util.haptic) Util.haptic('ok'); after(); return; }
+    if (k === 'stop') { fullConfirm = true; paintFull(); return; }
+    if (k === 'noend') { fullConfirm = false; paintFull(); return; }
+    if (k === 'end' || k === 'endago') {
+      var at = Date.now() - (k === 'endago' ? (Number(b.getAttribute('data-m')) || 0) * 60000 : 0);
+      if (endSleep(at)) { if (Util.haptic) Util.haptic('ok'); closeFull(); if (global.App) App.rerender(); }
+    }
+  }
+
+  /* ---------- 补记一觉 ---------- */
+  function openManual() {
+    var ui = UI(); if (!ui) return;
+    var now = Date.now(), st0 = now - 2 * 3600000;
+    var body = ui.whenTiles('s', '入睡', ui.isoDay(st0), ui.hm(st0), ui.isoDay(now))
+      + ui.whenTiles('e', '醒来', ui.isoDay(now), ui.hm(now), ui.isoDay(now)).replace('结束日期', '日期').replace('结束时间', '时间').replace(/aria-label="结束日期"/, 'aria-label="醒来日期"').replace(/aria-label="结束时间"/, 'aria-label="醒来时间"')
+      + '<p class="rs-lbl">中途醒来</p><div class="ft-step" data-step>'
+      + '<button type="button" class="ft-sb" data-d="-1" aria-label="减少">−</button>'
+      + '<span class="ft-sv"><input type="number" inputmode="numeric" min="0" max="30" value="0" id="slWk" aria-label="中途醒来次数"><small>次</small></span>'
+      + '<button type="button" class="ft-sb" data-d="1" aria-label="增加">+</button></div>'
+      + '<label class="rs-lbl ft-note">备注<input type="text" id="slNote" maxlength="40" placeholder="可选"></label>'
+      + '<p class="hint">忘了记也没关系，漏记不会清零，回来补上就行。</p>'
+      + '<button type="button" class="btn btn-primary ft-save" data-save>' + icon('check') + '保存</button>';
+    ui.openSheet('sleep', '补记睡眠', body, function (api) {
+      var box = api.box, inp = box.querySelector('#slWk');
+      Array.prototype.forEach.call(box.querySelectorAll('[data-d]'), function (b) {
+        b.addEventListener('click', function () { inp.value = Math.max(0, Math.min(30, (parseInt(inp.value, 10) || 0) + Number(b.getAttribute('data-d')))); });
+      });
+      function save() {
+        var st = ui.readWhen(box, 's'), en = ui.readWhen(box, 'e');
+        if (!isFinite(st) || !isFinite(en)) { Util.toast('请选好入睡和醒来时间', 'warn'); return; }
+        if (!(en > st)) { Util.toast('醒来时间要晚于入睡时间', 'warn'); return; }
+        if (en > Date.now() + 60000) { Util.toast('醒来时间不能晚于现在', 'warn'); return; }
+        if (en - st > 24 * 3600000) { Util.toast('一觉超过 24 小时了，检查一下日期', 'warn'); return; }
+        var wk = Math.max(0, Math.min(30, parseInt(inp.value, 10) || 0));
+        var note = (box.querySelector('#slNote').value || '').trim().slice(0, 40);
+        var rec = { id: Util.uid(), start: loc(st), end: loc(en), pausedMs: 0, note: note || null, wakings: wk, longestMin: null };
+        rec.longestMin = Math.max(0, Math.round(durMs(rec) / 60000 / (wk + 1)));
+        var dd = Storage.get(); dd.sleeps.push(rec);
+        if (Storage.save()) Util.toast('已补记这一觉 ' + fmtMin(durMs(rec) / 60000), 'ok');
+        api.close(); global.App.rerender();
+      }
+      box.querySelector('[data-save]').addEventListener('click', save);
+      box.parentNode.parentNode.querySelector('[data-ok]').addEventListener('click', save);
+    });
   }
 
   Modules.sleep = {
@@ -52,19 +235,39 @@
     render: function (view) {
       var d = Storage.get();
       var os = openSleep();
+      var ui = UI();
+      var DS = Util.dayStartHour(d), dayNow = Util.dayKeyOf(new Date(), DS), nowMs = Date.now();
+      var done = (d.sleeps || []).filter(function (x) { return x && x.start && x.end && isFinite(tms(x.start)) && isFinite(tms(x.end)); })
+        .sort(function (a, b) { return tms(b.start) - tms(a.start); });
       var html = '';
 
-      /* 第 223 次：「今日睡眠」看板（与喂养页同款）——大号今日总睡眠 + 段数/最长一段 + 24 小时时间轴 + 近 7 天总时长柱。
-         按照护日（dayStart）切；跨日的觉按落在当天窗口里的部分算；暂停时长按比例扣掉；进行中的觉算到现在。 */
-      if (global.DayChart && ((d.sleeps || []).length || os)) {
-        var DS = Util.dayStartHour(d), dayNow = Util.dayKeyOf(new Date(), DS), nowMs = Date.now();
-        var segs = (d.sleeps || []).filter(function (x) { return x && x.start && x.end; }).map(function (x) {
-          var a = new Date(x.start).getTime(), b = new Date(x.end).getTime();
+      /* 摘要：今天已结束的睡眠 + 最近一段 + 上次（参考图原句） */
+      var todayDone = done.filter(function (x) { return Util.dayKeyOf(x.end, DS) === dayNow; });
+      var todayMin = todayDone.reduce(function (s, x) { return s + Math.max(0, durMs(x)) / 60000; }, 0);
+      var last = done.slice().sort(function (a, b) { return tms(b.end) - tms(a.end); })[0];
+      var sum = '';
+      if (os) {
+        var so = osState(os, nowMs);
+        sum += '宝宝<b>睡着了</b>，' + hm(tms(os.start)) + ' 入睡，已睡 <b data-sl-sum>' + esc(fmtMin(so.el / 60000)) + '</b>' + (so.isPaused ? '（已暂停）' : '') + '。';
+      }
+      if (todayDone.length) sum += '今天已结束的睡眠共 <b>' + esc(fmtMin(todayMin)) + '</b>。';
+      else if (!os) sum += '今天还没有<b>睡眠</b>记录。';
+      if (last) {
+        var le = new Date(tms(last.end));
+        sum += '最近一段睡了 <b>' + esc(fmtMin(durMs(last) / 60000)) + '</b>，结束于 <b>' + le.getFullYear() + '年' + (le.getMonth() + 1) + '月' + le.getDate() + '日 ' + hm(le) + '</b>。'
+          + '<span class="ms-ago">上次：' + esc(Util.fmtAgo(last.end).replace(/\s/g, '')) + '</span>';
+      }
+      html += '<div class="mod-sum ft-sum"><span class="ms-k">摘要</span><p>' + sum + '</p></div>';
+
+      /* 洞察 ① 今日睡眠（第 223 次看板原样搬进来）：按照护日切，跨日的觉只算落在今天的部分，进行中的觉算到现在 */
+      var ins = [];
+      if (global.DayChart && (done.length || os)) {
+        var segs = done.map(function (x) {
+          var a = tms(x.start), b = tms(x.end);
           return { s: a, e: b, k: (b > a) ? Math.max(0, Math.min(1, durMs(x) / (b - a))) : 0 };
         });
         if (os) {
-          var oa = new Date(os.start).getTime();
-          var op = (os.pausedMs || 0) + (os.pauseStart ? nowMs - os.pauseStart : 0);
+          var oa = tms(os.start), op = osState(os, nowMs).paused;
           if (nowMs > oa) segs.push({ s: oa, e: nowMs, k: Math.max(0, Math.min(1, (nowMs - oa - op) / (nowMs - oa))), live: true });
         }
         var minIn = function (w) {
@@ -80,238 +283,115 @@
           var m = minIn(DayChart.windowOf(k, DS)).tot;
           return { key: k, v: Math.round(m), txt: m ? (Math.round(m / 6) / 10) + 'h' : '' };
         });
-        if (st0.n || s7.filter(function (x) { return x.v; }).length) {
-          html += '<div class="card dash-card" data-accent="sleep"><h2>今日睡眠</h2>';
-          html += '<div class="dash-big"><span class="dash-num">' + (st0.tot >= 1 ? DayChart.bigMin(st0.tot) : '0<i>分</i>') + '</span>'
-            + '<span class="dash-lbl">' + (os ? '今天已睡（含正在睡的这一觉）' : '今天已睡') + '</span></div>';
-          if (st0.n) html += '<div class="dash-chips"><span><b>' + st0.n + '</b> 觉</span><span>最长 <b>' + Util.escapeHtml(DayChart.fmtMin(st0.lon)) + '</b></span></div>';
-          html += DayChart.strip({ win: sWin, ds: DS, now: nowMs, label: '今天的睡眠时段',
-            spans: segs.map(function (g) { return { s: g.s, e: g.e, cls: g.live ? 'live' : '' }; }) });
-          if (s7.filter(function (x) { return x.v; }).length >= 2) html += '<p class="dash-sub">近 7 天每天睡眠</p>' + DayChart.bars(s7, dayNow, '近 7 天每天睡眠时长');
-          html += '</div>';
-        }
+        var dh = '<div class="dash-card sl-dash" data-accent="sleep"><h2>今日睡眠</h2>';
+        dh += '<div class="dash-big"><span class="dash-num">' + (st0.tot >= 1 ? DayChart.bigMin(st0.tot) : '0<i>分</i>') + '</span>'
+          + '<span class="dash-lbl">' + (os ? '今天已睡（含正在睡的这一觉）' : '今天已睡') + '</span></div>';
+        if (st0.n) dh += '<div class="dash-chips"><span><b>' + st0.n + '</b> 觉</span><span>最长 <b>' + esc(DayChart.fmtMin(st0.lon)) + '</b></span></div>';
+        dh += DayChart.strip({ win: sWin, ds: DS, now: nowMs, label: '今天的睡眠时段',
+          spans: segs.map(function (g) { return { s: g.s, e: g.e, cls: g.live ? 'live' : '' }; }) });
+        if (s7.filter(function (x) { return x.v; }).length >= 2) dh += '<p class="dash-sub">近 7 天每天睡眠</p>' + DayChart.bars(s7, dayNow, '近 7 天每天睡眠时长');
+        dh += '</div>';
+        ins.push({ ico: icon('sleep'), t: '睡眠', html: dh });
       }
 
-      html += '<div class="card"><h2>睡眠计时</h2>';
-      if (os) {
-        html += '<p class="big">已睡 <span id="sleepTimer">--</span></p>';
-        html += '<p class="hint">开始：' + Util.fmtDateTime(os.start) + (os.pauseStart ? '（已暂停）' : '') + '</p>';
-        if (os.pauseStart) {
-          html += '<button class="btn btn-primary" id="sResume">继续</button> ';
-        } else {
-          html += '<button class="btn" id="sPause">暂停</button> ';
-        }
-        html += '<button class="btn btn-primary" id="sEnd">结束并记录</button>';
-        /* 第 194 次：结束时间回填（对标 Cali 补记 endedAt；照搬亲喂 data-ftend 写法）。
-           首页「可能忘了结束（点进去可改结束时间）」此前在本页其实没有对应控件。 */
-        var osMs = Date.now() - new Date(os.start).getTime();
-        if (osMs > 6 * 3600000) {
-          html += '<p class="hint sl-stale">已经计时 ' + Math.floor(osMs / 3600000) + ' 小时了，是不是忘了按结束？可以按实际醒来时间回填。</p>';
-        }
-        html += '<div class="sl-back"><span class="hint">忘了按结束？按实际醒来时间：</span>'
-          + '<button type="button" class="btn-mini" data-slend="10">10 分钟前</button>'
-          + '<button type="button" class="btn-mini" data-slend="20">20 分钟前</button>'
-          + '<button type="button" class="btn-mini" data-slend="30">30 分钟前</button></div>';
-        html += '<div class="sl-endat"><label>或选醒来时间<input type="datetime-local" id="sEndAt" value="' + dtLocalValue(new Date()) + '"'
-          + ' min="' + dtLocalValue(new Date(new Date(os.start).getTime() + 60000)) + '" max="' + dtLocalValue(new Date()) + '"></label>'
-          + '<button type="button" class="btn" id="sEndAtGo">按这个时间结束</button></div>';
-      } else {
-        html += '<button class="btn btn-primary btn-save" id="sStart">开始睡眠计时</button>';
-        /* 第 194 次：哄睡着才想起来点开始——入睡时间往前拨 */
-        html += '<div class="sl-back"><span class="hint">已经睡着一会儿了？从这时开始算：</span>'
-          + '<button type="button" class="btn-mini" data-slstart="10">10 分钟前</button>'
-          + '<button type="button" class="btn-mini" data-slstart="20">20 分钟前</button>'
-          + '<button type="button" class="btn-mini" data-slstart="30">30 分钟前</button></div>';
-      }
-      html += '</div>';
+      /* 洞察 ② 作息（第 106 次：昨晚合计 / 清醒间隔；U-24 近 7 天最长连续）——只和自己比 */
+      var zh = '';
+      var ln = Modules.sleep._lastNightTotal(d.sleeps);
+      if (ln.segs > 0) zh += '<p class="hint"><b>昨晚共睡了约 ' + fmtH(ln.minutes / 60) + ' 小时</b>（' + ln.segs + ' 段）。凌晨入睡的那几段也算进昨晚。</p>';
+      var wgs = Modules.sleep._wakeGapSummary(d.sleeps, 7);
+      if (wgs) zh += '<p class="hint">近 ' + wgs.days + ' 天，清醒间隔（醒到下次入睡）在 ' + fmtH(wgs.min / 60) + '–' + fmtH(wgs.max / 60) + ' 小时之间，中间那档约 ' + fmtH(wgs.median / 60) + ' 小时。</p>';
+      var cut7 = nowMs - 7 * 864e5;
+      var vals = done.filter(function (s) { return tms(s.end) >= cut7; }).map(function (s) { return longestMin(s); }).filter(function (v) { return v > 0; });
+      if (vals.length >= 2) zh += '<p class="hint">近 7 天最长连续睡眠在 ' + fmtH(Math.min.apply(null, vals) / 60) + '–' + fmtH(Math.max.apply(null, vals) / 60) + ' 小时之间。</p>';
+      if (zh) ins.push({ ico: icon('clock'), t: '作息', html: '<h2>作息</h2>' + zh + '<p class="hint">都是你自己的记录，和宝宝自己比就好。</p>' });
 
-      /* 第 73 次（C2/C3）：睡眠参考卡——清醒窗口 + 猛长期窗口（Knowledge 底座，本页只做呈现，
-         模式同 feeding 喂养参考）。与 U-18 的边界：这是哄睡时机的教育性科普，
-         不与用户任何记录数据做对照、不出「达标/不达标」；作息统计依旧只比你自己。 */
+      /* 洞察 ③ 睡眠参考（第 73 次：清醒窗口 / 猛长期，教育性科普，不与数据对照） */
       var sBd = (d.settings.baby && d.settings.baby.birthDate) || null;
       if (sBd && global.Knowledge) {
         var sAge = Util.daysBetween(sBd, Util.todayISO());
         if (sAge >= 0 && sAge <= 1095) {
           var slRef = Knowledge.all('sleep').filter(function (e) { return sAge >= e.from && sAge <= e.to; });
           if (slRef.length) {
-            html += '<div class="card info-card"><h2>睡眠参考</h2>';
-            slRef.forEach(function (e) {
-              html += '<p class="hint">' + Util.escapeHtml(e.text) + '</p>';
-            });
-            html += '<p class="hint">以上是哄睡时机的参考，不是你家宝宝要达到的标准——他的节奏说了算。</p>';
-            html += '</div>';
+            ins.push({ ico: icon('moon'), t: '睡眠参考', html: '<h2>睡眠参考</h2>' + slRef.map(function (e) { return '<p class="hint">' + esc(e.text) + '</p>'; }).join('')
+              + '<p class="hint">以上是哄睡时机的参考，不是你家宝宝要达到的标准——他的节奏说了算。</p>' });
           }
         }
       }
+      if (ins.length && ui) html += ui.insightChips(ins);
 
-      /* 夜醒单点选择（U-16 字段三/四）：刚结束的那一觉若还没填，点一下即可 */
-      var pending = d.sleeps.filter(function (s) { return s.end && s.wakings == null; })
-        .sort(function (a, b) { return new Date(b.start) - new Date(a.start); })[0];
-      if (pending) {
-        html += '<div class="card"><h2>刚才这觉，夜醒了几次？</h2>';
-        html += '<p class="hint">' + Util.fmtDateTime(pending.start) + ' → ' + Util.fmtDateTime(pending.end)
-          + '（' + Util.fmtDuration(durMs(pending)) + '）</p>';
-        html += wakSeg('sWak', 'data-wak');
-        html += '<p class="hint">选完自动折算「最长连续约 X 小时」。只是你自己的记录，不需要和别的宝宝比较。</p></div>';
-      }
-
-      html += '<div class="card"><h2>作息记录</h2>';
-
-      /* 第 106 次 · GAP-01 跨夜归属 + CN-03 清醒间隔
-         两块都只读既有记录、不写库、只与用户自身历史比（U-24 / U-25），
-         不出「该不该睡这么久」这类判定（U-19：也不做睡眠效率与分期）。 */
-      var ln = Modules.sleep._lastNightTotal(d.sleeps);
-      if (ln.segs > 0) {
-        html += '<p class="hint"><b>昨晚共睡了约 ' + fmtH(ln.minutes / 60) + ' 小时</b>（' + ln.segs + ' 段）'
-          + '。凌晨入睡的那几段也算进昨晚，所以这里和「今天几点睡的」不一定对得上。</p>';
-      }
-
-      var wgs = Modules.sleep._wakeGapSummary(d.sleeps, 7);
-      if (wgs) {
-        html += '<p class="hint">近 ' + wgs.days + ' 天，你的清醒间隔（醒到下次入睡）在 '
-          + fmtH(wgs.min / 60) + '–' + fmtH(wgs.max / 60) + ' 小时之间，中间那档约 '
-          + fmtH(wgs.median / 60) + ' 小时——和你自己比就好。</p>';
-      }
-
-      var list = d.sleeps.filter(function (s) { return s.end; })
-        .slice().sort(function (a, b) { return new Date(b.start) - new Date(a.start); }).slice(0, 20);
-      if (list.length) {
-        /* 自身历史参照（U-24）：只用近 7 天自己的区间，无任何外部人群参照值（U-18） */
-        var cut = new Date(); cut.setDate(cut.getDate() - 7);
-        var vals = list.filter(function (s) { return new Date(s.end) >= cut; })
-          .map(function (s) { return longestMin(s); }).filter(function (v) { return v > 0; });
-        if (vals.length >= 2) {
-          html += '<p class="hint">近 7 天你的最长连续睡眠在 ' + fmtH(Math.min.apply(null, vals) / 60)
-            + '–' + fmtH(Math.max.apply(null, vals) / 60) + ' 小时之间——和你自己比就好。</p>';
-        }
-        html += '<ul class="list">';
-        list.forEach(function (s) {
-          /* 第 76 次（D 线）：行改「左入睡→醒来 / 右时长·夜醒·连续」双列 */
-          html += '<li><span class="li-main"><b>' + Util.fmtRange(s.start, s.end) + '</b></span>' /* 第 146 次：「2026-10-11 13:00 → 2026-10-11 14:20」在窄屏被截断，改紧凑时段 */
-            + '<span class="li-sub li-sub-wrap">时长 ' + Util.fmtDuration(durMs(s))
-            + ' · 夜醒 ' + wakText(s)
-            + ' · 最长连续 约 ' + fmtH(longestMin(s) / 60) + ' 小时'
-            + (s.note ? ' · ' + Util.escapeHtml(s.note) : '') + '</span>'
-            + '<button class="icon-btn" data-del="' + s.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
+      /* 最近记录：竖向时间轴（点卡片修改，左滑 / 垃圾桶删除可撤销） */
+      if (done.length) {
+        html += '<section class="mod-tl ft-tl"><p class="ms-k">最近记录</p><ul class="tl">';
+        done.slice(0, 30).forEach(function (r) {
+          var t = tms(r.start), dt = new Date(t);
+          var parts = [fmtMin(durMs(r) / 60000)];
+          if (r.wakings) parts.push('醒来 ' + r.wakings + ' 次');
+          var sub = r.note ? r.note : '';
+          html += '<li class="tl-row tl-f-sleep"><span class="tl-time ft-tlt"><small>' + (dt.getMonth() + 1) + '/' + dt.getDate() + '</small>' + hm(t) + '</span><span class="tl-dot" aria-hidden="true"></span>'
+            + '<button type="button" class="tl-card" data-open="' + esc(r.id) + '" aria-label="' + hm(t) + ' 入睡，点按修改">'
+            + '<span class="tl-ico">' + icon('sleep') + '</span><span class="tl-txt"><b>' + esc(parts.join(' · ')) + '</b>'
+            + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>'
+            + '<span class="tl-more" aria-hidden="true">' + ((ui && ui.SV.more) || '') + '</span></button>'
+            + '<button type="button" class="tl-del" data-del="' + esc(r.id) + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
         });
-        html += '</ul>';
+        html += '</ul></section>';
+      } else if (!os) {
+        html += '<div class="mod-empty"><p>宝宝睡着了点「开始睡眠」，醒了再结束。<br>已经睡醒才想起来？点右边的 ⊕ 补记。</p></div>';
+      }
+
+      /* 底部：睡眠中 → 迷你条；否则「▷ 开始睡眠 | ⊕」 */
+      var sv = (ui && ui.SV) || {};
+      if (os) {
+        var sm = osState(os, nowMs);
+        html += '<div class="mod-cta ft-cta"><div class="ft-mini" data-accent="sleep">'
+          + '<button type="button" class="ft-mini-open" data-slm="open" aria-label="打开睡眠计时">' + icon('sleep')
+          + '<b data-sl-mini>' + clock(sm.el) + '</b></button>'
+          + '<span class="ft-mini-side">' + (sm.isPaused ? '已暂停' : '睡眠中') + '</span>'
+          + '<button type="button" class="ft-mini-b" data-slm="pause" aria-label="' + (sm.isPaused ? '继续' : '暂停') + '">' + (sm.isPaused ? (sv.play || '') : (sv.pause || '')) + '</button>'
+          + '<button type="button" class="ft-mini-end" data-slm="end">醒了</button></div></div>';
       } else {
-        html += '<div class="empty-state"><span class="es-ico">' + icon('sleep') + '</span><p>还没有睡眠记录</p><span class="hint">记第一觉后，这里会有作息与夜醒统计。</span></div>';
+        html += '<div class="mod-cta ft-cta"><div class="ft-split" data-accent="sleep">'
+          + '<button type="button" class="ft-split-main" id="sStart" data-start>' + (sv.play || '') + '<span>开始睡眠</span></button>'
+          + '<button type="button" class="ft-split-add" data-manual aria-label="补记一觉">' + (sv.plusc || '') + '</button></div></div>';
       }
-      html += '</div>';
+      view.innerHTML = '<div class="ft-page" data-accent="sleep">' + html + '</div>';
 
-      /* 手动补记（U-11）：漏记不清零、不惩罚，随时补回 */
-      var endDef = new Date();
-      var startDef = new Date(endDef.getTime() - 3 * 3600000);
-      html += '<div class="card"><h2>手动补记</h2>';
-      html += '<div class="row"><label>入睡<input type="datetime-local" id="sManStart" value="' + dtLocalValue(startDef) + '"></label>'
-        + '<label>醒来<input type="datetime-local" id="sManEnd" value="' + dtLocalValue(endDef) + '"></label></div>';
-      html += '<p class="hint">夜醒次数：</p>' + wakSeg('sManWak', 'data-mwak');
-      html += '<button class="btn btn-save" id="sManSave" type="button">保存这条</button>';
-      html += '<p class="hint">忘了记也没关系，漏记不会清零、不会影响任何统计，回来补上就行。</p></div>';
-
-      view.innerHTML = html;
-      tick();
-
-      function startAt(agoMin) {
-        var st = agoMin ? dtLocalValue(new Date(Date.now() - agoMin * 60000)) + ':00' : Util.nowLocal();
-        d.openSleep = { id: Util.uid(), start: st, pausedMs: 0, pauseStart: null };
-        if (Storage.save() && agoMin) Util.toast('已从 ' + agoMin + ' 分钟前开始计时', 'ok');
-        global.App.rerender();
-      }
-      var sStart = view.querySelector('#sStart');
-      if (sStart) sStart.addEventListener('click', function () { startAt(0); });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-slstart]'), function (b) {
-        b.addEventListener('click', function () { startAt(parseInt(b.getAttribute('data-slstart'), 10) || 0); });
-      });
-      var sPause = view.querySelector('#sPause');
-      if (sPause) sPause.addEventListener('click', function () {
-        d.openSleep.pauseStart = Date.now();
-        Storage.save(); global.App.rerender();
-      });
-      var sResume = view.querySelector('#sResume');
-      if (sResume) sResume.addEventListener('click', function () {
-        if (d.openSleep.pauseStart) {
-          d.openSleep.pausedMs = (d.openSleep.pausedMs || 0) + (Date.now() - d.openSleep.pauseStart);
-          d.openSleep.pauseStart = null;
-          Storage.save(); global.App.rerender();
-        }
-      });
-      /* 第 194 次：结束统一走 endAt(毫秒时间戳)；回填时间不能早于入睡、不能晚于现在。
-         暂停中结束：只把「暂停开始 → 结束」这段计入暂停（结束早于暂停开始则不计）。 */
-      function endAt(endMs) {
-        var os2 = d.openSleep; if (!os2) return;
-        var startMs = new Date(os2.start).getTime(), nowMs = Date.now();
-        if (!(endMs > startMs)) { Util.toast('醒来时间要晚于入睡时间（' + Util.fmtDateTime(os2.start) + '）', 'warn'); return; }
-        if (endMs > nowMs) endMs = nowMs;
-        var paused = (os2.pausedMs || 0) + (os2.pauseStart ? Math.max(0, endMs - os2.pauseStart) : 0);
-        var totalMs = endMs - startMs - paused;
-        d.sleeps.push({ id: os2.id, start: os2.start, end: dtLocalValue(new Date(endMs)) + ':' + ('0' + new Date(endMs).getSeconds()).slice(-2), pausedMs: paused, note: null, wakings: null, longestMin: null });
-        d.openSleep = null;
-        if (Storage.save()) Util.toast('已记录：睡眠 ' + Util.fmtDuration(Math.max(0, totalMs)), 'ok'); /* C1：计时类带时长 */
-        global.App.rerender();
-      }
-      var sEnd = view.querySelector('#sEnd');
-      if (sEnd) sEnd.addEventListener('click', function () { endAt(Date.now()); });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-slend]'), function (b) {
-        b.addEventListener('click', function () { endAt(Date.now() - (parseInt(b.getAttribute('data-slend'), 10) || 0) * 60000); });
-      });
-      var sEndAtGo = view.querySelector('#sEndAtGo');
-      if (sEndAtGo) sEndAtGo.addEventListener('click', function () {
-        var el = view.querySelector('#sEndAt'), v = el && el.value;
-        if (!v) { Util.markInvalid(el, '请选醒来时间'); return; }
-        var ms = new Date(v + ':00').getTime();
-        if (!(ms > new Date(d.openSleep.start).getTime())) { Util.markInvalid(el, '醒来时间要晚于入睡时间'); return; }
-        endAt(ms);
-      });
-      /* 夜醒单点选择：写入 wakings 并折算 longestMin（U-16 四字段） */
-      Array.prototype.forEach.call(view.querySelectorAll('#sWak [data-wak]'), function (b) {
+      if (ui) ui.bindChips(view);
+      Array.prototype.forEach.call(view.querySelectorAll('[data-open]'), function (b) {
         b.addEventListener('click', function () {
-          if (!pending) return;
-          var wk = parseInt(b.getAttribute('data-wak'), 10);
-          pending.wakings = wk;
-          pending.longestMin = Math.max(0, Math.round(durMs(pending) / 60000 / (wk + 1)));
-          Storage.save();
-          global.App.rerender();
+          var it = d.sleeps.filter(function (x) { return x.id === b.getAttribute('data-open'); })[0];
+          if (it && global.RecordEdit) RecordEdit.open('sleep', it, d.sleeps);
         });
-      });
-
-      /* 手动补记：入睡/醒来/夜醒三要素，保存即写入四字段 */
-      var mWak = 0;
-      Array.prototype.forEach.call(view.querySelectorAll('#sManWak [data-mwak]'), function (b) {
-        b.addEventListener('click', function () {
-          mWak = parseInt(b.getAttribute('data-mwak'), 10);
-          Array.prototype.forEach.call(view.querySelectorAll('#sManWak [data-mwak]'), function (x) { x.classList.remove('active'); });
-          b.classList.add('active');
-        });
-      });
-      var manSave = view.querySelector('#sManSave');
-      if (manSave) manSave.addEventListener('click', function () {
-        var st = view.querySelector('#sManStart').value;
-        var en = view.querySelector('#sManEnd').value;
-        if (!st || !en) { Util.markInvalid(view.querySelectorAll('#sManStart,#sManEnd'), '请填写入睡和醒来时间'); return; }
-        var rec = { id: Util.uid(), start: st + ':00', end: en + ':00', pausedMs: 0, note: null, wakings: mWak, longestMin: null };
-        if (!(new Date(rec.end).getTime() > new Date(rec.start).getTime())) {
-          Util.markInvalid(view.querySelectorAll('#sManStart,#sManEnd'), '醒来时间要晚于入睡时间');
-          return;
-        }
-        rec.longestMin = Math.max(0, Math.round(durMs(rec) / 60000 / (mWak + 1)));
-        d.sleeps.push(rec);
-        Storage.save();
-        Util.toast('已补记这一觉', 'ok');
-        global.App.rerender();
       });
       Array.prototype.forEach.call(view.querySelectorAll('[data-del]'), function (b) {
         b.addEventListener('click', function () {
-          var id = b.getAttribute('data-del');
-          Util.removeWithUndo(d.sleeps, id, {
+          Util.removeWithUndo(d.sleeps, b.getAttribute('data-del'), {
             onSave: function () { Storage.save(); },
             onAfter: function () { global.App.rerender(); },
             deletedText: '已删除睡眠记录'
           });
         });
       });
-    }
+      var sb = view.querySelector('[data-start]');
+      if (sb) sb.addEventListener('click', function () { startSleep(); if (Util.haptic) Util.haptic('ok'); global.App.rerender(); openFull(); });
+      var mb = view.querySelector('[data-manual]');
+      if (mb) mb.addEventListener('click', openManual);
+      Array.prototype.forEach.call(view.querySelectorAll('[data-slm]'), function (b) {
+        b.addEventListener('click', function () {
+          var k = b.getAttribute('data-slm');
+          if (k === 'open') openFull();
+          else if (k === 'pause') { togglePause(); global.App.rerender(); }
+          else if (k === 'end') { if (endSleep(Date.now())) { closeFull(); global.App.rerender(); } }
+        });
+      });
+      if (os && fullEl) paintFull();
+      if (!os && fullEl) closeFull();
+    },
+    _openFull: openFull,
+    _closeFull: closeFull,
+    _start: startSleep,
+    _end: endSleep,
+    _pause: togglePause
   };
 
   /* 暴露给首页：最近一觉的最长连续分钟数（U-17 首页主指标用） */
@@ -456,5 +536,6 @@
     return null; /* 满 3 岁后个体差异太大，不再给参考 */
   };
 
-  setInterval(tick, 1000);
+  /* 迷你条 / 摘要的秒表（全屏开着时由 tickFull 负责） */
+  setInterval(function () { if (!fullTick) tickFull(); }, 1000);
 })(window);
