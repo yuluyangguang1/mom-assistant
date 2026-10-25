@@ -116,6 +116,13 @@
       '<path d="M12 5v14M5 12h14"/>',
     check:
       '<path d="M5 12.5l4.5 4.5L19 7"/>',
+    camera:
+      '<path d="M4 8.5h3.2L9 6h6l1.8 2.5H20v10.5H4z"/>' +
+      '<circle cx="12" cy="13.3" r="3.3"/>',
+    image:
+      '<rect x="3.5" y="5" width="17" height="14" rx="2"/>' +
+      '<circle cx="9" cy="10" r="1.6"/>' +
+      '<path d="M4 17l5-4.5 4 3.5 2.5-2 4.5 3.8"/>',
     trash:
       '<path d="M4 7h16"/>' +
       '<path d="M9 7V5h6v2"/>' +

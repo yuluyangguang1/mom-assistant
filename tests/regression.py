@@ -385,10 +385,51 @@ def test_diaper_stock(b):
     p.close()
 
 
+def test_diaper_photos(b):
+    """第 227 次：便便照片——选图压缩进 IndexedDB、记录只存 id、时间轴有缩略图、移除照片、改成尿尿清掉照片、坏 id 不进 DOM、备份不带照片。"""
+    import io, tempfile, os
+    from PIL import Image as _I
+    tmp = os.path.join(tempfile.gettempdir(), 'yiya_poop_test.jpg')
+    _I.new('RGB', (3000, 2000), (180, 140, 40)).save(tmp, quality=90)
+    p, errs = fresh(b)
+    ev = p.evaluate
+    ev("App.showTab('diaper')"); p.wait_for_timeout(250)
+    p.click('[data-new]'); p.wait_for_timeout(250)
+    check('照片：尿尿不显示照片区', ev("!document.querySelector('[data-phadd]')"))
+    p.click('.dp-type[data-t="poop"]'); p.wait_for_timeout(150)
+    with p.expect_file_chooser() as fc:
+        p.click('[data-phadd]')
+    fc.value.set_files([tmp, tmp])
+    p.wait_for_timeout(1500)
+    check('照片：选两张后面板出现两张缩略图', ev("document.querySelectorAll('.dp-ph').length") == 2)
+    check('照片：缩略图已加载', ev("[...document.querySelectorAll('.dp-ph img')].every(i=>i.src.startsWith('blob:'))"))
+    p.click('.dp-ph-rm'); p.wait_for_timeout(200)
+    p.click('.rs-save'); p.wait_for_timeout(1100)
+    r = ev("Storage.get().diapers.slice(-1)[0]")
+    check('照片：记录只存 1 个 ph_ id', isinstance(r.get('photos'), list) and len(r['photos']) == 1 and r['photos'][0].startswith('ph_'), r.get('photos'))
+    sz = ev("""(async()=>{const id=Storage.get().diapers.slice(-1)[0].photos[0];
+      const db=await new Promise(r=>{const q=indexedDB.open('yiya-photos');q.onsuccess=()=>r(q.result)});
+      const v=await new Promise(r=>{const q=db.transaction('p').objectStore('p').get(id);q.onsuccess=()=>r(q.result)});
+      const im=await createImageBitmap(v.blob);return [v.blob.size,Math.max(im.width,im.height)]})()""")
+    check('照片：压缩到长边 1280 且小于 400KB', sz[1] == 1280 and sz[0] < 400000, sz)
+    check('照片：主数据里没有图片内容', 'data:image' not in ev("localStorage.getItem(Object.keys(localStorage).find(k=>localStorage.getItem(k).includes('diapers')))"))
+    p.wait_for_timeout(300)
+    check('照片：时间轴卡片有缩略图', ev("!!document.querySelector('.tl-ph img[src^=\"blob:\"]')"))
+    rid = r['id']
+    p.click(f'[data-open="{rid}"]'); p.wait_for_timeout(300)
+    check('照片：修改面板带出照片', ev("document.querySelectorAll('.dp-ph').length") == 1)
+    p.click('.dp-type[data-t="pee"]'); p.click('.rs-save'); p.wait_for_timeout(1100)
+    check('照片：改成尿尿后清掉照片', 'photos' not in ev(f"Storage.get().diapers.filter(x=>x.id==='{rid}')[0]"))
+    ev("(()=>{const d=Storage.get();d.diapers.push({id:'phbad',type:'poop',time:Util.nowLocal(),photos:['\"><img src=x onerror=window.__x=1>','ph_ok123']});Storage.save();App.showTab('home');App.showTab('diaper')})()"); p.wait_for_timeout(400)
+    check('照片：坏 id 不进 DOM', not ev("window.__x") and 'onerror' not in ev("document.getElementById('view').innerHTML"))
+    check('照片流程无报错', not errs, errs)
+    p.close()
+
+
 def main():
     with sync_playwright() as pw:
         b = pw.chromium.launch()
-        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_dash, test_diaper_sheet, test_diaper_stock, test_css_rules, test_layout_and_toast):
+        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_dash, test_diaper_sheet, test_diaper_stock, test_diaper_photos, test_css_rules, test_layout_and_toast):
             try:
                 fn(b)
             except Exception as e:  # 一组崩了不影响其他组

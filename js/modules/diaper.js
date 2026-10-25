@@ -163,6 +163,7 @@
     });
   }
 
+  var gcDone = false;
   function openSheet(d, rec, dateIso) {
     var root = document.getElementById('modalRoot');
     if (!root) return;
@@ -176,6 +177,10 @@
     st.used = editing ? validUsed(d, rec.used) : pref0.ids.slice();
     st.useOn = editing ? st.used.length > 0 : pref0.on;
     var oldUsed = editing ? validUsed(d, rec.used) : [];
+    /* 第 227 次：便便照片（只存 id，图在 IndexedDB） */
+    var PH = global.Photos || null;
+    st.photos = (editing && PH) ? PH.clean(rec.photos) : [];
+    var busy = false;
     var t0 = editing ? String(rec.time) : (dateIso ? dateIso + now.slice(10) : now);
     var date0 = t0.slice(0, 10), hm0 = t0.slice(11, 16);
     var today = now.slice(0, 10);
@@ -216,6 +221,22 @@
           h += '<button type="button" class="dp-pill' + (st.consistency === cs.v ? ' active' : '') + '" data-cons="' + cs.v + '" aria-pressed="' + (st.consistency === cs.v) + '">' + cs.label + '</button>';
         });
         h += '</div>';
+      }
+      if (poopy() && PH) {
+        h += '<p class="rs-lbl">照片 <span class="rs-lbl-n">' + st.photos.length + '/' + PH.MAX + '</span></p>';
+        if (st.photos.length) {
+          h += '<div class="dp-phs">';
+          st.photos.forEach(function (id) {
+            h += '<span class="dp-ph"><button type="button" class="dp-ph-img" data-phview="' + id + '" aria-label="查看照片"><img data-phid="' + id + '" alt=""></button>'
+              + '<button type="button" class="dp-ph-rm" data-phrm="' + id + '" aria-label="移除这张照片">' + icon('close') + '</button></span>';
+          });
+          h += '</div>';
+        }
+        if (st.photos.length < PH.MAX) {
+          h += '<div class="dp-ph-btns"><button type="button" class="btn dp-ph-add" data-phadd>' + icon('image') + '<span>添加照片</span></button>'
+            + '<button type="button" class="btn dp-ph-add" data-phcam>' + icon('camera') + '<span>拍摄照片</span></button></div>';
+        }
+        h += '<p class="rs-hint">可选。照片压缩后只存在这台手机上，不进备份文件。</p>';
       }
       h += '<p class="rs-lbl">屁屁情况</p><div class="rs-pills">';
       FLAGS.forEach(function (f) {
@@ -258,6 +279,7 @@
       var di = box.querySelector('#dpsDate'), ti = box.querySelector('#dpsTime');
       if (di) date0 = di.value || date0; if (ti) hm0 = ti.value || hm0;
       box.innerHTML = body();
+      if (PH) PH.hydrate(box);
     }
     paint();
     box.addEventListener('click', function (e) {
@@ -278,12 +300,31 @@
       if ((v = b.getAttribute('data-col'))) { st.color = st.color === v ? null : v; paint(); return; }
       if ((v = b.getAttribute('data-cons'))) { st.consistency = st.consistency === v ? null : v; paint(); return; }
       if ((v = b.getAttribute('data-flag'))) { st[v] = !st[v]; paint(); return; }
+      if ((v = b.getAttribute('data-phview'))) { if (PH) PH.view(v); return; }
+      if ((v = b.getAttribute('data-phrm'))) { st.photos = st.photos.filter(function (x) { return x !== v; }); paint(); return; }
+      if (PH && (b.hasAttribute('data-phadd') || b.hasAttribute('data-phcam'))) {
+        if (busy) return;
+        PH.pick(b.hasAttribute('data-phcam'), function (files) {
+          var room = PH.MAX - st.photos.length;
+          if (files.length > room) Util.toast('最多 ' + PH.MAX + ' 张，只加了前 ' + room + ' 张', 'warn');
+          busy = true;
+          var chain = Promise.resolve();
+          files.slice(0, room).forEach(function (f) {
+            chain = chain.then(function () { return PH.compress(f); }).then(function (blob) { return PH.put(blob); })
+              .then(function (id) { if (st.photos.length < PH.MAX) st.photos.push(id); });
+          });
+          chain.catch(function () { Util.toast('这张照片存不下来，换一张试试', 'warn'); })
+            .then(function () { busy = false; if (box.isConnected) paint(); });
+        });
+        return;
+      }
       if ((v = b.getAttribute('data-use'))) { var ix = st.used.indexOf(v); if (ix >= 0) st.used.splice(ix, 1); else st.used.push(v); paint(); return; }
     });
     mask.addEventListener('click', function (e) { if (e.target === mask) close(); });
     document.addEventListener('keydown', onKey);
 
     function save() {
+      if (busy) { Util.toast('照片还在保存，稍等一下', 'warn'); return; }
       if (!st.type) {
         var tg = box.querySelector('.dp-types');
         if (tg) { tg.classList.remove('shake'); void tg.offsetWidth; tg.classList.add('shake'); }
@@ -305,6 +346,7 @@
       applyUse(d, oldUsed, -1);
       var touched = applyUse(d, newUsed, 1);
       if (newUsed.length) r.used = newUsed; else delete r.used;
+      if (poopy() && st.photos.length) r.photos = st.photos.slice(); else delete r.photos;
       if (!editing) {
         d.settings = d.settings || {};
         d.settings.diaperStock = { on: !!st.useOn, ids: newUsed.length ? newUsed : validUsed(d, st.used) };
@@ -407,10 +449,13 @@
           var dt = new Date(r.time);
           var hm = isNaN(dt.getTime()) ? '' : pad2(dt.getHours()) + ':' + pad2(dt.getMinutes());
           var sub = subOf(r);
+          var phs = global.Photos ? Photos.clean(r.photos) : [];
           html += '<li class="tl-row tl-' + r.type + '"><span class="tl-time">' + hm + '</span><span class="tl-dot" aria-hidden="true"></span>'
             + '<button type="button" class="tl-card" data-open="' + r.id + '" aria-label="' + hm + ' ' + TYPE_LONG[r.type] + '，点按修改">'
             + '<span class="tl-ico">' + miniIco(r) + '</span><span class="tl-txt"><b>' + (TYPE_LONG[r.type] || '尿布') + '</b>'
-            + (sub ? '<small>' + sub + '</small>' : '') + '</span><span class="tl-more" aria-hidden="true">' + icon('chevron-right') + '</span></button>'
+            + (sub ? '<small>' + sub + '</small>' : '') + '</span>'
+            + (phs.length ? '<span class="tl-ph"><img data-phid="' + phs[0] + '" alt="">' + (phs.length > 1 ? '<i>' + phs.length + '</i>' : '') + '</span>' : '')
+            + '<span class="tl-more" aria-hidden="true">' + icon('chevron-right') + '</span></button>'
             + '<button type="button" class="tl-del" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
         });
         html += '</ul></section>';
@@ -422,6 +467,20 @@
       html += '<div class="mod-cta"><button type="button" class="mc-main" data-new>' + icon('plus') + '<span>记录尿布</span></button></div>';
 
       view.innerHTML = html;
+      if (global.Photos) {
+        Photos.hydrate(view);
+        /* 孤儿照片清理：每次打开 App 只做一次（延后 3 秒），避免刚删除、还能撤销的记录的照片被清掉 */
+        if (!gcDone) {
+          gcDone = true;
+          setTimeout(function () {
+            var keep = [], dd = Storage.get();
+            var add = function (arr) { (arr || []).forEach(function (r) { if (r) Photos.clean(r.photos).forEach(function (id) { keep.push(id); }); }); };
+            add(dd.diapers);
+            (dd.babies || []).forEach(function (bb) { if (bb && bb.rec) add(bb.rec.diapers); });
+            Photos.gc(keep);
+          }, 3000);
+        }
+      }
 
       var nb = view.querySelector('[data-new]');
       if (nb) nb.addEventListener('click', function () { openSheet(d, null, null); });
