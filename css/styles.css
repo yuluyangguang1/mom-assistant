@@ -4728,3 +4728,101 @@ body.ftf-open { overflow: hidden; }
 .ft-ref { margin: 12px 0 0; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--tile-weak); font-size: var(--fs-sm, 14px); line-height: 1.6; color: var(--text); }
 .ft-ref b { color: var(--tile-text); }
 .ft-ref small { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); }
+
+/* ============================================================
+   第 235 次：dock 液态玻璃 v2（配合 js/liquid-dock.js）
+   拆了 Apple Music 安卓包里的玻璃模块（Kyant backdrop / AGSL）后按三层重做：
+     材质  — 更通透：模糊从 20px 降到 14px，饱和度 190%，底色只留 42%，
+             让背后的颜色真正透出来，而不是一块磨砂板。
+     高光  — Kyant Highlight 着色器：光从左上 45° 来，左上、右下两条边最亮。
+             用 ::before 的双向渐变 + mask 只留 1px 描边；::after 放内侧高光与暗边。
+     折射  — 仅 Chromium（html.lg-refract）：backdrop-filter 先走位移贴图再模糊，
+             边缘一圈背景被拉弯；iOS 没有这层，其余完全一样。
+     水滴  — .lg-thumb 代替原来的「浅色底 + 小圆点」选中态，切换时拉伸滑动、按下鼓起。
+   ============================================================ */
+body .tabbar.lg {
+  --lg-tint: color-mix(in srgb, var(--surface) 42%, transparent);
+  --lg-rim-a: rgba(255, 255, 255, .95);
+  --lg-rim-b: rgba(255, 255, 255, .55);
+  --lg-edge: rgba(255, 255, 255, .55);
+  --lg-shade: rgba(120, 96, 76, .10);
+  background: var(--lg-tint);
+  -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.04);
+  backdrop-filter: blur(14px) saturate(190%) brightness(1.04);
+  border-color: transparent;
+  box-shadow: 0 1px 1px rgba(90, 74, 62, .06), 0 10px 28px -10px rgba(90, 74, 62, .34), 0 22px 44px -26px rgba(90, 74, 62, .30);
+  isolation: isolate;
+  transition: scale .35s cubic-bezier(.34, 1.56, .64, 1), box-shadow .3s var(--ease);
+}
+body .tabbar.lg::before,
+body .tabbar.lg::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2;
+}
+/* 高光描边：左上亮、中段淡、右下次亮 */
+body .tabbar.lg::before {
+  padding: 1px;
+  background: linear-gradient(135deg, var(--lg-rim-a) 0%, rgba(255, 255, 255, .18) 28%, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, .14) 72%, var(--lg-rim-b) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* 玻璃厚度：顶部一道内光、底部一圈很淡的暗边 */
+body .tabbar.lg::after {
+  box-shadow: inset 0 1.5px 1.5px -.5px var(--lg-edge), inset 0 -1px 2px 0 var(--lg-shade),
+    inset 0 0 12px 0 rgba(255, 255, 255, .16);
+}
+body .tabbar.lg > * { position: relative; z-index: 1; }
+body .tabbar.lg.lg-press { scale: .975; }
+
+body.dark .tabbar.lg {
+  --lg-tint: color-mix(in srgb, var(--surface) 46%, transparent);
+  --lg-rim-a: rgba(255, 255, 255, .42);
+  --lg-rim-b: rgba(255, 255, 255, .20);
+  --lg-edge: rgba(255, 255, 255, .16);
+  --lg-shade: rgba(0, 0, 0, .25);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .2), 0 10px 28px -10px rgba(0, 0, 0, .6), 0 22px 44px -26px rgba(0, 0, 0, .5);
+}
+/* Chromium：真折射。位移贴图在 liquid-dock.js 里按胶囊实际尺寸生成 */
+html.lg-refract body .tabbar.lg {
+  -webkit-backdrop-filter: url(#lgDock) blur(5px) saturate(190%) brightness(1.04);
+  backdrop-filter: url(#lgDock) blur(5px) saturate(190%) brightness(1.04);
+  --lg-tint: color-mix(in srgb, var(--surface) 30%, transparent);
+}
+html.lg-refract body.dark .tabbar.lg { --lg-tint: color-mix(in srgb, var(--surface) 38%, transparent); }
+
+/* 选中水滴 */
+body .tabbar.lg .lg-thumb {
+  position: absolute; left: 0; top: 0; z-index: 0 !important;
+  border-radius: var(--radius-pill); pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .62), rgba(255, 255, 255, .34));
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, .9), inset 0 -1px 1px rgba(150, 120, 96, .10),
+    0 2px 8px -2px rgba(90, 74, 62, .22);
+  opacity: 0; transform-origin: center;
+  transition: opacity .2s var(--ease), scale .3s cubic-bezier(.34, 1.56, .64, 1);
+}
+body .tabbar.lg .lg-thumb.on { opacity: 1; }
+body .tabbar.lg .lg-thumb.lg-grow { scale: 1.14; }
+body.dark .tabbar.lg .lg-thumb {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .20), rgba(255, 255, 255, .08));
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, .28), 0 2px 10px -2px rgba(0, 0, 0, .5);
+}
+/* 有水滴后，选中页签不再自带底色和小圆点；图标用主色 */
+body .tabbar.lg .tab.active:not(.tab-plus) { background: transparent; }
+body .tabbar.lg .tab.active:not(.tab-plus)::after { display: none; }
+body .tabbar.lg .tab:active { transform: none; }
+body .tabbar.lg .dock-btn:hover { background: rgba(255, 255, 255, .22); }
+/* ＋ 也是一颗玻璃珠：主色上叠顶部高光 */
+body .tabbar.lg .tab-plus {
+  box-shadow: inset 0 1.5px 1px rgba(255, 255, 255, .45), inset 0 -2px 4px rgba(0, 0, 0, .10), 0 4px 12px -4px color-mix(in srgb, var(--primary) 60%, transparent);
+}
+
+/* 降级：高对比 / 减少透明度 → 实色胶囊，不要玻璃 */
+body.hc .tabbar.lg { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+body.hc .tabbar.lg::before { display: none; }
+@media (prefers-reduced-transparency: reduce) {
+  body .tabbar.lg, html.lg-refract body .tabbar.lg { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body .tabbar.lg, body .tabbar.lg .lg-thumb { transition: none; }
+  body .tabbar.lg.lg-press { scale: 1; }
+}
