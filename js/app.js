@@ -277,7 +277,14 @@
     return 'push';
   }
   var IS_IOS_WEBKIT = (function () {
-    try { return !!(global.CSS && CSS.supports && CSS.supports('-webkit-touch-callout', 'none')); } catch (e) { return false; }
+    /* 第 265 次：真机 v228 仍在跑转场 → 只靠 CSS.supports 判不准，加 UA 判定（iPadOS 伪装 Mac 时看触点数） */
+    try {
+      var n = global.navigator || {}, ua = n.userAgent || '';
+      if (/iP(hone|ad|od)/.test(ua)) return true;
+      if (/Macintosh/.test(ua) && n.maxTouchPoints > 1) return true;
+      if (n.standalone !== undefined) return true;
+      return !!(global.CSS && CSS.supports && CSS.supports('-webkit-touch-callout', 'none'));
+    } catch (e) { return false; }
   })();
   function showTab(id, opts) {
     if (!Modules[id]) return;
