@@ -4874,3 +4874,19 @@ body.hc .dock-live { background: var(--surface); -webkit-backdrop-filter: none; 
 /* 页面底部的悬浮主按钮（.mod-cta）在胶囊出现时一起上移，不叠在一起 */
 body.has-live .mod-cta { bottom: calc(154px + env(safe-area-inset-bottom)); }
 body.dock-left.has-live .mod-cta, body.dock-right.has-live .mod-cta { bottom: auto; }
+/* 第 238 次：① 切页时 dock 不再闪一下——转场里 #view 快照（带纸色底）盖在根快照上，
+   dock 属于根快照就被盖住了，转场结束才露出来。给 dock 和计时胶囊独立的转场层，
+   画在页面快照之上，且不做任何动画（新状态直接出现）。 */
+html[data-nav] #tabbar { view-transition-name: dock; }
+html[data-nav] #dockLive:not([hidden]) { view-transition-name: dock-live; }
+::view-transition-group(dock), ::view-transition-group(dock-live) { animation: none; }
+::view-transition-old(dock), ::view-transition-old(dock-live) { display: none; }
+::view-transition-new(dock), ::view-transition-new(dock-live) { animation: none; }
+/* ② 设置与橙色 ＋ 之间留缝，选中水滴不再贴着 ＋ */
+body .tabbar:not(.is-vertical):not(.is-sub) { gap: 2px; }
+body .tabbar:not(.is-vertical):not(.is-sub) .tab-plus { margin-left: 8px; }
+body .tabbar.is-vertical .tab-plus { margin-top: 8px; }
+@media (max-width: 360px) {
+  body .tabbar:not(.is-vertical):not(.is-sub) { gap: 0; }
+  body .tabbar:not(.is-vertical):not(.is-sub) .tab-plus { margin-left: 4px; }
+}
