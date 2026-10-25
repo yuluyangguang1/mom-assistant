@@ -209,7 +209,7 @@
     if (!Modules[id]) return;
     var kind = (opts && opts.silent) ? '' : navKind(current, id);
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (kind && !reduce && !_vtBusy && (Date.now() - _swipeBackT > 800) && typeof document.startViewTransition === 'function') {
+    if (kind && !reduce && !_vtBusy && !(opts && opts.noVT) && (Date.now() - _swipeBackT > 800) && typeof document.startViewTransition === 'function') {
       _vtBusy = true;
       document.documentElement.setAttribute('data-nav', kind);
       var o2 = {}; for (var k in (opts || {})) o2[k] = opts[k]; o2._vt = true;
@@ -589,6 +589,7 @@
     } else {
       av.innerHTML = (global.illo ? illo('avatar') : '');
     }
+    if (global.Drawer && Drawer.isOpen()) Drawer._render(); /* 第 246 次：抽屉里切换宝宝后头像 / 名字跟着变 */
   }
 
   /* 第 82 次（用户反馈：左上角不该进设置）：底部宝宝切换面板。

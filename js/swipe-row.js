@@ -69,7 +69,7 @@
     var a = li.querySelector(':scope > .swipe-act');
     openRow = null;
     setX(li, a, -li.offsetWidth - 16, true);
-    if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) { /* 忽略 */ } }
+    if (window.Util && window.Util.haptic) window.Util.haptic('light'); else if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) { /* 忽略 */ } }
     setTimeout(function () {
       li.style.transform = ''; li.style.transition = '';
       if (a) a.remove();

@@ -1264,15 +1264,42 @@
     });
   };
 
+  /* 第 246 次（用户：苹果网页没有震动）：iOS Safari 没有 navigator.vibrate，
+     但 iOS 18 起点一下 <input type=checkbox switch> 的 label 会给一次系统触感（Taptic）。
+     必须在用户手势（click / touchend）的同一调用栈里调用才生效；不支持的系统静默无效果。 */
+  var _hapLabel = null;
+  function iosTick() {
+    try {
+      if (!_hapLabel) {
+        var id = '__hapSw';
+        var inp = document.createElement('input');
+        inp.type = 'checkbox'; inp.id = id; inp.setAttribute('switch', ''); inp.tabIndex = -1;
+        inp.setAttribute('aria-hidden', 'true');
+        inp.style.cssText = 'position:fixed;left:-100px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;';
+        var lb = document.createElement('label');
+        lb.htmlFor = id; lb.setAttribute('aria-hidden', 'true');
+        lb.style.cssText = 'position:fixed;left:-100px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;';
+        document.body.appendChild(inp); document.body.appendChild(lb);
+        _hapLabel = lb;
+      }
+      _hapLabel.click();
+      return true;
+    } catch (e) { return false; }
+  }
+  Util._iosTick = iosTick;
   Util.haptic = function (kind) {
     try {
       var nav = global.navigator;
-      if (!nav || typeof nav.vibrate !== 'function') return false;
       if (global.Storage && global.Storage.get) {
         var d = global.Storage.get();
         if (d && d.settings && d.settings.hapticEnabled === false) return false;
       }
-      return nav.vibrate(kind === 'error' ? [22, 56, 22] : 10);
+      if (!nav || typeof nav.vibrate !== 'function') {
+        var ok = iosTick();
+        if (kind === 'error' || kind === 'heavy') setTimeout(iosTick, 90);
+        return ok;
+      }
+      return nav.vibrate(kind === 'error' ? [22, 56, 22] : (kind === 'light' ? 6 : 10));
     } catch (e) {
       return false; /* 任何异常都不能波及保存流程本身 */
     }

@@ -1529,7 +1529,7 @@
             if (b.classList.contains('is-adding')) return;
             var id = b.getAttribute('data-add'), nm = b.getAttribute('data-name');
             b.classList.add('is-adding');
-            try { if (navigator.vibrate) navigator.vibrate(12); } catch (e2) {}
+            Util.haptic('light');
             /* 先给一下「被加进去」的动效，再落库重绘；重绘后关目录、滚到新卡并高亮 */
             setTimeout(function () {
               Modules.home._justAdded = id;
@@ -1581,120 +1581,149 @@
          ③ 拖动中只重排 DOM（insertBefore），松手才 _editOrder 落库一次重绘，
             不在 pointermove 里走全量 render（那会拆掉正在拖的节点）；
          ④ 移动阈值 10px 内视为点按，超限未长按成功则整个作废。 */
+      /* 第 246 次（用户：移动卡片是硬切的，没有拖动感）：拖动重做——
+         ① 按住 350ms 卡片「浮起」（放大 + 阴影），之后卡片用 translate 跟着手指走；
+         ② 经过别的卡片时插到它前 / 后，其它卡片用 FLIP 平滑让位（不再瞬间跳）；
+         ③ 手指靠近屏幕上下边缘时页面自动滚动；
+         ④ 松手卡片滑回空位，动画结束才落库重绘。
+         位移一律写 CSS 的 translate 属性（独立于 transform / 动画），不和编辑态别的样式打架。 */
       function bindDrag(view) {
         var grid = view.querySelector('.record-grid.is-editing');
         if (!grid) return;
-        var rows = Array.prototype.slice.call(grid.querySelectorAll('.record-tile, .canvas-card'));
-        var cur = null, timer = null, dragging = false, sx = 0, sy = 0;
-        function endDrag(save) {
-          if (timer) { clearTimeout(timer); timer = null; }   /* 第 125 次：置空，防残留计时器 */
-          if (cur) { cur.classList.remove('dragging'); cur = null; }
-          if (save && dragging) {
-            var now = Array.prototype.map.call(grid.querySelectorAll('.record-tile, .canvas-card'), function (r) {
-              return r.getAttribute('data-cid') || r.getAttribute('data-go');
-            });
-            Modules.home._editOrder(now);
-          }
-          dragging = false;
+        var SEL = '.record-tile, .canvas-card';
+        function kids() { return Array.prototype.filter.call(grid.children, function (el) { return el.matches && el.matches(SEL); }); }
+        var cur = null, timer = null, dragging = false, sx = 0, sy = 0, fx = 0, fy = 0;
+        var ox0 = 0, oy0 = 0, py0 = 0, raf = 0, settling = false;
+        function place() {
+          if (!cur || !dragging) return;
+          var dx = (fx - sx) - (cur.offsetLeft - ox0);
+          var dy = (fy - sy) + ((global.pageYOffset || 0) - py0) - (cur.offsetTop - oy0);
+          cur.style.translate = dx + 'px ' + dy + 'px';
         }
-        rows.forEach(function (row) {
+        function flipMove(fn) {
+          var others = kids().filter(function (el) { return el !== cur; });
+          var before = others.map(function (el) { return el.getBoundingClientRect(); });
+          fn();
+          others.forEach(function (el, k) {
+            var a = before[k], b = el.getBoundingClientRect();
+            var dx = a.left - b.left, dy = a.top - b.top;
+            if (!dx && !dy) return;
+            el.style.transition = 'none';
+            el.style.translate = dx + 'px ' + dy + 'px';
+            void el.offsetWidth;
+            el.style.transition = 'translate .32s cubic-bezier(.32,.72,0,1)';
+            el.style.translate = '0px 0px';
+          });
+        }
+        function endDrag(save) {
+          if (timer) { clearTimeout(timer); timer = null; }
+          if (raf) { cancelAnimationFrame(raf); raf = 0; }
+          var el = cur, was = dragging;
+          cur = null; dragging = false;
+          document.body.classList.remove('home-dragging');
+          if (!el) return;
+          el.classList.remove('drag-armed');
+          if (!was) { el.classList.remove('dragging'); return; }
+          settling = true;
+          el.style.transition = 'translate .28s cubic-bezier(.32,.72,0,1), scale .28s cubic-bezier(.32,.72,0,1), box-shadow .28s';
+          el.style.translate = '0px 0px';
+          el.classList.remove('dragging');
+          setTimeout(function () {
+            settling = false;
+            el.style.transition = ''; el.style.translate = '';
+            kids().forEach(function (k) { k.style.transition = ''; k.style.translate = ''; });
+            if (save) {
+              Modules.home._editOrder(kids().map(function (r) { return r.getAttribute('data-cid') || r.getAttribute('data-go'); }));
+            }
+          }, 290);
+        }
+        function startDrag() {
+          if (!cur) return;
+          dragging = true;
+          ox0 = cur.offsetLeft; oy0 = cur.offsetTop; py0 = global.pageYOffset || 0;
+          cur.classList.remove('drag-armed');
+          cur.classList.add('dragging');
+          document.body.classList.add('home-dragging');
+          Util.haptic();
+          loop();
+        }
+        /* 自动滚动：手指在屏幕上 / 下 90px 内时按距离加速滚 */
+        function loop() {
+          raf = requestAnimationFrame(function () {
+            if (!dragging) return;
+            var vh = global.innerHeight || 800, v = 0;
+            if (fy < 90) v = -Math.ceil((90 - fy) / 6);
+            else if (fy > vh - 130) v = Math.ceil((fy - (vh - 130)) / 6);
+            if (v) { global.scrollBy(0, v); hitTest(); place(); }
+            loop();
+          });
+        }
+        function hitTest() {
+          var over = document.elementFromPoint ? document.elementFromPoint(fx, fy) : null;
+          while (over && over !== grid && !(over.matches && over.matches(SEL) && over.parentNode === grid)) over = over.parentNode;
+          if (!over || over === grid || over === cur) return;
+          var r2 = over.getBoundingClientRect();
+          var ny = (fy - r2.top) / r2.height, nx = (fx - r2.left) / r2.width;
+          /* 半宽卡并排时按左右判断，整宽卡按上下判断 */
+          var side = (r2.width < grid.getBoundingClientRect().width * 0.7) ? nx : ny;
+          if (side > 0.25 && side < 0.75) return; /* 中间区留死区，防来回抖 */
+          var before = side <= 0.25;
+          if (before) { if (over.previousSibling !== cur) flipMove(function () { grid.insertBefore(cur, over); }); }
+          else if (over.nextSibling !== cur) flipMove(function () { grid.insertBefore(cur, over.nextSibling); });
+          place();
+        }
+        kids().forEach(function (row) {
           row.addEventListener('pointerdown', function (e) {
-            if (dragging || cur) return;
-            cur = row; sx = e.clientX; sy = e.clientY; dragging = false;
+            if (dragging || cur || settling) return;
+            if (e.target && e.target.closest && e.target.closest('[data-del],[data-size]')) return;
+            cur = row; sx = fx = e.clientX; sy = fy = e.clientY; dragging = false;
+            row.classList.add('drag-armed');
             var pid = e.pointerId;
-            /* 第 124 次修复：捕获必须延迟到拖动真正成立（350ms 计时器里）。
-               原写法在 pointerdown 就 setPointerCapture——按 Pointer Events 规范，
-               显式捕获会把后续 click 的目标也改判到捕获元素（磁贴行本身），
-               于是「删除/大小」角标的 click 永远落不到自己头上（编辑模式
-               又屏蔽了磁贴的 data-go）→ 点什么都没反应，「编辑不动」。
-               拖动开始时才捕获：拖动中松手在网格外也能收到 pointerup；
-               普通点按（<350ms）零捕获，click 按真实目标派发。 */
             timer = setTimeout(function () {
               timer = null;
-              if (!cur || cur !== row) return;   /* 第 125 次：起手已作废则不再进入拖动 */
-              dragging = true; row.classList.add('dragging');
-              try { if (navigator.vibrate) navigator.vibrate(10); } catch (e4) {}
+              if (!cur || cur !== row) return;
+              startDrag();
               if (e.pointerType !== 'touch' && row.setPointerCapture && pid !== undefined) {
-                try { row.setPointerCapture(pid); } catch (err) { /* 老内核忽略 */ }
+                try { row.setPointerCapture(pid); } catch (err) {}
               }
             }, 350);
           });
         });
-        /* 第 217 次（真机：编辑首页下拉滑不动）：卡片改为 touch-action:pan-y，手指一滑就是滚动页面；
-           只有按住 350ms 进入拖动后，才由下面这个非被动 touchmove 拦下滚动、改为跟手排序。 */
-        function moveTo(x, y) {
-          var over = document.elementFromPoint ? document.elementFromPoint(x, y) : null;
-          while (over && !(over.classList && (over.classList.contains('record-tile') || over.classList.contains('canvas-card'))) && over !== grid) {
-            over = over.parentNode;
-          }
-          if (over && over !== grid && over !== cur && over.parentNode === grid) {
-            var r2 = over.getBoundingClientRect();
-            var before = y < r2.top + r2.height / 2;
-            if (before && cur !== over.previousSibling) grid.insertBefore(cur, over);
-            else if (!before && cur !== over.nextSibling) grid.insertBefore(cur, over.nextSibling);
-          }
-        }
-        function onTouchMove(e) {
+        function onMoveXY(x, y, ev) {
           if (!cur) return;
-          var t = e.touches && e.touches[0]; if (!t) return;
           if (!dragging) {
-            if (Math.abs(t.clientX - sx) > 10 || Math.abs(t.clientY - sy) > 10) endDrag(false);
+            if (Math.abs(x - sx) > 10 || Math.abs(y - sy) > 10) endDrag(false);
             return;
           }
-          if (e.cancelable) e.preventDefault();
-          moveTo(t.clientX, t.clientY);
+          if (ev && ev.cancelable) ev.preventDefault();
+          fx = x; fy = y;
+          place();
+          hitTest();
         }
-        function onTouchEnd(e) {
+        function onTouchMove(e) { var t = e.touches && e.touches[0]; if (t) onMoveXY(t.clientX, t.clientY, e); }
+        function onTouchEnd() { if (cur) endDrag(dragging); }
+        function onPMove(e) { if (e.pointerType === 'touch') return; onMoveXY(e.clientX, e.clientY, e); }
+        function onUp(e) {
           if (!cur) return;
-          var t = e.changedTouches && e.changedTouches[0];
-          var tgt = t && document.elementFromPoint ? document.elementFromPoint(t.clientX, t.clientY) : null;
-          endDrag(dragging && (!tgt || grid.contains(tgt)));
+          if (e.pointerType === 'touch') { if (!dragging && e.type === 'pointercancel') endDrag(false); return; }
+          endDrag(dragging);
         }
         document.addEventListener('touchmove', onTouchMove, { passive: false });
         document.addEventListener('touchend', onTouchEnd, true);
         document.addEventListener('touchcancel', onTouchEnd, true);
-        grid.addEventListener('pointermove', function (e) {
-          if (!cur || e.pointerType === 'touch') return;
-          if (!dragging) {
-            if (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10) endDrag(false);
-            return;
-          }
-          if (e.cancelable && e.preventDefault) e.preventDefault();
-          var over = document.elementFromPoint ? document.elementFromPoint(e.clientX, e.clientY) : null;
-          while (over && !(over.classList && (over.classList.contains('record-tile') || over.classList.contains('canvas-card'))) && over !== grid) {
-            over = over.parentNode;
-          }
-          if (over && over !== grid && over !== cur && over.parentNode === grid) {
-            var r2 = over.getBoundingClientRect();
-            var before = e.clientY < r2.top + r2.height / 2;
-            if (before && cur !== over.previousSibling) grid.insertBefore(cur, over);
-            else if (!before && cur !== over.nextSibling) grid.insertBefore(cur, over.nextSibling);
-          }
-        });
-        /* 第 125 次修复：pointerup/pointercancel 挂到 document 而不是 grid。
-           旧写法只绑 grid——拖动尚未成立（<350ms）时若指针移出网格外松手，
-           grid 收不到 pointerup、pointermove 的 10px 阈值也未触发，
-           cur 永远不清空 → 之后任何 pointerdown 都被 `if (dragging || cur) return`
-           挡掉，编辑模式拖动整体卡死（需退出重进才能恢复）。
-           挂 document 后在任意位置松手都能收尾；用 e.target 判定是否落在本网格内
-           决定这次拖动是否落库（网格外松手 = 放弃排序，但状态一定清干净）。 */
-        function onUp(e) {
-          if (!cur) return;
-          /* 触摸由 touchend 收尾（pan-y 下浏览器滚动时会发 pointercancel，不能当作放弃） */
-          if (e.pointerType === 'touch') { if (!dragging && e.type === 'pointercancel') endDrag(false); return; }
-          endDrag(dragging && grid.contains && grid.contains(e.target));
-        }
+        document.addEventListener('pointermove', onPMove, { passive: false });
         document.addEventListener('pointerup', onUp, true);
         document.addEventListener('pointercancel', onUp, true);
-        /* 本函数每次编辑态 render 都会重跑；document 级监听必须解绑，
-           否则监听器随编辑操作次数线性叠加（第 125 次一并治理）。 */
         if (Modules.home._dragTeardown) Modules.home._dragTeardown();
         Modules.home._dragTeardown = function () {
           document.removeEventListener('pointerup', onUp, true);
           document.removeEventListener('pointercancel', onUp, true);
+          document.removeEventListener('pointermove', onPMove, { passive: false });
           document.removeEventListener('touchmove', onTouchMove, { passive: false });
           document.removeEventListener('touchend', onTouchEnd, true);
           document.removeEventListener('touchcancel', onTouchEnd, true);
+          if (raf) cancelAnimationFrame(raf);
+          document.body.classList.remove('home-dragging');
           Modules.home._dragTeardown = null;
         };
       }

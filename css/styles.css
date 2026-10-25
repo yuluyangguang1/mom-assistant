@@ -4894,6 +4894,10 @@ html.lg-refract body #dockOrb.lg { -webkit-backdrop-filter: blur(14px) saturate(
 /* 第 240 次：右移改用 left，不再写进 transform。iOS 按下时 dock 的 scale 回弹走合成层，
    WebKit 合成层解析 translateX(calc(-50% + 35px)) 会丢掉 px 部分，整条 dock 往左缩一下再弹回。 */
 body.has-orb #tabbar:not(.is-vertical) { left: calc(50% + 35px); }
+/* 第 246 次（真机录屏：首页 / 日期 / 搜索互切时 dock 闪到左边、压在宝宝圆钮上）：
+   iOS Safari 给带 view-transition-name 的元素拍快照时，translateX(-50%) 会被再算一次，
+   新快照整条往左偏半个 dock 宽。一级页也改成和二级页一样：left 直接算出左缘，transform 不放位移。 */
+body.has-orb #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 258px) / 2 + 35px); transform: none; transform-origin: 50% 50%; }
 body.ftf-open #dockOrb { visibility: hidden; }
 /* 第 244 次：二级页 dock 左缘钉在一级页 dock 的左缘（圆钮右边 8px），进出二级页 dock 不再左移 / 右移，
    只是右侧收短；按下缩放回到以中心为原点。 */
@@ -4905,6 +4909,7 @@ html[data-nav] #dockOrb:not([hidden]) { view-transition-name: dock-orb; }
 @media (max-width: 360px) {
   #dockOrb.dock-orb { --orb: 54px; left: calc(50% - var(--dock-w, 240px) / 2 - 31px); bottom: calc(14px + env(safe-area-inset-bottom)); }
   body.has-orb #tabbar:not(.is-vertical) { left: calc(50% + 31px); }
+  body.has-orb #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 240px) / 2 + 31px); }
   body.sub-anchor #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 240px) / 2 + 31px); }
 }
 
@@ -5025,25 +5030,38 @@ body:has(.dock-live:not([hidden])) #toastRoot { bottom: calc(10px + 62px + 10px 
    第 245 次：左侧功能抽屉（全部功能 + 设置），首页左边缘拉出 / 点宝宝圆钮
    ============================================================ */
 .sd-mask {
-  position: fixed; inset: 0; z-index: 1300; background: rgba(28, 24, 20, .38);
-  opacity: 0; visibility: hidden; transition: opacity .32s cubic-bezier(.32, .72, 0, 1), visibility .32s;
+  position: fixed; inset: 0; z-index: 2000; background: rgba(20, 16, 12, .22);
+  opacity: 0; visibility: hidden; transition: opacity .4s cubic-bezier(.32, .72, 0, 1), visibility .4s;
 }
 body.sd-open .sd-mask, body.sd-drag .sd-mask { visibility: visible; }
 body.sd-open .sd-mask { opacity: 1; }
-.side-drawer {
-  position: fixed; top: 0; bottom: 0; left: 0; z-index: 1301;
-  width: min(80vw, 320px); box-sizing: border-box;
-  background: var(--surface); color: var(--text);
-  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
-  box-shadow: 12px 0 40px -18px rgba(40, 30, 20, .45);
-  transform: translateX(-104%);
-  transition: transform .38s cubic-bezier(.32, .72, 0, 1);
+body.dark .sd-mask { background: rgba(0, 0, 0, .35); }
+/* 第 246 次：整页向右推开。#app 锁成一屏高的 fixed 容器再平移，里面 fixed 的顶栏 / dock 跟着走 */
+body.sd-lock { overflow: hidden; }
+body.sd-lock #app > .app-header { margin-top: calc(-1 * var(--sd-ly, 0px)); }
+body.sd-lock #app {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; overflow: hidden;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1))),
+      rgba(var(--sky-ambient-bottom, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1)))),
+    var(--bg-grad), var(--vt-paper, #FDF9F4);
+  transition: transform .4s cubic-bezier(.32, .72, 0, 1), border-radius .4s;
   will-change: transform;
 }
-body.dark .side-drawer { background: #161412; box-shadow: 12px 0 40px -12px rgba(0, 0, 0, .8); }
-body.sd-open .side-drawer { transform: none; }
-body.sd-drag .side-drawer, body.sd-drag .sd-mask { transition: none; }
-body.sd-quick .side-drawer { transition-duration: .22s; }
+body.sd-open #app { transform: translateX(var(--sd-w, 300px)); border-radius: var(--radius-lg) 0 0 var(--radius-lg); box-shadow: -14px 0 40px -16px rgba(30, 20, 10, .45); }
+body.sd-drag #app { border-radius: var(--radius-lg) 0 0 var(--radius-lg); box-shadow: -14px 0 40px -16px rgba(30, 20, 10, .45); }
+.side-drawer {
+  position: fixed; top: 0; bottom: 0; left: 0; z-index: 1;
+  width: min(78vw, 310px); box-sizing: border-box;
+  background: var(--surface); color: var(--text);
+  transform: translateX(-26%); opacity: .4; visibility: hidden;
+  transition: transform .4s cubic-bezier(.32, .72, 0, 1), opacity .4s, visibility .4s;
+}
+body.sd-lock .side-drawer { visibility: visible; }
+body.dark .side-drawer { background: #121110; }
+body.sd-open .side-drawer { transform: none; opacity: 1; }
+body.sd-drag .side-drawer, body.sd-drag .sd-mask, body.sd-drag #app { transition: none; }
 .sd-panel { height: 100%; }
 .sd-scroll { height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
   padding: calc(env(safe-area-inset-top) + 22px) 20px calc(env(safe-area-inset-bottom) + 28px) 22px; box-sizing: border-box; }
@@ -5069,7 +5087,7 @@ body.sd-quick .side-drawer { transition-duration: .22s; }
 .side-drawer .sd-color .sd-ico .ico { color: var(--tile, var(--primary)); }
 .side-drawer .sd-mono .sd-ico .ico { color: var(--text); opacity: .78; }
 .sd-mono .sd-row { font-weight: 700; }
-@media (prefers-reduced-motion: reduce) { .side-drawer, .sd-mask { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .side-drawer, .sd-mask, body.sd-lock #app { transition: none; } }
 
 /* 快捷记录：横条 / 小卡 */
 .hq-card { padding: 10px; }
@@ -5100,3 +5118,27 @@ body.sd-quick .side-drawer { transition-duration: .22s; }
 .sc-cat.on small { color: inherit; opacity: .7; }
 .sheet-group[hidden] { display: none; }
 html .sheet-gh small { margin-left: 8px; font-size: 12px; font-weight: 500; color: var(--muted); }
+
+/* 第 246 次：拖动排序跟手——按住浮起，拖动中卡片跟手，其他卡片平滑让位 */
+.record-grid.is-editing > .record-tile,
+.record-grid.is-editing > .canvas-card { transition: scale .2s cubic-bezier(.32,.72,0,1), box-shadow .2s, opacity .2s; }
+.record-grid.is-editing > .drag-armed { scale: .985; }
+.record-grid.is-editing > .record-tile.dragging,
+.record-grid.is-editing > .canvas-card.dragging {
+  opacity: 1; scale: 1.04; z-index: 30; position: relative; pointer-events: none;
+  box-shadow: 0 22px 44px -14px rgba(60, 40, 20, .38), 0 6px 14px -6px rgba(60, 40, 20, .2);
+  animation: none !important; transition: scale .2s cubic-bezier(.32,.72,0,1), box-shadow .2s;
+}
+body.dark .record-grid.is-editing > .dragging { box-shadow: 0 22px 44px -12px rgba(0, 0, 0, .7); }
+body.home-dragging .record-grid.is-editing > :not(.dragging) { opacity: .88; }
+body.home-dragging { -webkit-user-select: none; user-select: none; }
+
+/* 第 246 次：触摸光斑（touchfx.js）——手指在卡片上 / 扫过卡片时一团跟手柔光 */
+.touch-glow {
+  position: fixed; z-index: 9; pointer-events: none; overflow: hidden; opacity: 0;
+  background: radial-gradient(circle 140px at var(--gx, 50%) var(--gy, 50%), rgba(232, 140, 110, .16), rgba(232, 140, 110, .05) 45%, transparent 72%);
+  transition: opacity .28s ease-out;
+}
+.touch-glow.on { opacity: 1; transition-duration: .08s; }
+body.dark .touch-glow { background: radial-gradient(circle 140px at var(--gx, 50%) var(--gy, 50%), rgba(255, 255, 255, .13), rgba(255, 255, 255, .04) 45%, transparent 72%); }
+body.sd-open .touch-glow, body.qd-open .touch-glow { display: none; }
