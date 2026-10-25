@@ -610,7 +610,7 @@
       html += '<button class="alltools-entry" id="sAllTools" type="button"><span class="ti-ico">' + icon('grid') + '</span>'
         + '<span class="ti-name">全部功能</span><span class="rt-arrow" aria-hidden="true">' + icon('chevron-right') + '</span></button>';
       var hcat = (global.Modules && Modules.home && Modules.home._catalog) ? Modules.home._catalog() : [];
-      ['小组件', '功能模块', '记录卡'].forEach(function (gname) {
+      ['快捷记录', '上次', '今日', '趋势', '直接记录', '距上次', '功能入口'].forEach(function (gname) { /* 第 245 次：与首页编辑目录同一套分类 */
         var rows = hcat.filter(function (c) { return c.group === gname; });
         if (!rows.length) return;
         html += '<div class="card hc-card"><h2>' + gname + '</h2><ul class="hc-list">';

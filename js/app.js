@@ -14,10 +14,10 @@
   var TABS = [
     { id: 'home', title: '首页', ico: 'dk-home' },
     { id: 'calendar', title: '日期记录', ico: 'dk-cal' },
-    { id: 'search', title: '搜索', ico: 'dk-search' },
-    { id: 'settings', title: '设置', ico: 'dk-gear' }
+    { id: 'search', title: '搜索', ico: 'dk-search' }
   ];
-  function isTopTab(id) { return id === 'home' || id === 'calendar' || id === 'search' || id === 'settings'; }
+  /* 第 245 次：设置移进左侧抽屉（drawer.js），dock 只剩 首页 / 日期记录 / 搜索；设置改成二级页（有返回、能侧滑回来） */
+  function isTopTab(id) { return id === 'home' || id === 'calendar' || id === 'search'; }
 
   var current = 'home';
 
@@ -1187,7 +1187,10 @@
   global.App = {
     showTab: showTab,
     rerender: rerender,
-    currentTab: function () { return current; }, /* 第 187 次：record-edit.js 按当前模块找记录 */
+    currentTab: function () { return current; },
+    _isTop: function () { return isTopTab(current) && !subExit; }, /* 第 245 次：抽屉边缘拉出只在一级页 */
+    _openBabySheet: function () { openBabySheet(); },
+    _babyAge: function (bd) { return babyAge(bd); }, /* 第 187 次：record-edit.js 按当前模块找记录 */
     enterSub: enterSub,
     inSub: inSub,
     exitSub: function () { if (!popHistory()) exitSubNow(); },
@@ -1483,11 +1486,12 @@
        右上角新增设置齿轮——旧版右上角是天空大日期（已并入问候卡日期行）。 */
     var av = document.getElementById('avatarBtn');
     if (av) {
-      av.setAttribute('aria-label', '切换宝宝');
+      av.setAttribute('aria-label', '宝宝与全部功能');
       /* 第 82 次（用户反馈：左上角右上角都进设置，冗余）：左上角专司宝宝切换——
          点按打开底部宝宝面板（列表点选切换 + 管理入口），不再直接进设置。
          呈现语义：短打断 → 半高底部面板（sheet），不是整页跳转。 */
-      av.addEventListener('click', openBabySheet);
+      /* 第 245 次：宝宝圆钮改为打开左侧功能抽屉；切换宝宝在抽屉头像旁的 ⇅ */
+      av.addEventListener('click', function () { if (global.Drawer) Drawer.open(); else openBabySheet(); });
       refreshHeaderAvatar();
     }
     /* 右上角设置齿轮（第 80 次）：只在首页显示（模块页右上角是返回按钮，

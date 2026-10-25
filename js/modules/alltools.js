@@ -136,6 +136,7 @@
       });
     },
     /* 目录清单：首页读它拿「N 项」的总数；无效依赖时也不会崩。 */
-    _modules: ALL_ITEMS
+    _modules: ALL_ITEMS,
+    _groups: GROUPS /* 第 245 次：左侧抽屉按同一份分组列功能 */
   };
 })(window);

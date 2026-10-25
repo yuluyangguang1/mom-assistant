@@ -481,6 +481,10 @@
         if (wid === 'quick' && stageNow211 === 'pregnancy' && !isDual(d)) return;
         cardTiles.push({ id: wid, _card: true, name: CARDS_META[wid].name, icon: CARDS_META[wid].icon });
       });
+      ['quick-h', 'quick-s'].concat(TODAY_IDS).forEach(function (cid) {
+        if (stageNow211 === 'pregnancy' && !isDual(d)) return;
+        cardTiles.push({ id: cid, _card: true, name: CARDS_META[cid].name, icon: CARDS_META[cid].icon });
+      });
       DATA_IDS.forEach(function (cid) {
         if (stageNow211 === 'pregnancy' && !isDual(d)) return;
         if (cid === 'w-age' && !bd) return;
@@ -1019,6 +1023,32 @@
           + '<b class="hl2-val">' + WN_N[wnType] + '</b>'
           + '<span class="hl2-gap">' + wnSub + '</span>'
           + (bd2 || '') + '</button>'; };
+        /* ── 第 245 次：「今日」小卡（喂奶 / 尿布 / 睡眠 / 体温），同款浅色卡 ── */
+        var tFeeds = (d.feedings || []).filter(function (r) { return r && r.start && careKeyOf(r.start) === dayNow; });
+                var tMin = tFeeds.reduce(function (s, r) { return s + (r.type === 'breast' ? (Number(r.durationMin) || ((Number(r.durationL) || 0) + (Number(r.durationR) || 0))) : 0); }, 0);
+        var tMl = tFeeds.reduce(function (s, r) { return s + (r.type === 'breast' ? 0 : (Number(r.amountFm || r.amount) || 0)); }, 0);
+        W_HTML['w-feed-today'] = function (cls, bd2) {
+          return hw('w-feed-today', 'feeding', 'feeding', 'feeding', '今日喂奶', tFeeds.length ? (tFeeds.length + ' 次') : '0 次',
+            tFeeds.length ? ([tMl ? ('共 ' + tMl + ' mL') : '', tMin ? ('亲喂 ' + tMin + ' 分钟') : ''].filter(Boolean).join(' · ') || '今天') : '今天还没喂', cls, bd2);
+        };
+        var tDia = (d.diapers || []).filter(function (r) { return r && r.time && careKeyOf(r.time) === dayNow; });
+        var tPee = tDia.filter(function (r) { return r.type === 'pee' || r.type === 'both'; }).length;
+        var tPoo = tDia.filter(function (r) { return r.type === 'poop' || r.type === 'both'; }).length;
+        W_HTML['w-diaper-today'] = function (cls, bd2) {
+          return hw('w-diaper-today', 'diaper', 'diaper', 'diaper', '今日尿布', tDia.length + ' 片', '尿 ' + tPee + ' · 便 ' + tPoo, cls, bd2);
+        };
+        var tSl = (d.sleeps || []).filter(function (r) { return r && r.start && r.end && careKeyOf(r.end) === dayNow; });
+        var tSlMin = tSl.reduce(function (s, r) { return s + Math.max(0, Math.round((new Date(r.end) - new Date(r.start)) / 60000)); }, 0);
+        W_HTML['w-sleep-today'] = function (cls, bd2) {
+          var v = tSlMin ? (Math.floor(tSlMin / 60) ? Math.floor(tSlMin / 60) + ' 小时 ' : '') + (tSlMin % 60) + ' 分' : '0 分';
+          return hw('w-sleep-today', 'sleep', 'sleep', 'sleep', '今日睡眠', v, tSl.length ? ('醒来 ' + tSl.length + ' 次' + (d.openSleep ? ' · 正在睡' : '')) : (d.openSleep ? '正在睡' : '今天还没睡'), cls, bd2);
+        };
+        var lTemp = (d.temps || []).filter(function (r) { return r && r.time && r.value != null; })
+          .sort(function (a, b) { return new Date(b.time) - new Date(a.time); })[0];
+        W_HTML['w-temp'] = function (cls, bd2) {
+          return hw('w-temp', 'temp', 'temp', 'temp', '最近体温', lTemp ? (lTemp.value + ' °C') : '—',
+            lTemp ? (Util.fmtAgo ? Util.fmtAgo(lTemp.time) : '') : '还没有记录', cls, bd2);
+        };
       }
       /* ── 第 217 次：数据卡（今日概览 / 近 7 天奶量 / 近 7 天睡眠 / 成长天数） ── */
       (function () {
@@ -1144,6 +1174,24 @@
               + '<button type="button" role="radio" aria-checked="' + (tgt === 'all') + '" class="hn-tgt-b' + (tgt === 'all' ? ' on' : '') + '" data-qtgt="all">' + (kids.length === 2 ? '两个都记' : kids.length + ' 个都记') + '</button></div>';
           }
           return '<div class="card canvas-card hn-quick-card' + (cls || '') + '" data-cid="quick">' + h2 + (bd2 || '') + '</div>';
+        };
+        /* 第 245 次：快捷记录的横条 / 小卡两种尺寸——同一套 data-hnq / data-recsl 绑定，记法完全一致 */
+        var qBtns = function (short) {
+          var fq = (global.App && App._fedDefaults) ? App._fedDefaults() : null;
+          var dis = editing ? ' disabled' : '';
+          var arr = [];
+          if (fq) arr.push('<button type="button" class="hq-b"' + dis + ' data-hnq="feed" data-accent="feeding" aria-label="喂奶：' + Util.escapeHtml(fq.label) + '"><i>' + icon('feeding') + '</i><span>喂奶</span></button>');
+          arr.push('<button type="button" class="hq-b"' + dis + ' data-hnq="pee" data-accent="diaper"><i>' + icon('pee') + '</i><span>尿了</span></button>');
+          arr.push('<button type="button" class="hq-b"' + dis + ' data-hnq="poop" data-accent="diaper"><i>' + icon('poop') + '</i><span>拉了</span></button>');
+          if (!d.openSleep) arr.push('<button type="button" class="hq-b"' + dis + ' data-recsl="start" data-accent="sleep"><i>' + icon('sleep') + '</i><span>睡了</span></button>');
+          return arr.join('');
+        };
+        W_HTML['quick-h'] = function (cls, bd2) {
+          return '<div class="card canvas-card hq-card hq-h' + (cls || '') + '" data-cid="quick-h" role="group" aria-label="快速记录">' + qBtns() + (bd2 || '') + '</div>';
+        };
+        W_HTML['quick-s'] = function (cls, bd2) {
+          return '<div class="card canvas-card hq-card hq-s' + (cls || '') + '" data-cid="quick-s" role="group" aria-label="快速记录">'
+            + '<span class="hq-title">' + icon('plus') + '快速记录</span><div class="hq-grid">' + qBtns() + '</div>' + (bd2 || '') + '</div>';
         };
       }
       /* 第 91 次：底边过渡带已删除——融合改由画布自身淡出为透明完成
@@ -1340,20 +1388,27 @@
         /* 第 217 次（用户：点击添加没反馈、没有卡片预览）：目录改为分组卡片预览——
            每项直接渲染首页上的真实样子（inert，不可交互），右上角「＋ 添加」。 */
         var addedRow = false;
-        var groups = { '小组件': [], '数据卡': [], '记录卡': [], '距上次': [], '功能模块': [] };
+        /* 第 245 次（用户：卡片编辑分类展示）：七个分类 + 顶部分类胶囊，点胶囊只看那一类 */
+        var groups = { '快捷记录': [], '上次': [], '今日': [], '趋势': [], '直接记录': [], '距上次': [], '功能入口': [] };
         UNIVERSE().forEach(function (id) {
           if (inCanvas[id]) return;
-          var g = '功能模块';
+          var g = '功能入口';
           if (CARDS_META[id]) {
             if (!cmap[id]) return;
-            g = DATA_IDS.indexOf(id) >= 0 ? '数据卡' : (/^rec-/.test(id) ? '记录卡' : (/^last-/.test(id) ? '距上次' : '小组件'));
+            g = Modules.home._cardGroup(id);
           } else if (!TILE_NAME[id] || !cmap[id]) return;
           groups[g].push(id);
         });
         noBadges = true;
+        var gNames = Object.keys(groups).filter(function (g) { return groups[g].length; });
+        if (gNames.length > 1) {
+          html += '<div class="sheet-cats" role="tablist" aria-label="组件分类"><button type="button" class="sc-cat on" data-cat="" role="tab" aria-selected="true">全部</button>'
+            + gNames.map(function (g) { return '<button type="button" class="sc-cat" data-cat="' + g + '" role="tab" aria-selected="false">' + g + '<small>' + groups[g].length + '</small></button>'; }).join('')
+            + '</div>';
+        }
         Object.keys(groups).forEach(function (g) {
           if (!groups[g].length) return;
-          html += '<div class="sheet-group"><h3 class="sheet-gh">' + g + '</h3><div class="sheet-grid">';
+          html += '<div class="sheet-group" data-group="' + g + '"><h3 class="sheet-gh">' + g + '<small>' + (GROUP_HINT[g] || '') + '</small></h3><div class="sheet-grid">';
           groups[g].forEach(function (id) {
             var t = cmap[id];
             var nm = CARDS_META[id] ? CARDS_META[id].name : TILE_NAME[id];
@@ -1496,6 +1551,14 @@
             setTimeout(function () { el.classList.remove('just-added'); }, 1600);
           }
         }
+        Array.prototype.forEach.call(view.querySelectorAll('.sc-cat'), function (c) {
+          c.addEventListener('click', function () {
+            var cat = c.getAttribute('data-cat');
+            Array.prototype.forEach.call(view.querySelectorAll('.sc-cat'), function (x) { var on = x === c; x.classList.toggle('on', on); x.setAttribute('aria-selected', on ? 'true' : 'false'); });
+            Array.prototype.forEach.call(view.querySelectorAll('.sheet-group'), function (g) { g.hidden = !!cat && g.getAttribute('data-group') !== cat; });
+            var lst = view.querySelector('.sheet-list'); if (lst) lst.scrollTop = 0;
+          });
+        });
         var sheetSearch = view.querySelector('#sheetSearch');
         if (sheetSearch) sheetSearch.addEventListener('input', function () {
           var q = (sheetSearch.value || '').trim().toLowerCase();
@@ -1881,9 +1944,18 @@
      · last-* 无数据时显示「暂无记录」空态而非消失——它的价值正是引导去记录。
      ============================================================ */
   var W_IDS = ['quick', 'w-feed', 'w-diaper', 'w-sleep', 'w-noise'];
-  var CARD_IDS = W_IDS.concat(['w-today', 'w-week-feed', 'w-week-sleep', 'w-age', 'feednext', 'growthspark', 'last-feeding', 'last-diaper', 'last-sleep', 'last-growth', 'last-temp', 'rec-diaper', 'rec-sleep', 'rec-bottle', 'rec-breast', 'rec-pump']);
+  /* 第 245 次：快捷记录多两种尺寸（横向条 / 小卡），新增四张「今日」小卡 */
+  var QUICK_IDS = ['quick', 'quick-h', 'quick-s'];
+  var TODAY_IDS = ['w-feed-today', 'w-diaper-today', 'w-sleep-today', 'w-temp'];
+  var CARD_IDS = W_IDS.concat(['quick-h', 'quick-s']).concat(TODAY_IDS).concat(['w-today', 'w-week-feed', 'w-week-sleep', 'w-age', 'feednext', 'growthspark', 'last-feeding', 'last-diaper', 'last-sleep', 'last-growth', 'last-temp', 'rec-diaper', 'rec-sleep', 'rec-bottle', 'rec-breast', 'rec-pump']);
   var CARDS_META = {
-    'quick': { name: '快捷记录', icon: 'plus' },
+    'quick': { name: '快捷记录 · 大', icon: 'plus' },
+    'quick-h': { name: '快捷记录 · 横条', icon: 'plus' },
+    'quick-s': { name: '快捷记录 · 小卡', icon: 'plus' },
+    'w-feed-today': { name: '今日喂奶', icon: 'feeding' },
+    'w-diaper-today': { name: '今日尿布', icon: 'diaper' },
+    'w-sleep-today': { name: '今日睡眠', icon: 'sleep' },
+    'w-temp': { name: '最近体温', icon: 'temp' },
     'w-feed': { name: '上次喂奶', icon: 'feeding' },
     'w-diaper': { name: '上次尿布', icon: 'diaper' },
     'w-sleep': { name: '上次睡眠', icon: 'sleep' },
@@ -1909,6 +1981,17 @@
     'w-age': { name: '成长天数', icon: 'growth' }
   };
   var DATA_IDS = ['w-today', 'w-week-feed', 'w-week-sleep', 'w-age'];
+  /* 第 245 次：组件分类（编辑目录与设置页共用） */
+  var GROUP_HINT = { '快捷记录': '一点就记', '上次': '上一次是什么时候', '今日': '今天的次数和总量', '趋势': '一周、成长', '直接记录': '在首页上直接记', '距上次': '多久没做了', '功能入口': '进对应页面' };
+  Modules.home._cardGroup = function (id) {
+    if (QUICK_IDS.indexOf(id) >= 0) return '快捷记录';
+    if (TODAY_IDS.indexOf(id) >= 0 || id === 'w-today') return '今日';
+    if (DATA_IDS.indexOf(id) >= 0 || id === 'growthspark' || id === 'feednext') return '趋势';
+    if (/^rec-/.test(id)) return '直接记录';
+    if (/^last-/.test(id)) return '距上次';
+    if (CARDS_META[id]) return '上次';
+    return '功能入口';
+  };
   /* 距上次卡的数据源定义：list=数据键，key=时间字段，detail=明细行（取最新一条渲染）。
      时间口径统一走 lastAny + gapText + dayLabel（与磁贴摘要同源，只描述中性事实不催促）。 */
   var LAST_DEFS = {
@@ -1928,7 +2011,7 @@
   };
   function isDual(d) { return !!(global.App && typeof App.isDualStage === 'function' && App.isDualStage(d)); }
   function defSize(id) {
-    if (id === 'quick' || id === 'growthspark' || id === 'feednext' || id === 'w-today' || id === 'w-week-feed' || id === 'w-week-sleep' || /^(rec|last)-/.test(id)) return 'l';
+    if (id === 'quick' || id === 'quick-h' || id === 'growthspark' || id === 'feednext' || id === 'w-today' || id === 'w-week-feed' || id === 'w-week-sleep' || /^(rec|last)-/.test(id)) return 'l';
     return 's';
   }
   function defaultLayout(d) {
@@ -1948,20 +2031,20 @@
     hl.items.forEach(function (it) { on[it.id] = 1; });
     var names = {};
     ((Modules.alltools && Modules.alltools._modules) || []).forEach(function (m) { names[m.id] = m.name; });
+    var ACC = { 'quick': 'feeding', 'quick-h': 'feeding', 'quick-s': 'feeding', 'w-noise': 'whitenoise', 'w-feed': 'feeding', 'w-diaper': 'diaper', 'w-sleep': 'sleep',
+      'w-feed-today': 'feeding', 'w-diaper-today': 'diaper', 'w-sleep-today': 'sleep', 'w-temp': 'temp', 'w-today': 'feeding', 'w-week-feed': 'feeding', 'w-week-sleep': 'sleep', 'w-age': 'growth',
+      'growthspark': 'growth', 'feednext': 'feeding' };
     var out = [];
-    W_IDS.concat(['growthspark', 'feednext']).forEach(function (id) {
-      out.push({ id: id, name: CARDS_META[id].name, icon: CARDS_META[id].icon, accent: id === 'quick' ? 'feeding' : (id === 'w-noise' ? 'whitenoise' : id.replace(/^w-/, '').replace('feed', 'feeding').replace('growthspark', 'growth').replace('feedingnext', 'feeding')), group: '小组件', on: !!on[id] });
-    });
-    UNIVERSE().forEach(function (id) {
-      if (CARDS_META[id]) return;
-      out.push({ id: id, name: names[id] || id, icon: id, accent: id, group: '功能模块', on: !!on[id] });
-    });
-    DATA_IDS.forEach(function (id) {
-      out.push({ id: id, name: CARDS_META[id].name, icon: CARDS_META[id].icon, accent: ({ 'w-today': 'feeding', 'w-week-feed': 'feeding', 'w-week-sleep': 'sleep', 'w-age': 'growth' })[id], group: '数据卡', on: !!on[id] });
-    });
-    CARD_IDS.forEach(function (id) {
-      if (!/^(rec|last)-/.test(id)) return;
-      out.push({ id: id, name: CARDS_META[id].name, icon: CARDS_META[id].icon, accent: CARDS_META[id].icon === 'breast' || CARDS_META[id].icon === 'pump' || CARDS_META[id].icon === 'bottle' ? 'feeding' : CARDS_META[id].icon, group: '记录卡', on: !!on[id] });
+    /* 第 245 次：与首页编辑目录同一套分类 */
+    var ORDER = ['快捷记录', '上次', '今日', '趋势', '直接记录', '距上次', '功能入口'];
+    var all = CARD_IDS.concat(UNIVERSE().filter(function (id) { return !CARDS_META[id]; }));
+    ORDER.forEach(function (g) {
+      all.forEach(function (id) {
+        if (Modules.home._cardGroup(id) !== g) return;
+        var m = CARDS_META[id];
+        var ic = m ? m.icon : id;
+        out.push({ id: id, name: m ? m.name : (names[id] || id), icon: ic, accent: ACC[id] || (m ? (ic === 'breast' || ic === 'pump' || ic === 'bottle' ? 'feeding' : ic) : id), group: g, on: !!on[id] });
+      });
     });
     return out;
   };
