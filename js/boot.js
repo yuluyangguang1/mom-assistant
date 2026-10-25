@@ -25,7 +25,7 @@
   doc.documentElement.classList.add('is-booting');
   var reduce = false;
   try { reduce = global.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* */ }
-  setTimeout(remove, 5000);
+  var fallback = setTimeout(remove, 5000);
   /* 第 260 次：防卡顿——首页渲染刚结束时主线程还在解码图片、算玻璃折射、注册 SW，
      此时开播会掉帧。等 window load + 两帧 + 一小段空闲再开播，动画只动 transform / opacity。 */
   function afterSettled(fn) {
@@ -34,6 +34,30 @@
     }
     if (doc.readyState === 'complete') go(); else global.addEventListener('load', go, { once: true });
   }
+  /* 第 261 次：收尾不再整层淡出——
+     首次启动时下面是引导页，它也有一枚同尺寸的图标（.ob-logo），整层淡出会两枚图标、两行「咿呀记」叠成重影。
+     有 .ob-logo：动画层的图标直接飞到它的位置（只动 transform），文字和泡泡先淡掉、背景色渐隐，
+     落位后把引导页图标显出来、移除动画层——同一枚图标「落进」页面，没有第二枚。
+     没有（日常启动直接进首页）：图标和文字先淡出，背景再淡，不和首页内容交叠。 */
+  function finish() {
+    if (gone) return;
+    var ico = el.querySelector('.boot-ico img');
+    var logo = doc.querySelector('.ob-logo');
+    var b = logo && logo.getBoundingClientRect();
+    if (ico && b && b.width > 0 && b.bottom > 0 && b.top < global.innerHeight) {
+      var a = ico.getBoundingClientRect();
+      logo.style.visibility = 'hidden';
+      el.classList.add('is-fly');
+      /* 下一帧再写目标位置，保证 transition 从当前位置起跑 */
+      global.requestAnimationFrame(function () {
+        ico.style.transform = 'translate(' + (b.left - a.left) + 'px,' + (b.top - a.top) + 'px) scale(' + (b.width / a.width) + ')';
+      });
+      setTimeout(function () { logo.style.visibility = ''; remove(); }, 560);
+      return;
+    }
+    el.classList.add('is-out');
+    setTimeout(remove, 520);
+  }
   global.Boot = {
     done: function () {
       if (gone || el.classList.contains('is-play')) return;
@@ -41,8 +65,8 @@
         if (gone) return;
         if (reduce) { el.classList.add('is-out'); setTimeout(remove, 460); return; }
         el.classList.add('is-play');
-        setTimeout(function () { el.classList.add('is-out'); }, 1250);
-        setTimeout(remove, 1720);
+        clearTimeout(fallback); fallback = setTimeout(remove, 3000); /* 开播后重新计兜底，不在动画中途硬切 */
+        setTimeout(finish, 1150);
       });
     }
   };

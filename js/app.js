@@ -872,7 +872,7 @@
   }
   function obWelcome() {
     return '<div class="ob-hero">'
-      + '<img class="ob-logo" src="assets/icon-192.png" alt="" width="112" height="112">'
+      + '<img class="ob-logo" src="assets/icon-512.png" alt="" width="112" height="112">'
       + '<h2>咿呀记</h2>'
       + '<p class="ob-lead">喂奶、睡眠、尿布、疫苗，<br>单手几秒记一笔。</p>'
       + '<ul class="ob-points">'
