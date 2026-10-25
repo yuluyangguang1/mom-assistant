@@ -36,6 +36,8 @@
     cal: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3.5v4M16 3.5v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="14" r="1" fill="currentColor"/><circle cx="12" cy="14" r="1" fill="currentColor"/><circle cx="15" cy="14" r="1" fill="currentColor"/><circle cx="9" cy="17" r="1" fill="currentColor"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg>',
     clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="7.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 9.5V13l2.5 1.8M9.5 3.5h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
     more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18" cy="12" r="1.6" fill="currentColor"/></svg>',
+    /* 亲喂：妈妈侧身抱着宝宝（参考图里的小人） */
+    nurse: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="5" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 21v-6.5C5 10.9 6.9 9 9.5 9c1.6 0 2.8.7 3.6 1.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M7.5 14.5c1.5 1.6 4.6 2.3 7.5 1.3 2-.7 3.4-2.1 3.8-3.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="16.4" cy="10.6" r="2.1" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
     pen: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19l1-4L15.5 5.5a2 2 0 0 1 3 3L9 18z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>'
   };
 
@@ -51,7 +53,7 @@
     sec = Math.max(0, Math.round(sec || 0));
     if (sec < 60) return sec + '秒';
     var m = Math.floor(sec / 60), s = sec % 60;
-    if (m < 60) return m + '分' + (s ? ' ' + s + '秒' : '钟');
+    if (m < 60) return m + '分' + (s ? s + '秒' : '钟');
     return Math.floor(m / 60) + '小时' + (m % 60 ? m % 60 + '分' : '');
   }
   function fmtMin(min) {
@@ -262,15 +264,15 @@
       + '<span class="ftf-tr"><button type="button" class="ftf-ib ftf-del" data-f="cancel" aria-label="放弃这次计时">' + icon('trash') + '</button>'
       + '<button type="button" class="ftf-ib" data-f="dim" aria-label="调暗画面" aria-pressed="' + (fullEl.classList.contains('is-dim') ? 'true' : 'false') + '">' + SV.bright + '</button></span></div>'
       + '<div class="ftf-main">'
-      + '<p class="ftf-chip">' + icon('breast') + '<span>' + (s.paused ? '已暂停' : sideTxt + '亲喂中') + '</span><i class="' + (s.paused ? 'is-off' : '') + '"></i></p>'
-      + '<div class="ftf-row"><button type="button" class="ftf-side' + (s.side === 'left' ? ' is-on' : '') + '" data-f="left" aria-label="左侧">' + icon('breast') + '<small>左</small></button>'
+      + '<p class="ftf-chip">' + SV.nurse + '<span>' + (s.paused ? '已暂停' : sideTxt + '亲喂中') + '</span><i class="' + (s.paused ? 'is-off' : '') + '"></i></p>'
+      + '<div class="ftf-row"><button type="button" class="ftf-side' + (s.side === 'left' ? ' is-on' : '') + '" data-f="left" aria-label="左侧">' + SV.nurse + '<small>左</small></button>'
       + '<span class="ftf-big" data-fv="cur">' + Util.fmtClock(s.side === 'left' ? s.L : s.R).replace(/^0(\d:)/, '$1') + '</span>'
-      + '<button type="button" class="ftf-side' + (s.side === 'right' ? ' is-on' : '') + '" data-f="right" aria-label="右侧">' + icon('breast') + '<small>右</small></button></div>'
+      + '<button type="button" class="ftf-side' + (s.side === 'right' ? ' is-on' : '') + '" data-f="right" aria-label="右侧">' + SV.nurse + '<small>右</small></button></div>'
       + '<div class="ftf-stats">'
       + '<label class="ftf-st ftf-start"><i>' + SV.clock + '</i><b>' + hm(ms(t.start)) + ' <em>' + SV.pen + '</em></b><span>开始</span>'
       + '<input type="time" data-f="start" value="' + hm(ms(t.start)) + '" aria-label="修改开始时刻"></label>'
       + '<div class="ftf-st"><i>' + SV.clock + '</i><b data-fv="tot">' + Util.fmtClock(s.T).replace(/^0(\d:)/, '$1') + '</b><span>总计</span></div>'
-      + '<div class="ftf-st"><i>' + icon('breast') + '</i><b data-fv="oth">' + Util.fmtClock(other === 'left' ? s.L : s.R).replace(/^0(\d:)/, '$1') + '</b><span>' + (other === 'left' ? '左侧' : '右侧') + '</span></div>'
+      + '<div class="ftf-st"><i>' + SV.nurse + '</i><b data-fv="oth">' + Util.fmtClock(other === 'left' ? s.L : s.R).replace(/^0(\d:)/, '$1') + '</b><span>' + (other === 'left' ? '左侧' : '右侧') + '</span></div>'
       + '</div>'
       + '<div class="ftf-ctl"><button type="button" class="ftf-rb" data-f="swap" aria-label="换到' + (other === 'left' ? '左' : '右') + '侧">' + SV.swap + '</button>'
       + '<button type="button" class="ftf-main-btn" data-f="pause">' + (s.paused ? '继续' : '暂停') + '</button>'
@@ -323,6 +325,7 @@
       else { settle(t, now); t.paused = true; }
     }
     Storage.save();
+    if (Util.haptic) Util.haptic('ok');
     if (fullEl) paintFull();
     if (global.App && App.currentTab && App.currentTab() === 'breast') App.rerender();
   }
@@ -461,9 +464,9 @@
       var html = '';
 
       var sum = todayL.length
-        ? '今天亲喂了 <b>' + esc(fmtSec(todaySec).replace(/钟$/, ' 分钟').replace(/分$/, ' 分钟')) + '</b>，共 <b>' + todayL.length + '</b> 次。'
+        ? '今天亲喂了 <b>' + esc(fmtSec(todaySec)) + '</b>，共 <b>' + todayL.length + '</b> 次。'
         : '今天还没有<b>亲喂</b>记录。';
-      if (last) sum += ' 上次：<b>' + esc(Util.fmtAgo(last.start).replace(/\s/g, '')) + '</b>';
+      if (last) sum += '上次：<b>' + esc(Util.fmtAgo(last.start).replace(/\s/g, '')) + '</b>';
       html += '<div class="mod-sum ft-sum"><span class="ms-k">摘要</span><p>' + sum + '</p></div>';
 
       /* 洞察 */
@@ -482,20 +485,21 @@
           }), dayNow, '近 7 天亲喂次数');
         }
         cntHtml += '<p class="hint">每天亲喂的次数。只和宝宝自己比就好。</p>';
-        html += insightChips([{ ico: icon('breast'), t: '左右侧', html: sideHtml }, { ico: icon('clock'), t: '近 7 天', html: cntHtml }]);
+        html += insightChips([{ ico: SV.nurse, t: '左右侧', html: sideHtml }, { ico: icon('clock'), t: '近 7 天', html: cntHtml }]);
       }
 
       html += timeline(list, DS, '最近亲喂记录', function (r) {
         var s = breastSec(r), parts = [];
-        if (s.legacy) parts.push(fmtMin(s.T / 60));
+        var cm = function (sec, exact) { return exact ? fmtSec(sec) : fmtMin(sec / 60).replace(/\s/g, ''); };
+        if (s.legacy) parts.push(cm(s.T));
         else {
-          parts.push(r.secL != null || r.secR != null ? fmtSec(s.T) : fmtMin(s.T / 60));
-          if (s.L) parts.push('左 ' + (r.secL != null ? fmtSec(s.L) : fmtMin(s.L / 60)));
-          if (s.R) parts.push('右 ' + (r.secR != null ? fmtSec(s.R) : fmtMin(s.R / 60)));
+          parts.push(cm(s.T, r.secL != null || r.secR != null));
+          if (s.L) parts.push('左' + cm(s.L, r.secL != null));
+          if (s.R) parts.push('右' + cm(s.R, r.secR != null));
         }
         if (r.note) parts.push(r.note);
         return { title: '亲喂', sub: parts.join(' · ') };
-      }, function () { return icon('breast'); }, 'tl-f-breast');
+      }, function () { return SV.nurse; }, 'tl-f-breast');
       if (!list.length) html += '<div class="mod-empty"><p>点「开始亲喂」边喂边计时，左右侧随时切换。<br>喂完了才想起来？点右边的 ⊕ 补记。</p></div>';
 
       /* 底部：计时中显示迷你条，否则「开始亲喂 | ⊕」 */
@@ -503,7 +507,7 @@
       if (t) {
         var s = tState(t, Date.now());
         html += '<div class="mod-cta ft-cta"><div class="ft-mini" data-accent="breast">'
-          + '<button type="button" class="ft-mini-open" data-mini="open" aria-label="打开计时">' + icon('breast')
+          + '<button type="button" class="ft-mini-open" data-mini="open" aria-label="打开计时">' + SV.nurse
           + '<b data-mini-cur>' + Util.fmtClock(s.T).replace(/^0(\d:)/, '$1') + '</b></button>'
           + '<span class="ft-mini-side">' + (s.paused ? '暂停' : (s.side === 'left' ? '左' : '右')) + '</span>'
           + '<button type="button" class="ft-mini-b" data-mini="swap" aria-label="换边">' + SV.swap + '</button>'
@@ -519,7 +523,7 @@
       bindTimeline(view, d);
       var lastB = list.filter(function (r) { return r.side === 'left' || r.side === 'right'; })[0];
       var sb = view.querySelector('[data-start]');
-      if (sb) sb.addEventListener('click', function () { startTimer(d, lastB); global.App.rerender(); openFull(); });
+      if (sb) sb.addEventListener('click', function () { startTimer(d, lastB); if (Util.haptic) Util.haptic('ok'); global.App.rerender(); openFull(); });
       var mb = view.querySelector('[data-manual]');
       if (mb) mb.addEventListener('click', function () { openManualBreast(d); });
       Array.prototype.forEach.call(view.querySelectorAll('[data-mini]'), function (b) {
@@ -685,7 +689,7 @@
       var sum = todayL.length
         ? '今天瓶喂了 <b>' + todayL.length + '</b> 次，共 <b>' + todayMl + ' mL</b>。'
         : '今天还没有<b>瓶喂</b>记录。';
-      if (last) sum += ' 上次：<b>' + esc(Util.fmtAgo(last.start).replace(/\s/g, '')) + '</b>';
+      if (last) sum += '上次：<b>' + esc(Util.fmtAgo(last.start).replace(/\s/g, '')) + '</b>';
       html += '<div class="mod-sum ft-sum"><span class="ms-k">摘要</span><p>' + sum + '</p></div>';
 
       if (list.length) {
