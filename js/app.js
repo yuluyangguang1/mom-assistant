@@ -1575,6 +1575,7 @@
     Util.bindLongPressCopy(); /* 第 87 次：列表行长按复制该条记录（全局委托，一次绑定） */
     showOnboarding();
     maybeWeeklyReview();
+    if (global.Boot) Boot.done(); /* 第 259 次：首页画好后播启动动画 */
   }
 
   /* 备份提醒：**已从首页撤除**（第 145 次）。

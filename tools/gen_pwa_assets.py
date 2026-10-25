@@ -13,7 +13,8 @@ FONT_CSS = ("@font-face{font-family:S;src:url(data:font/woff;base64,%s)}" % base
 # (CSS 宽, CSS 高, 像素比) —— 覆盖 iPhone SE 2 起的竖屏机型
 DEVICES = [(375, 667, 2), (414, 896, 2), (375, 812, 3), (414, 896, 3), (390, 844, 3), (428, 926, 3),
            (393, 852, 3), (430, 932, 3), (402, 874, 3), (440, 956, 3), (420, 912, 3)]
-THEMES = {'light': ('#FDF9F4', '#5B4A3E', '#9A8B7E'), 'dark': ('#221E1A', '#EDE3D8', '#A89A8C')}
+# 第 259 次：iOS 启动图不认 prefers-color-scheme，只取第一张匹配的 → 只出一套深暖棕底（与 #boot 动画层同色同布局）
+THEMES = {'boot': ('#221E1A', '#EDE3D8', '#A89A8C')}
 
 SPLASH = """<html><head><style>%s
 html,body{margin:0;height:100%%;background:%s;font-family:S,sans-serif}
@@ -35,7 +36,7 @@ with sync_playwright() as pw:
             pg.set_content(SPLASH % (FONT_CSS, bg, ink, sub, LOGO)); pg.wait_for_timeout(150)
             fn = 'assets/splash/%s-%dx%d.png' % (name, w * dpr, h * dpr)
             pg.screenshot(path=str(ROOT / fn)); pg.close()
-            links.append('  <link rel="apple-touch-startup-image" media="(device-width: %dpx) and (device-height: %dpx) and (-webkit-device-pixel-ratio: %d) and (orientation: portrait) and (prefers-color-scheme: %s)" href="%s">' % (w, h, dpr, name, fn))
+            links.append('  <link rel="apple-touch-startup-image" media="(device-width: %dpx) and (device-height: %dpx) and (-webkit-device-pixel-ratio: %d) and (orientation: portrait)" href="%s">' % (w, h, dpr, fn))
     # 快捷菜单图标：模块主题色（亮色主题值）圆角方块 + 白色线性图标（SVG 取自 js/icons.js，与 App 内一致），透明圆角
     pg = b.new_page(viewport={'width': 400, 'height': 400})
     pg.goto((ROOT / 'index.html').as_uri()); pg.wait_for_timeout(600)
