@@ -107,8 +107,14 @@
         html += '<p class="hint">「大姨妈」和恶露是两回事：月经从起到净一般不超过 8 天，第 1–2 天最多、之后迅速减少。</p></div>';
       }
 
+      /* 第 220 次：已经又怀孕了（孕周有效）——不再讲「哺乳期复潮 / 避孕」，改为一句孕期说明 */
+      var pregWk220 = (global.App && typeof App.pregnancyWeekOf === 'function') ? App.pregnancyWeekOf(Storage.get()) : null;
+      if (pregWk220 !== null) {
+        html += '<div class="card info-card"><h2>孕期中</h2><p class="hint">现在是孕 ' + pregWk220 + ' 周，孕期一般不会来月经。如果出现阴道出血，请及时联系产检医生。孕周和产检在「孕期」页。</p></div>';
+      }
+
       /* E1-哺乳期等待期（产后 43 天–1 年、未复潮）：解读 + 避孕常识 + 补铁（知识陈述，不做工具） */
-      if (dsb !== null && dsb > 42 && dsb <= 365 && !postRecords.length) {
+      if (pregWk220 === null && dsb !== null && dsb > 42 && dsb <= 365 && !postRecords.length) {
         html += '<div class="card info-card"><h2>哺乳期与月经</h2>';
         [ 'KN-PER-4', 'KN-PER-5', 'KN-PER-6' ].forEach(function (id) {
           var t = perText(id);

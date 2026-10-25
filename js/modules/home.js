@@ -145,6 +145,8 @@
   function pregnancyWeek(d) {
     var pg = d.pregnancy;
     if (!pg || !(pg.lmp || pg.dueDate)) return null;
+    /* 第 220 次：这次怀孕之后已经有宝宝出生 → 孕期结束，不再显示孕周 */
+    if (global.App && typeof App.pregnancyWeekOf === 'function' && App.pregnancyWeekOf(d) === null) return null;
     var base = pg.lmp || Util.addDays(pg.dueDate, -280);
     return Math.max(0, Math.floor(Util.daysBetween(base, Util.todayISO()) / 7));
   }
@@ -475,11 +477,11 @@
       var cardTiles = [];
       /* 第 211 次：小组件卡（喂奶/尿布/睡眠/哄睡声音）与快捷记录卡 */
       W_IDS.forEach(function (wid) {
-        if (wid === 'quick' && stageNow211 === 'pregnancy') return;
+        if (wid === 'quick' && stageNow211 === 'pregnancy' && !isDual(d)) return;
         cardTiles.push({ id: wid, _card: true, name: CARDS_META[wid].name, icon: CARDS_META[wid].icon });
       });
       DATA_IDS.forEach(function (cid) {
-        if (stageNow211 === 'pregnancy') return;
+        if (stageNow211 === 'pregnancy' && !isDual(d)) return;
         if (cid === 'w-age' && !bd) return;
         cardTiles.push({ id: cid, _card: true, name: CARDS_META[cid].name, icon: CARDS_META[cid].icon });
       });
@@ -772,7 +774,9 @@
          Knowledge 查询异常时返回 null，问候卡自动省略知识行，绝不影响渲染。 */
       function knowledgeLine() {
         var hit = null;
-        if (wk !== null) {
+        /* 第 220 次：二胎孕期时问候卡展示的是大宝，小知识也跟大宝走（孕周看「孕期」磁贴），
+           避免「5 个月 5 天」下面接一句「宝宝的主要器官正在成型」 */
+        if (wk !== null && !isDual(d)) {
           hit = Knowledge.pick('home', { stage: 'pregnancy', wk: wk });
         } else if (ageDays !== null && ageDays >= 0 && ageDays <= 730) {
           hit = Knowledge.pick('home', { stage: 'baby', ageDays: ageDays });
@@ -921,7 +925,7 @@
         if (CK) runs.push({ k: 'care', ico: CK[1], label: CK[0], os: d.openCare, go: CK[1] });
       }
       var nowStage = (global.App && typeof App.stageOf === 'function') ? App.stageOf(d) : 'baby';
-      var showQuick = nowStage !== 'pregnancy';
+      var showQuick = nowStage !== 'pregnancy' || isDual(d); /* 第 220 次：二胎孕期照样要给大宝快记 */
       if (runs.length) {
         html += '<div class="home-now">';
         runs.forEach(function (r) {
@@ -1897,14 +1901,17 @@
   /* 第 211 次：默认卡片组合与默认大小。小组件、模块卡默认半宽；快捷记录与各类记录卡整排。 */
   var DEFAULTS = {
     baby: ['quick', 'w-feed', 'w-diaper', 'w-sleep', 'w-noise', 'growthspark', 'feednext'],
-    pregnancy: ['pregnancy', 'fetal', 'contraction', 'packing', 'mood', 'w-noise']
+    pregnancy: ['pregnancy', 'fetal', 'contraction', 'packing', 'mood', 'w-noise'],
+    /* 第 220 次：大宝已出生 + 又怀孕——孕期两张 + 大宝的每日记录 */
+    dual: ['pregnancy', 'fetal', 'quick', 'w-feed', 'w-diaper', 'w-sleep', 'w-noise', 'growthspark', 'feednext']
   };
+  function isDual(d) { return !!(global.App && typeof App.isDualStage === 'function' && App.isDualStage(d)); }
   function defSize(id) {
     if (id === 'quick' || id === 'growthspark' || id === 'feednext' || id === 'w-today' || id === 'w-week-feed' || id === 'w-week-sleep' || /^(rec|last)-/.test(id)) return 'l';
     return 's';
   }
   function defaultLayout(d) {
-    var ids = DEFAULTS[editStage(d) === 'pregnancy' ? 'pregnancy' : 'baby'];
+    var ids = DEFAULTS[isDual(d) ? 'dual' : (editStage(d) === 'pregnancy' ? 'pregnancy' : 'baby')];
     return {
       items: ids.map(function (id) { return { id: id, size: defSize(id) }; }),
       removed: UNIVERSE().filter(function (id) { return ids.indexOf(id) < 0 && !CARDS_META[id]; })

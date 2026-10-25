@@ -182,6 +182,11 @@
       if (!base) return { status: '填写末次月经或预产期' };
       var el = Util.daysBetween(base, Util.todayISO());
       if (el < 0) return { status: '填写末次月经或预产期' };
+      /* 第 220 次：这次怀孕之后已有宝宝出生 → 孕期已结束 */
+      if (window.App && typeof App.pregnancyWeekOf === 'function' && App.pregnancyWeekOf(d) === null
+        && [(d.settings.baby || {}).birthDate].concat((d.babies || []).map(function (b) { return b && b.birthDate; })).some(function (x) { return x && x >= base; })) {
+        return { status: '孕期已结束', ring: 1 };
+      }
       if (el > 280) return { status: '已过预产期 ' + (el - 280) + ' 天', ring: 1 }; /* 第 193 次：不再显示「孕 43 周」 */
       return { status: '孕 ' + Math.floor(el / 7) + ' 周 ' + (el % 7) + ' 天', ring: Math.min(1, el / 280) };
     },

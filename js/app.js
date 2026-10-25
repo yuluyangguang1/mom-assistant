@@ -506,12 +506,33 @@
     if (st === 'pregnancy' || st === 'baby') return st;
     return (pregnancyWeekOf(s) !== null) ? 'pregnancy' : 'baby';
   }
-  function pregnancyWeekOf(s) {
+  /* 第 220 次（大宝已出生 + 又怀孕）：
+     · 孕期起点 = 末次月经（或预产期 −280 天）；
+     · 任何一个宝宝的生日 ≥ 这个起点 → 这次怀孕已经生了，不再算孕期（首胎生完也一样）；
+     · 有宝宝生日 < 起点、且孕周在 0–45 → 「二胎孕期」：大宝的育儿工具和孕期工具同时要用。 */
+  function pregBase(s) {
     var pg = s.pregnancy || {};
-    var base = pg.lmp || (pg.dueDate ? Util.addDays(pg.dueDate, -280) : null);
+    return pg.lmp || (pg.dueDate ? Util.addDays(pg.dueDate, -280) : null);
+  }
+  function birthDates(s) {
+    var out = [];
+    var sb = s.settings && s.settings.baby;
+    if (sb && sb.birthDate) out.push(sb.birthDate);
+    (s.babies || []).forEach(function (b) { if (b && b.birthDate) out.push(b.birthDate); });
+    return out;
+  }
+  function pregnancyWeekOf(s) {
+    var base = pregBase(s);
     if (!base) return null;
+    if (birthDates(s).some(function (bd) { return bd >= base; })) return null;
     var wk = Math.floor(Util.daysBetween(base, Util.todayISO()) / 7);
     return (wk >= 0 && wk <= 45) ? wk : null;
+  }
+  function isDualStage(s) {
+    var base = pregBase(s);
+    if (!base || pregnancyWeekOf(s) === null) return false;
+    var today = Util.todayISO();
+    return birthDates(s).some(function (bd) { return bd < base && bd <= today; });
   }
 
   /* ---------------- 首次引导（O 系列规范） ----------------
@@ -1168,6 +1189,7 @@
     _countRecords: countRecords, /* QA：导入差异预览的计数函数（导出前确认共用） */
     stageOf: stageOf, /* 阶段判定（settings.stage 优先，缺省回落到客观数据） */
     pregnancyWeekOf: pregnancyWeekOf,
+    isDualStage: isDualStage, /* 第 220 次：大宝已出生 + 又怀孕 */
     setStage: function (st) {
       if (st !== 'pregnancy' && st !== 'baby' && st !== null) return;
       Storage.get().settings.stage = st;

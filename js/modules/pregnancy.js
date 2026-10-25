@@ -33,7 +33,8 @@
       /* 第 193 次：已过预产期的天数（>0 才算过），页内改说「已过预产期 N 天」而不是「第 43 周」 */
       over: elapsed > 280 ? elapsed - 280 : 0,
       percent: Math.min(100, Math.round(elapsed / 280 * 100)),
-      due: pg.dueDate
+      /* 第 220 次：只填了末次月经时，预产期按 +280 天算出来显示，不再写「未设置」 */
+      due: pg.dueDate || (pg.lmp ? Util.addDays(pg.lmp, 280) : null)
     };
   }
 
@@ -91,13 +92,22 @@
       html += '<p class="hint">预产期 = 末次月经 + 280 天（40 周）。只填你手上有的那一个，另一个自动算。</p></div>';
 
       var cw = currentWeek();
+      /* 第 220 次：这次怀孕之后已经有宝宝出生（生日 ≥ 末次月经）→ 孕期已结束，不再显示「已过预产期 N 天」 */
+      var d220 = Storage.get(), base220 = pg.lmp || (pg.dueDate ? Util.addDays(pg.dueDate, -280) : null);
+      var born220 = base220 ? [(d220.settings.baby || {}).birthDate].concat((d220.babies || []).map(function (b) { return b && b.birthDate; }))
+        .filter(function (x) { return x && x >= base220; }).sort().pop() : null;
+      if (born220) {
+        html += '<div class="card"><h2>这次孕期已结束</h2><p class="hint">宝宝 ' + Util.escapeHtml(Util.fmtDate(born220)) + ' 出生，孕期记录都还在。如果又怀孕了，改成新的末次月经或预产期就会重新开始计算孕周。</p></div>';
+        cw = null;
+      }
       if (cw) {
         html += '<div class="card"><h2>当前进度</h2><ul class="kv">';
         html += cw.over ? '<li>状态：<b>已过预产期 ' + cw.over + ' 天</b></li>'
           : '<li>孕周：<b>第 ' + cw.week + ' 周 + ' + cw.day + ' 天</b></li>';
         html += '<li>预产期：' + (cw.due ? Util.fmtDate(cw.due) : '未设置') + '</li>';
         html += '</ul><div class="progress"><div class="progress-bar" style="width:' + cw.percent + '%"></div></div>';
-        html += cw.over ? '<p class="hint">宝宝已经出生的话，设置宝宝生日就会切换到育儿工具，孕期的记录都会保留。</p></div>'
+        var dual220 = global.App && typeof App.isDualStage === 'function' && App.isDualStage(Storage.get());
+        html += cw.over ? '<p class="hint">' + (dual220 ? '二宝已经出生的话，去「设置 · 称呼与阶段 · 宝宝档案」添加二宝并填生日，孕期就会自动结束，记录都会保留。' : '宝宝已经出生的话，设置宝宝生日就会切换到育儿工具，孕期的记录都会保留。') + '</p></div>'
           : '<p class="hint">进度 ' + cw.percent + '%</p></div>';
       } else {
         html += '<div class="card"><p class="hint">设置末次月经或预产期后显示孕周进度。</p></div>';
