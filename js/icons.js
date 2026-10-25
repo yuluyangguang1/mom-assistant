@@ -223,6 +223,33 @@
       '<path d="M8.2 11l7.1-3.7M8.2 13l7.1 3.7"/>'
   };
   for (var vk in V2) if (V2.hasOwnProperty(vk)) ICONS[vk] = V2[vk];
+  /* 第 236 次：dock 专用图标——线更粗、轮廓更圆；色块带 .dk-f，平时很淡，选中时加深（像 iOS 的空心→实心） */
+  function F(d) { return '<path class="dk-f" d="' + d + '" fill="currentColor" stroke="none"/>'; }
+  var DK = {
+    'dk-home': F('M6.2 9.6 12 5.1l5.8 4.5v9a1.6 1.6 0 0 1-1.6 1.6H7.8a1.6 1.6 0 0 1-1.6-1.6Z') +
+      '<path d="M4 10.6 11 5a1.6 1.6 0 0 1 2 0l7 5.6"/>' +
+      '<path d="M6.2 9.4v9.2a1.6 1.6 0 0 0 1.6 1.6h8.4a1.6 1.6 0 0 0 1.6-1.6V9.4"/>' +
+      '<path d="M10 20.2v-3.4a2 2 0 0 1 4 0v3.4"/>',
+    'dk-cal': F('M7 5.5h10a3 3 0 0 1 3 3V10H4V8.5a3 3 0 0 1 3-3Z') +
+      '<rect x="4" y="5.5" width="16" height="14.7" rx="3"/>' +
+      '<path d="M8.5 3.6v3.6M15.5 3.6v3.6M4 10h16"/>' +
+      '<circle cx="8.5" cy="14" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r="1" fill="currentColor" stroke="none"/>' +
+      '<circle cx="15.6" cy="16.6" r="1.7"/>',
+    'dk-search': F('M10.8 4.5a6.3 6.3 0 1 1 0 12.6 6.3 6.3 0 0 1 0-12.6Z') +
+      '<circle cx="10.8" cy="10.8" r="6.3"/>' +
+      '<path d="M15.6 15.6 19.8 19.8"/>' +
+      '<path d="M8 9.6a3.1 3.1 0 0 1 2.4-2.1"/>',
+    'dk-gear': F('M12 3.6l1.6 1.9 2.4-.6.8 2.4 2.4.8-.6 2.4 1.9 1.5-1.9 1.6.6 2.4-2.4.8-.8 2.4-2.4-.6L12 20.4l-1.6-1.9-2.4.6-.8-2.4-2.4-.8.6-2.4L3.6 12l1.8-1.5-.6-2.4 2.4-.8.8-2.4 2.4.6Z') +
+      '<path d="M12 3.6l1.6 1.9 2.4-.6.8 2.4 2.4.8-.6 2.4 1.9 1.5-1.9 1.6.6 2.4-2.4.8-.8 2.4-2.4-.6L12 20.4l-1.6-1.9-2.4.6-.8-2.4-2.4-.8.6-2.4L3.6 12l1.8-1.5-.6-2.4 2.4-.8.8-2.4 2.4.6Z"/>' +
+      '<circle cx="12" cy="12" r="3"/>',
+    'dk-back': '<path d="M14.6 5.6 8.2 12l6.4 6.4"/>',
+    'dk-plus': '<path d="M12 5.6v12.8M5.6 12h12.8"/>',
+    play: '<path d="M8.2 5.9v12.2a.9.9 0 0 0 1.4.75l9.3-6.1a.9.9 0 0 0 0-1.5L9.6 5.15a.9.9 0 0 0-1.4.75Z" fill="currentColor" stroke="none"/>',
+    pause: '<rect x="6.8" y="5.5" width="3.6" height="13" rx="1.4" fill="currentColor" stroke="none"/><rect x="13.6" y="5.5" width="3.6" height="13" rx="1.4" fill="currentColor" stroke="none"/>',
+    chevron: '<path d="M9.5 6l6 6-6 6"/>'
+  };
+  for (var dk in DK) if (DK.hasOwnProperty(dk)) ICONS[dk] = DK[dk];
+
 
   /* bottle 与 feeding 共用同一枚奶瓶图标，消除重复定义（feeding.js 仍按类型取 bottle 图标） */
   ICONS.bottle = ICONS.feeding;

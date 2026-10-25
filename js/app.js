@@ -10,10 +10,14 @@
   var Modules = global.Modules = global.Modules || {};
 
   // 底部导航栏只保留 2 个主入口；其余功能模块（首页磁贴现为 13 个，含白噪音）统一在「首页-全部功能」网格中一键直达（2026-09-19 精简）
+  /* 第 236 次：dock 一级页签 = 首页 / 日期记录 / 搜索 / 设置（搜索从首页右上角搬进来，设置从齿轮钮变成正式页签） */
   var TABS = [
-    { id: 'home', title: '首页' },
-    { id: 'calendar', title: '日期记录' }
+    { id: 'home', title: '首页', ico: 'dk-home' },
+    { id: 'calendar', title: '日期记录', ico: 'dk-cal' },
+    { id: 'search', title: '搜索', ico: 'dk-search' },
+    { id: 'settings', title: '设置', ico: 'dk-gear' }
   ];
+  function isTopTab(id) { return id === 'home' || id === 'calendar' || id === 'search' || id === 'settings'; }
 
   var current = 'home';
 
@@ -93,7 +97,7 @@
       b.type = 'button';
       /* 第 141 次：底栏统一为「纯图标」——页签不再带文字。
          文字去掉后必须补 aria-label，否则读屏只剩一个无名按钮。 */
-      b.innerHTML = icon(t.id);
+      b.innerHTML = icon(t.ico || t.id);
       b.setAttribute('aria-label', t.title);
       b.setAttribute('title', t.title);
       b.setAttribute('data-tab', t.id);
@@ -110,7 +114,7 @@
       var dd = Storage.get();
       slot = (dd && dd.settings) ? dd.settings.dockSlot : null;
     } catch (e) { /* 存储未就绪时不出槽位，两页签照常 */ }
-    if (slot && Modules[slot] && slot !== current) {
+    if (slot && Modules[slot] && slot !== current && !isTopTab(slot) && (global.innerWidth || 400) >= 380) {
       var sb = document.createElement('button');
       sb.className = 'tab tab-slot';
       sb.type = 'button';
@@ -132,20 +136,18 @@
     plus.setAttribute('aria-label', '快速记录');
     plus.setAttribute('title', '快速记录');
     /* 第 141 次：＋ 去掉「快记」文字，并挪到胶囊最右（原来是 ＋ 后面还跟设置/返回） */
-    plus.innerHTML = icon('plus');
+    plus.innerHTML = icon('dk-plus');
     plus.addEventListener('click', function () {
       var f = document.getElementById('qdFab');
       if (f && f.click) f.click();
     });
-    if (gearEl) { gearEl.classList.add('dock-btn'); bar.appendChild(gearEl); }
+    /* 第 236 次：设置已是页签，原齿轮钮留在 DOM 里但不再显示（id 和绑定照旧，老测试/外部调用不受影响） */
+    if (gearEl) { gearEl.classList.add('dock-btn'); gearEl.hidden = true; bar.appendChild(gearEl); }
     /* 返回在 ＋ 之前：二级页里 CSS 让「返回靠左、＋ 靠右」，DOM 顺序即视觉顺序 */
     if (backEl) { backEl.classList.add('dock-btn'); bar.appendChild(backEl); }
-    /* 第 208 次：白噪音播放中，底栏里多一个「正在播放」入口（一级页是圆形缩略图，二级页展开成名字 + 剩余时间） */
-    try {
-      var nowEl = Modules.whitenoise && Modules.whitenoise._dockNode && Modules.whitenoise._dockNode();
-      if (nowEl) bar.appendChild(nowEl);
-    } catch (e) { /* 白噪音模块异常不影响底栏 */ }
     bar.appendChild(plus);
+    /* 第 236 次：所有计时（含白噪音）统一放到 dock 上方的「正在进行」胶囊 */
+    try { if (global.DockLive) DockLive.render(); } catch (e) { /* 胶囊异常不影响底栏 */ }
     if (hand === 'normal') {
       try { document.documentElement.style.setProperty('--dock-h', '0px'); } catch (e) {}
       bar.style.left = ''; bar.style.right = ''; bar.style.top = ''; bar.style.bottom = ''; bar.style.transform = '';
@@ -187,7 +189,7 @@
   var _vtBusy = false;
   var _swipeBackT = 0; /* 自定义侧滑返回已经自己推出整屏，紧随其后的切页不再叠一次系统转场 */
   function navKind(prevId, id) {
-    var top = function (x) { return x === 'home' || x === 'calendar' || x === 'settings'; };
+    var top = isTopTab;
     if (!prevId || prevId === id) return '';
     if (top(prevId) && !top(id)) return 'push';
     if (!top(prevId) && top(id)) return 'pop';
@@ -226,12 +228,13 @@
        首页/日历/设置互切是平级，不登记（否则侧滑会退到另一顶层页，行为怪异）。
        rerender 走 silent 路径且id 不变，这里由opts.silent 挡住，不会重复推栈。
 
+       第 236 次：search 进了 dock，改算顶层（与日期记录、设置同级）；alltools 仍是子页。
        第 118 次：alltools（全部功能）与 search（全局搜索）**刻意不算顶层**。
        它们是从首页推入的子页，必须走「非顶层」这条分支才能同时拿到
        两件事——① 被 pushHistory 登记（侧滑/返回键可退回首页）
        ② 顶栏显示返回按钮。把它们当顶层会让用户进得去出不来。 */
-    var isTopLevel = (id === 'home' || id === 'calendar' || id === 'settings');
-    var wasTopLevel = (prevId === 'home' || prevId === 'calendar' || prevId === 'settings');
+    var isTopLevel = isTopTab(id);
+    var wasTopLevel = isTopTab(prevId);
     if (!(opts && opts.silent) && !isTopLevel && wasTopLevel) {
       pushHistory(id);
     }
@@ -269,14 +272,14 @@
     /* 返回按钮 + 日期收起态（第 42 次）：模块页显示返回，回到首页则隐藏。
        底栏两个页签（首页/日期记录）之外的任何页，都需要一个就近的返回出口。 */
     var backBtn = document.getElementById('backBtn');
-    if (backBtn) backBtn.hidden = (id === 'home' || id === 'calendar' || id === 'settings') && !subExit;    /* 用 add/remove 而非 classList.toggle(cls, force)：测试桩的 toggle 不接受 force 参数，
+    if (backBtn) backBtn.hidden = isTopTab(id) && !subExit;    /* 用 add/remove 而非 classList.toggle(cls, force)：测试桩的 toggle 不接受 force 参数，
        会退化成「反转」，连续进两次同一页就把类删掉了。 */
     /* 第 135 次（底部胶囊 dock）：二级页收起整条胶囊，只留返回钮。
        判据与 backBtn 完全同源——不另立一套「什么算二级页」的规则，
        否则两处口径迟早分叉（返回钮在、胶囊不收，或反过来）。 */
     var dockBar = document.getElementById('tabbar');
     if (dockBar) {
-      var isSub = (id !== 'home' && id !== 'calendar' && id !== 'settings') || !!subExit;
+      var isSub = !isTopTab(id) || !!subExit;
       if (isSub) dockBar.classList.add('is-sub'); else dockBar.classList.remove('is-sub');
     }
     if (id !== 'home') document.body.classList.add('in-module');
@@ -1448,7 +1451,7 @@
        图标在这里注入；显示/隐藏仍由 showTab 切 hidden。 */
     var backBtn = document.getElementById('backBtn');
     if (backBtn) {
-      backBtn.innerHTML = icon('back');
+      backBtn.innerHTML = icon('dk-back');
       /* 第 116 次：返回按钮改走 popHistory —— 与侧滑、系统返回键同一条出口。
          旧写法是 showTab('home')，会留下一条悬空 history 记录，
          导致按一次返回后，再按系统返回又「弹回」刚才那个模块。 */
@@ -1608,7 +1611,7 @@
      ② 底栏切成二级态（返回 + ＋）；③ 返回时回调模块的 onExit 收起二级内容。 */
   var subExit = null;
   function syncSubDock() {
-    var top = (current === 'home' || current === 'calendar' || current === 'settings');
+    var top = isTopTab(current);
     var bb = document.getElementById('backBtn');
     if (bb) bb.hidden = top && !subExit;
     var bar = document.getElementById('tabbar');

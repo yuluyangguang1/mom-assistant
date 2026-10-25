@@ -2634,7 +2634,7 @@ body .tabbar .tab-plus {
   color: var(--on-primary);
   box-shadow: var(--shadow-card);
 }
-body .tabbar .tab-plus .ico { width: 22px; height: 22px; color: var(--on-primary); }
+body .tabbar .tab-plus .ico { width: 22px; height: 22px; color: var(--on-primary); stroke-width: 2.3; }
 body .tabbar .tab-plus > span { display: none; }   /* 圆钮里只放图标，不放文字 */
 body .tabbar .tab-plus:active { transform: scale(.9); }
 
@@ -2893,7 +2893,7 @@ body .tabbar.is-sub {
   padding: 6px;
   /* ↑ 第 171 次：同名选择器合并到此处 */
   padding: 6px 8px;
-  min-width: 152px;
+  min-width: 168px; /* 第 236 次：中间多了搜索 */
   justify-content: space-between;
 }
 body .tabbar.is-sub .tab {
@@ -2905,7 +2905,7 @@ body .tabbar.is-sub #settingsBtn {
   display: none;
   /* ↑ 第 171 次：同名选择器合并到此处 */ display: none; }
 body .tabbar.is-sub #backBtn {
-  display: inline-flex;
+  display: inline-flex; order: -1; /* 第 236 次：返回在最左 */
   /* ↑ 第 171 次：同名选择器合并到此处 */ display: inline-flex; }
 
 /* ============================================================
@@ -2977,23 +2977,6 @@ body.dock-left .view, body.dock-right .view { padding-bottom: calc(var(--dock-h,
    第 146 次（P0-3 / P0-4）：首页首屏「此刻」条——进行中计时 + 零表单快记。
    单层：不套卡片，与下方「上次喂奶 | 上次尿布」双列卡同一套 surface/border/radius。
    ============================================================ */
-.home-now { margin: 0 0 var(--space-md); display: flex; flex-direction: column; gap: 8px; }
-.hn-run {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 8px 6px 4px;
-  background: var(--tile-weak, var(--surface)); border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-}
-.hn-run-main {
-  flex: 1; min-width: 0; min-height: 44px;
-  display: flex; align-items: center; gap: 8px; padding: 0 8px;
-  background: none; border: 0; font: inherit; color: var(--text); text-align: left; cursor: pointer;
-}
-.hn-run-main .ico { width: 22px; height: 22px; color: var(--tile-text, var(--primary)); flex: none; }
-.hn-elapsed { margin-left: auto; font-size: calc(20px * var(--fs-mul, 1)); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--tile-text, var(--text)); }
-.hn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tile, var(--primary)); flex: none; animation: hnPulse 1.6s ease-in-out infinite; }
-@keyframes hnPulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .hn-dot { animation: none; } }
 .hn-quick { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 8px; }
 .hn-q {
   min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
@@ -3003,7 +2986,7 @@ body.dock-left .view, body.dock-right .view { padding-bottom: calc(var(--dock-h,
 }
 .hn-q .ico { width: 24px; height: 24px; color: var(--tile-text, var(--primary)); }
 .hn-q:active { transform: scale(.95); }
-.hn-q:focus-visible, .hn-run-main:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.hn-q:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .hn-tgt { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: var(--fs-sm); color: var(--muted); }
 .hn-tgt-b { min-height: 30px; padding: 0 12px; border-radius: var(--radius-pill); border: 1px solid var(--border); background: transparent; color: var(--text); font: inherit; font-size: var(--fs-sm); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hn-tgt-b.on { background: var(--tile-feeding-weak, rgba(90,160,150,.14)); border-color: var(--feeding, #5AA096); color: var(--feeding-ink, var(--text)); font-weight: 600; }
@@ -3015,10 +2998,6 @@ body.dock-left .view, body.dock-right .view { padding-bottom: calc(var(--dock-h,
 .birth-field .hint { display: block; margin-top: 4px; }
 /* 第 146 次（P0-6）：疫苗「过了应种日还没记录」批量补记卡 */
 .vac-backfill { --bar-c: var(--warn); }
-.hn-run-label {
-  font-weight: 500; white-space: nowrap;
-  /* ↑ 第 171 次：同名选择器合并到此处 */ display: flex; flex-direction: column; line-height: 1.25; }
-.hn-stale { font-size: var(--fs-sm); color: var(--warn-text); font-weight: 400; }
 
 /* ============================================================
    第 146 次（P1 · 列表两行排版）：360 宽下「时间+类型」与「详情」挤在一行，
@@ -4095,16 +4074,6 @@ body.dark .record-grid > .record-tile.is-quick { background: linear-gradient(160
 .home-greet .hg-m { color: var(--hg-ink-2); }
 .hg-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-top: 4px; }
 .home-greet .hg-num { font-size: calc(76px * var(--fs-display-mul, 1)); line-height: .9; }
-.hg-search {
-  display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 4px;
-  border-radius: var(--radius-pill); border: 1px solid rgba(255, 255, 255, .45);
-  background: rgba(255, 255, 255, .38); color: var(--hg-ink); cursor: pointer;
-  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
-}
-.hg-search .ico { width: 20px; height: 20px; }
-html[data-sky-ink="light"] .hg-search, body.dark .hg-search { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .22); }
-.hg-search:active { transform: scale(.94); }
-.hg-search:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* 今日宝宝卡 */
 .today-baby {
@@ -4175,7 +4144,6 @@ html[data-sky-ink="light"] .hg-search, body.dark .hg-search { background: rgba(2
 /* 天空：日期行 + 搜索 */
 .hg-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .hg-top .hg-date { margin: 0; }
-.hg-top .hg-search { width: 38px; height: 38px; margin: 0; }
 .hg-day { display: flex; align-items: flex-end; gap: 12px; min-width: 0; }
 .hg-lunar { display: flex; flex-direction: column; gap: 3px; padding-bottom: 6px; color: var(--hg-ink); min-width: 0; }
 .hg-lunar i { font-style: normal; font-size: calc(12px * var(--fs-mul)); color: var(--hg-ink-2); letter-spacing: .04em; white-space: nowrap; }
@@ -4826,3 +4794,79 @@ body.hc .tabbar.lg::before { display: none; }
   body .tabbar.lg, body .tabbar.lg .lg-thumb { transition: none; }
   body .tabbar.lg.lg-press { scale: 1; }
 }
+
+/* ============================================================
+   第 236 次：dock 重新整理 + 「正在进行」胶囊
+   一级页（首页 / 日期记录 / 搜索 / 设置）：[宝宝] [首页 日期 搜索 设置] [＋]
+   二级页（各功能页）：[返回]  [搜索]  [＋]
+   所有计时都在 dock 正上方的玻璃胶囊里，任何页面都看得到、点得到。
+   ============================================================ */
+body .tabbar .tab .ico, body .tabbar .dock-btn .ico { stroke-width: 1.85; }
+.ico .dk-f { opacity: .12; transition: opacity .25s var(--ease); }
+body .tabbar .tab.active .ico .dk-f { opacity: .34; }
+body .tabbar .tab.active .ico { color: var(--primary); }
+/* 二级页：搜索留下，返回挪到最左 */
+body .tabbar.is-sub .tab[data-tab="search"] { display: inline-flex; }
+/* 窄屏（≤360）：六颗钮挤一挤间距，不缩命中区 */
+@media (max-width: 360px) {
+  body .tabbar.lg { padding-left: 6px; padding-right: 6px; gap: 0; }
+}
+
+.dock-live {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(10px + 62px + 10px + env(safe-area-inset-bottom));
+  z-index: 11;
+  display: flex; align-items: center; gap: 4px;
+  min-width: 248px; max-width: calc(100vw - 40px); width: max-content;
+  padding: 5px 6px 5px 6px; box-sizing: border-box;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface) 46%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.04);
+  backdrop-filter: blur(14px) saturate(190%) brightness(1.04);
+  box-shadow: inset 0 1.5px 1.5px -.5px rgba(255, 255, 255, .6), inset 0 0 0 .5px rgba(255, 255, 255, .45),
+    0 8px 24px -10px rgba(90, 74, 62, .35);
+  animation: dl-in .38s cubic-bezier(.34, 1.56, .64, 1);
+  transition: opacity .2s var(--ease), visibility .2s;
+}
+.dock-live[hidden] { display: none; }
+@keyframes dl-in { from { opacity: 0; transform: translateX(-50%) translateY(10px) scale(.94); } to { opacity: 1; transform: translateX(-50%); } }
+body.dark .dock-live {
+  background: color-mix(in srgb, var(--surface) 52%, transparent);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, .14), inset 0 0 0 .5px rgba(255, 255, 255, .12), 0 8px 24px -10px rgba(0, 0, 0, .6);
+}
+body.qd-open .dock-live { opacity: 0; visibility: hidden; }
+.dock-live button { font-family: inherit; border: none; background: none; cursor: pointer; color: var(--text); }
+.dl-main { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 6px 0 0; text-align: left; }
+.dl-ico {
+  position: relative; flex: none; width: 38px; height: 38px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--tile-weak, var(--primary-weak)); color: var(--tile, var(--primary));
+}
+.dl-ico .ico { width: 22px; height: 22px; margin: 0; color: inherit; }
+.dl-art { width: 100%; height: 100%; border-radius: 50%; background-size: cover; background-position: center; }
+.dl-pulse { position: absolute; right: -1px; top: -1px; width: 10px; height: 10px; border-radius: 50%; background: #E07A5F; box-shadow: 0 0 0 2px var(--surface); animation: dl-pulse 1.6s ease-in-out infinite; }
+.dock-live.is-paused .dl-pulse { animation: none; background: var(--muted); }
+@keyframes dl-pulse { 50% { transform: scale(.7); opacity: .55; } }
+.dl-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.dl-lbl { font-size: calc(12px * var(--fs-mul)); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dl-val { font-size: calc(17px * var(--fs-mul)); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.01em; white-space: nowrap; }
+.dl-act { flex: none; width: 44px; height: 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
+.dl-act .ico { width: 20px; height: 20px; margin: 0; color: var(--text); }
+.dl-act:active, .dl-main:active, .dl-cycle:active { transform: scale(.94); }
+.dl-act-txt { width: auto; padding: 0 16px; border-radius: var(--radius-pill); font-weight: 700; font-size: calc(14px * var(--fs-mul));
+  background: var(--tile, var(--primary)) !important; color: #FFF !important; height: 38px; }
+.dl-go .ico { color: var(--muted); }
+.dl-cycle { flex: none; min-width: 44px; height: 44px; padding: 0 4px; font-size: calc(12px * var(--fs-mul)); color: var(--muted) !important; font-variant-numeric: tabular-nums; }
+.dl-cycle b { color: var(--text); font-size: calc(14px * var(--fs-mul)); }
+/* 有胶囊时页面底部多留一截，最后一张卡不会被挡 */
+body.has-live .view { padding-bottom: calc(176px + env(safe-area-inset-bottom)); }
+/* 左右手竖排：胶囊贴底、让开竖条 */
+body.dock-left .dock-live { left: 84px; right: 12px; transform: none; bottom: calc(10px + env(safe-area-inset-bottom)); min-width: 0; width: auto; animation: none; }
+body.dock-right .dock-live { left: 12px; right: 84px; transform: none; bottom: calc(10px + env(safe-area-inset-bottom)); min-width: 0; width: auto; animation: none; }
+body.dock-left.has-live .view, body.dock-right.has-live .view { padding-bottom: calc(var(--dock-h, 262px) + 28px + env(safe-area-inset-bottom)); }
+@media (prefers-reduced-transparency: reduce) { .dock-live { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+body.hc .dock-live { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+@media (prefers-reduced-motion: reduce) { .dock-live, .dl-pulse { animation: none; } }
+/* 页面底部的悬浮主按钮（.mod-cta）在胶囊出现时一起上移，不叠在一起 */
+body.has-live .mod-cta { bottom: calc(154px + env(safe-area-inset-bottom)); }
+body.dock-left.has-live .mod-cta, body.dock-right.has-live .mod-cta { bottom: auto; }

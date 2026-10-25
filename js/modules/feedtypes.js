@@ -536,6 +536,7 @@
       if (t && fullEl) paintFull();
     },
     _openFull: openFull,
+    _act: function (k) { act(k); },
     _closeFull: closeFull,
     _state: tState,
     _fmtSec: fmtSec

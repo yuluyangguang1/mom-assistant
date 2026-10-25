@@ -817,7 +817,7 @@
         + '<div class="home-greet">'
         + '<div class="hg-top"><p class="hg-date"><span class="hg-m">' + (nowD.getMonth() + 1) + '月</span>' + DOW_FULL[nowD.getDay()]
         + (fest ? '<b class="hg-fest">' + Util.escapeHtml(fest) + '</b>' : '') + wxTextHTML(wxNow) + '</p>'
-        + '<button class="hg-search" data-go="search" type="button" aria-label="搜索记录、里程碑、用品">' + icon('search') + '</button></div>'
+        + '</div>' /* 第 236 次：搜索搬进 dock */
         + '<div class="hg-row"><div class="hg-day"><b class="hg-num">' + nowD.getDate() + '</b>'
         + (lunarNow ? '<span class="hg-lunar"><i>' + Util.escapeHtml(lunarNow.gz) + '年 · ' + Util.escapeHtml(lunarNow.animal) + '</i><b>' + Util.escapeHtml(lunarNow.text) + '</b></span>' : '')
         + '</div></div>'
@@ -926,24 +926,8 @@
       }
       var nowStage = (global.App && typeof App.stageOf === 'function') ? App.stageOf(d) : 'baby';
       var showQuick = nowStage !== 'pregnancy' || isDual(d); /* 第 220 次：二胎孕期照样要给大宝快记 */
-      if (runs.length) {
-        html += '<div class="home-now">';
-        runs.forEach(function (r) {
-          var st = new Date(r.os.start).getTime();
-          html += '<div class="hn-run" data-accent="' + r.go + '">'
-            + '<button type="button" class="hn-run-main" data-go="' + r.go + '">'
-            + '<span class="hn-dot" aria-hidden="true"></span>'
-            + icon(r.ico) + '<span class="hn-run-label">' + r.label
-            /* 第 146 次：计时超过 12 小时多半是忘了结束，提示一句（点进去可改结束时间） */
-            + (openElapsedMs(r.os) > 12 * 3600000 ? '<small class="hn-stale">可能忘了结束</small>' : '') + '</span>'
-            + '<b class="hn-elapsed" data-run-start="' + st + '" data-run-paused="' + ((r.os.pausedMs || 0)) + '"'
-            + (r.os.pauseStart ? ' data-run-pause-at="' + r.os.pauseStart + '"' : '')
-            + ' role="timer" aria-live="off">' + hnClock(openElapsedMs(r.os)) + '</b></button>'
-            + (r.end ? '<button type="button" class="btn btn-mini hn-end" data-recsl="end">' + r.end + '</button>' : '')
-            + '</div>';
-        });
-        html += '</div>';
-      }
+      /* 第 236 次：进行中的计时改由 dock 上方的「正在进行」胶囊统一显示（dock-live.js），首页不再重复一条 */
+      void runs;
       /* 第 118 次（首页搜索入口）：放在 .home-main 最前面、紧贴问候卡下方——
          理由：① 搜索是跨模块的全局动作，语义上属于「页头」，应在所有卡片之前，
          用户进首页第一眼就能看到；② 它带 data-go="search"，会被下方统一的
