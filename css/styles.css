@@ -4909,7 +4909,9 @@ body .tabbar.is-vertical .tab-plus { margin-top: 8px; }
 #dockOrb:active { scale: .94; }
 /* 折射位移图是按主胶囊尺寸生成的，圆钮只用普通玻璃 */
 html.lg-refract body #dockOrb.lg { -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.04); backdrop-filter: blur(14px) saturate(190%) brightness(1.04); }
-body.has-orb #tabbar:not(.is-vertical) { transform: translateX(calc(-50% + 35px)); }
+/* 第 240 次：右移改用 left，不再写进 transform。iOS 按下时 dock 的 scale 回弹走合成层，
+   WebKit 合成层解析 translateX(calc(-50% + 35px)) 会丢掉 px 部分，整条 dock 往左缩一下再弹回。 */
+body.has-orb #tabbar:not(.is-vertical) { left: calc(50% + 35px); }
 body.ftf-open #dockOrb { visibility: hidden; }
 html[data-nav] #dockOrb:not([hidden]) { view-transition-name: dock-orb; }
 ::view-transition-group(dock-orb) { animation: none; }
@@ -4917,5 +4919,5 @@ html[data-nav] #dockOrb:not([hidden]) { view-transition-name: dock-orb; }
 ::view-transition-new(dock-orb) { animation: none; }
 @media (max-width: 360px) {
   #dockOrb.dock-orb { --orb: 54px; left: calc(50% - var(--dock-w, 240px) / 2 - 31px); bottom: calc(14px + env(safe-area-inset-bottom)); }
-  body.has-orb #tabbar:not(.is-vertical) { transform: translateX(calc(-50% + 31px)); }
+  body.has-orb #tabbar:not(.is-vertical) { left: calc(50% + 31px); }
 }

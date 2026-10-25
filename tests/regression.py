@@ -490,6 +490,7 @@ def test_feeding_sheet(b):
     check('dock 二级页：返回在左、搜索居中、＋在右', ev("(()=>{const b=document.getElementById('tabbar');const xs=['#backBtn','.tab[data-tab=search]','.tab-plus'].map(q=>{const e=b.querySelector(q);return e&&e.offsetParent?e.getBoundingClientRect().x:-1});return xs[0]>=0&&xs[0]<xs[1]&&xs[1]<xs[2]})()"))
     ev("App.showTab('home')"); p.wait_for_timeout(400)
     check('宝宝切换是 dock 左侧独立圆钮且不贴着 dock', ev("(()=>{const o=document.getElementById('dockOrb'),b=document.getElementById('tabbar');if(!o||o.hidden||!o.contains(document.getElementById('avatarBtn')))return false;const r=o.getBoundingClientRect(),q=b.getBoundingClientRect();return q.left-r.right>=6&&r.left>=8})()"))
+    check('dock 右移不写进 transform（iOS 按下回弹会丢 px 偏移）', ev("(()=>{const m=getComputedStyle(document.getElementById('tabbar')).transform.match(/matrix\\(([^)]+)\\)/);if(!m)return false;const b=document.getElementById('tabbar');return Math.abs(parseFloat(m[1].split(',')[4])+b.offsetWidth/2)<1})()"))
     check('dock 一级页：首页/日期/搜索/设置四个页签', ev("Array.from(document.querySelectorAll('#tabbar .tab[data-tab]')).filter(e=>e.offsetParent).map(e=>e.dataset.tab).slice(0,4).join()") == 'home,calendar,search,settings')
     ev("App.showTab('diaper')"); p.wait_for_timeout(400)
     check('液态玻璃 dock：二级页收起时水滴隐藏', ev("!document.querySelector('#tabbar .lg-thumb').classList.contains('on')"))
