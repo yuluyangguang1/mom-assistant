@@ -71,7 +71,10 @@
     try {
       var b = document.body; if (!b) return;
       var c = '';
-      var sky = b.classList.contains('in-home') && document.querySelector('.home-sky');
+      /* 第 266 次：抽屉打开（或拖过一半）时，状态栏下面是抽屉，取抽屉底色 */
+      var sdEl = document.querySelector('.side-drawer');
+      var sdOn = !!sdEl && (b.classList.contains('sd-drag') ? b.classList.contains('sd-half') : b.classList.contains('sd-open'));
+      var sky = !sdOn && b.classList.contains('in-home') && document.querySelector('.home-sky');
       var cv = sky && sky.querySelector('.sky-canvas');
       var r = cv && cv.getBoundingClientRect();
       if (cv && r.height && r.top <= 0 && r.bottom > 80 && cv.width && cv.height) {
@@ -86,6 +89,9 @@
           rgb = rgb.map(function (v, j) { return v * (1 - a) + k[j] * a; });
         }
         c = '#' + rgb.map(hex2).join('');
+      } else if (sdOn) {
+        var sc = parseRgba(global.getComputedStyle(sdEl).backgroundColor);
+        c = sc ? '#' + [sc[0], sc[1], sc[2]].map(hex2).join('') : bodyEdgeColor(b, false);
       } else {
         /* 其他页：顶上是 body 的底色 + 渐变层（环境光染色 rgba(天空色, .11) 叠在暖底渐变上）。
            按层从下往上合成每层的首个色标 = 视口第 0 行的真实颜色（Chromium 对拍误差 ≤1）。 */

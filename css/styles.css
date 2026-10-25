@@ -5021,8 +5021,11 @@ body.sd-drag #app { border-radius: var(--radius-lg) 0 0 var(--radius-lg); box-sh
   position: fixed; top: 0; bottom: 0; left: 0; z-index: 1;
   width: min(78vw, 310px); box-sizing: border-box;
   background: var(--surface); color: var(--text);
-  transform: translateX(-26%); opacity: .4; visibility: hidden;
-  transition: transform .4s cubic-bezier(.32, .72, 0, 1), opacity .4s, visibility .4s;
+  /* 第 266 次（对照竞品逐帧 30fps）：抽屉不从左边滑进来——它一直待在页面底下的原位，
+     页面卡片往右推开时它在原地浮现（透明度比页面位移快：页面走 25% 时它约 30%，走到 65% 时已全显），
+     再带一点 0.96 → 1 的放大，像从页面底下升上来。 */
+  transform: scale(.96); transform-origin: 0 50%; opacity: 0; visibility: hidden;
+  transition: transform .4s cubic-bezier(.32, .72, 0, 1), opacity .26s cubic-bezier(.2, .7, .3, 1), visibility .4s;
 }
 body.sd-lock .side-drawer { visibility: visible; }
 /* 第 246 次：解锁后（#app 回到普通流、没有 z-index）抽屉必须立刻消失，否则会叠在页面上露出半透明残影 */

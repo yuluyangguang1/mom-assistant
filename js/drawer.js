@@ -140,13 +140,17 @@
     if (dragging) document.body.classList.add('sd-drag'); else document.body.classList.remove('sd-drag');
     if (dragging) {
       if (app) app.style.transform = 'translateX(' + (p * width()) + 'px)';
-      root.style.transform = 'translateX(' + ((p - 1) * 26) + '%)';
-      root.style.opacity = String(0.4 + 0.6 * p);
+      root.style.transform = 'scale(' + (0.96 + 0.04 * p) + ')';
+      root.style.opacity = String(Math.min(1, p * 1.5));
       mask.style.opacity = String(p);
     } else {
       if (app) app.style.transform = '';
       root.style.transform = ''; root.style.opacity = ''; mask.style.opacity = '';
     }
+    /* 第 266 次：状态栏跟着抽屉走（拖过一半就换成抽屉底色） */
+    var half = dragging ? p > 0.5 : null;
+    if (half) document.body.classList.add('sd-half'); else document.body.classList.remove('sd-half');
+    if (global.syncStatusColor) global.syncStatusColor();
   }
   function syncW() { try { document.documentElement.style.setProperty('--sd-w', width() + 'px'); } catch (e) {} }
 
@@ -160,6 +164,7 @@
     try { root.inert = false; } catch (e) {}
     setProgress(1, false);
     document.body.classList.add('sd-open');
+    if (global.syncStatusColor) global.syncStatusColor();
     if (global.Util && Util.haptic) Util.haptic('light');
   }
   function close() {
@@ -167,6 +172,7 @@
     isOpen = false;
     setProgress(0, false);
     document.body.classList.remove('sd-open');
+    if (global.syncStatusColor) global.syncStatusColor();
     root.setAttribute('aria-hidden', 'true');
     try { root.inert = true; } catch (e) {}
     if (unlockT) clearTimeout(unlockT);
