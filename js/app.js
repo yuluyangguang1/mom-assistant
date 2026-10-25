@@ -214,7 +214,14 @@
       document.documentElement.setAttribute('data-nav', kind);
       var o2 = {}; for (var k in (opts || {})) o2[k] = opts[k]; o2._vt = true;
       try {
-        var vt = document.startViewTransition(function () { showTabNow(id, o2); });
+        /* 第 244 次：切页闪上 / 闪下的根因——转场快照的是整个 #view，旧页按滚动位置在屏幕外上方，
+           新页回到顶部，原来让 group 做几何补间，整页就会从 -滚动量 滑到 0（或反过来）。
+           现在 group 不补间，旧快照用 --vt-dy 固定在它原来的屏幕位置，只做左右推拉。 */
+        var oy0 = window.pageYOffset || 0;
+        var vt = document.startViewTransition(function () {
+          showTabNow(id, o2);
+          try { document.documentElement.style.setProperty('--vt-dy', ((window.pageYOffset || 0) - oy0) + 'px'); } catch (e) {}
+        });
         var done = function () { _vtBusy = false; document.documentElement.removeAttribute('data-nav'); };
         (vt.finished || Promise.resolve()).then(done, done);
       } catch (e) { _vtBusy = false; showTabNow(id, o2); }
@@ -1368,19 +1375,21 @@
       var fed = fedDefaults();
       /* 第 84 次：补「尿布：拉了」（pee/poop 是尿布两大类，此前快记只有「尿了」）；
          动作加识别图标（读得快）+ 内联 --i 序号（CSS 逐项 stagger 入场用） */
+      /* 第 244 次：快记改成玻璃面板 + 两列磁贴（标题 + 一行说明），与新页面同一视觉 */
       var acts = [
-        { id: 'qdFeed', ico: 'feeding', label: '喂养：' + fed.label },
-        { id: 'qdDiaper', ico: 'pee', label: '尿布：尿了' },
-        { id: 'qdPoop', ico: 'poop', label: '尿布：拉了' },
-        { id: 'qdMeds', ico: 'meds', label: '吃药：维生素 D3' }
+        { id: 'qdFeed', ico: 'feeding', acc: 'feeding', t: '喂奶', s: fed.label },
+        { id: 'qdDiaper', ico: 'pee', acc: 'diaper', t: '尿了', s: '尿布 · 尿' },
+        { id: 'qdPoop', ico: 'poop', acc: 'diaper', t: '拉了', s: '尿布 · 便' },
+        { id: 'qdMeds', ico: 'meds', acc: 'meds', t: '维生素 D3', s: '吃药 · 1 次' }
       ];
-      if (wk !== null) acts.push({ id: 'qdFetal', ico: 'fetal', label: '胎动 +1' });
+      if (wk !== null) acts.push({ id: 'qdFetal', ico: 'fetal', acc: 'fetal', t: '胎动 +1', s: '孕 ' + wk + ' 周' });
       var list = root.querySelector('#qdActions');
-      list.innerHTML = acts.map(function (a, i) {
-        return '<button type="button" class="qd-action" id="' + a.id + '" style="--i:' + i + '">'
-          + (global.icon ? global.icon(a.ico, 'qd-ico') : '')
-          + '<span>' + Util.escapeHtml(a.label) + '</span></button>';
-      }).join('');
+      list.innerHTML = '<p class="qd-head">快速记录<small>点一下就记好，可再去页面里改</small></p><div class="qd-grid">'
+        + acts.map(function (a, i) {
+          return '<button type="button" class="qd-action" id="' + a.id + '" data-accent="' + a.acc + '" style="--i:' + i + '">'
+            + '<span class="qd-badge">' + (global.icon ? global.icon(a.ico, 'qd-ico') : '') + '</span>'
+            + '<span class="qd-txt"><b>' + Util.escapeHtml(a.t) + '</b><small>' + Util.escapeHtml(a.s) + '</small></span></button>';
+        }).join('') + '</div>';
       root.classList.add('open');
       if (document.body && document.body.classList) document.body.classList.add('qd-open');
       fab.setAttribute('aria-expanded', 'true');
@@ -1597,6 +1606,8 @@
   var SWIPE_RATIO = 0.22;   /* 位移阈值：视口宽的 22% */
   var SWIPE_VEL = 0.5;      /* 速度阈值（px/ms），甩得够快就过 */
   var SWIPE_MAX = 0.88;     /* 最多跟到视口 88%，留一点底不飞出去 */
+  /* 第 244 次：返回时浏览器会先自动恢复旧滚动位置、App 再归零，iOS 上就是一下闪上 / 闪下；滚动全由 App 管。 */
+  try { if ('scrollRestoration' in global.history) global.history.scrollRestoration = 'manual'; } catch (e) {}
   var historyDepth = 0;     /* 已登记的模块层级（回到 0 时侧滑不再响应） */
   var swipeActive = false;
   var swipeId = null;
@@ -1626,6 +1637,9 @@
     var use = handMode() === 'normal' && isTopTab(current) && !subExit;
     orb.hidden = !use;
     if (use) document.body.classList.add('has-orb'); else document.body.classList.remove('has-orb');
+    /* 第 244 次：二级页 dock 左缘对齐一级页（见 styles.css sub-anchor） */
+    var anchor = !use && handMode() === 'normal';
+    if (anchor) document.body.classList.add('sub-anchor'); else document.body.classList.remove('sub-anchor');
     if (use) {
       try {
         document.documentElement.style.setProperty('--dock-w', (bar.offsetWidth || 240) + 'px');

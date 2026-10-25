@@ -1040,7 +1040,8 @@
     var el = document.createElement('div');
     el.className = 'toast toast-' + type;
     el.setAttribute('role', 'status');
-    el.innerHTML = ((window.icon && icon(ic)) ? icon(ic) : '') + '<span>' + Util.escapeHtml(message) + '</span>';
+    /* 第 244 次：图标装进圆形色块（与 dock 上的计时胶囊同一套玻璃语言） */
+    el.innerHTML = '<i class="toast-badge" aria-hidden="true">' + ((window.icon && icon(ic)) ? icon(ic) : '') + '</i><span class="toast-msg">' + Util.escapeHtml(message) + '</span>';
     if (action && action.label) {
       var act = document.createElement('button');
       act.type = 'button';

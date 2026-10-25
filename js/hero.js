@@ -145,7 +145,8 @@
     },
     mood: function (d) {
       var r = lastOf(d.moods, 'time');
-      if (!r) return { status: '今天感觉怎么样？' };
+      var dad = !!(d.settings && d.settings.caregiver && d.settings.caregiver.role === 'dad');
+      if (!r) return { status: dad ? '妈妈的情绪轨迹，她愿意时再记' : '今天感觉怎么样？' }; /* 第 244 次：爸爸身份不再问「你」 */
       var lv = parseInt(r.level, 10);
       return { status: '上次「' + (MOOD_TXT[lv] || '已记录') + '」· ' + Util.fmtAgo(r.time), state: lv <= 2 ? 'low' : '' };
     },

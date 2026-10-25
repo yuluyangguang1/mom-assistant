@@ -3229,7 +3229,9 @@ html[data-nav] #view { view-transition-name: page; background: var(--vt-paper, #
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 /* 第 167 次：旧根快照（含旧顶栏）直接隐藏——两者都不动画时会叠在一起，旧页日期/标题和新页标题重影发虚 */
 ::view-transition-old(root) { display: none; }
-::view-transition-group(page) { animation-duration: .38s; animation-timing-function: cubic-bezier(.32, .72, 0, 1); }
+/* 第 244 次：group 不做几何补间（否则整页跟着滚动量闪上 / 闪下），旧快照用 translate 钉在原屏幕位置 */
+::view-transition-group(page) { animation: none; }
+::view-transition-old(page) { translate: 0 var(--vt-dy, 0px); }
 html[data-nav="push"]::view-transition-old(page) { animation: vtOutLeft .38s cubic-bezier(.32, .72, 0, 1) both; }
 html[data-nav="push"]::view-transition-new(page) { animation: vtInRight .38s cubic-bezier(.32, .72, 0, 1) both; }
 html[data-nav="pop"]::view-transition-old(page) { animation: vtOutRight .32s cubic-bezier(.32, .72, 0, 1) both; z-index: 2; }
@@ -3977,15 +3979,6 @@ body.dark .record-grid .hw {
 }
 body.dark .hw-ico { background: color-mix(in srgb, var(--tile) 22%, transparent); }
 /* 哄睡声音：插画铺底 + 雾紫渐变压字 */
-.hw-wn { color: #FFF; }
-.hw-wn-bg { position: absolute; inset: 0; z-index: -2; background: #4E5688 center 35% / cover no-repeat; transition: transform .6s var(--ease); }
-.hw-wn::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(58, 64, 112, .55) 0%, rgba(58, 64, 112, .12) 45%, rgba(46, 50, 92, .72) 100%); }
-.record-grid .hw-wn .hl2-head, .record-grid .hw-wn .hl2-val { color: #FFF; }
-.record-grid .hw-wn .hl2-gap { color: rgba(255, 255, 255, .82); }
-.hw-wn .hw-ico { background: rgba(255, 255, 255, .2); }
-.hw-wn .hw-ico .ico, .hw-wn .hw-arrow .ico { color: #FFF; }
-.hw-wn.is-on .hl2-gap { color: #F4C6A5; font-weight: 600; }
-.hw-wn:active .hw-wn-bg { transform: scale(1.04); }
 
 /* 生长速览：去白卡壳，两格绿色小组件 */
 .record-grid > .gs-card { background: none; border: 0; box-shadow: none; padding: 0; margin-bottom: var(--space-md); }
@@ -4902,13 +4895,17 @@ html.lg-refract body #dockOrb.lg { -webkit-backdrop-filter: blur(14px) saturate(
    WebKit 合成层解析 translateX(calc(-50% + 35px)) 会丢掉 px 部分，整条 dock 往左缩一下再弹回。 */
 body.has-orb #tabbar:not(.is-vertical) { left: calc(50% + 35px); }
 body.ftf-open #dockOrb { visibility: hidden; }
+/* 第 244 次：二级页 dock 左缘钉在一级页 dock 的左缘（圆钮右边 8px），进出二级页 dock 不再左移 / 右移，
+   只是右侧收短；按下缩放回到以中心为原点。 */
+body.sub-anchor #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 258px) / 2 + 35px); transform: none; transform-origin: 50% 50%; }
 html[data-nav] #dockOrb:not([hidden]) { view-transition-name: dock-orb; }
 ::view-transition-group(dock-orb) { animation: none; }
-::view-transition-old(dock-orb) { display: none; }
+::view-transition-old(dock-orb) { animation: vtFadeOut .16s ease-out both; } /* 第 244 次：进二级页时圆钮淡出，不再瞬间消失 */
 ::view-transition-new(dock-orb) { animation: none; }
 @media (max-width: 360px) {
   #dockOrb.dock-orb { --orb: 54px; left: calc(50% - var(--dock-w, 240px) / 2 - 31px); bottom: calc(14px + env(safe-area-inset-bottom)); }
   body.has-orb #tabbar:not(.is-vertical) { left: calc(50% + 31px); }
+  body.sub-anchor #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 240px) / 2 + 31px); }
 }
 
 /* ============================================================
@@ -4956,3 +4953,70 @@ body.dark .ft-page[data-accent="sleep"], body.dark .ftf-sleep, body.dark .ft-she
 .sl-back { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; max-width: 420px; font-size: 13px; color: rgba(255,255,255,.7); text-align: center; }
 .sl-back span { width: 100%; }
 .sl-back button { min-height: 38px; padding: 0 14px; border: none; border-radius: var(--radius-pill); background: rgba(178,172,246,.18); color: var(--tile); font: inherit; font-weight: 700; cursor: pointer; }
+
+/* ============================================================
+   第 244 次：快速记录面板 + 记录后的提示条，换成新页面的玻璃语言
+   ============================================================ */
+body #quickDock .qd-actions {
+  display: block; width: min(350px, calc(100vw - 28px)); max-width: none; box-sizing: border-box;
+  padding: 14px 12px 12px; border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(190%) brightness(1.04);
+  backdrop-filter: blur(22px) saturate(190%) brightness(1.04);
+  box-shadow: inset 0 1.5px 1.5px -.5px rgba(255, 255, 255, .6), inset 0 0 0 .5px rgba(255, 255, 255, .45), 0 18px 40px -16px rgba(90, 74, 62, .45);
+  transform-origin: 50% 100%;
+  transform: translateX(-50%) translateY(10px) scale(.96);
+  transition: opacity .2s var(--ease), transform .32s cubic-bezier(.34, 1.4, .64, 1), visibility .2s;
+}
+body #quickDock.open .qd-actions { transform: translateX(-50%); }
+body.dark #quickDock .qd-actions {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, .14), inset 0 0 0 .5px rgba(255, 255, 255, .12), 0 18px 40px -16px rgba(0, 0, 0, .7);
+}
+.qd-head { margin: 0 6px 10px; font-size: calc(15px * var(--fs-mul, 1)); font-weight: 800; color: var(--text); display: flex; align-items: baseline; gap: 8px; }
+.qd-head small { font-size: 12px; font-weight: 500; color: var(--muted); }
+.qd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+body #quickDock .qd-action {
+  display: flex; align-items: center; gap: 10px; min-height: 64px; padding: 10px 10px; box-sizing: border-box;
+  border: 0; border-radius: var(--radius); box-shadow: none; text-align: left;
+  background: var(--tile-weak, var(--surface-2)); color: var(--text);
+  font-family: inherit; cursor: pointer; min-width: 0;
+}
+body #quickDock .qd-action:hover { background: var(--tile-weak, var(--surface-2)); filter: brightness(.98); }
+.qd-badge { flex: none; width: 38px; height: 38px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--surface); color: var(--tile, var(--primary)); }
+body.dark .qd-badge { background: rgba(255, 255, 255, .08); }
+body #quickDock .qd-action .qd-ico { width: 20px; height: 20px; color: var(--tile, var(--primary)); }
+.qd-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.qd-txt b { font-size: calc(15px * var(--fs-mul, 1)); font-weight: 800; color: var(--tile-text, var(--text)); }
+.qd-txt small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qd-grid > .qd-action:last-child:nth-child(odd) { grid-column: 1 / -1; }
+html body.qd-open .qd-mask { background: rgba(40, 34, 28, .22); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+@media (max-width: 340px) { .qd-badge { width: 32px; height: 32px; } #quickDock .qd-action { gap: 8px; padding: 8px; } }
+
+/* 提示条：玻璃胶囊，图标装进圆形色块，「撤销」是一颗小药丸 */
+body .toast {
+  gap: 10px; padding: 6px 6px 6px 6px; min-height: 52px; box-sizing: border-box; border: 0;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(190%) brightness(1.04);
+  backdrop-filter: blur(18px) saturate(190%) brightness(1.04);
+  box-shadow: inset 0 1.5px 1.5px -.5px rgba(255, 255, 255, .6), inset 0 0 0 .5px rgba(255, 255, 255, .45), 0 10px 28px -12px rgba(90, 74, 62, .4);
+  font-weight: 600;
+}
+body.dark .toast {
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, .14), inset 0 0 0 .5px rgba(255, 255, 255, .12), 0 10px 28px -12px rgba(0, 0, 0, .7);
+}
+.toast-badge { flex: none; width: 38px; height: 38px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-2); }
+.toast-ok .toast-badge { background: color-mix(in srgb, var(--ok) 16%, transparent); }
+.toast-error .toast-badge { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.toast-warn .toast-badge { background: color-mix(in srgb, var(--warn-text) 14%, transparent); }
+.toast .toast-badge .ico { width: 20px; height: 20px; }
+.toast-msg { padding-right: 10px; }
+.toast:has(.toast-action) .toast-msg { padding-right: 0; }
+body .toast-action { margin-left: 2px; background: var(--text); color: var(--surface); min-height: 40px; padding: 8px 16px; }
+body.dark .toast-action { background: rgba(255, 255, 255, .9); color: #2a2622; }
+/* 计时胶囊在 dock 上方时，提示条再往上让一层，不压住它 */
+body:has(.dock-live:not([hidden])) #toastRoot { bottom: calc(10px + 62px + 10px + 56px + 10px + env(safe-area-inset-bottom)); }
+
+/* 第 244 次：哄睡声音卡与其他小组件同款浅色卡；播放中把副文案点亮 */
+.hw-wn2.is-on .hl2-gap { color: var(--tile-text); font-weight: 700; }

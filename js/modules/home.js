@@ -319,6 +319,7 @@
         .sort(function (a, b) { return new Date(b.time) - new Date(a.time); })[0];
       var MOOD_LV = { 1: '很低落', 2: '有点低', 3: '一般', 4: '不错', 5: '很好' };
       var moodSum = moodToday ? ('今天 ' + (MOOD_LV[moodToday.level] || '已记录')) : '暂无今日';
+      var moodDad = !!(d.settings && d.settings.caregiver && d.settings.caregiver.role === 'dad');
       /* 胎动（对标 Cali 补齐）：只在有孕周时出现——磁贴与统计都跟阶段走 */
       var fetalToday = countToday(d.fetal, 'time');
       /* 体温（第 38 次补齐）：磁贴显示今日最高 */
@@ -397,7 +398,7 @@
         { id: 'meds', stages: ['baby', 'pregnancy'], name: '吃药/维D', accent: 'meds', sum: medsToday ? ('今日 ' + medsToday + ' 次') : '暂无今日', badge: '', guide: true, empty: !medsToday },
         { id: 'milestone', stages: ['baby'], name: '里程碑', accent: 'milestone', sum: msRecent ? msRecent.title : '暂无', badge: msBadge, empty: !msRecent },
         { id: 'period', stages: ['baby'], name: '经期', accent: 'period', sum: periodInfo, empty: (!ongoing && !periods.length) },
-        { id: 'mood', stages: ['baby', 'pregnancy'], name: '妈妈情绪', accent: 'mood', sum: moodSum, guide: true, empty: !moodToday },
+        { id: 'mood', stages: ['baby', 'pregnancy'], name: '妈妈情绪', accent: 'mood', sum: moodSum, guide: !moodDad, empty: !moodToday }, /* 第 244 次：爸爸身份不当引导项 */
         { id: 'pregnancy', stages: ['pregnancy'], name: '孕期', accent: 'pregnancy', sum: wk !== null ? (wk >= 40 && dueLeft(d) < 0 ? '已过预产期 ' + (-dueLeft(d)) + ' 天' : '第 ' + wk + ' 周') : '未设置' /* 第 193 次 */, badge: '', guide: true, empty: wk === null },
         { id: 'packing', stages: ['pregnancy'], name: '待产包', accent: 'packing', sum: pk.length ? ('已备 ' + pkPct + '%') : '未开始', badge: '', guide: true, empty: !pk.length },
         { id: 'contraction', stages: ['pregnancy'], name: '宫缩', accent: 'contraction', sum: ocTile ? ('计时中 · 已 ' + Util.fmtDuration(openElapsedMs(ocTile))) : (contraToday ? ('今日 ' + contraToday + ' 次') : '暂无今日'), badge: ocTile ? '计时中' : '', guide: true, empty: (!ocTile && !contraToday) }
@@ -745,6 +746,17 @@
            _ensureLayout 误用上一次会话的陈旧 _canvasIds 作物化基线。 */
         Modules.home._canvasIds = null;
         tiles = Modules.home._layoutApply(tiles.concat(cardTiles), layout || defaultLayout(d));
+        /* 第 244 次：老布局里没登记的模块会被「新模块殿后」补到末尾——
+           ①已有「哄睡声音」卡时，再补一张「哄睡白噪音」磁贴就重复了；
+           ②身份是爸爸时，不再自动补「妈妈情绪」（爸爸自己放进布局的照常显示）。 */
+        var inItems = function (id) { return !!(layout && layout.items.some(function (x) { return x.id === id; })); };
+        var hasNoiseCard = tiles.some(function (t) { return t.id === 'w-noise'; });
+        var isDad = !!(cg && cg.role === 'dad');
+        tiles = tiles.filter(function (t) {
+          if (t.id === 'whitenoise' && hasNoiseCard && !inItems('whitenoise')) return false;
+          if (t.id === 'mood' && isDad && !inItems('mood')) return false;
+          return true;
+        });
       }
 
       var html = '';
@@ -1000,8 +1012,8 @@
         W_HTML['w-feed'] = function (cls, bd2) { return hw('w-feed', 'feeding', 'feeding', 'feeding', '上次喂奶', feedVal, feedGap, cls, bd2); };
         W_HTML['w-diaper'] = function (cls, bd2) { return hw('w-diaper', 'diaper', 'diaper', 'diaper', '上次尿布', diaVal, diaGap, cls, bd2); };
         W_HTML['w-sleep'] = function (cls, bd2) { return hw('w-sleep', 'sleep', 'sleep', 'sleep', '上次睡眠', slVal, slGap, cls, bd2); };
-        W_HTML['w-noise'] = function (cls, bd2) { return '<button class="hl2 hw hw-wn canvas-card' + (cls || '') + (wnS.playing ? ' is-on' : '') + '" data-cid="w-noise" data-accent="whitenoise" data-go="whitenoise" type="button">'
-          + '<span class="hw-wn-bg" style="background-image:url(assets/sounds/' + wnType + '.webp)" aria-hidden="true"></span>'
+        /* 第 244 次：哄睡声音卡去掉深色插画底，和「上次喂奶 / 尿布 / 睡眠」同一款浅色卡（用户：格格不入） */
+        W_HTML['w-noise'] = function (cls, bd2) { return '<button class="hl2 hw hw-wn2 canvas-card' + (cls || '') + (wnS.playing ? ' is-on' : '') + '" data-cid="w-noise" data-accent="whitenoise" data-go="whitenoise" type="button">'
           + '<span class="hl2-head"><span class="hw-ico">' + icon('whitenoise') + '</span>哄睡声音'
           + '<span class="hw-arrow" aria-hidden="true">' + icon('chevron-right') + '</span></span>'
           + '<b class="hl2-val">' + WN_N[wnType] + '</b>'
