@@ -1485,7 +1485,6 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 /* 下次喂奶参考（home.js）：横向 slim 卡，图标 + 两行文案 */
 
 /* 体温高温值提示色（temp.js）： danger 同源，不做告警横幅（U-25，提示就医走 warn-box） */
-.temp-high { color: var(--danger); font-weight: 700; }
 
 /* 大数字 + 尺滑杆（第 41 次，对标 Cali 录入范式） */
 .ruler {
@@ -2533,8 +2532,6 @@ body.dark .tile-size { background: rgba(255,255,255,.08); }
    ============================================================ */
 
 /* 饮水：快捷加水按钮一排（30/50/100/150 ml） */
-.water-quick { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
-.water-quick .btn-mini { min-width: 58px; min-height: 44px; font-variant-numeric: tabular-nums; }
 
 /* 补剂：计划行右侧「+1」按钮——触摸目标 ≥44px（第 126 次真机教训的延续） */
 .sup-plans .icon-btn,
@@ -2807,14 +2804,7 @@ body .tabbar .dock-btn[hidden] { display: none; }
    角标用「小药丸 + 模块弱底」，跟在行内备注最前；
    部位是普通次级文本，避免一行里两种视觉语言打架。
    ============================================================ */
-.ep-day {
-  display: inline-block; margin-right: 6px; padding: 1px 8px;
-  border-radius: var(--radius-pill); background: var(--tile-weak, var(--primary-weak));
-  color: var(--tile-text, var(--primary-text));
-  font-size: calc(11.5px * var(--fs-mul)); font-weight: 700; letter-spacing: .02em;
-}
-.li-site { margin-right: 6px; color: var(--muted); font-weight: 600; }
-.li-site::after { content: '·'; margin-left: 6px; color: var(--border); }
+/* 第 252 次：体温迁新骨架后，病程/部位改在时间轴副行文字里，原 .ep-day/.li-site 已删 */
 
 /* ============================================================
    第 140 次（P1-6 · 亲喂换边 / 结束回填）
@@ -5173,4 +5163,11 @@ body.sd-open .touch-glow, body.qd-open .touch-glow { display: none; }
 .skel-page .ft-mini-open { cursor: default; }
 .rs-seg.sk-n2 { grid-template-columns: repeat(2, 1fr); } .rs-seg.sk-n4 { grid-template-columns: repeat(4, 1fr); } .rs-seg.sk-n5 { grid-template-columns: repeat(5, 1fr); }
 .rs-seg.sk-seg button { min-width: 0; padding-left: 4px; padding-right: 4px; }
-.sk-quick + .rs-lbl { margin-top: 18px; }
+.sk-quick + .rs-lbl, .sk-seg + .rs-lbl { margin-top: 18px; }
+/* 第 252 次：饮水 / 体温 / 黄疸迁到新骨架——一键记录药丸、体温高值行 */
+.sk-instant { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 0 14px; }
+.sk-ib { min-height: 48px; border: none; border-radius: var(--radius-pill); background: var(--tile-weak); color: var(--tile-text); font: inherit; font-weight: 800; font-size: calc(15px * var(--fs-mul, 1)); font-variant-numeric: tabular-nums; cursor: pointer; transition: transform .15s var(--spring, ease); }
+.sk-ib:active { transform: scale(.95); }
+.tl-warn .tl-dot { background: var(--danger, #D9534F); }
+.tl-warn .tl-txt b { color: var(--danger, #D9534F); }
+.rs-hint.sk-hint { margin: 10px 0 14px; }

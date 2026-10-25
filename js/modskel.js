@@ -15,6 +15,10 @@
  *   cfg.bars        'count' | 'minutes'：近 7 天柱状图按次数还是分钟数
  *   cfg.empty       空状态文案（纯文本）
  *   cfg.onSaved(rec, editing)  可选：保存后的钩子
+ *   cfg.dash(ctx)   可选：替换默认今日看板（返回 '' 不显示）；cfg.extra(ctx) 看板后追加的卡片
+ *   cfg.instant     可选：[{ label, vals }] 一键记录药丸（如饮水 +50 ml），记为「现在」
+ *   cfg.validate(vals)  可选：跨字段校验，返回错误文案或 null；cfg.sheetHint 面板底部小字
+ *   cfg.rowCls(r)   可选：时间轴行附加类名（如体温高值 'tl-warn'）；cfg.foot 页面底部医学提示
  * 记录形状不变：{ id, time, <fields...>, note }，time 为本地 yyyy-mm-ddThh:mm:ss。
  */
 (function (global) {
@@ -60,7 +64,8 @@
         if (f.quick && f.quick.length) {
           body += '<div class="rs-pills sk-quick">';
           f.quick.forEach(function (q) {
-            body += '<button type="button" class="dp-pill' + (String(st[f.k]) === String(q) ? ' active' : '') + '" data-q="' + f.k + '" data-v="' + q + '">' + esc(q) + ' ' + esc(f.unit || '') + '</button>';
+            var qs = f.step ? Number(q).toFixed(1) : String(q);
+            body += '<button type="button" class="dp-pill' + (st[f.k] != null && Number(st[f.k]) === Number(q) ? ' active' : '') + '" data-q="' + f.k + '" data-v="' + qs + '">' + esc(qs) + ' ' + esc(f.unit || '') + '</button>';
           });
           body += '</div>';
         }
@@ -74,6 +79,7 @@
         body += '</div>';
       }
     });
+    if (cfg.sheetHint) body += '<p class="rs-hint sk-hint">' + esc(cfg.sheetHint) + '</p>';
     body += '<label class="rs-note"><span class="rs-lbl">备注</span><input type="text" id="skNote" maxlength="40" placeholder="' + esc(cfg.notePh || '可选') + '" value="' + esc((editing && rec.note) || '') + '"></label>'
       + '<button type="button" class="btn btn-primary rs-save" data-ok>' + (editing ? '保存修改' : '保存') + '</button>'
       + (editing ? '<button type="button" class="btn rs-del" data-delrec>删除这条记录</button>' : '');
@@ -102,7 +108,7 @@
       Array.prototype.forEach.call(box.querySelectorAll('.sk-num input'), function (inp) {
         inp.addEventListener('input', function () {
           var k = inp.id.slice(3);
-          Array.prototype.forEach.call(box.querySelectorAll('[data-q="' + k + '"]'), function (x) { x.classList.toggle('active', x.getAttribute('data-v') === inp.value); });
+          Array.prototype.forEach.call(box.querySelectorAll('[data-q="' + k + '"]'), function (x) { x.classList.toggle('active', inp.value !== '' && Number(x.getAttribute('data-v')) === Number(inp.value)); });
         });
       });
 
@@ -121,12 +127,15 @@
               vals[f.k] = null; continue;
             }
             var n = f.step ? parseFloat(raw) : parseInt(raw, 10);
+            if (f.step && isFinite(n)) n = Math.round(n * 10) / 10;
             if (!isFinite(n) || n < f.min || n > f.max) { Util.markInvalid(el, f.label + '填 ' + f.min + '–' + f.max + ' ' + (f.unit || '')); return; }
             vals[f.k] = n;
           } else {
             vals[f.k] = st[f.k] != null ? st[f.k] : (f.def != null ? f.def : null);
           }
         }
+        var bad = cfg.validate ? cfg.validate(vals) : null;
+        if (bad) { Util.toast(bad, 'warn'); return; }
         var list = d[cfg.listKey] = d[cfg.listKey] || [];
         var r = editing ? rec : { id: Util.uid() };
         /* 改记录时，分钟不变就保留原来的秒，免得同一分钟内的先后顺序被打乱 */
@@ -183,23 +192,33 @@
       html += '<div class="mod-sum"><span class="ms-k">摘要</span><p>' + cfg.summary(ctx) + '</p>'
         + (cfg.ref ? '<p class="ms-ref">' + cfg.ref + '</p>' : '') + '</div>';
 
+      /* 1.5 一键记录 */
+      if (cfg.instant && cfg.instant.length) {
+        html += '<div class="sk-instant" role="group" aria-label="一键记录' + esc(cfg.noun) + '">';
+        cfg.instant.forEach(function (q, i) { html += '<button type="button" class="sk-ib" data-inst="' + i + '">' + esc(q.label) + '</button>'; });
+        html += '</div>';
+      }
+
       /* 2. 今日看板 */
-      if (all.length && DC) {
+      if (cfg.dash) html += cfg.dash(ctx);
+      else if (all.length && DC) {
         html += '<div class="card dash-card"><h2>今天</h2>';
         html += DC.strip({ win: DC.windowOf(dayNow, DS), ds: DS, now: Date.now(), label: '今天' + cfg.noun + '的时间',
           marks: today.map(function (r) { return { t: tms(r.time), cls: '', title: hm(tms(r.time)) + ' ' + cfg.noun }; }) });
-        var byMin = cfg.bars === 'minutes';
+        var bk = (cfg.bars && cfg.bars !== 'count') ? cfg.bars : null;
+        var numOf = function (r) { return (typeof r[bk] === 'number' && isFinite(r[bk])) ? r[bk] : 0; };
         var d7 = DC.lastDays(dayNow, 7).map(function (k) {
           var rs = all.filter(function (r) { return Util.dayKeyOf(r.time, DS) === k; });
-          var v = byMin ? rs.reduce(function (s, r) { return s + minOf(r); }, 0) : rs.length;
+          var v = bk ? rs.reduce(function (s, r) { return s + numOf(r); }, 0) : rs.length;
           return { key: k, v: v, txt: String(v) };
         });
         if (d7.filter(function (x) { return x.v; }).length >= 2) {
-          var bl = '近 7 天' + cfg.noun + (byMin ? '分钟数' : '次数');
+          var bl = '近 7 天' + cfg.noun + (bk ? (cfg.barLabel || '分钟数') : '次数');
           html += '<p class="dash-sub">' + esc(bl) + '</p>' + DC.bars(d7, dayNow, bl);
         }
         html += '</div>';
       }
+      if (cfg.extra) html += cfg.extra(ctx);
 
       /* 3. 时间轴 */
       if (all.length) {
@@ -208,7 +227,7 @@
         all.slice(0, 30).forEach(function (r) {
           var t = tms(r.time), sub = cfg.sub ? cfg.sub(r) : (r.note || '');
           var lab = FT ? FT.dayLabel(t, todayIso) : ((new Date(t).getMonth() + 1) + '/' + new Date(t).getDate());
-          html += '<li class="tl-row"><span class="tl-time ft-tlt"><small>' + esc(lab) + '</small>' + hm(t) + '</span><span class="tl-dot" aria-hidden="true"></span>'
+          html += '<li class="tl-row' + (cfg.rowCls && cfg.rowCls(r) ? ' ' + cfg.rowCls(r) : '') + '"><span class="tl-time ft-tlt"><small>' + esc(lab) + '</small>' + hm(t) + '</span><span class="tl-dot" aria-hidden="true"></span>'
             + '<button type="button" class="tl-card" data-open="' + esc(r.id) + '" aria-label="' + hm(t) + ' ' + esc(cfg.noun) + '，点按修改">'
             + '<span class="tl-ico">' + icon(cfg.icon) + '</span><span class="tl-txt"><b>' + esc(cfg.title(r)) + '</b>'
             + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>'
@@ -236,6 +255,7 @@
         html += '<div class="mod-cta"><button type="button" class="mc-main" data-new>' + icon('plus') + '<span>记录' + esc(cfg.noun) + '</span></button></div>';
       }
 
+      if (cfg.foot) html += '<p class="hint med-note">' + cfg.foot + '</p>';
       view.innerHTML = '<div class="ft-page skel-page" data-accent="' + cfg.accent + '">' + html + '</div>';
 
       /* 绑定 */
@@ -260,6 +280,22 @@
           } else if (a === 'cancel') {
             Care.cancel(d, Storage); Util.toast('已取消计时', 'ok'); global.App.rerender();
           }
+        });
+      });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-inst]'), function (b) {
+        b.addEventListener('click', function () {
+          var q = cfg.instant[+b.getAttribute('data-inst')];
+          var list = d[cfg.listKey] = d[cfg.listKey] || [];
+          var r = { id: Util.uid(), time: Util.nowLocal() };
+          Object.keys(q.vals).forEach(function (k) { r[k] = q.vals[k]; });
+          r.note = null;
+          list.push(r);
+          if (!Storage.save()) return;
+          global.App.rerender();
+          Util.toast('已记录 ' + q.label.replace(/^\+\s*/, ''), 'ok', { label: '撤销', onClick: function () {
+            for (var j = list.length - 1; j >= 0; j--) if (list[j].id === r.id) { list.splice(j, 1); break; }
+            Storage.save(); global.App.rerender();
+          } });
         });
       });
       Array.prototype.forEach.call(view.querySelectorAll('[data-new]'), function (b) {

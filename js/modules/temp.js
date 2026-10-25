@@ -1,5 +1,5 @@
 /**
- * temp.js - 体温记录（对标 Cali 宝宝补齐，2026-09-27 第 38 次）
+ * temp.js - 体温记录（对标 Cali 宝宝补齐，2026-09-27 第 38 次；第 252 次迁到新骨架 modskel.js）
  * 发热期的按需记录：温度 + 时间 + 备注；今日小结给「最新 / 今日最高」，
  * ≥38.5°C 的数值用警示色显示并提示就医边界——不做发热判读、不给用药建议（U-25/U-37）。
  *
@@ -111,160 +111,56 @@
     return h;
   }
 
+  function okV(v) { return typeof v === 'number' && isFinite(v); }
+
   Modules.temp = {
     id: 'temp',
     title: '体温',
     render: function (view) {
       var d = Storage.get();
-      var today = Util.todayISO();
-      /* 第 131 次（P1-a）：「今日小结」走照护日口径（dayStart 可配，默认 0 = 公历日）——
-         凌晨量的体温算前一天，和喂养/睡眠同一把尺子。 */
-      var DS = Util.dayStartHour(d);
-      var dayNow = Util.dayKeyOf(new Date(), DS);
-      var html = '';
-
-      html += '<div class="warn-box"><p>这里只帮你记录体温变化，<b>不能替代医疗判断</b>。' +
-        '持续发热、高热不退或伴有其他症状，请及时就医。</p></div>';
-
-      /* 记一笔：大数字 + 尺滑杆（第 41 次录入范式，替换小输入框） */
-      var tState = { value: null };
-      html += '<div class="card"><h2>记一次体温</h2>';
-      html += '<span class="lbl-text">温度</span>';
-      html += Util.rulerHTML('tRuler', { unit: '°C', label: '体温', min: 35, max: 42.5, step: 0.1, dec: 1, anchor: 36.5 });
-      html += '<label>测量部位<select id="tSite">';
-      SITES.forEach(function (st) {
-        html += '<option value="' + st.v + '"' + (st.v === 'axillary' ? ' selected' : '') + '>'
-          + st.label + (st.hint ? '（' + st.hint + '）' : '') + '</option>';
-      });
-      html += '</select></label>';
-      html += '<label>备注（可选）<input type="text" id="tNote" maxlength="40" placeholder="如 午睡后 / 精神还行"></label>';
-      html += Util.timePickHTML('tTime');
-      html += '<button class="btn btn-primary btn-save" id="tSave">保存</button>';
-      html += '<p class="hint">不同部位的参考值不同，记下部位，回看时才知道这几次是不是同一把尺子量出来的。</p></div>';
-
-      /* 今日小结 */
-      var todayList = (d.temps || []).filter(function (r) { return Util.dayKeyOf(r.time, DS) === dayNow; });
-      /* 第 139 次：全程病程划分一次，多处复用（今日小结 + 最近记录行） */
       var epMap = episodeMap(d.temps || []);   /* id -> { day, days, active, count } */
-      /* 第 89 次（审计 B4）：值缺失/非法的记录不上数值位（导入坏文件不渲染 undefined°C） */
-      function okV(v) { return typeof v === 'number' && isFinite(v); }
-      var vList = todayList.filter(function (r) { return okV(r.value); });
-      html += '<div class="card"><h2>今日小结</h2>';
-      if (vList.length) {
-        var latest = vList.slice().sort(function (a, b) { return new Date(b.time) - new Date(a.time); })[0];
-        var maxR = vList.slice().sort(function (a, b) { return b.value - a.value; })[0];
-        html += '<ul class="kv">';
-        html += '<li>最新一次：<b>' + latest.value + '°C</b>（' + Util.fmtDateTime(latest.time) + '）</li>';
-        if (vList.length > 1) html += '<li>今日最高：<b>' + maxR.value + '°C</b></li>';
-        html += '</ul>';
-        if (maxR.value >= HIGH) {
-          html += '<p class="hint">今天有 ≥' + HIGH + '°C 的记录。发热处理请遵医嘱，必要时及时就医。</p>';
-        }
-        /* 第 139 次：本次观察的进度（跨天才有信息量；当天第一次就结束的观察不显示） */
-        var activeEp = null;
-        todayList.forEach(function (r) {
-          if (epMap[r.id] && epMap[r.id].active) activeEp = epMap[r.id];
-        });
-        if (activeEp && activeEp.days > 1) {
-          html += '<p class="hint">这是<b>本次观察</b>的第 <b>' + activeEp.day + '</b> 天'
-            + '（共 ' + activeEp.count + ' 次测温）。记录不判读，趋势交给医生。</p>';
-        }
-      } else if (todayList.length) {
-        /* 今天有记录但数值全部无效（坏数据）：照常出现「有记录」位，只是不显示数值 */
-        html += '<p class="hint">今天已有记录，但暂无有效数值。</p>';
-      } else {
-        html += '<p class="hint">今天还没有记录。平时不用天天测，发热期按需记录即可。</p>';
-      }
-      html += '</div>';
-
-      /* 第 186 次：距上次用药 + 趋势图（吃药页 d.meds 的记录，24 小时内才提） */
-      var medsAll = (d.meds || []).filter(function (r) { return r && r.time && !isNaN(new Date(r.time).getTime()) && new Date(r.time).getTime() <= Date.now() + 60000; });
-      var lastMed = medsAll.slice().sort(function (a, b) { return new Date(b.time) - new Date(a.time); })[0];
-      var chartHtml = tempChart(d.temps || [], medsAll, HIGH);
-      var medLine = (lastMed && Date.now() - new Date(lastMed.time).getTime() < 24 * 3600000)
-        ? '<p class="hint">距上次用药（' + Util.escapeHtml(lastMed.name || '用药') + '）已 <b>' + Util.escapeHtml(Util.fmtDuration(Date.now() - new Date(lastMed.time).getTime())) + '</b>。两次用药间隔请按医嘱或说明书。</p>' : '';
-      if (chartHtml || medLine) {
-        html += '<div class="card"><h2>最近 72 小时</h2>' + chartHtml
-          + (chartHtml ? '<p class="hint">竖线是吃药页记下的用药时刻。</p>' : '') + medLine + '</div>';
-      }
-
-      /* 最近记录 */
-      html += '<div class="card"><h2>最近记录</h2>';
-      var list = (d.temps || []).slice().sort(function (a, b) { return new Date(b.time) - new Date(a.time); }).slice(0, 20);
-      if (list.length) {
-        html += '<ul class="list">';
-        list.forEach(function (r) {
-          var highCls = okV(r.value) && r.value >= HIGH ? ' temp-high' : '';
-          var tvHtml = okV(r.value) ? (r.value + '<i>°C</i>') : '<i>—</i>'; /* 第 89 次（审计 B4）：坏值不渲染 undefined°C */
-          /* 第 76 次（D 线）：行改「左时间 / 中备注 / 右温度值」双列，温度是这行的主数据 */
-          var ep = epMap[r.id];
-          var epBadge = (ep && ep.days > 1) ? '<span class="ep-day">第 ' + ep.day + ' 天</span>' : '';
-          var st = siteOf(r.site);
-          var siteTxt = st ? st.label : '';
-          var sub = (epBadge ? epBadge : '') + (siteTxt ? '<span class="li-site">' + siteTxt + '</span>' : '')
-            + (r.note ? Util.escapeHtml(r.note) : '');
-          html += '<li><span class="row-ico">' + icon('temp') + '</span>'
-            + '<span class="li-main"><b>' + Util.fmtDateTime(r.time) + '</b></span>'
-            + '<span class="li-sub">' + sub + '</span>'
-            + '<span class="li-num' + highCls + '">' + tvHtml + '</span>'
-            + '<button class="icon-btn" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
-        });
-        html += '</ul>';
-      } else {
-        html += '<div class="empty-state"><span class="es-ico">' + icon('temp') + '</span><p>还没有体温记录</p><span class="hint">发热时记几次，就能看到变化。</span></div>';
-      }
-      html += '</div>';
-
-      /* 第 59 次：医学提示（遵医嘱） */
-      html += '<p class="hint med-note">体温记录仅供参考；发热或持续异常请及时就医，用药请遵医嘱。</p>';
-
-      view.innerHTML = html;
-
-      /* 尺滑杆：35–42.5°C，未拖动前不落库 */
-      function paintTRuler() {
-        Util.rulerPaint('tRuler', { min: 35, max: 42.5, step: 0.1, value: tState.value, anchor: 36.5, dec: 1, unit: '°C', label: '体温' });
-      }
-      var tRange = view.querySelector('#tRulerRange');
-      if (tRange) tRange.addEventListener('input', function () {
-        tState.value = Math.round(parseFloat(tRange.value) * 10) / 10;
-        paintTRuler();
-      });
-      var tMinus = view.querySelector('#tRulerMinus');
-      if (tMinus) tMinus.addEventListener('click', function () {
-        tState.value = Math.round(((tState.value != null ? tState.value : 36.5) - 0.1) * 10) / 10;
-        paintTRuler();
-      });
-      var tPlus = view.querySelector('#tRulerPlus');
-      if (tPlus) tPlus.addEventListener('click', function () {
-        tState.value = Math.round(((tState.value != null ? tState.value : 36.5) + 0.1) * 10) / 10;
-        paintTRuler();
-      });
-      paintTRuler();
-
-      view.querySelector('#tSave').addEventListener('click', function () {
-        if (tState.value == null) { Util.toast('请先拖动滑杆（或点 ＋/−）设置体温', 'warn'); return; }
-        var tStamp = Util.stampFrom(view, 'tTime');
-        if (!tStamp) return;
-        var rec = {
-          id: Util.uid(), time: tStamp, value: tState.value,
-          site: (view.querySelector('#tSite').value || 'axillary'),
-          note: (view.querySelector('#tNote').value || '').trim() || null
-        };
-        d.temps.push(rec);
-        if (Storage.save()) {
-          var st = siteOf(rec.site);
-          Util.toast('已记录体温 ' + rec.value + '°C' + (st ? '（' + st.label + '）' : ''), 'ok');
-        }
-        global.App.rerender();
-      });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-del]'), function (b) {
-        b.addEventListener('click', function () {
-          Util.removeWithUndo(d.temps, b.getAttribute('data-del'), {
-            onSave: function () { Storage.save(); },
-            onAfter: function () { global.App.rerender(); },
-            deletedText: '已删除体温记录'
-          });
-        });
+      global.ModSkel.render(view, {
+        id: 'temp', accent: 'temp', noun: '体温', listKey: 'temps', icon: 'temp', bars: null,
+        ref: '只帮你记录体温变化，<b>不能替代医疗判断</b>。持续发热、高热不退或伴有其他症状，请及时就医。',
+        summary: function (c) {
+          var vl = c.today.filter(function (r) { return okV(r.value); });
+          var s;
+          if (vl.length) {
+            var mx = Math.max.apply(null, vl.map(function (r) { return r.value; }));
+            s = '今天量了 <b>' + vl.length + ' 次</b>，最近一次 <b>' + vl[0].value + '°C</b>' + (vl.length > 1 ? '，最高 <b>' + mx + '°C</b>' : '') + '。';
+            if (mx >= HIGH) s += '有 ≥' + HIGH + '°C 的记录，发热处理请遵医嘱，必要时就医。';
+            var ep = epMap[vl[0].id];
+            if (ep && ep.active && ep.days > 1) s += '这是本次观察的第 <b>' + ep.day + ' 天</b>。';
+          } else if (c.last && okV(c.last.value)) {
+            s = '今天还没量。上次是<b>' + Util.escapeHtml(c.ago(c.last.time)) + '</b>，<b>' + c.last.value + '°C</b>。';
+          } else {
+            s = '今天还没有<b>体温</b>记录。平时不用天天测，发热期按需记就好。';
+          }
+          return s;
+        },
+        dash: function () {
+          var medsAll = (d.meds || []).filter(function (r) { return r && r.time && !isNaN(new Date(r.time).getTime()) && new Date(r.time).getTime() <= Date.now() + 60000; });
+          var lastMed = medsAll.slice().sort(function (a, b) { return new Date(b.time) - new Date(a.time); })[0];
+          var chart = tempChart(d.temps || [], medsAll, HIGH);
+          var medLine = (lastMed && Date.now() - new Date(lastMed.time).getTime() < 24 * 3600000)
+            ? '<p class="hint">距上次用药（' + Util.escapeHtml(lastMed.name || '用药') + '）已 <b>' + Util.escapeHtml(Util.fmtDuration(Date.now() - new Date(lastMed.time).getTime())) + '</b>。两次用药间隔请按医嘱或说明书。</p>' : '';
+          if (!chart && !medLine) return '';
+          return '<div class="card dash-card"><h2>最近 72 小时</h2>' + chart + (chart ? '<p class="hint">竖线是吃药页记下的用药时刻。</p>' : '') + medLine + '</div>';
+        },
+        fields: [
+          { k: 'value', t: 'num', label: '温度', unit: '°C', min: 35, max: 42.5, step: 0.1, quick: [36.5, 37.0, 37.5, 38.0, 38.5], ph: '如 37.2', optional: false },
+          { k: 'site', t: 'seg', label: '测量部位', opts: SITES.map(function (x) { return { v: x.v, label: x.label }; }), def: 'axillary' }
+        ],
+        sheetHint: '不同部位的参考值不同，记下部位，回看时才知道是不是同一把尺子量的。',
+        notePh: '如 午睡后 / 精神还行',
+        title: function (r) { return okV(r.value) ? r.value + '°C' : '体温'; },
+        sub: function (r) {
+          var ep = epMap[r.id], st = siteOf(r.site);
+          return [ep && ep.days > 1 ? '第 ' + ep.day + ' 天' : '', st ? st.label : '', r.note || ''].filter(Boolean).join(' · ');
+        },
+        rowCls: function (r) { return okV(r.value) && r.value >= HIGH ? 'tl-warn' : ''; },
+        foot: '体温记录仅供参考；发热或持续异常请及时就医，用药请遵医嘱。',
+        empty: '发热时量几次记几次，就能看到变化。点下方「记录体温」。'
       });
     }
   };

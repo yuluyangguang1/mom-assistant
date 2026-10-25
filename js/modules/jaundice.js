@@ -1,5 +1,5 @@
 /**
- * jaundice.js - 黄疸记录（第 132 次 · 对标 Cali 21 工具里的 jaundice-tracker）
+ * jaundice.js - 黄疸记录（第 132 次 · 对标 Cali 21 工具里的 jaundice-tracker；第 252 次迁到新骨架 modskel.js）
  *
  * 定位：新生儿黄疸是「必须交给医生判断」的典型场景，这个页面只做两件事——
  *   1. 把每次测的数值留下来，方便复诊时给医生看趋势；
@@ -67,111 +67,50 @@
     return h + '</svg>';
   }
 
+  function okV(v) { return typeof v === 'number' && isFinite(v); }
+
   Modules.jaundice = {
     id: 'jaundice',
     title: '黄疸',
     render: function (view) {
       var d = Storage.get();
-      var all = d.jaundices || [];
-      var html = '';
-
-      html += '<div class="warn-box"><p><b>黄疸要由医生评估，这个页面只帮你留记录。</b>' +
-        '出现下列任一情况请立即就医：出生 24 小时内就出现黄疸、黄到手心脚心、' +
-        '精神差或吃奶明显变少、哭声尖、大便发白、体温异常。</p></div>';
-
-      html += '<div class="card"><h2>记一次测量</h2>';
-      html += '<label>数值<input type="number" id="jaVal" min="0" max="500" step="0.1" ' +
-        'inputmode="decimal" placeholder="如 12.5"></label>';
-      html += '<label>单位<select id="jaUnit">';
-      UNITS.forEach(function (u) { html += '<option value="' + u.v + '">' + u.label + '</option>'; });
-      html += '</select></label>';
-      html += '<label>测量部位<select id="jaSite">';
-      SITES.forEach(function (s) { html += '<option value="' + s.v + '">' + s.label + '</option>'; });
-      html += '</select></label>';
-      html += '<label>备注（可选）<input type="text" id="jaNote" maxlength="40" ' +
-        'placeholder="如 社区医院测的 / 出生第 5 天"></label>';
-      html += Util.timePickHTML('jaTime');
-      html += '<button class="btn btn-primary btn-save" id="jaSave">保存</button>';
-      html += '<p class="hint">1 mg/dL ≈ 17.1 µmol/L。不同医院报告单位不同，按报告上的单位填即可，' +
-        '本工具不做换算后的判读。</p></div>';
-
-      /* 最近值 + 较上次变化（只描述数值方向，不解释含义） */
-      var sorted = all.slice().sort(function (a, b) { return new Date(b.time) - new Date(a.time); });
-      var last = sorted[0];
-      var prev = sorted[1];
-
-      html += '<div class="card"><h2>最近一次</h2>';
-      if (last && typeof last.value === 'number' && isFinite(last.value)) {
-        html += '<div class="fetal-hero"><span class="stat-num">' + last.value +
-          '<i class="stat-unit">' + unitLabel(last.unit) + '</i></span>';
-        var sub = Util.fmtDateTime(last.time) + (siteLabel(last.site) ? ' · ' + siteLabel(last.site) : '');
-        if (prev && typeof prev.value === 'number' && isFinite(prev.value) && prev.unit === last.unit) {
-          var diff = Math.round((last.value - prev.value) * 10) / 10;
-          sub += ' · 较上次 ' + (diff > 0 ? '+' : '') + diff;
-        }
-        html += '<span class="hint">' + sub + '</span></div>';
-        var bd = (global.Storage && Storage.activeBaby && Storage.activeBaby() && Storage.activeBaby().birthDate) || (d.settings && d.settings.baby && d.settings.baby.birthDate) || null;
-        html += jaChart(all, last.unit, bd);
-        html += '<p class="hint">数值高低本身不能说明问题——要不要处理，请拿这份记录问医生。</p>';
-      } else {
-        html += '<p class="hint">还没有测量记录。复诊时把每次的数值给医生看，比只记「黄不黄」有用得多。</p>';
-      }
-      html += '</div>';
-
-      html += '<div class="card"><h2>最近记录</h2>';
-      var list = sorted.slice(0, 20);
-      if (list.length) {
-        html += '<ul class="list">';
-        list.forEach(function (r) {
-          html += '<li><span class="row-ico">' + icon('jaundice') + '</span>'
-            + '<span class="li-main"><b>' + Util.fmtDateTime(r.time) + '</b></span>'
-            + '<span class="li-sub">' + (siteLabel(r.site) ? siteLabel(r.site) + ' ' : '') +
-            (r.note ? Util.escapeHtml(r.note) : '') + '</span>'
-            + '<span class="li-num">' + (typeof r.value === 'number' && isFinite(r.value)
-              ? r.value + '<i>' + unitLabel(r.unit) + '</i>' : '<i>—</i>') + '</span>'
-            + '<button class="icon-btn" data-del="' + r.id + '" aria-label="删除" title="删除">' +
-            icon('trash') + '</button></li>';
-        });
-        html += '</ul>';
-      } else {
-        html += '<div class="empty-state"><span class="es-ico">' + icon('jaundice') + '</span><p>还没有黄疸记录</p><span class="hint">测一次就记一次。</span></div>';
-      }
-      html += '</div>';
-
-      html += '<p class="hint med-note">黄疸记录仅供参考；是否需光疗、何时复查，一律以医生判断为准。</p>';
-
-      view.innerHTML = html;
-
-      view.querySelector('#jaSave').addEventListener('click', function () {
-        var el = view.querySelector('#jaVal');
-        var v = parseFloat(el.value);
-        var unit = view.querySelector('#jaUnit').value || 'mgdl';
-        var max = (unit === 'umol') ? 500 : 30;
-        if (!isFinite(v) || v < 0 || v > max) {
-          Util.markInvalid(el, '请填 0–' + max + ' 之间的数值（单位 ' + unitLabel(unit) + '）');
-          return;
-        }
-        var jaStamp = Util.stampFrom(view, 'jaTime');
-        if (!jaStamp) return;
-        var rec = {
-          id: Util.uid(), time: jaStamp,
-          value: Math.round(v * 10) / 10, unit: unit,
-          site: view.querySelector('#jaSite').value || 'forehead',
-          note: (view.querySelector('#jaNote').value || '').trim() || null
-        };
-        d.jaundices.push(rec);
-        if (Storage.save()) Util.toast('已记录 ' + rec.value + ' ' + unitLabel(rec.unit), 'ok');
-        global.App.rerender();
-      });
-
-      Array.prototype.forEach.call(view.querySelectorAll('[data-del]'), function (b) {
-        b.addEventListener('click', function () {
-          Util.removeWithUndo(d.jaundices, b.getAttribute('data-del'), {
-            onSave: function () { Storage.save(); },
-            onAfter: function () { global.App.rerender(); },
-            deletedText: '已删除黄疸记录'
-          });
-        });
+      var bd = (Storage.activeBaby && Storage.activeBaby() && Storage.activeBaby().birthDate) || (d.settings && d.settings.baby && d.settings.baby.birthDate) || null;
+      global.ModSkel.render(view, {
+        id: 'jaundice', accent: 'jaundice', noun: '黄疸', listKey: 'jaundices', icon: 'jaundice', bars: null,
+        ref: '<b>黄疸要由医生评估，这里只帮你留记录。</b>出生 24 小时内就黄、黄到手心脚心、精神差或吃奶明显变少、哭声尖、大便发白、体温异常，请立即就医。',
+        summary: function (c) {
+          var all = c.all.filter(function (r) { return okV(r.value); });
+          if (!all.length) return '还没有<b>黄疸</b>测量记录。复诊时把每次数值给医生看，比只记「黄不黄」有用得多。';
+          var last = all[0], prev = all[1];
+          var s = '最近一次是<b>' + Util.escapeHtml(c.ago(last.time)) + '</b>，<b>' + last.value + ' ' + unitLabel(last.unit) + '</b>';
+          if (prev && prev.unit === last.unit) {
+            var diff = Math.round((last.value - prev.value) * 10) / 10;
+            s += '，较上次 <b>' + (diff > 0 ? '+' : '') + diff + '</b>';
+          }
+          return s + '。';
+        },
+        dash: function (c) {
+          var last = c.all.filter(function (r) { return okV(r.value); })[0];
+          if (!last) return '';
+          var ch = jaChart(c.all, last.unit, bd);
+          if (!ch) return '';
+          return '<div class="card dash-card"><h2>数值变化</h2>' + ch + '<p class="hint">数值高低本身不能说明问题——要不要处理，请拿这份记录问医生。</p></div>';
+        },
+        fields: [
+          { k: 'value', t: 'num', label: '数值', unit: '', min: 0, max: 500, step: 0.1, ph: '如 12.5', optional: false },
+          { k: 'unit', t: 'seg', label: '单位', opts: UNITS.map(function (u) { return { v: u.v, label: u.label }; }), def: 'mgdl' },
+          { k: 'site', t: 'seg', label: '测量部位', opts: SITES, def: 'forehead' }
+        ],
+        validate: function (v) {
+          var max = v.unit === 'umol' ? 500 : 30;
+          return (v.value < 0 || v.value > max) ? '数值填 0–' + max + '（单位 ' + unitLabel(v.unit) + '）' : null;
+        },
+        sheetHint: '1 mg/dL ≈ 17.1 µmol/L。按报告上的单位填，本工具不做换算后的判读。',
+        notePh: '如 社区医院测的 / 出生第 5 天',
+        title: function (r) { return okV(r.value) ? r.value + ' ' + unitLabel(r.unit) : '黄疸'; },
+        sub: function (r) { return [siteLabel(r.site), r.note || ''].filter(Boolean).join(' · '); },
+        foot: '黄疸记录仅供参考；是否需光疗、何时复查，一律以医生判断为准。',
+        empty: '测一次就记一次，点下方「记录黄疸」。'
       });
     }
   };
