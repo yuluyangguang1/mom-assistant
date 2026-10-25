@@ -692,6 +692,33 @@
       b.rec = null;
     },
 
+    /* 第 222 次（双胞胎/多宝宝同时记）：往指定宝宝名下追加一条记录。
+       当前宝宝写顶层；其他宝宝写进它档案的 rec（没有 rec 就按默认空值建一份）。
+       只允许 BABY_KEYS 里的数组键，其余一律拒绝。返回是否写入。 */
+    pushFor: function (babyId, key, rec) {
+      if (BABY_KEYS.indexOf(key) < 0) return false;
+      var d = this.data;
+      if (!babyId || babyId === d.settings.activeBabyId) {
+        if (!Array.isArray(d[key])) return false;
+        d[key].push(rec); return true;
+      }
+      var b = (d.babies || []).filter(function (x) { return x.id === babyId; })[0];
+      if (!b) return false;
+      if (!b.rec) { var def = defaultData(), r = {}; BABY_KEYS.forEach(function (k) { r[k] = def[k]; }); b.rec = r; }
+      if (!Array.isArray(b.rec[key])) b.rec[key] = [];
+      b.rec[key].push(rec); return true;
+    },
+    /** pushFor 的撤销：按记录 id 从指定宝宝名下删掉 */
+    removeFor: function (babyId, key, recId) {
+      if (BABY_KEYS.indexOf(key) < 0) return false;
+      var d = this.data;
+      var arr = (!babyId || babyId === d.settings.activeBabyId) ? d[key]
+        : (((d.babies || []).filter(function (x) { return x.id === babyId; })[0] || {}).rec || {})[key];
+      if (!Array.isArray(arr)) return false;
+      for (var i = arr.length - 1; i >= 0; i--) if (arr[i] && arr[i].id === recId) { arr.splice(i, 1); return true; }
+      return false;
+    },
+
     /** 某个宝宝名下的记录条数（设置页删除确认用；当前宝宝读顶层） */
     babyRecordCount: function (id) {
       var d = this.data;

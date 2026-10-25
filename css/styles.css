@@ -3011,6 +3011,9 @@ body.dock-left .view, body.dock-right .view { padding-bottom: calc(var(--dock-h,
 .hn-q .ico { width: 24px; height: 24px; color: var(--tile-text, var(--primary)); }
 .hn-q:active { transform: scale(.95); }
 .hn-q:focus-visible, .hn-run-main:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.hn-tgt { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: var(--fs-sm); color: var(--muted); }
+.hn-tgt-b { min-height: 30px; padding: 0 12px; border-radius: var(--radius-pill); border: 1px solid var(--border); background: transparent; color: var(--text); font: inherit; font-size: var(--fs-sm); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hn-tgt-b.on { background: var(--tile-feeding-weak, rgba(90,160,150,.14)); border-color: var(--feeding, #5AA096); color: var(--feeding-ink, var(--text)); font-weight: 600; }
 .hn-hint { margin: 0; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 第 146 次（P0-5）：宝宝生日原生日期选择器 */

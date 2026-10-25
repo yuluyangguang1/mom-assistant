@@ -270,10 +270,35 @@ def test_layout_and_toast(b):
     p.close()
 
 
+def test_family(b):
+    """第 220–222 次：二胎孕期、孕期结束判定、多宝宝记录隔离与「两个都记」。"""
+    p, errs = fresh(b)
+    ev = p.evaluate
+    ev("(()=>{const d=Storage.get();d.settings.baby.birthDate='2026-05-20';d.pregnancy.lmp=Util.addDays(Util.todayISO(),-85);d.pregnancy.dueDate=null;d.settings.stage='pregnancy';Storage.save();App.showTab('home')})()")
+    p.wait_for_timeout(300)
+    check('二胎孕期：识别为 dual', ev("App.isDualStage(Storage.get())"))
+    txt = ev("document.getElementById('view').innerText")
+    check('二胎孕期：首页同时有孕期与大宝快记', ('孕期' in txt) and ('尿了' in txt), txt[:200])
+    a_feeds = ev("Storage.get().feedings.length")
+    ev("Storage.addBaby({name:'二宝',birthDate:Util.todayISO()})")
+    check('二宝出生：孕期自动结束、回到育儿期', ev("App.pregnancyWeekOf(Storage.get())===null && App.stageOf(Storage.get())==='baby'"))
+    check('二宝出生：新宝宝记录从空白开始', ev("Storage.get().feedings.length") == 0)
+    ev("App.showTab('home')"); p.wait_for_timeout(200)
+    cnt = "Storage.get().babies.map(x=>x.id===Storage.get().settings.activeBabyId?Storage.get().diapers.length:((x.rec||{}).diapers||[]).length).join(',')"
+    before = ev(cnt)
+    p.click('[data-qtgt="all"]'); p.wait_for_timeout(150); p.click('[data-hnq="pee"]'); p.wait_for_timeout(200)
+    after = ev(cnt)
+    check('两个都记：每个宝宝各 +1', [int(x) + 1 for x in before.split(',')] == [int(x) for x in after.split(',')], (before, after))
+    ev("Storage.switchBaby(Storage.get().babies[0].id)")
+    check('切回大宝：喂养记录完好', ev("Storage.get().feedings.length") == a_feeds)
+    check('多宝宝流程无报错', not errs, errs)
+    p.close()
+
+
 def main():
     with sync_playwright() as pw:
         b = pw.chromium.launch()
-        for fn in (test_data, test_flows, test_format, test_home_edit, test_css_rules, test_layout_and_toast):
+        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_css_rules, test_layout_and_toast):
             try:
                 fn(b)
             except Exception as e:  # 一组崩了不影响其他组

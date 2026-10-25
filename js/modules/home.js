@@ -190,7 +190,7 @@
       var dl = dueLeft(d);
       if (ageDays !== null && ageDays >= 0 && ageDays <= 730) {
         if (ageDays >= 294) greetSub = '宝宝 ' + Math.floor(ageDays / 30.44) + ' 个月大了';
-        else if (ageDays >= 1) greetSub = '宝宝出生第 ' + ageDays + ' 天';
+        else if (ageDays >= 1) greetSub = '宝宝出生第 ' + (ageDays + 1) + ' 天'; /* 第 222 次：与问候卡「出生第 N 天」同口径（出生当天 = 第 1 天） */
         else greetSub = '欢迎新生命';
       } else if (dl !== null) {
         if (dl > 0) {
@@ -842,7 +842,7 @@
           if (ageDays === 0) big = '今天出生';
           else if (y0 >= 1) big = y0 + ' 岁' + (m0 ? ' ' + m0 + ' 个月' : '') + (dd0 && !m0 ? ' ' + dd0 + ' 天' : '');
           else if (m0 >= 1) big = m0 + ' 个月' + (dd0 ? ' ' + dd0 + ' 天' : '');
-          else big = '出生第 ' + ageDays + ' 天';
+          else big = ageDays + ' 天'; /* 第 222 次：不满月写「5 天」，与下方「出生第 6 天」不再打架 */
           sub.push(starSign(bD0.getMonth() + 1, bD0.getDate()) + '座 · 属' + zodiacAnimal(bD0.getFullYear(), bD0.getMonth() + 1, bD0.getDate()));
           foot = '出生第 ' + (ageDays + 1) + ' 天';
           /* 生日倒计时：30 天内显示；当天显示「今天生日」 */
@@ -1134,10 +1134,19 @@
             + '<button type="button" class="hn-q"' + (editing ? ' disabled' : '') + ' data-hnq="pee" data-accent="diaper">' + icon('pee') + '<span>尿了</span></button>'
             + '<button type="button" class="hn-q"' + (editing ? ' disabled' : '') + ' data-hnq="poop" data-accent="diaper">' + icon('poop') + '<span>拉了</span></button>'
             /* 睡眠进行中时「醒了」已在上方计时条里，快记行不再重复 */
-            + (d.openSleep ? ''
+            + ((d.openSleep || (Modules.home._qTarget === 'all' && (d.babies || []).length >= 2)) ? '' /* 第 222 次：睡眠计时只对当前宝宝，「都记」时不显示 */
               : '<button type="button" class="hn-q"' + (editing ? ' disabled' : '') + ' data-recsl="start" data-accent="sleep">' + icon('sleep') + '<span>睡了</span></button>')
             + '</div>';
           if (fedQ) h2 += '<p class="hn-hint">喂奶按上次：' + Util.escapeHtml(fedQ.label) + '</p>';
+          /* 第 222 次：两个及以上宝宝时可选「记给谁」——当前宝宝 / 全部（双胞胎一次记两份） */
+          var kids = (d.babies || []);
+          if (kids.length >= 2 && !editing) {
+            var tgt = Modules.home._qTarget === 'all' ? 'all' : 'one';
+            var curName = (d.settings.baby && (d.settings.baby.nickname || d.settings.baby.name)) || '当前宝宝';
+            h2 += '<div class="hn-tgt" role="radiogroup" aria-label="记给谁"><span>记给</span>'
+              + '<button type="button" role="radio" aria-checked="' + (tgt === 'one') + '" class="hn-tgt-b' + (tgt === 'one' ? ' on' : '') + '" data-qtgt="one">' + Util.escapeHtml(curName) + '</button>'
+              + '<button type="button" role="radio" aria-checked="' + (tgt === 'all') + '" class="hn-tgt-b' + (tgt === 'all' ? ' on' : '') + '" data-qtgt="all">' + (kids.length === 2 ? '两个都记' : kids.length + ' 个都记') + '</button></div>';
+          }
           return '<div class="card canvas-card hn-quick-card' + (cls || '') + '" data-cid="quick">' + h2 + (bd2 || '') + '</div>';
         };
       }
@@ -1672,6 +1681,20 @@
       /* 第 146 次：首屏快记（与 app.js 快记 dock 同口径：同字段、同撤销） */
       function hnSave(arrName, rec, msg) {
         var dd = Storage.get();
+        /* 第 222 次：「两个都记」——每个宝宝名下各写一份（各自独立 id），撤销一起撤 */
+        if (Modules.home._qTarget === 'all' && (dd.babies || []).length >= 2) {
+          var made = [];
+          dd.babies.forEach(function (bb) {
+            var r = JSON.parse(JSON.stringify(rec)); r.id = Util.uid();
+            if (Storage.pushFor(bb.id, arrName, r)) made.push([bb.id, r.id]);
+          });
+          if (Storage.save()) Util.toast(msg + ' · ' + made.length + ' 个宝宝', 'ok', { label: '撤销', onClick: function () {
+            made.forEach(function (m) { Storage.removeFor(m[0], arrName, m[1]); });
+            Storage.save(); global.App.rerender(); Util.toast('已撤销', 'ok');
+          } });
+          global.App.rerender();
+          return;
+        }
         dd[arrName].push(rec);
         if (Storage.save()) Util.toast(msg, 'ok', { label: '撤销', onClick: function () {
           var arr = Storage.get()[arrName];
@@ -1680,6 +1703,12 @@
         } });
         global.App.rerender();
       }
+      Array.prototype.forEach.call(view.querySelectorAll('[data-qtgt]'), function (b) {
+        b.addEventListener('click', function () {
+          Modules.home._qTarget = b.getAttribute('data-qtgt') === 'all' ? 'all' : 'one';
+          global.App.rerender();
+        });
+      });
       Array.prototype.forEach.call(view.querySelectorAll('[data-hnq]'), function (b) {
         b.addEventListener('click', function () {
           var k = b.getAttribute('data-hnq');
