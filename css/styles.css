@@ -2099,6 +2099,19 @@ body.fs-xl {
   --fs-sm:      calc(13px * var(--fs-mul)) !important;
 }
 
+/* 第 234 次：第 211 次删首页搜索时把搜索框和「全部功能」网格的底座规则一起删了，这里补回 */
+.home-search {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; min-height: 48px;
+  margin: 0 0 var(--space-md); padding: 12px 15px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); color: var(--muted);
+  font-family: inherit; font-size: var(--fs-body); line-height: 1.4;
+  text-align: left; cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: background .2s var(--ease), border-color .2s var(--ease),
+    box-shadow .2s var(--ease), transform .15s var(--spring);
+}
 /* 占位文案占满剩余宽度并单行省略（窄屏/放大档都不撑破行） */
 .home-search > span:last-child {
   flex: 1 1 auto; min-width: 0;
@@ -2112,6 +2125,10 @@ body.fs-xl {
 .home-search:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 
+.tools-grid {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-sm); margin-bottom: var(--space-md);
+}
 .tool-item {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 7px; min-height: 84px; padding: 14px 6px;
