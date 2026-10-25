@@ -478,6 +478,11 @@
         if (wid === 'quick' && stageNow211 === 'pregnancy') return;
         cardTiles.push({ id: wid, _card: true, name: CARDS_META[wid].name, icon: CARDS_META[wid].icon });
       });
+      DATA_IDS.forEach(function (cid) {
+        if (stageNow211 === 'pregnancy') return;
+        if (cid === 'w-age' && !bd) return;
+        cardTiles.push({ id: cid, _card: true, name: CARDS_META[cid].name, icon: CARDS_META[cid].icon });
+      });
       if (feedNextReady()) cardTiles.push({ id: 'feednext', _card: true, name: CARDS_META['feednext'].name, icon: CARDS_META['feednext'].icon });
       if (growthSparkReady()) cardTiles.push({ id: 'growthspark', _card: true, name: CARDS_META['growthspark'].name, icon: CARDS_META['growthspark'].icon });
       /* 第 122 次：直接记录组件——条件永远成立（随时可记），与 last-* 同纪律：
@@ -609,8 +614,9 @@
       }
 
       /* 编辑角标（磁贴/卡共用同构 HTML；非编辑模式零节点） */
+      var noBadges = false; /* 第 217 次：添加目录里的预览不带编辑角标 */
       function editBadges(t) {
-        if (!editing) return '';
+        if (!editing || noBadges) return '';
         return '<span class="tile-del" data-del="' + t.id + '" role="button" tabindex="0" aria-label="删除 ' + t.name + ' 组件">' + icon('trash') + '</span>'
           + '<span class="tile-size" data-size="' + t.id + '" role="button" tabindex="0" aria-label="切换 ' + t.name + ' 大小，当前' + (t._sz === 's' ? '半宽' : '整排') + '">' + (t._sz === 's' ? '半宽' : '整排') + '</span>';
       }
@@ -1006,6 +1012,107 @@
           + '<span class="hl2-gap">' + wnSub + '</span>'
           + (bd2 || '') + '</button>'; };
       }
+      /* ── 第 217 次：数据卡（今日概览 / 近 7 天奶量 / 近 7 天睡眠 / 成长天数） ── */
+      (function () {
+        var DAY = 86400000;
+        var t0 = new Date(sumNow.getFullYear(), sumNow.getMonth(), sumNow.getDate()).getTime();
+        function dayIdx(ms) { return Math.floor((ms - t0) / DAY); } /* 0 = 今天，-1 = 昨天 */
+        function feedMl(f) {
+          if (f.type !== 'bottle' && f.type !== 'formula') return 0;
+          var v = parseFloat(f.amountFm || f.amount); return isNaN(v) ? 0 : v;
+        }
+        function sleepMin(sl, from, to) { /* 与 [from,to) 重叠的分钟数 */
+          var a = new Date(sl.start).getTime(), b = sl.end ? new Date(sl.end).getTime() : Date.now();
+          if (isNaN(a) || isNaN(b) || b <= a) return 0;
+          var ov = Math.min(b, to) - Math.max(a, from);
+          if (ov <= 0) return 0;
+          var whole = b - a, pz = sl.pausedMs || 0;
+          return Math.max(0, ov * (1 - Math.min(1, pz / whole))) / 60000;
+        }
+        function hm(min) {
+          min = Math.round(min);
+          if (min < 60) return min + ' 分钟';
+          return Math.floor(min / 60) + ' 小时' + (min % 60 ? ' ' + (min % 60) + ' 分' : '');
+        }
+        var feeds = (d.feedings || []).filter(function (f) { return f && f.start; });
+        var dias = (d.diapers || []).filter(function (x) { return x && x.time; });
+        var sls = (d.sleeps || []).filter(function (x) { return x && x.start; });
+        if (d.openSleep && d.openSleep.start) sls = sls.concat([{ start: d.openSleep.start, end: null, pausedMs: d.openSleep.pausedMs || 0 }]);
+        /* 今日 */
+        var tf = feeds.filter(function (f) { return dayIdx(new Date(f.start).getTime()) === 0; });
+        var tfMl = tf.reduce(function (s2, f) { return s2 + feedMl(f); }, 0);
+        var td = dias.filter(function (x) { return dayIdx(new Date(x.time).getTime()) === 0; });
+        var tdPoop = td.filter(function (x) { return x.type === 'poop' || x.type === 'both'; }).length;
+        var tsMin = sls.reduce(function (s2, x) { return s2 + sleepMin(x, t0, t0 + DAY); }, 0);
+        W_HTML['w-today'] = function (cls, bd2) {
+          function cell(acc, go, ic, lbl, big, sub) {
+            return '<div class="wt-cell" data-accent="' + acc + '"><span class="wt-lbl">' + icon(ic) + lbl + '</span>'
+              + '<b class="wt-big">' + big + '</b><span class="wt-sub">' + sub + '</span></div>';
+          }
+          return '<div class="card canvas-card wd-card wd-today' + cls + '" data-cid="w-today" data-go="calendar" role="button" tabindex="0" aria-label="今日概览">'
+            + '<div class="wd-head"><h2>今日概览</h2><span class="wd-meta">' + (sumNow.getMonth() + 1) + ' 月 ' + sumNow.getDate() + ' 日</span></div>'
+            + '<div class="wt-row">'
+            + cell('feeding', 'feeding', 'feeding', '喂奶', tf.length + '<small> 次</small>', tfMl ? tfMl + ' mL' : '—')
+            + cell('diaper', 'diaper', 'diaper', '尿布', td.length + '<small> 次</small>', tdPoop ? '便 ' + tdPoop + ' 次' : '—')
+            + cell('sleep', 'sleep', 'sleep', '睡眠', tsMin >= 60 ? (Math.floor(tsMin / 60) + '<small> 时</small>' + (Math.round(tsMin % 60) ? ' ' + Math.round(tsMin % 60) + '<small> 分</small>' : '')) : Math.round(tsMin) + '<small> 分</small>', d.openSleep && d.openSleep.start ? '睡眠中' : (tsMin ? '已睡' : '—'))
+            + '</div>' + (bd2 || '') + '</div>';
+        };
+        /* 近 7 天柱状 */
+        var WD = ['日', '一', '二', '三', '四', '五', '六'];
+        function bars(id, acc, go, title, vals, fmtV, unitAvg) {
+          var max = Math.max.apply(null, vals.concat([1]));
+          var has = vals.filter(function (v) { return v > 0; });
+          var avg = has.length ? has.reduce(function (a, b) { return a + b; }, 0) / has.length : 0;
+          var h = '<div class="wk-bars">';
+          vals.forEach(function (v, i) {
+            var dt = new Date(t0 - (6 - i) * DAY);
+            h += '<div class="wk-col' + (i === 6 ? ' is-today' : '') + '"><span class="wk-v">' + (v ? fmtV(v) : '') + '</span>'
+              + '<span class="wk-bar"><i style="height:' + (v ? Math.max(6, Math.round(v / max * 100)) : 0) + '%"></i></span>'
+              + '<span class="wk-d">' + (i === 6 ? '今' : WD[dt.getDay()]) + '</span></div>';
+          });
+          h += '</div>';
+          return function (cls, bd2) {
+            return '<div class="card canvas-card wd-card wd-week' + cls + '" data-cid="' + id + '" data-accent="' + acc + '" data-go="' + go + '" role="button" tabindex="0" aria-label="' + title + '">'
+              + '<div class="wd-head"><h2>' + title + '</h2><span class="wd-meta">' + (avg ? '日均 ' + unitAvg(avg) : '还没有记录') + '</span></div>'
+              + h + (bd2 || '') + '</div>';
+          };
+        }
+        var fv = [], sv = [];
+        for (var i = 6; i >= 0; i--) {
+          var a = t0 - i * DAY;
+          fv.push(feeds.reduce(function (s2, f) { return s2 + (dayIdx(new Date(f.start).getTime()) === -i ? feedMl(f) : 0); }, 0));
+          sv.push(sls.reduce(function (s2, x) { return s2 + sleepMin(x, a, a + DAY); }, 0));
+        }
+        W_HTML['w-week-feed'] = bars('w-week-feed', 'feeding', 'feeding', '近 7 天奶量', fv,
+          function (v) { return Math.round(v); }, function (v) { return Math.round(v) + ' mL'; });
+        W_HTML['w-week-sleep'] = bars('w-week-sleep', 'sleep', 'sleep', '近 7 天睡眠', sv,
+          function (v) { var h = v / 60; return (Math.abs(h - Math.round(h)) < 0.05 ? Math.round(h) : h.toFixed(1)) + 'h'; }, function (v) { return hm(v); });
+        /* 成长天数：第 N 天 + 下一个里程碑（满月 / 百天 / 满 N 个月 / 周岁）进度 */
+        if (bd) {
+          var bdD = new Date(bd + 'T00:00:00');
+          var age = Math.floor((t0 - bdD.getTime()) / DAY) + 1;
+          var ms = [];
+          for (var mo = 1; mo <= 36; mo++) {
+            var md = new Date(bdD.getFullYear(), bdD.getMonth() + mo, bdD.getDate());
+            ms.push({ t: md.getTime(), name: mo === 1 ? '满月' : (mo % 12 === 0 ? (mo / 12 === 1 ? '周岁' : mo / 12 + ' 周岁') : '满 ' + mo + ' 个月') });
+          }
+          ms.push({ t: bdD.getTime() + 99 * DAY, name: '百天' });
+          ms.sort(function (x, y) { return x.t - y.t; });
+          var nx = ms.filter(function (x) { return x.t >= t0; })[0];
+          var pv = ms.filter(function (x) { return x.t < t0; }).pop();
+          var fromT = pv ? pv.t : bdD.getTime();
+          var pct = nx ? Math.max(3, Math.min(100, Math.round((t0 - fromT) / (nx.t - fromT) * 100))) : 100;
+          var left = nx ? Math.round((nx.t - t0) / DAY) : 0;
+          W_HTML['w-age'] = function (cls, bd2) {
+            return '<div class="card canvas-card wd-card wd-age' + cls + '" data-cid="w-age" data-accent="growth" data-go="growth" role="button" tabindex="0" aria-label="成长天数">'
+              + '<span class="wa-lbl">' + icon('growth') + '来到世界</span>'
+              + '<b class="wa-big">' + age + '<small> 天</small></b>'
+              + (nx ? '<span class="wa-next">' + (left === 0 ? '今天' + nx.name + ' 🎉' : '距' + nx.name + '还有 ' + left + ' 天') + '</span>'
+                + '<span class="wa-prog"><i style="width:' + pct + '%"></i></span>' : '')
+              + (bd2 || '') + '</div>';
+          };
+        }
+      })();
       if (showQuick) {
         W_HTML['quick'] = function (cls, bd2) {
           var h2 = '';
@@ -1165,6 +1272,7 @@
           + '</button>';
       });
       html += '</div>';
+      if (editing) html += '<p class="home-edit-tip">按住卡片拖动排序，点「－」删除，点大小切换半宽 / 整排</p>';
       html += '<div class="home-edit-row">'
         + (editing ? '<button class="home-edit-btn" id="homeSheetOpen" type="button">' + icon('plus') + '添加卡片</button>' : '')
         + '<button class="home-edit-btn" id="homeEdit" type="button">'
@@ -1204,25 +1312,43 @@
           + '<button class="home-edit-btn" id="homeSheetClose" type="button">' + icon('check') + '完成</button></div>'
           + '<input class="sheet-search" id="sheetSearch" type="text" placeholder="搜索组件" aria-label="搜索组件">'
           + '<div class="sheet-list">';
+        /* 第 217 次（用户：点击添加没反馈、没有卡片预览）：目录改为分组卡片预览——
+           每项直接渲染首页上的真实样子（inert，不可交互），右上角「＋ 添加」。 */
         var addedRow = false;
+        var groups = { '小组件': [], '数据卡': [], '记录卡': [], '距上次': [], '功能模块': [] };
         UNIVERSE().forEach(function (id) {
           if (inCanvas[id]) return;
-          var nm = TILE_NAME[id]; var ic = id; var ac = (TILE_ACCENT[id] || id);
+          var g = '功能模块';
           if (CARDS_META[id]) {
-            /* 第 121 次：卡组件进目录。条件卡（feednext/growthspark）只在条件满足
-               （本轮已构建出卡对象）时列出——目录如实反映「现在能加什么」；
-               last-* 条件永远成立（无数据时卡上显示空态引导记录，其价值正在于此），
-               cmap 里总有对象。 */
             if (!cmap[id]) return;
-            nm = CARDS_META[id].name; ic = CARDS_META[id].icon;
-          }
-          if (!nm) return;
-          addedRow = true;
-          html += '<button class="sheet-row" data-add="' + id + '" data-name="' + nm + '" data-accent="' + ac + '" type="button">'
-            + '<span class="rt-ico">' + icon(ic) + '</span>'
-            + '<span class="rt-name">' + nm + '</span>'
-            + '<span class="rt-arrow" aria-hidden="true">' + icon('chevron-right') + '</span></button>';
+            g = DATA_IDS.indexOf(id) >= 0 ? '数据卡' : (/^rec-/.test(id) ? '记录卡' : (/^last-/.test(id) ? '距上次' : '小组件'));
+          } else if (!TILE_NAME[id] || !cmap[id]) return;
+          groups[g].push(id);
         });
+        noBadges = true;
+        Object.keys(groups).forEach(function (g) {
+          if (!groups[g].length) return;
+          html += '<div class="sheet-group"><h3 class="sheet-gh">' + g + '</h3><div class="sheet-grid">';
+          groups[g].forEach(function (id) {
+            var t = cmap[id];
+            var nm = CARDS_META[id] ? CARDS_META[id].name : TILE_NAME[id];
+            var sz = defSize(id);
+            var prev;
+            t._sz = sz;
+            if (t._card) prev = cardHTML(t);
+            else prev = '<div class="record-tile ' + (sz === 's' ? 'sz-s' : 'sz-l') + '" data-accent="' + t.accent + '">'
+              + '<span class="rt-ico">' + icon(t.id) + '</span><span class="rt-name">' + t.name + '</span>'
+              + '<span class="rt-sum">' + t.sum + '</span>'
+              + '<span class="rt-arrow" aria-hidden="true">' + icon('chevron-right') + '</span></div>';
+            if (!prev) return;
+            addedRow = true;
+            html += '<div class="sheet-card' + (sz === 's' ? ' is-s' : '') + '" data-add="' + id + '" data-name="' + nm + '" role="button" tabindex="0" aria-label="添加 ' + nm + '">'
+              + '<div class="sc-head"><span class="sc-name">' + nm + '</span><span class="sc-add">' + icon('plus') + '添加</span></div>'
+              + '<div class="sc-prev" inert aria-hidden="true">' + prev + '</div></div>';
+          });
+          html += '</div></div>';
+        });
+        noBadges = false;
         if (!addedRow) html += '<p class="hint" style="padding:14px 4px">全部组件都在首页上了。</p>';
         html += '</div>'
           + '<div class="row"><button class="btn" id="homeLayoutReset" type="button">恢复默认布局</button></div>'
@@ -1292,6 +1418,7 @@
       });
 
       /* ── 第 120 次：编辑模式交互绑定 ── */
+      if (!editing && Modules.home._dragTeardown) Modules.home._dragTeardown();
       var editBtn = view.querySelector('#homeEdit');
       if (editBtn) editBtn.addEventListener('click', function () {
         Modules.home._edit = !Modules.home._edit;
@@ -1318,14 +1445,40 @@
           });
         });
         Array.prototype.forEach.call(view.querySelectorAll('[data-add]'), function (b) {
-          b.addEventListener('click', function () { Modules.home._editAdd(b.getAttribute('data-add')); });
+          function add() {
+            if (b.classList.contains('is-adding')) return;
+            var id = b.getAttribute('data-add'), nm = b.getAttribute('data-name');
+            b.classList.add('is-adding');
+            try { if (navigator.vibrate) navigator.vibrate(12); } catch (e2) {}
+            /* 先给一下「被加进去」的动效，再落库重绘；重绘后关目录、滚到新卡并高亮 */
+            setTimeout(function () {
+              Modules.home._justAdded = id;
+              Modules.home._sheet = false;
+              Modules.home._editAdd(id);
+              Util.toast('已添加「' + nm + '」', 'ok');
+            }, 220);
+          }
+          b.addEventListener('click', add);
+          b.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); add(); } });
         });
+        if (Modules.home._justAdded) {
+          var ja = Modules.home._justAdded; Modules.home._justAdded = null;
+          var el = view.querySelector('.record-grid [data-cid="' + ja + '"], .record-grid [data-go="' + ja + '"]');
+          if (el) {
+            el.classList.add('just-added');
+            try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e3) { el.scrollIntoView(); }
+            setTimeout(function () { el.classList.remove('just-added'); }, 1600);
+          }
+        }
         var sheetSearch = view.querySelector('#sheetSearch');
         if (sheetSearch) sheetSearch.addEventListener('input', function () {
           var q = (sheetSearch.value || '').trim().toLowerCase();
-          Array.prototype.forEach.call(view.querySelectorAll('.sheet-row'), function (r) {
+          Array.prototype.forEach.call(view.querySelectorAll('.sheet-card'), function (r) {
             var nm = (r.getAttribute('data-name') || '').toLowerCase();
             r.style.display = (!q || nm.indexOf(q) >= 0) ? '' : 'none';
+          });
+          Array.prototype.forEach.call(view.querySelectorAll('.sheet-group'), function (g) {
+            g.style.display = g.querySelector('.sheet-card:not([style*="none"])') ? '' : 'none';
           });
         });
         bindDrag(view);
@@ -1371,14 +1524,48 @@
               timer = null;
               if (!cur || cur !== row) return;   /* 第 125 次：起手已作废则不再进入拖动 */
               dragging = true; row.classList.add('dragging');
-              if (row.setPointerCapture && pid !== undefined) {
+              try { if (navigator.vibrate) navigator.vibrate(10); } catch (e4) {}
+              if (e.pointerType !== 'touch' && row.setPointerCapture && pid !== undefined) {
                 try { row.setPointerCapture(pid); } catch (err) { /* 老内核忽略 */ }
               }
             }, 350);
           });
         });
-        grid.addEventListener('pointermove', function (e) {
+        /* 第 217 次（真机：编辑首页下拉滑不动）：卡片改为 touch-action:pan-y，手指一滑就是滚动页面；
+           只有按住 350ms 进入拖动后，才由下面这个非被动 touchmove 拦下滚动、改为跟手排序。 */
+        function moveTo(x, y) {
+          var over = document.elementFromPoint ? document.elementFromPoint(x, y) : null;
+          while (over && !(over.classList && (over.classList.contains('record-tile') || over.classList.contains('canvas-card'))) && over !== grid) {
+            over = over.parentNode;
+          }
+          if (over && over !== grid && over !== cur && over.parentNode === grid) {
+            var r2 = over.getBoundingClientRect();
+            var before = y < r2.top + r2.height / 2;
+            if (before && cur !== over.previousSibling) grid.insertBefore(cur, over);
+            else if (!before && cur !== over.nextSibling) grid.insertBefore(cur, over.nextSibling);
+          }
+        }
+        function onTouchMove(e) {
           if (!cur) return;
+          var t = e.touches && e.touches[0]; if (!t) return;
+          if (!dragging) {
+            if (Math.abs(t.clientX - sx) > 10 || Math.abs(t.clientY - sy) > 10) endDrag(false);
+            return;
+          }
+          if (e.cancelable) e.preventDefault();
+          moveTo(t.clientX, t.clientY);
+        }
+        function onTouchEnd(e) {
+          if (!cur) return;
+          var t = e.changedTouches && e.changedTouches[0];
+          var tgt = t && document.elementFromPoint ? document.elementFromPoint(t.clientX, t.clientY) : null;
+          endDrag(dragging && (!tgt || grid.contains(tgt)));
+        }
+        document.addEventListener('touchmove', onTouchMove, { passive: false });
+        document.addEventListener('touchend', onTouchEnd, true);
+        document.addEventListener('touchcancel', onTouchEnd, true);
+        grid.addEventListener('pointermove', function (e) {
+          if (!cur || e.pointerType === 'touch') return;
           if (!dragging) {
             if (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10) endDrag(false);
             return;
@@ -1404,6 +1591,8 @@
            决定这次拖动是否落库（网格外松手 = 放弃排序，但状态一定清干净）。 */
         function onUp(e) {
           if (!cur) return;
+          /* 触摸由 touchend 收尾（pan-y 下浏览器滚动时会发 pointercancel，不能当作放弃） */
+          if (e.pointerType === 'touch') { if (!dragging && e.type === 'pointercancel') endDrag(false); return; }
           endDrag(dragging && grid.contains && grid.contains(e.target));
         }
         document.addEventListener('pointerup', onUp, true);
@@ -1414,6 +1603,9 @@
         Modules.home._dragTeardown = function () {
           document.removeEventListener('pointerup', onUp, true);
           document.removeEventListener('pointercancel', onUp, true);
+          document.removeEventListener('touchmove', onTouchMove, { passive: false });
+          document.removeEventListener('touchend', onTouchEnd, true);
+          document.removeEventListener('touchcancel', onTouchEnd, true);
           Modules.home._dragTeardown = null;
         };
       }
@@ -1647,7 +1839,7 @@
      · last-* 无数据时显示「暂无记录」空态而非消失——它的价值正是引导去记录。
      ============================================================ */
   var W_IDS = ['quick', 'w-feed', 'w-diaper', 'w-sleep', 'w-noise'];
-  var CARD_IDS = W_IDS.concat(['feednext', 'growthspark', 'last-feeding', 'last-diaper', 'last-sleep', 'last-growth', 'last-temp', 'rec-diaper', 'rec-sleep', 'rec-bottle', 'rec-breast', 'rec-pump']);
+  var CARD_IDS = W_IDS.concat(['w-today', 'w-week-feed', 'w-week-sleep', 'w-age', 'feednext', 'growthspark', 'last-feeding', 'last-diaper', 'last-sleep', 'last-growth', 'last-temp', 'rec-diaper', 'rec-sleep', 'rec-bottle', 'rec-breast', 'rec-pump']);
   var CARDS_META = {
     'quick': { name: '快捷记录', icon: 'plus' },
     'w-feed': { name: '上次喂奶', icon: 'feeding' },
@@ -1667,8 +1859,14 @@
     'last-diaper': { name: '距上次尿布', icon: 'diaper' },
     'last-sleep': { name: '距上次睡眠', icon: 'sleep' },
     'last-growth': { name: '距上次测量', icon: 'growth' },
-    'last-temp': { name: '距上次体温', icon: 'temp' }
+    'last-temp': { name: '距上次体温', icon: 'temp' },
+    /* 第 217 次（用户：添加更多的卡片设计）：数据卡 */
+    'w-today': { name: '今日概览', icon: 'calendar' },
+    'w-week-feed': { name: '近 7 天奶量', icon: 'feeding' },
+    'w-week-sleep': { name: '近 7 天睡眠', icon: 'sleep' },
+    'w-age': { name: '成长天数', icon: 'growth' }
   };
+  var DATA_IDS = ['w-today', 'w-week-feed', 'w-week-sleep', 'w-age'];
   /* 距上次卡的数据源定义：list=数据键，key=时间字段，detail=明细行（取最新一条渲染）。
      时间口径统一走 lastAny + gapText + dayLabel（与磁贴摘要同源，只描述中性事实不催促）。 */
   var LAST_DEFS = {
@@ -1685,7 +1883,7 @@
     pregnancy: ['pregnancy', 'fetal', 'contraction', 'packing', 'mood', 'w-noise']
   };
   function defSize(id) {
-    if (id === 'quick' || id === 'growthspark' || id === 'feednext' || /^(rec|last)-/.test(id)) return 'l';
+    if (id === 'quick' || id === 'growthspark' || id === 'feednext' || id === 'w-today' || id === 'w-week-feed' || id === 'w-week-sleep' || /^(rec|last)-/.test(id)) return 'l';
     return 's';
   }
   function defaultLayout(d) {
@@ -1712,6 +1910,9 @@
     UNIVERSE().forEach(function (id) {
       if (CARDS_META[id]) return;
       out.push({ id: id, name: names[id] || id, icon: id, accent: id, group: '功能模块', on: !!on[id] });
+    });
+    DATA_IDS.forEach(function (id) {
+      out.push({ id: id, name: CARDS_META[id].name, icon: CARDS_META[id].icon, accent: ({ 'w-today': 'feeding', 'w-week-feed': 'feeding', 'w-week-sleep': 'sleep', 'w-age': 'growth' })[id], group: '数据卡', on: !!on[id] });
     });
     CARD_IDS.forEach(function (id) {
       if (!/^(rec|last)-/.test(id)) return;
