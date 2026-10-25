@@ -58,6 +58,18 @@
       var r = lastOf(d.sleeps, 'end') || lastOf(d.sleeps, 'start');
       return { status: r ? '醒着 · 上次醒来 ' + Util.fmtAgo(r.end || r.start) : '还没有睡眠记录' };
     },
+    /* 第 231 次：亲喂、瓶喂独立页 */
+    breast: function (d) {
+      var t = d.feedingTimer;
+      if (t && t.start) return { status: t.paused ? '计时已暂停' : '正在亲喂', state: 'live' };
+      var r = lastOf((d.feedings || []).filter(function (x) { return x && x.type === 'breast'; }), 'start');
+      return { status: r ? '上次 ' + Util.fmtAgo(r.start) : '还没有亲喂记录' };
+    },
+    bottle: function (d) {
+      if (d.bottleTimer && d.bottleTimer.start) return { status: '正在瓶喂', state: 'live' };
+      var r = lastOf((d.feedings || []).filter(function (x) { return x && (x.type === 'bottle' || x.type === 'formula'); }), 'start');
+      return { status: r ? '上次 ' + Util.fmtAgo(r.start) + (r.amount ? ' · ' + r.amount + ' mL' : '') : '还没有瓶喂记录' };
+    },
     diaper: function (d) {
       var n = todayCount(d.diapers, 'time');
       var r = lastOf(d.diapers, 'time');

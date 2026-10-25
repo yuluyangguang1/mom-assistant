@@ -34,7 +34,11 @@
       fix: function (r) {
         if (r.type === 'breast' || r.type === 'pump') {
           var L = r.durationL || 0, R = r.durationR || 0;
-          r.durationMin = (L + R) || null;
+          /* 第 231 次：计时得来的秒数（secL/secR）在分钟被改过后作废，以分钟为准 */
+          if (r.secL != null && Math.round(r.secL / 60) !== L) delete r.secL;
+          if (r.secR != null && Math.round(r.secR / 60) !== R) delete r.secR;
+          r.durationMin = (L + R) || (r.secL || r.secR ? 1 : null);
+          if (r.type === 'breast' && !L && !R && (r.secL || r.secR)) return null;
           r.side = (L && R) ? 'both' : (L ? 'left' : (R ? 'right' : null));
           if (r.type === 'breast' && !L && !R) return '请至少填一侧时长';
         } else if (r.type === 'bottle' || r.type === 'formula') {
@@ -289,5 +293,7 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 
+  /* 第 231 次：亲喂、瓶喂独立页沿用喂养的编辑表 */
+  SCHEMA.breast = SCHEMA.feeding; SCHEMA.bottle = SCHEMA.feeding;
   global.RecordEdit = { schema: SCHEMA, open: open };
 })(window);

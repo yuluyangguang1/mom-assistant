@@ -361,7 +361,9 @@
       var lastBreast = sorted.filter(function (r) { return r.type === 'breast' && r.side; })[0];
       /* U-06：表单默认值取「上一次记录值」，把重复输入的成本降到最低（报告：重复自报负担是第一大退出原因）。
          类型取上次类型；侧别默认换边（与上方换边建议一致）；时长/奶量取上次同类型的值。 */
-      var defType = (latest && latest.type) || 'breast';
+      /* 第 231 次：亲喂、瓶喂拆成独立页（Modules.breast / Modules.bottle），本页面板只记吸奶和辅食 */
+      var lastPS = sorted.filter(function (r) { return r.type === 'pump' || r.type === 'solid'; })[0];
+      var defType = (lastPS && lastPS.type) || 'pump';
       var defSide = (lastBreast && lastBreast.side === 'left') ? 'right'
         : ((lastBreast && lastBreast.side === 'right') ? 'left' : 'left');
       var lastDurRec = sorted.filter(function (r) { return r.type === 'breast' && r.durationMin; })[0];
@@ -415,7 +417,16 @@
           + '<button type="button" class="btn-mini" data-ftend="15">15 分钟前</button></div>'
           + '<button type="button" class="btn-mini" id="ftCancel">取消计时</button></div>';
       }
-      html += timerHtml;
+      /* 第 231 次：入口卡——亲喂（粉）、瓶喂（黄）各自一页 */
+      (function () {
+        var lb = sorted.filter(function (r) { return r.type === 'breast'; })[0];
+        var lbt = sorted.filter(function (r) { return r.type === 'bottle' || r.type === 'formula'; })[0];
+        var bSub = ftimer ? (ftimer.paused ? '计时已暂停' : '正在亲喂 · 点开继续') : (lb ? '上次 ' + Util.fmtAgo(lb.start) : '开始计时');
+        var tSub = d.bottleTimer ? '正在瓶喂' : (lbt ? '上次 ' + Util.fmtAgo(lbt.start) + (lbt.amount ? ' · ' + lbt.amount + ' mL' : '') : '记奶量');
+        html += '<div class="fd-entry">'
+          + '<button type="button" class="fd-ent" data-accent="breast" data-goto="breast"><img src="assets/hero/breast.webp" alt="" width="56" height="56"><span><b>亲喂</b><small>' + Util.escapeHtml(bSub) + '</small></span></button>'
+          + '<button type="button" class="fd-ent" data-accent="bottle" data-goto="bottle"><img src="assets/hero/bottle.webp" alt="" width="56" height="56"><span><b>瓶喂</b><small>' + Util.escapeHtml(tSub) + '</small></span></button></div>';
+      })();
       html += '<div class="card dash-card" data-accent="feeding"><h2>今天</h2>';
       if (feedToday.length || latest) {
         var totalAmt = feedToday.reduce(function (s, r) { return s + ((r.type === 'bottle' || r.type === 'formula') ? (r.amount || 0) : 0); }, 0);
@@ -521,7 +532,7 @@
       var fh = '';
       /* P1-8 母乳计时：计时卡在页面上（见上方 timerHtml），表单在半屏面板里。 */
       fh += '<div class="seg seg-wrap3" id="fType">';
-      TYPES.forEach(function (t) {
+      TYPES.filter(function (t) { return t.v === 'pump' || t.v === 'solid'; }).forEach(function (t) {
         fh += '<button type="button" class="seg-btn' + (t.v === defType ? ' active' : '') + '" data-t="' + t.v + '">' + icon(t.v) + t.t + '</button>';
       });
       fh += '</div>';
@@ -649,14 +660,14 @@
         });
         html += '</ul></section>';
       } else {
-        html += '<div class="mod-empty"><p>点按下方「记录喂养」，选母乳、奶瓶、奶粉、吸奶或辅食就能记下。<br>母乳可以边喂边计时。</p></div>';
+        html += '<div class="mod-empty"><p>亲喂、瓶喂点上面的卡片进去记。<br>吸奶和辅食点下方按钮。</p></div>';
       }
 
       /* 底部主按钮 + 半屏记录面板（面板默认隐藏，保存/开始计时后 App.rerender 自然收起） */
-      html += '<div class="mod-cta"><button type="button" class="mc-main" data-new>' + icon('plus') + '<span>记录喂养</span></button></div>';
+      html += '<div class="mod-cta"><button type="button" class="mc-main" data-new>' + icon('plus') + '<span>记录吸奶 / 辅食</span></button></div>';
       html += '<div class="modal-mask fd-mask" data-fd-mask hidden><div class="modal rec-sheet" role="dialog" aria-modal="true" aria-labelledby="fdsTitle" data-accent="feeding"><div class="rs-body">'
         + '<div class="rs-head"><button type="button" class="rs-x" data-fdx aria-label="关闭">' + icon('close') + '</button>'
-        + '<h2 id="fdsTitle">记录喂养</h2>'
+        + '<h2 id="fdsTitle">吸奶 / 辅食</h2>'
         + '<button type="button" class="rs-ok" data-fdok aria-label="保存">' + icon('check') + '</button></div>'
         + fh + '</div></div></div>';
 
@@ -669,6 +680,9 @@
         function closeF() { mask.hidden = true; document.removeEventListener('keydown', onKey); if (global.Sheet && Sheet.reset) Sheet.reset(mask); }
         function onKey(e) { if (e.key === 'Escape') closeF(); }
         Modules.feeding._closeSheet = closeF;
+        Array.prototype.forEach.call(view.querySelectorAll('[data-goto]'), function (b) {
+          b.addEventListener('click', function () { global.App.showTab(b.getAttribute('data-goto')); });
+        });
         var nb = view.querySelector('[data-new]');
         if (nb) nb.addEventListener('click', openF);
         mask.addEventListener('click', function (e) { if (e.target === mask) closeF(); });

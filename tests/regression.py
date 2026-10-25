@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from seed_data import seed  # noqa: E402
 
-TABS = ['bath', 'calendar', 'contraction', 'diaper', 'feeding', 'fetal', 'finance', 'growth', 'home',
+TABS = ['bath', 'bottle', 'breast', 'calendar', 'contraction', 'diaper', 'feeding', 'fetal', 'finance', 'growth', 'home',
         'jaundice', 'meds', 'milestone', 'mood', 'packing', 'period', 'pregnancy', 'search', 'settings',
         'sleep', 'sun', 'supplement', 'supplies', 'swim', 'temp', 'vaccine', 'water', 'whitenoise']
 
@@ -427,37 +427,65 @@ def test_diaper_photos(b):
 
 
 def test_feeding_sheet(b):
-    """第 230 次：喂养页新骨架——表单在半屏面板里，保存/计时/编辑/删除都照旧。"""
+    """第 230/231 次：喂养页=入口+吸奶/辅食；亲喂、瓶喂独立页（全屏计时、瓶喂面板）。"""
     p, errs = fresh(b)
     ev = p.evaluate
     ev("App.showTab('feeding')"); p.wait_for_timeout(300)
+    check('喂养：有亲喂、瓶喂入口卡', ev("document.querySelectorAll('[data-goto]').length") == 2)
     check('喂养：面板默认隐藏', ev("document.querySelector('[data-fd-mask]').hidden"))
-    check('喂养：有摘要句和底部主按钮', ev("!!document.querySelector('.mod-sum') && !!document.querySelector('.mod-cta [data-new]')"))
     p.click('[data-new]'); p.wait_for_timeout(300)
-    check('喂养：点主按钮打开底部面板', ev("!document.querySelector('[data-fd-mask]').hidden && document.querySelector('[data-fd-mask]').classList.contains('as-sheet')"))
+    check('喂养：面板只剩吸奶、辅食', ev("[...document.querySelectorAll('#fType [data-t]')].map(x=>x.dataset.t).join()") == 'pump,solid')
     n0 = ev("Storage.get().feedings.length")
-    p.click('#fType [data-t="formula"]'); p.wait_for_timeout(150)
-    ev("(()=>{const r=document.querySelector('#wrapRulerFm .ruler-range');r.value=90;r.dispatchEvent(new Event('input',{bubbles:true}));r.dispatchEvent(new Event('change',{bubbles:true}))})()")
-    ev("(()=>{const r=document.querySelector('#wrapRulerBm .ruler-range');r.value=0;r.dispatchEvent(new Event('input',{bubbles:true}));r.dispatchEvent(new Event('change',{bubbles:true}))})()")
-    p.click('[data-fdok]'); p.wait_for_timeout(500)
-    last = ev("Storage.get().feedings.slice(-1)[0]")
-    check('喂养：面板里保存成功', ev("Storage.get().feedings.length") == n0 + 1 and last.get('type') == 'formula', last)
-    check('喂养：保存后面板收起、时间轴出现', ev("document.querySelector('[data-fd-mask]').hidden && !!document.querySelector('.tl-card')"))
-    p.click('.tl-card'); p.wait_for_timeout(300)
-    check('喂养：点时间轴卡片打开编辑', ev("!!document.querySelector('.rec-edit')"))
-    p.click('[data-re-cancel]'); p.wait_for_timeout(200)
-    p.click('[data-new]'); p.wait_for_timeout(200)
-    p.click('#fType [data-t="breast"]'); p.wait_for_timeout(100)
-    p.click('#ftStart'); p.wait_for_timeout(400)
-    check('喂养：开始计时后面板收起、页面出现计时卡', ev("document.querySelector('[data-fd-mask]').hidden && !!document.querySelector('.feed-live #ftEnd')"))
-    p.click('#ftEnd'); p.wait_for_timeout(500)
-    check('喂养：结束计时后自动打开面板确认', ev("!document.querySelector('[data-fd-mask]').hidden"))
-    p.click('[data-fdx]'); p.wait_for_timeout(200)
-    check('喂养：关闭按钮收起面板', ev("document.querySelector('[data-fd-mask]').hidden && !document.body.classList.contains('sheet-open')"))
+    ev("(()=>{const r=document.querySelector('#wrapRulerPump .ruler-range');r.value=80;r.dispatchEvent(new Event('input',{bubbles:true}));r.dispatchEvent(new Event('change',{bubbles:true}))})()")
+    p.click('[data-fdok]'); p.wait_for_timeout(400)
+    check('喂养：吸奶保存成功、面板收起', ev("Storage.get().feedings.length") == n0 + 1 and ev("document.querySelector('[data-fd-mask]').hidden"))
+
+    # 亲喂
+    p.click('[data-goto="breast"]'); p.wait_for_timeout(400)
+    check('亲喂：独立页、粉色强调', ev("App.currentTab()") == 'breast' and ev("!!document.querySelector('.ft-page[data-accent=breast] [data-start]')"))
+    p.click('[data-start]'); p.wait_for_timeout(400)
+    check('亲喂：开始后进全屏计时', ev("!!document.querySelector('.ftf .ftf-big') && !!Storage.get().feedingTimer"))
+    ev("(()=>{const t=Storage.get().feedingTimer;const m=Date.now()-65000;const z=n=>String(n).padStart(2,'0');const d=new Date(m);t.start=d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+'T'+z(d.getHours())+':'+z(d.getMinutes())+':'+z(d.getSeconds());t.sideStart=t.start;Storage.save()})()")
+    p.click('.ftf [data-f="swap"]'); p.wait_for_timeout(200)
+    st = ev("Storage.get().feedingTimer")
+    check('亲喂：换边把上一侧的时间结算进去', (st.get('accL', 0) + st.get('accR', 0)) >= 60000, st)
+    p.click('.ftf [data-f="pause"]'); p.wait_for_timeout(200)
+    check('亲喂：暂停', ev("Storage.get().feedingTimer.paused === true") and '继续' in ev("document.querySelector('.ftf [data-f=pause]').textContent"))
+    p.click('.ftf [data-f="down"]'); p.wait_for_timeout(300)
+    check('亲喂：收起后页面显示迷你条', ev("!document.querySelector('.ftf') && !!document.querySelector('.ft-mini [data-mini=open]')"))
+    p.click('[data-mini="open"]'); p.wait_for_timeout(300)
+    p.click('.ftf [data-f="stop"]'); p.wait_for_timeout(400)
+    check('亲喂：停止弹出保存面板', ev("(document.querySelector('#ftsTitle')||{}).textContent") == '保存亲喂')
     n1 = ev("Storage.get().feedings.length")
-    ev("document.querySelector('.tl-del').click()"); p.wait_for_timeout(400)
-    check('喂养：时间轴删除', ev("Storage.get().feedings.length") == n1 - 1)
-    check('喂养新骨架无报错', not errs, errs)
+    p.click('[data-save]'); p.wait_for_timeout(400)
+    last = ev("Storage.get().feedings.slice(-1)[0]")
+    check('亲喂：保存出一条带秒数的记录', ev("Storage.get().feedings.length") == n1 + 1 and last.get('type') == 'breast' and (last.get('secL', 0) + last.get('secR', 0)) >= 60, last)
+    check('亲喂：保存后计时清空、全屏关闭', ev("!Storage.get().feedingTimer && !document.querySelector('.ftf')"))
+    check('亲喂：时间轴出现', '亲喂' in ev("document.querySelector('.ft-tl .tl-card').textContent"))
+    p.click('[data-manual]'); p.wait_for_timeout(300)
+    p.click('[data-step="L"] [data-d="1"]'); p.click('[data-step="L"] [data-d="1"]'); p.wait_for_timeout(100)
+    p.click('[data-save]'); p.wait_for_timeout(400)
+    check('亲喂：⊕ 补记', ev("Storage.get().feedings.slice(-1)[0].durationL") == 2)
+
+    # 瓶喂
+    ev("App.showTab('bottle')"); p.wait_for_timeout(400)
+    p.click('[data-new]'); p.wait_for_timeout(300)
+    check('瓶喂：面板有奶瓶刻度和建议奶量', ev("!!document.querySelector('.ft-bottle') && document.querySelectorAll('[data-amt]').length") == 4)
+    p.click('[data-src="fm"]'); p.click('[data-amt="150"]'); p.wait_for_timeout(100)
+    check('瓶喂：点建议奶量填进大数字', ev("document.querySelector('#bAmt').value") == '150')
+    n2 = ev("Storage.get().feedings.length")
+    p.click('[data-save]'); p.wait_for_timeout(400)
+    lb = ev("Storage.get().feedings.slice(-1)[0]")
+    check('瓶喂：保存配方奶 150', ev("Storage.get().feedings.length") == n2 + 1 and lb.get('type') == 'formula' and lb.get('amount') == 150, lb)
+    p.click('[data-new]'); p.wait_for_timeout(300)
+    p.click('[data-go]'); p.wait_for_timeout(400)
+    check('瓶喂：开始喂奶后底部显示进行中', ev("!!Storage.get().bottleTimer && !!document.querySelector('[data-bt=end]')"))
+    p.click('[data-bt="end"]'); p.wait_for_timeout(400)
+    check('瓶喂：结束后记下一条带结束时间的记录', ev("!Storage.get().bottleTimer && !!Storage.get().feedings.slice(-1)[0].end"))
+    check('瓶喂：时间轴只列瓶喂', ev("[...document.querySelectorAll('.ft-tl .tl-card b')].every(x=>x.textContent==='奶瓶喂养')"))
+    ev("Storage.importJSON(JSON.stringify(Object.assign({},Storage.get(),{bottleTimer:{start:'bad'},feedingTimer:{start:'2026-10-01T10:00:00',paused:'yes',side:'x'}})))")
+    check('导入：坏的进行中状态被清洗', ev("Storage.get().bottleTimer===null && Storage.get().feedingTimer.paused===undefined"))
+    check('喂养拆分无报错', not errs, errs)
     p.close()
 
 
