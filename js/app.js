@@ -90,7 +90,15 @@
        现在三种排列共用同一份按钮清单与同一套节点，左右手只是 CSS 把胶囊竖起来。 */
     if (hand !== 'normal') bar.classList.add('is-vertical'); else bar.classList.remove('is-vertical');
     /* 第 135 次：胶囊最左 = 宝宝切换（原顶栏左上角头像）。 */
-    if (avEl) { avEl.classList.add('dock-btn'); bar.appendChild(avEl); }
+    /* 第 239 次：正常横排时，宝宝切换单独做一颗玻璃圆钮放在 dock 左边（#dockOrb），
+       和首页页签分开，免得点首页时误触切换宝宝；左右手竖排仍留在胶囊里。 */
+    var orb = _dockNodes.orb;
+    if (!orb || !orb.isConnected) {
+      orb = _dockNodes.orb = document.getElementById('dockOrb') || document.createElement('div');
+      orb.id = 'dockOrb'; orb.className = 'tabbar lg dock-orb';
+      if (bar.parentNode) bar.parentNode.insertBefore(orb, bar.nextSibling);
+    }
+    if (avEl) { avEl.classList.add('dock-btn'); (hand === 'normal' ? orb : bar).appendChild(avEl); }
     TABS.forEach(function (t) {
       var b = document.createElement('button');
       b.className = 'tab' + (t.id === current ? ' active' : '');
@@ -148,6 +156,7 @@
     bar.appendChild(plus);
     /* 第 236 次：所有计时（含白噪音）统一放到 dock 上方的「正在进行」胶囊 */
     try { if (global.DockLive) DockLive.render(); } catch (e) { /* 胶囊异常不影响底栏 */ }
+    syncOrb();
     if (hand === 'normal') {
       try { document.documentElement.style.setProperty('--dock-h', '0px'); } catch (e) {}
       bar.style.left = ''; bar.style.right = ''; bar.style.top = ''; bar.style.bottom = ''; bar.style.transform = '';
@@ -282,6 +291,7 @@
       var isSub = !isTopTab(id) || !!subExit;
       if (isSub) dockBar.classList.add('is-sub'); else dockBar.classList.remove('is-sub');
     }
+    syncOrb(); /* 第 239 次：is-sub 定下来后再量 dock 宽度 */
     if (id !== 'home') document.body.classList.add('in-module');
     else document.body.classList.remove('in-module');
     if (id === 'home') document.body.classList.add('in-home');
@@ -1610,12 +1620,29 @@
      ① 登记一条 history，让侧滑 / 系统返回 / 底栏返回钮都能退回上一层；
      ② 底栏切成二级态（返回 + ＋）；③ 返回时回调模块的 onExit 收起二级内容。 */
   var subExit = null;
+  function syncOrb() {
+    var orb = document.getElementById('dockOrb'), bar = document.getElementById('tabbar');
+    if (!orb || !bar) return;
+    var use = handMode() === 'normal' && isTopTab(current) && !subExit;
+    orb.hidden = !use;
+    if (use) document.body.classList.add('has-orb'); else document.body.classList.remove('has-orb');
+    if (use) {
+      try {
+        document.documentElement.style.setProperty('--dock-w', (bar.offsetWidth || 240) + 'px');
+        document.documentElement.style.setProperty('--dock-bh', (bar.offsetHeight || 62) + 'px');
+        /* 字体 / 图标晚一帧排好时宽度会变，下一帧再量一次 */
+        requestAnimationFrame(function () { if (bar.offsetWidth) document.documentElement.style.setProperty('--dock-w', bar.offsetWidth + 'px'); });
+      } catch (e) { /* QA 桩无布局 */ }
+    }
+  }
+  try { global.addEventListener('resize', function () { syncOrb(); }); } catch (e) {}
   function syncSubDock() {
     var top = isTopTab(current);
     var bb = document.getElementById('backBtn');
     if (bb) bb.hidden = top && !subExit;
     var bar = document.getElementById('tabbar');
     if (bar) { if (!top || subExit) bar.classList.add('is-sub'); else bar.classList.remove('is-sub'); }
+    syncOrb();
   }
   function enterSub(onExit) {
     var wasIn = !!subExit;

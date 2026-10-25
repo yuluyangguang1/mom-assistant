@@ -4890,3 +4890,32 @@ body .tabbar.is-vertical .tab-plus { margin-top: 8px; }
   body .tabbar:not(.is-vertical):not(.is-sub) { gap: 0; }
   body .tabbar:not(.is-vertical):not(.is-sub) .tab-plus { margin-left: 4px; }
 }
+
+/* ============================================================
+   第 239 次：宝宝切换单独一颗玻璃圆钮（#dockOrb），在 dock 左边隔开 10px。
+   一级页显示；二级页、左右手竖排不显示（竖排时头像仍在胶囊里）。
+   dock 整体右移半个「圆钮 + 间距」，两者合起来仍居中。
+   ============================================================ */
+#dockOrb.dock-orb {
+  --orb: var(--dock-bh, 62px);
+  left: calc(50% - var(--dock-w, 240px) / 2 - 35px); transform: none;
+  width: var(--orb); height: var(--orb); max-width: none; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+#dockOrb[hidden] { display: none; }
+#dockOrb .home-avatar { width: 44px; height: 44px; }
+#dockOrb .home-avatar .illo { width: 30px; height: 30px; }
+#dockOrb .home-avatar .ha-photo { width: 34px; height: 34px; }
+#dockOrb:active { scale: .94; }
+/* 折射位移图是按主胶囊尺寸生成的，圆钮只用普通玻璃 */
+html.lg-refract body #dockOrb.lg { -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.04); backdrop-filter: blur(14px) saturate(190%) brightness(1.04); }
+body.has-orb #tabbar:not(.is-vertical) { transform: translateX(calc(-50% + 35px)); }
+body.ftf-open #dockOrb { visibility: hidden; }
+html[data-nav] #dockOrb:not([hidden]) { view-transition-name: dock-orb; }
+::view-transition-group(dock-orb) { animation: none; }
+::view-transition-old(dock-orb) { display: none; }
+::view-transition-new(dock-orb) { animation: none; }
+@media (max-width: 360px) {
+  #dockOrb.dock-orb { --orb: 54px; left: calc(50% - var(--dock-w, 240px) / 2 - 31px); bottom: calc(14px + env(safe-area-inset-bottom)); }
+  body.has-orb #tabbar:not(.is-vertical) { transform: translateX(calc(-50% + 31px)); }
+}
