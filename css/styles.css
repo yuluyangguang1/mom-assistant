@@ -5155,3 +5155,7 @@ body.home-dragging { -webkit-user-select: none; user-select: none; }
 .touch-glow.on { opacity: 1; transition-duration: .08s; }
 body.dark .touch-glow { background: radial-gradient(circle 140px at var(--gx, 50%) var(--gy, 50%), rgba(255, 255, 255, .13), rgba(255, 255, 255, .04) 45%, transparent 72%); }
 body.sd-open .touch-glow, body.qd-open .touch-glow { display: none; }
+
+/* 第 249 次：iOS 触感层（touchfx.js）——透明 label 盖满按钮，内含隐藏 switch；手指真实点到它才有系统触感 */
+.hap-layer { position: absolute; inset: 0; z-index: 3; border-radius: inherit; -webkit-tap-highlight-color: transparent; touch-action: manipulation; cursor: inherit; }
+.hap-sw { position: absolute; width: 1px; height: 1px; margin: 0; visibility: hidden; }

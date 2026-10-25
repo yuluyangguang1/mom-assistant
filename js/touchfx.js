@@ -77,6 +77,65 @@
     try { el.animate([{ scale: from }, { scale: '1' }], { duration: 420, easing: 'cubic-bezier(.34,1.56,.64,1)' }); } catch (e) {}
   }
 
+  /* 第 249 次（真机：iPhone 还是不震）：新版 iOS 只认「手指真实点到」switch 的 label，脚本调 label.click() 不再出触感。
+     做法同 ios-haptics：手指按下时，给被按的按钮里塞一层透明 label（盖满按钮、内含隐藏的 switch）。
+     松手时系统把点击真正派给这层 label → 切换 switch → 系统触感；点击事件照常冒泡到按钮，原有逻辑不受影响。
+     只给「叶子」按钮装：里面还有别的按钮 / 链接 / 输入框的卡片不装，免得挡住里面的小按钮。 */
+  var IOS_HAP = !(global.navigator && typeof navigator.vibrate === 'function') && ('ontouchstart' in global);
+  var HAP_SEL = 'button, [role="button"], .record-tile, .canvas-card[data-go], .sd-row, .tool-item, .seg-btn';
+  var HAP_SKIP = 'a, label, input, select, textarea, .record-grid.is-editing, .sw-row, [data-no-haptic]';
+  var INNER = 'button, a, input, select, textarea, label, [role="button"], [data-go], [data-act], [data-del]';
+  function hapOn() {
+    try { var d = global.Storage && Storage.get && Storage.get(); return !(d && d.settings && d.settings.hapticEnabled === false); } catch (e) { return true; }
+  }
+  function armHaptic(el) {
+    if (!el || el.disabled || el.querySelector(':scope > label[data-hap]')) return;
+    if (el.querySelector(INNER)) return;
+    var lb = document.createElement('label');
+    lb.setAttribute('data-hap', ''); lb.setAttribute('aria-hidden', 'true');
+    lb.className = 'hap-layer';
+    var sw = document.createElement('input');
+    sw.type = 'checkbox'; sw.setAttribute('switch', ''); sw.tabIndex = -1;
+    sw.className = 'hap-sw';
+    sw.addEventListener('click', function (ev) { ev.stopPropagation(); });
+    lb.appendChild(sw);
+    if (global.getComputedStyle(el).position === 'static') el.style.position = 'relative';
+    el.appendChild(lb);
+  }
+  /* 提前装好（iOS 在手指按下那一刻就定好点击目标，按下时才塞可能来不及）：
+     页面每次重绘后，下一帧把可见的叶子按钮都装上；按下时再兜底装一次 */
+  var armQueued = false;
+  function armAll() {
+    armQueued = false;
+    if (!hapOn()) return;
+    var list = document.querySelectorAll(HAP_SEL);
+    for (var i = 0; i < list.length; i++) {
+      var el = list[i];
+      if (el.querySelector(':scope > label[data-hap]') || closest(el, HAP_SKIP)) continue;
+      armHaptic(el);
+    }
+  }
+  function queueArm() { if (!armQueued) { armQueued = true; requestAnimationFrame(armAll); } }
+  if (IOS_HAP) {
+    try {
+      new MutationObserver(function (muts) {
+        for (var i = 0; i < muts.length; i++) {
+          var n = muts[i].addedNodes;
+          for (var k = 0; k < n.length; k++) {
+            if (n[k].nodeType === 1 && !(n[k].hasAttribute && n[k].hasAttribute('data-hap'))) { queueArm(); return; }
+          }
+        }
+      }).observe(document.body, { childList: true, subtree: true });
+    } catch (e) {}
+    queueArm();
+    document.addEventListener('touchstart', function (e) {
+      if (!hapOn()) return;
+      var el = closest(e.target, HAP_SEL);
+      if (!el || closest(el, HAP_SKIP) || el.getAttribute('aria-disabled') === 'true') return;
+      armHaptic(el);
+    }, { passive: true, capture: true });
+  }
+
   document.addEventListener('touchstart', function (e) {
     if (!e.touches || e.touches.length !== 1) return;
     var t = e.touches[0];
@@ -104,7 +163,7 @@
     if (el) {
       pressUp(el);
       /* 点下去（没滑动、不是长按）才给触感；在 touchend 里调用，iOS 认作用户手势 */
-      if (!moved && Date.now() - startT < 600 && global.Util && Util.haptic) Util.haptic('light');
+      if (!IOS_HAP && !moved && Date.now() - startT < 600 && global.Util && Util.haptic) Util.haptic('light');
     }
     setTimeout(hideGlow, 60);
   }

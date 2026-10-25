@@ -1068,7 +1068,7 @@
     if (!QUICK_MODULES[id]) { trace = null; return; }
     trace = { id: id, t0: nowMs(), clicks: 0, before: dataCount() };
   }
-  function traceClick() { if (trace) trace.clicks++; }
+  function traceClick(e) { if (e && e.target && e.target.classList && e.target.classList.contains('hap-sw')) return; if (trace) trace.clicks++; }
   function traceFinish() {
     if (!trace) return;
     if (dataCount() <= trace.before) return; /* 只是设置类保存，不算一次记录 */
