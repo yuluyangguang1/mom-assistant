@@ -417,6 +417,14 @@
        第 100 次起：底栏排列由 leftHand 开关升级为 handMode 三态——
        dock-left / dock-right 把五个入口收进屏幕同侧竖排，normal 不挂类。 */
     document.body.classList.toggle('deep-night', dark && isDeepNightNow());
+    /* 第 262 次：状态栏改为实色（不再 black-translucent），颜色 = theme-color，跟页面顶色走 */
+    try {
+      var tc = global.getComputedStyle(document.body).getPropertyValue('--header-bg-top').trim();
+      if (tc) {
+        if (global.Boot && Boot.setThemeColor) Boot.setThemeColor(tc);
+        else { var tm = document.querySelector('meta[name="theme-color"]'); if (tm) tm.setAttribute('content', tc); }
+      }
+    } catch (eTc) { /* 取不到就保持原值 */ }
     /* dock-left/right 用 add/remove 而非 toggle(cls, force)：QA 桩的 toggle 不吃 force
        会退化成「反转」（与 showTab in-module 同款处理），真实语义两者等价且幂等 */
     var hand = handMode();

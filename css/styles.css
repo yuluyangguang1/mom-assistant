@@ -197,7 +197,9 @@
      但公式写反了——乘到 (1 - standalone) 上的是 env()，于是独立模式下 env() 被整个抹掉，
      顶栏和 hero 只剩 10px，直接钻进 59px 的状态栏底下。
      现在：standalone = env()；浏览器 = 10px + env()（浏览器值不变）。 */
-  --sat-pad: calc(var(--sat) + 10px * (1 - var(--sat-standalone)));
+  /* 第 262 次：去掉 black-translucent 后，新装的主屏应用状态栏在页面之外，env() = 0，
+     独立模式也要留 10px 呼吸；旧装（仍是沉浸式）env() = 59px 时取 env()，行为不变。 */
+  --sat-pad: max(calc(var(--sat) + 10px * (1 - var(--sat-standalone))), 10px);
 
   --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
 }
@@ -5196,7 +5198,7 @@ body.dark [data-accent="pump"] { --tile: #EEDF75; --tile-text: #EEDF75; --tile-w
    · 图标用 512 图 + decoding=sync，首帧就有图，不出现空白帧。 */
 .boot { position: fixed; inset: 0; z-index: 9999; background: #221E1A; will-change: opacity; transition: opacity .42s cubic-bezier(.4,0,.2,1); }
 html:not(.is-booting) .boot { display: none; }
-.boot-c { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); text-align: center; will-change: transform; transition: transform .42s cubic-bezier(.4,0,.2,1); }
+.boot-c { position: absolute; left: 50%; top: var(--boot-y, 44%); transform: translate(-50%, -50%); text-align: center; will-change: transform; transition: transform .42s cubic-bezier(.4,0,.2,1); }
 .boot-ico { position: relative; display: block; width: 112px; height: 112px; margin: 0 auto; }
 .boot-ico img { display: block; width: 112px; height: 112px; border-radius: calc(var(--radius-lg) + 2px); box-shadow: 0 10px 30px rgba(0,0,0,.08); will-change: transform; }
 .boot-txt { display: block; width: 260px; height: 82px; margin: 0 auto; }
@@ -5220,3 +5222,27 @@ html:not(.is-booting) .boot { display: none; }
 @keyframes bootBubA { 0% { opacity: 0; transform: translate(0,0) scale(.3); } 35% { opacity: 1; transform: translate(10px,-18px) scale(1.05); } 100% { opacity: 1; transform: translate(16px,-30px) scale(1); } }
 @keyframes bootBubB { 0% { opacity: 0; transform: translate(0,0) scale(.3); } 35% { opacity: 1; transform: translate(18px,-6px) scale(1.05); } 100% { opacity: 1; transform: translate(28px,-12px) scale(1); } }
 @keyframes bootBubC { 0% { opacity: 0; transform: translate(0,0) scale(.3); } 40% { opacity: 1; } 100% { opacity: .9; transform: translate(26px,-34px) scale(1); } }
+
+/* ============================================================
+   第 262 次：iOS 26.1+ 主屏应用的边缘模糊
+   系统在主屏应用上下边缘叠渐进模糊（scroll edge effect），切页时还会重新取样、卡一下。
+   WebKit 的规则：边缘中心 4px 处若有一个「可见的 fixed 元素」（高 >10px、宽 ≥90%、opacity ≥0.1），
+   就读它的 computed background-color 铺满状态栏 / 底边，不再画模糊。
+   background-clip:text + 空内容 = 有颜色、不绘制一个像素，页面上看不见这两条。
+   只在 WebKit 独立模式下生效；浏览器里 display:none。
+   ============================================================ */
+.edge-strip { display: none; }
+@supports (-webkit-touch-callout: none) {
+  @media (display-mode: standalone) {
+    .edge-strip {
+      display: block; position: fixed; left: 0; right: 0; height: 11px;
+      z-index: 2147483647; pointer-events: none;
+      -webkit-background-clip: text; background-clip: text;
+    }
+    .edge-strip-top { top: 0; background-color: var(--header-bg-top, #FDF9F4); }
+    .edge-strip-bottom { bottom: 0; background-color: var(--bg-end, #F2EBDF); }
+    html.is-booting .edge-strip { background-color: #221E1A; }
+  }
+}
+/* 第 262 次：启动期间画布先铺启动图的深暖棕，WebView 首帧尚未铺满时露出的边也不是白的 */
+html.is-booting { background: #221E1A; }

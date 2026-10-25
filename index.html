@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="is-booting">
 <head>
   <meta charset="UTF-8">
   <!-- 第 127 次（安全 · 纵深防御）：内容安全策略。
@@ -18,9 +18,13 @@
   <link rel="icon" href="assets/favicon-16.png" type="image/png" sizes="16x16">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
-  <meta name="theme-color" content="#FDF9F4">
+  <!-- 第 262 次：状态栏改为实色（见下），颜色由 theme-color 决定；启动时先与启动图同色，App 起来后 js 按主题改写 -->
+  <meta name="theme-color" content="#221E1A">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- 第 262 次：去掉 apple-mobile-web-app-status-bar-style=black-translucent。
+       iOS 26.1 起，沉浸式状态栏的主屏应用会被系统在顶部 / 底部强制叠一层渐进模糊（scroll edge effect），
+       页面无法关闭；且只有「状态栏不覆盖页面」时，WebKit 才会读取页面顶端的固定色块来取代模糊。
+       见 WebKit bug 317153 / 301994。改动在【重新添加到主屏幕】后才生效。 -->
   <meta name="apple-mobile-web-app-title" content="咿呀记">
   <!-- 第 163 次：iOS 启动画面（添加到主屏幕后冷启动时显示）。按机型尺寸 + 系统深浅色匹配，
        由 tools/gen_pwa_assets.py 生成；新机型只要在脚本 DEVICES 里加一行重跑即可。 -->
@@ -40,6 +44,10 @@
 <body>
   <!-- 第 259 次：启动动画层，与 iOS 启动图同布局（js/boot.js 播放后移除） -->
   <div id="boot" class="boot" aria-hidden="true"><div class="boot-c"><span class="boot-ico"><img src="assets/icon-512.png" alt="" width="112" height="112" decoding="sync" fetchpriority="high"><i>咿</i><i>呀</i><i></i></span><img class="boot-txt" src="assets/boot-text.png" alt="" width="260" height="82" decoding="sync"></div></div>
+  <script src="js/boot.js"></script>
+  <!-- 第 262 次：iOS 边缘取色锚点（空元素、只声明颜色不绘制），让系统用页面底色铺状态栏/底边，而不是盖模糊 -->
+  <div class="edge-strip edge-strip-top" aria-hidden="true"></div>
+  <div class="edge-strip edge-strip-bottom" aria-hidden="true"></div>
   <!-- 液态玻璃 SVG 滤镜定义（隐藏）：
        #liquidRim 细波浪位移，用于把玻璃边缘高光弯折成液态反光（全浏览器可见、轻位移不碍阅读）。
        #liquidRefract 用于首页玻璃折射天空（由 glass.js 注入，仅首页启用）。 -->
@@ -93,7 +101,6 @@
   <div id="modalRoot"></div>
 
   <!-- 经典 script 引入（非 ES module），确保 file:// 直接双击可用 -->
-  <script src="js/boot.js"></script>
   <script src="js/util.js"></script>
   <script src="js/daychart.js"></script>
   <script src="js/lunar.js"></script>

@@ -14,14 +14,35 @@
   var doc = global.document;
   var el = doc.getElementById('boot');
   var gone = false;
+  /* 第 262 次：状态栏改实色后颜色跟 theme-color 走。启动期间保持启动图同色，
+     App 主题算好的颜色先存着，动画层移除时再写上，避免深色动画顶着一条浅色状态栏。 */
+  var pendingTheme = null;
+  function writeThemeColor(c) {
+    var m = doc.querySelector('meta[name="theme-color"]');
+    if (m && c) m.setAttribute('content', c);
+  }
   function remove() {
     if (gone) return; gone = true;
     if (el && el.parentNode) el.parentNode.removeChild(el);
     doc.documentElement.classList.remove('is-booting');
+    if (pendingTheme) writeThemeColor(pendingTheme);
   }
+  function setThemeColor(c) { if (gone) writeThemeColor(c); else pendingTheme = c; }
   var standalone = false;
   try { standalone = global.navigator.standalone === true || (global.matchMedia && global.matchMedia('(display-mode: standalone)').matches); } catch (e) { /* */ }
-  if (!el || !standalone) { remove(); global.Boot = { done: function () {} }; return; }
+  if (!el || !standalone) { remove(); global.Boot = { done: function () {}, setThemeColor: setThemeColor }; return; }
+  /* 第 262 次：去掉沉浸式状态栏后，WebView 从状态栏下沿开始，而启动图铺满整屏。
+     启动图里文字块中心在整屏 44% 处 → 换算到 WebView 坐标：0.44 × 屏高 − 状态栏高。
+     状态栏高 = screen.height − innerHeight（旧装沉浸式时为 0，结果就是 44%）；
+     WebView 首帧尺寸可能还没定，resize 时再算一次。 */
+  function place() {
+    var sh = global.screen && global.screen.height, ih = global.innerHeight;
+    if (!sh || !ih) return;
+    var bar = Math.max(0, Math.min(80, sh - ih));
+    el.style.setProperty('--boot-y', (0.44 * sh - bar) + 'px');
+  }
+  place();
+  global.addEventListener('resize', place);
   doc.documentElement.classList.add('is-booting');
   var reduce = false;
   try { reduce = global.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* */ }
@@ -59,6 +80,7 @@
     setTimeout(remove, 520);
   }
   global.Boot = {
+    setThemeColor: setThemeColor,
     done: function () {
       if (gone || el.classList.contains('is-play')) return;
       afterSettled(function () {
