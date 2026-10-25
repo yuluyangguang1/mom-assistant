@@ -1625,6 +1625,7 @@
         var doReload = function () {
           if (global.__swReloaded) return;
           global.__swReloaded = true;
+          try { global.sessionStorage.setItem('swReload', '1'); } catch (eS) { /* */ }
           if (global.location && global.location.reload) global.location.reload();
         };
         navigator.serviceWorker.addEventListener('controllerchange', function () {

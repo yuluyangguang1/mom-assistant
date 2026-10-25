@@ -30,7 +30,11 @@
   function setThemeColor(c) { if (gone) writeThemeColor(c); else pendingTheme = c; }
   var standalone = false;
   try { standalone = global.navigator.standalone === true || (global.matchMedia && global.matchMedia('(display-mode: standalone)').matches); } catch (e) { /* */ }
-  if (!el || !standalone) { remove(); global.Boot = { done: function () {}, setThemeColor: setThemeColor }; return; }
+  /* 第 267 次：新版本接管后 app.js 会自动重载一次，那次重载不该再播一遍启动动画（用户看到「弹两次」）。
+     app.js 重载前在 sessionStorage 留标记，这里读到就直接拿掉动画层。 */
+  var swReload = false;
+  try { swReload = global.sessionStorage.getItem('swReload') === '1'; if (swReload) global.sessionStorage.removeItem('swReload'); } catch (e) { /* */ }
+  if (!el || !standalone || swReload) { remove(); global.Boot = { done: function () {}, setThemeColor: setThemeColor }; return; }
   /* 第 262 次：去掉沉浸式状态栏后，WebView 从状态栏下沿开始，而启动图铺满整屏。
      启动图里文字块中心在整屏 44% 处 → 换算到 WebView 坐标：0.44 × 屏高 − 状态栏高。
      状态栏高 = screen.height − innerHeight（旧装沉浸式时为 0，结果就是 44%）；
