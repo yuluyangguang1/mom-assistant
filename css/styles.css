@@ -2619,7 +2619,9 @@ body .tabbar .dock-btn:active { transform: scale(.92); }
 body .tabbar .dock-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 body .tabbar .dock-btn .ico { width: 22px; height: 22px; color: inherit; margin: 0; }
 /* 头像原为 46px 白底方块，进胶囊后退成纯图标 */
-body .tabbar .home-avatar .illo { width: 34px; height: 34px; }
+/* 第 237 次：头像与线性图标视觉对齐——插画 / 照片插画收到 27px、照片 26px，不再比旁边的图标大一圈 */
+body .tabbar .home-avatar .illo { width: 27px; height: 27px; }
+body .tabbar .home-avatar .ha-photo { width: 26px; height: 26px; margin: auto; }
 /* 模块页原本隐藏齿轮（顶栏时代它挤占标题位）；进胶囊后它不再和标题抢地方，
    二级页整条胶囊收起时自然不显示，所以这里放行 */
 body.in-module .tabbar .header-gear { display: inline-flex; }
@@ -4802,6 +4804,8 @@ body.hc .tabbar.lg::before { display: none; }
    所有计时都在 dock 正上方的玻璃胶囊里，任何页面都看得到、点得到。
    ============================================================ */
 body .tabbar .tab .ico, body .tabbar .dock-btn .ico { stroke-width: 1.85; }
+/* 第 237 次：图标做了光学缩放，线宽锁成屏幕像素，各图标笔画一样粗 */
+body .tabbar .tab .ico *, body .tabbar .dock-btn .ico * { vector-effect: non-scaling-stroke; }
 .ico .dk-f { opacity: .12; transition: opacity .25s var(--ease); }
 body .tabbar .tab.active .ico .dk-f { opacity: .34; }
 body .tabbar .tab.active .ico { color: var(--primary); }
