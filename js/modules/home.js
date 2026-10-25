@@ -626,7 +626,7 @@
       var noBadges = false; /* 第 217 次：添加目录里的预览不带编辑角标 */
       function editBadges(t) {
         if (!editing || noBadges) return '';
-        return '<span class="tile-del" data-del="' + t.id + '" role="button" tabindex="0" aria-label="删除 ' + t.name + ' 组件">' + icon('trash') + '</span>'
+        return '<span class="tile-del" data-del="' + t.id + '" role="button" tabindex="0" aria-label="删除 ' + t.name + ' 组件"><i class="td-minus" aria-hidden="true"></i></span>'
           + '<span class="tile-size" data-size="' + t.id + '" role="button" tabindex="0" aria-label="切换 ' + t.name + ' 大小，当前' + (t._sz === 's' ? '半宽' : '整排') + '">' + (t._sz === 's' ? '半宽' : '整排') + '</span>';
       }
       /* 第 137 次（磁贴就地记录 · P0）：带内嵌控件的磁贴。
@@ -1515,7 +1515,7 @@
         Array.prototype.forEach.call(view.querySelectorAll('[data-del]'), function (b) {
           b.addEventListener('click', function (e) {
             if (e && e.stopPropagation) e.stopPropagation();
-            Modules.home._editDel(b.getAttribute('data-del'));
+            removeCard(b);
           });
         });
         Array.prototype.forEach.call(view.querySelectorAll('[data-size]'), function (b) {
@@ -1587,6 +1587,33 @@
          ③ 手指靠近屏幕上下边缘时页面自动滚动；
          ④ 松手卡片滑回空位，动画结束才落库重绘。
          位移一律写 CSS 的 translate 属性（独立于 transform / 动画），不和编辑态别的样式打架。 */
+      /* 第 250 次：删除卡片带动画——卡片缩小淡出（略微下沉），其余卡片用 FLIP 平滑补位，动画结束才落库重绘。
+         重绘后的排布和动画终点一致，所以看不到二次跳动。 */
+      function removeCard(b) {
+        var id = b.getAttribute('data-del');
+        var card = b.closest('.record-tile, .canvas-card');
+        var grid = card && card.parentNode;
+        var reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (!card || !grid || reduce || !card.animate || card.classList.contains('removing')) { Modules.home._editDel(id); return; }
+        card.classList.add('removing');
+        var anim = card.animate([
+          { scale: '1', opacity: 1, filter: 'blur(0px)' },
+          { scale: '0.6', opacity: 0, filter: 'blur(4px)' }
+        ], { duration: 220, easing: 'cubic-bezier(.4,0,.9,.6)', fill: 'forwards' });
+        anim.onfinish = function () {
+          var others = Array.prototype.filter.call(grid.children, function (el) { return el !== card && el.nodeType === 1; });
+          var before = others.map(function (el) { return el.getBoundingClientRect(); });
+          card.style.display = 'none';
+          others.forEach(function (el, k) {
+            var a = before[k], c = el.getBoundingClientRect();
+            var dx = a.left - c.left, dy = a.top - c.top;
+            if (!dx && !dy) return;
+            el.animate([{ translate: dx + 'px ' + dy + 'px' }, { translate: '0px 0px' }], { duration: 340, easing: 'cubic-bezier(.32,.72,0,1)' });
+          });
+          setTimeout(function () { Modules.home._editDel(id); }, 330);
+        };
+      }
+
       function bindDrag(view) {
         var grid = view.querySelector('.record-grid.is-editing');
         if (!grid) return;

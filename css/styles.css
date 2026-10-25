@@ -2399,12 +2399,24 @@ body.fs-xl {
 .record-grid.is-editing .record-tile,
 .record-grid.is-editing .canvas-card { overflow: visible; }
 .tile-del {
-  position: absolute; top: -9px; right: -9px; z-index: 3;
+  /* 第 250 次：改成 iOS 主屏编辑态的「−」——左上角灰色毛玻璃圆点，比红色垃圾桶轻，和提示文案一致 */
+  position: absolute; top: -8px; left: -8px; z-index: 4;
   width: 26px; height: 26px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  background: var(--danger); color: #fff; cursor: pointer;
-  box-shadow: var(--shadow-card);
+  background: rgba(90, 84, 78, .72); color: #fff; cursor: pointer;
+  -webkit-backdrop-filter: blur(12px) saturate(1.6); backdrop-filter: blur(12px) saturate(1.6);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .18), inset 0 0 0 .5px rgba(255, 255, 255, .25);
+  animation: tdIn .32s cubic-bezier(.34, 1.56, .64, 1) both;
+  transition: scale .12s, background-color .12s;
 }
+.tile-del:active { scale: .86; background-color: var(--danger); }
+body.dark .tile-del { background: rgba(150, 144, 138, .55); }
+.td-minus { display: block; width: 11px; height: 2.4px; border-radius: 2px; background: currentColor; position: relative; }
+.tile-del > .hap-layer { inset: -9px; border-radius: 50%; }
+@keyframes tdIn { from { scale: 0; opacity: 0; } to { scale: 1; opacity: 1; } }
+.record-grid.is-editing > .removing { pointer-events: none; z-index: 1; }
+/* 第 250 次（真机截图：拖动的卡片钻到提示文字和按钮下面）：拖动期间把整个网格抬到同层最上面 */
+body.home-dragging .record-grid.is-editing { position: relative; z-index: 60; }
 /* 第 126 次：触控目标扩到 44×44（Apple HIG 下限）。视觉仍是 26px 圆点，
    用不可见的 ::before 撑出命中区——真机手指粗，18px 的可见块点不中。 */
 .tile-del::before {
