@@ -4219,36 +4219,13 @@ html[data-sky-ink="light"] .hg-lunar b, body.dark .hg-lunar b { text-shadow: 0 1
 .hg-wx-txt { margin-left: 10px; padding-left: 10px; border-left: 1px solid currentColor; border-left-color: color-mix(in srgb, currentColor 35%, transparent); font-weight: 600; white-space: nowrap; }
 .hg-wx-txt[hidden] { display: none; }
 
-/* 天空按天气加一层：天气直接画在天空里（不另做模块） */
-.wx-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; transition: background-color 1s var(--ease); }
-/* 云团：两层柔边灰云慢慢飘 */
-.home-sky::before {
-  content: ''; position: absolute; pointer-events: none; z-index: 1; opacity: 0;
-  transition: opacity 1s var(--ease);
-  inset: -10% -30% 25% -30%;
-  background:
-    radial-gradient(38% 30% at 20% 30%, rgba(236, 240, 246, .95), rgba(236, 240, 246, 0) 70%),
-    radial-gradient(30% 26% at 55% 18%, rgba(226, 231, 239, .9), rgba(226, 231, 239, 0) 70%),
-    radial-gradient(36% 30% at 85% 34%, rgba(232, 236, 243, .92), rgba(232, 236, 243, 0) 70%),
-    radial-gradient(26% 22% at 40% 46%, rgba(220, 226, 236, .8), rgba(220, 226, 236, 0) 70%);
-  filter: blur(6px);
-  animation: wxDrift 60s linear infinite alternate;
+/* 第 214 次：天气直接画进天空画布（sky.js：去饱和、压暗、云变厚、雾、雷闪），
+   这里只剩雨雪粒子层：上实下虚淡出，落到问候卡前就消失，不在文字和卡片上留硬线 */
+.wx-canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 38%, rgba(0, 0, 0, .35) 62%, transparent 80%);
+          mask-image: linear-gradient(180deg, #000 0%, #000 38%, rgba(0, 0, 0, .35) 62%, transparent 80%);
 }
-@keyframes wxDrift { from { transform: translateX(-6%); } to { transform: translateX(6%); } }
-.home-sky.wx-partly::before { opacity: .45; }
-.home-sky.wx-cloudy::before { opacity: .95; }
-.home-sky.wx-rain::before, .home-sky.wx-thunder::before { opacity: .9; filter: blur(6px) brightness(.72); }
-.home-sky.wx-snow::before { opacity: .85; }
-.home-sky.wx-fog::before { opacity: 1; filter: blur(14px); inset: 0 -30%; }
-body.dark .home-sky::before, html[data-sky-ink="light"] .home-sky::before { filter: blur(6px) brightness(.38); }
-/* 整体压暗 / 变灰 */
-.home-sky.wx-cloudy .wx-canvas { background: linear-gradient(180deg, rgba(120, 132, 152, .38), rgba(120, 132, 152, 0) 85%); }
-.home-sky.wx-rain .wx-canvas { background: linear-gradient(180deg, rgba(64, 80, 106, .55), rgba(90, 104, 128, 0) 92%); }
-.home-sky.wx-thunder .wx-canvas { background: linear-gradient(180deg, rgba(52, 62, 88, .6), rgba(80, 92, 118, 0) 92%); animation: wxFlash 9s linear infinite; }
-@keyframes wxFlash { 0%, 92%, 100% { filter: none; } 93% { filter: brightness(2.6); } 94% { filter: none; } 95.5% { filter: brightness(2); } 96.5% { filter: none; } }
-.home-sky.wx-snow .wx-canvas { background: linear-gradient(180deg, rgba(200, 214, 232, .45), rgba(220, 230, 242, 0) 90%); }
-.home-sky.wx-fog .wx-canvas { background: linear-gradient(180deg, rgba(225, 228, 234, .6), rgba(225, 228, 234, .15) 90%); }
-@media (prefers-reduced-motion: reduce) { .home-sky::before, .home-sky.wx-thunder .wx-canvas { animation: none; } }
 
 /* 生日：公历 / 农历 */
 .birth-field .bf-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

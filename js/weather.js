@@ -183,28 +183,44 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     size();
-    var N = snow ? 46 : 70;
-    for (var i = 0; i < N; i++) parts.push({ x: Math.random() * W, y: Math.random() * H, v: snow ? (0.4 + Math.random() * 0.7) : (6 + Math.random() * 5), r: snow ? (1.2 + Math.random() * 2.2) : (10 + Math.random() * 10), s: Math.random() * 6.28 });
+    /* 第 214 次（融合自然）：粒子分远近三层——远处更细更淡更慢；雨丝用渐变描边（头淡尾实），
+       整体透明度压低，靠 CSS mask 在下半段淡出，不在文字上留下硬线 */
+    var N = snow ? 54 : 90;
+    for (var i = 0; i < N; i++) {
+      var z = Math.random(); z = z * z; /* 0 远 … 1 近，远处多 */
+      parts.push({ x: Math.random() * W, y: Math.random() * H, z: z,
+        v: snow ? (0.25 + z * 0.75) : (5 + z * 7),
+        r: snow ? (1.1 + z * 2.4) : (8 + z * 14),
+        s: Math.random() * 6.28 });
+    }
     function tick() {
       if (!alive) return;
       if (!canvas.isConnected) { alive = false; return; }
       ctx.clearRect(0, 0, W, H);
       if (snow) {
-        ctx.fillStyle = 'rgba(255,255,255,.85)';
         parts.forEach(function (p) {
-          p.y += p.v; p.s += 0.02; p.x += Math.sin(p.s) * 0.4;
+          p.y += p.v; p.s += 0.015; p.x += Math.sin(p.s) * (0.2 + p.z * 0.35);
           if (p.y > H + 4) { p.y = -4; p.x = Math.random() * W; }
-          ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill();
+          var a = 0.6 + p.z * 0.4;
+          var g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 1.6);
+          g.addColorStop(0, 'rgba(255,255,255,' + a.toFixed(2) + ')');
+          g.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 1.6, 0, 6.283); ctx.fill();
         });
       } else {
-        ctx.strokeStyle = 'rgba(210,225,245,.45)'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
-        ctx.beginPath();
+        ctx.lineCap = 'round';
         parts.forEach(function (p) {
-          p.y += p.v; p.x -= p.v * 0.18;
-          if (p.y > H + 20) { p.y = -20; p.x = Math.random() * (W + 40); }
-          ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.r * 0.18, p.y + p.r);
+          p.y += p.v; p.x -= p.v * 0.16;
+          if (p.y > H + 20) { p.y = -20 - Math.random() * 30; p.x = Math.random() * (W + 40); }
+          var x2 = p.x - p.r * 0.16, y2 = p.y + p.r;
+          var g = ctx.createLinearGradient(p.x, p.y, x2, y2);
+          var a = 0.12 + p.z * 0.28;
+          g.addColorStop(0, 'rgba(225,234,248,0)');
+          g.addColorStop(1, 'rgba(225,234,248,' + a.toFixed(2) + ')');
+          ctx.strokeStyle = g; ctx.lineWidth = 0.6 + p.z * 0.8;
+          ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(x2, y2); ctx.stroke();
         });
-        ctx.stroke();
       }
       raf = requestAnimationFrame(tick);
     }

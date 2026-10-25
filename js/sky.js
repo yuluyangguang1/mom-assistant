@@ -259,6 +259,46 @@
   /* 会话级时段预览（设置 · 外观写它，帧循环每帧读它） */
   Sky.previewHour = null;
 
+  /* 第 214 次（用户：天气层与背景更融合自然）：天气不再在天空上另叠遮罩，
+     而是直接改天空本身的「画法」——色板去饱和+压暗、云变灰变厚、阴天藏星、雷雨闪电都在同一张画布里完成，
+     玻璃卡（glass.js 采样 skyCanvas）与环境光变量也就自动跟着天气走。
+     WX 为每种天气的目标值；运行时 mood 以约 1.5s 的时间常数缓动过去，切换天气不跳变。 */
+  var WX = {
+    '':      { g: 0,    k: 1,    c: 0,    ca: 1,    fog: 0 },
+    clear:   { g: 0,    k: 1,    c: 0,    ca: 1,    fog: 0 },
+    partly:  { g: 0.14, k: 0.99, c: 0.18, ca: 1.12, fog: 0 },
+    cloudy:  { g: 0.62, k: 0.9,  c: 0.62, ca: 1.35, fog: 0 },
+    fog:     { g: 0.7,  k: 0.97, c: 0.45, ca: 1.2,  fog: 0.8 },
+    rain:    { g: 0.72, k: 0.74, c: 0.85, ca: 1.4,  fog: 0.12 },
+    thunder: { g: 0.8,  k: 0.64, c: 1,    ca: 1.45, fog: 0.1 },
+    snow:    { g: 0.55, k: 0.96, c: 0.5,  ca: 1.3,  fog: 0.18 }
+  };
+  Sky.weather = '';
+  Sky.setWeather = function (k) { Sky.weather = WX[k] ? k : ''; };
+  var mood = { g: 0, k: 1, c: 0, ca: 1, fog: 0 };
+  var moodInit = false;
+  function stepMood(dt) {
+    var t = WX[Sky.weather] || WX[''];
+    if (!moodInit || dt == null) { mood = { g: t.g, k: t.k, c: t.c, ca: t.ca, fog: t.fog }; moodInit = true; return; }
+    var a = 1 - Math.exp(-dt / 1.5);
+    for (var key in t) mood[key] += (t[key] - mood[key]) * a;
+  }
+  var WX_GREY_DAY = [176, 186, 200];   /* 阴天的天：偏冷的灰蓝，不是死灰 */
+  var WX_CLOUD = [196, 202, 212];      /* 阴天的云：带一点蓝的浅灰 */
+  function weatherPal(pal) {
+    if (mood.g < 0.004 && Math.abs(mood.k - 1) < 0.004) return pal;
+    function f(c) {
+      var l = c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11;
+      /* 去饱和到自身亮度，再朝冷灰拉一点（夜里冷灰按亮度缩放，不会把夜空提亮） */
+      var grey = [l, l, l];
+      var tone = WX_GREY_DAY.map(function (v) { return v * Math.min(1, l / 190); });
+      var g = lerpC(c, lerpC(grey, tone, 0.5), mood.g);
+      return [g[0] * mood.k, g[1] * mood.k, g[2] * mood.k];
+    }
+    return { top: f(pal.top), mid: f(pal.mid), bottom: lerpC(f(pal.bottom), pal.bottom, 0.35),
+      night: pal.night, warm: pal.warm * (1 - mood.g * 0.85), glowX: pal.glowX, dark: pal.dark };
+  }
+
   Sky.mount = function (canvas, opts) {
     if (!canvas || !canvas.getContext) return;
     if (canvas.__skyId) cancelAnimationFrame(canvas.__skyId);
@@ -378,13 +418,20 @@
        三层云不再同色：底层薄絮（L=2，y≈0.76H）贴近地平线，晨昏时被辉光「从下面
        打亮」，暖染加码 1.3 倍；顶层（L=0）离辉光最远，暖染收 0.75 倍——
        同一时刻的云有了「远近受光不同」的空间感。夜里仍统一剪影。 */
-    function cloudTint(night, warm, L, dark) {
+    function cloudTint(night, warm, L, dark, wc) {
+      wc = wc || 0;
       var warmMul = (L === 2) ? 1.3 : (L === 0 ? 0.75 : 1);
       var c = lerpC([255, 255, 255], CLOUD_WARM, warm * 0.85 * warmMul);
       c = lerpC(c, CLOUD_NIGHT, night);
       var a = lerp(0.72, 0.3, night) * lerp(1, 0.92, warm);
       /* 第 92 次：暗色主题下云与天空一起压暗（否则天空暗了云仍亮白，浮在暗底上扎眼） */
       if (dark) { c = scaleC(c, DARK_K); a *= 0.92; }
+      /* 第 214 次：阴雨时云朝浅灰蓝、更实（夜里同样按亮度缩放） */
+      if (wc > 0) {
+        var cl = (c[0] + c[1] + c[2]) / 3 / 255;
+        c = lerpC(c, WX_CLOUD.map(function (v) { return v * Math.min(1, cl * 1.05); }), wc);
+        a = Math.min(0.95, a * (1 + wc * 0.35));
+      }
       return { tint: c, alpha: a };
     }
     var TARGET = 24; /* 染色档位（第 45 次从 12 提到 24）：晨昏过渡更细腻 */
@@ -402,9 +449,9 @@
       for (var L = 0; L < cloudLayers.length; L++)
         for (var i = 0; i < cloudLayers[L].length; i++) flatDefs.push(cloudLayers[L][i]);
     })();
-    function buildSprite(i, night, warm, dark) {
+    function buildSprite(i, night, warm, dark) { /* wc 取 rebuildPal.wc */
       var def = flatDefs[i];
-      var ct = cloudTint(night, warm, def.layerIdx, dark);
+      var ct = cloudTint(night, warm, def.layerIdx, dark, rebuildPal ? rebuildPal.wc : 0);
       return renderCloudSprite(def, W, H, ct.tint, ct.alpha * def.am, dpr);
     }
     function pairSprites() {
@@ -413,7 +460,8 @@
     }
     function ensureSprites(pal, full) {
       /* 第 92 次：key 首位加暗色标志——切主题后染色档位不变也能触发整套重建 */
-      var key = (pal.dark ? 1 : 0) + ':' + Math.round(pal.night * TARGET) + ':' + Math.round(pal.warm * TARGET) + ':' + Math.round(W) + ':' + dpr;
+      var wcq = Math.round(mood.c * 8) / 8;
+      var key = (pal.dark ? 1 : 0) + ':w' + wcq + ':' + Math.round(pal.night * TARGET) + ':' + Math.round(pal.warm * TARGET) + ':' + Math.round(W) + ':' + dpr;
       if (key === spriteKey && rebuildLeft < 0) return;
       if (rebuildLeft < 0) {
         /* 进入新档位：跨 mount 缓存命中则整套即用（不排队），否则开始分摊重建 */
@@ -423,7 +471,7 @@
           pairSprites();
           return;
         }
-        rebuildPal = { night: pal.night, warm: pal.warm, dark: pal.dark, key: key };
+        rebuildPal = { night: pal.night, warm: pal.warm, dark: pal.dark, wc: wcq, key: key };
         rebuildLeft = flatDefs.length;
         if (!spriteImgs || spriteImgs.length !== flatDefs.length) spriteImgs = new Array(flatDefs.length);
       }
@@ -464,8 +512,8 @@
       }
 
       /* 星星（在云后面）：夜里出现，各自相位闪烁 */
-      if (pal.night > 0.12) {
-        var sa = clamp((pal.night - 0.12) / 0.88, 0, 1);
+      if (pal.night > 0.12 && mood.c < 0.9) {
+        var sa = clamp((pal.night - 0.12) / 0.88, 0, 1) * (1 - mood.c);
         for (var s = 0; s < stars.length; s++) {
           var st = stars[s];
           var tw = reduced ? 0.75 : (0.55 + 0.45 * Math.sin(tSec * st.s + st.p));
@@ -502,6 +550,40 @@
         ctx.drawImage(sp.img.cv, cx - sp.img.w * 0.09, cy - sp.img.h * 0.09, sp.img.w * 1.18, sp.img.h * 1.18);
         ctx.globalAlpha = 1;
         ctx.drawImage(sp.img.cv, cx, cy, sp.img.w, sp.img.h);
+        /* 第 214 次：阴雨天云更厚——同一朵再放大叠一层（只多几次 drawImage） */
+        if (mood.ca > 1.02) {
+          var ex = (mood.ca - 1) * 1.1, sc = 1 + ex * 0.6;
+          ctx.globalAlpha = Math.min(0.7, ex);
+          ctx.drawImage(sp.img.cv, cx - sp.img.w * (sc - 1) / 2, cy - sp.img.h * (sc - 1) / 2 * 0.6, sp.img.w * sc, sp.img.h * sc);
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+
+    /* 第 214 次：雾——一层从下往上变淡的同色系薄纱；雷雨——偶尔一道很短的冷白闪 */
+    var flash = 0, nextFlash = 4 + Math.random() * 8;
+    function paintWeather(pal, dt) {
+      if (mood.fog > 0.01) {
+        var fc = lerpC(pal.mid, [236, 238, 242], 0.55);
+        if (pal.dark || pal.night > 0.5) fc = lerpC(pal.mid, pal.bottom, 0.5);
+        var fgd = ctx.createLinearGradient(0, 0, 0, H);
+        fgd.addColorStop(0, rgb(fc, mood.fog * 0.35));
+        fgd.addColorStop(0.6, rgb(fc, mood.fog * 0.8));
+        fgd.addColorStop(1, rgb(fc, mood.fog * 0.5));
+        ctx.fillStyle = fgd; ctx.fillRect(0, 0, W, H);
+      }
+      if (Sky.weather === 'thunder' && !reduced && dt) {
+        nextFlash -= dt;
+        if (nextFlash <= 0) { flash = 1; nextFlash = 6 + Math.random() * 10; }
+        if (flash > 0.01) {
+          var fl = ctx.createRadialGradient(W * 0.6, 0, 0, W * 0.6, 0, Math.max(W, H));
+          fl.addColorStop(0, 'rgba(235,240,255,' + (0.42 * flash).toFixed(3) + ')');
+          fl.addColorStop(1, 'rgba(235,240,255,0)');
+          ctx.fillStyle = fl; ctx.fillRect(0, 0, W, H);
+          /* 两段式：一闪、稍暗、再闪一下后熄 */
+          flash *= Math.exp(-dt * 9);
+          if (flash < 0.25 && flash > 0.2 && Math.random() < 0.5) flash = 0.75;
+        }
       }
     }
 
@@ -592,10 +674,13 @@
         pal.bottom = pal.bottom.map(function (v) { return v * bright; });
       }
       pal = themePal(pal); /* 第 92 次：暗色主题压暗（亮色原样返回，无额外开销） */
+      stepMood(dt);
+      pal = weatherPal(pal);
       syncAmbient(pal); /* 第 53 次：环境光 CSS 变量随色板更新（量化节流，变了才写 DOM） */
       ensureSprites(pal, false);
       paintSky(pal, t / 1000);
       paintClouds(t / 1000);
+      paintWeather(pal, dt);
       /* 云缓慢漂移（仅在画面内循环），按真实时间推进 */
       for (var L = 0; L < cloudLayers.length; L++) {
         var layer = cloudLayers[L];
@@ -621,11 +706,13 @@
     }
 
     function paintStatic() {
-      var pal = themePal(skyPalette(effNow())); /* 第 92 次：静帧同样走暗色适配 */
+      stepMood(null);
+      var pal = weatherPal(themePal(skyPalette(effNow()))); /* 第 92 次：静帧同样走暗色适配 */
       syncAmbient(pal);
       ensureSprites(pal, true); /* reduced-motion：一次性建完整套，不做分摊 */
       paintSky(pal, 0);
       paintClouds(0);
+      paintWeather(pal, 0);
       fadeBottomOut();
     }
 
