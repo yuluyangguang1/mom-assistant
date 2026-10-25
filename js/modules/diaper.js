@@ -41,8 +41,6 @@
     return t;
   }
   function colorOf(v) { for (var i = 0; i < COLORS.length; i++) if (COLORS[i].v === v) return COLORS[i]; return null; }
-  /* 刚记完便类记录后，就地追问颜色用的临时态（render 时若命中该条且尚未选色则展开选择卡）。 */
-  var pendingColorFor = null;
 
   var TYPES = [
     { v: 'pee', t: '尿', icon: 'pee' },
@@ -55,216 +53,297 @@
     return { v: v, t: v, icon: 'diaper' };
   }
 
+  /* ============================================================
+     第 224 次（模块页新骨架 · 尿布样板，对标 Cali 的工具页）：
+       插画 + 名称 → 加粗摘要句 → 今日看板（24h 时间轴 + 近 7 天）→ 竖向时间轴 → 底部主色大按钮。
+     记录与修改都走同一个半屏面板（sheet.js 自动把 role=dialog 变成底部面板）：
+       日期/时间两块大方块、三张尿布插画选类型、量 少/正常/多、便便颜色（便便小图按色上色）、
+       性状、奶瓣/红屁屁/护臀膏、备注；保存后面板里闪一下「已记录」再收起，并留撤销。
+     数据形状不变（{id,type,time,note,color,consistency,curds,rash,cream}），只新增可选 amount。
+     页头插画沿用 hero.js（第 183 次），类型卡复用同一张尿布图，加水滴/便便小标；不使用竞品素材。
+     ============================================================ */
+  var AMOUNTS = [
+    { v: 'little', label: '少' },
+    { v: 'normal', label: '正常' },
+    { v: 'lot',    label: '多' }
+  ];
+  function amtOf(v) { for (var i = 0; i < AMOUNTS.length; i++) if (AMOUNTS[i].v === v) return AMOUNTS[i]; return null; }
+  var TYPE_LONG = { pee: '尿尿', poop: '便便', both: '尿+便' };
+  var ART = 'assets/hero/diaper.webp'; /* 与页头插画同一张，风格统一 */
+
+  function dropSVG(cls) {
+    return '<svg class="' + (cls || 'dp-drop') + '" viewBox="0 0 24 30" aria-hidden="true"><defs><linearGradient id="dpDropG" x1="0" y1="0" x2="0" y2="1">'
+      + '<stop offset="0" stop-color="#D6E8F6"/><stop offset="1" stop-color="#8DB6DA"/></linearGradient></defs>'
+      + '<path d="M12 1.5C12 1.5 3 12.6 3 19a9 9 0 0 0 18 0C21 12.6 12 1.5 12 1.5Z" fill="url(#dpDropG)" stroke="#7FA5C8" stroke-width="1"/>'
+      + '<ellipse cx="8.6" cy="18.5" rx="1.9" ry="3.2" fill="#fff" opacity=".7"/></svg>';
+  }
+  function swirlSVG(hex, cls) {
+    var c = hex || '#A9713F';
+    return '<svg class="' + (cls || 'dp-swirl') + '" viewBox="0 0 32 28" aria-hidden="true" style="--sw:' + c + '">'
+      + '<ellipse cx="16" cy="22.5" rx="13" ry="4.8" fill="var(--sw)"/>'
+      + '<ellipse cx="16" cy="16.5" rx="10" ry="4.4" fill="var(--sw)"/>'
+      + '<path d="M10.5 11.5c0-3.6 3-5.2 5.5-9 1 2.4 6 3.7 6 9 0 2.2-2.6 3.4-5.8 3.4s-5.7-1.2-5.7-3.4Z" fill="var(--sw)"/>'
+      + '<path d="M5 22c3 2.4 19 2.4 22 0M8 16c2.6 2 13.4 2 16 0" fill="none" stroke="#000" stroke-opacity=".12" stroke-width="1.1" stroke-linecap="round"/>'
+      + '<ellipse cx="12" cy="9.5" rx="1.6" ry="1" fill="#fff" opacity=".45"/></svg>';
+  }
+  /* 类型插画：同一张尿布 + 水滴 / 便便 / 两个 */
+  function typeArt(t, hex) {
+    var badge = t === 'pee' ? dropSVG() : t === 'poop' ? swirlSVG(hex) : (dropSVG() + swirlSVG(hex));
+    return '<span class="dpt-art"><img src="' + ART + '" alt="" width="480" height="480" decoding="async"><span class="dpt-badge">' + badge + '</span></span>';
+  }
+  function miniIco(r) {
+    var c = colorOf(r.color);
+    if (r.type === 'pee') return dropSVG('tl-svg');
+    if (r.type === 'poop') return swirlSVG(c && c.hex, 'tl-svg');
+    return '<span class="tl-pair">' + dropSVG('tl-svg') + swirlSVG(c && c.hex, 'tl-svg') + '</span>';
+  }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function agoText(iso) {
+    var t = new Date(iso).getTime();
+    if (isNaN(t)) return '';
+    var m = Math.floor((Date.now() - t) / 60000);
+    if (m < 1) return '刚刚';
+    if (m < 60) return m + ' 分钟前';
+    if (m < 24 * 60) { var h = Math.floor(m / 60), mm = m % 60; return h + ' 小时' + (mm ? ' ' + mm + ' 分' : '') + '前'; }
+    return Util.fmtRowTime(iso);
+  }
+  function subOf(r) {
+    var p = [], c = colorOf(r.color), a = amtOf(r.amount);
+    if (a) p.push('量' + a.label);
+    if (c) p.push(c.label);
+    tagsOf(r).forEach(function (t) { p.push(t); });
+    if (r.note) p.push(Util.escapeHtml(r.note));
+    return p.join(' · ');
+  }
+
+  /* 半屏记录面板：rec 为空 = 新建；dateIso 为补记日期 */
+  function openSheet(d, rec, dateIso) {
+    var root = document.getElementById('modalRoot');
+    if (!root) return;
+    var editing = !!rec;
+    var now = Util.nowLocal();
+    var st = editing ? {
+      type: TYPE_LONG[rec.type] ? rec.type : null /* 坏类型：面板里要求重选 */, amount: rec.amount || null, color: rec.color || null, consistency: rec.consistency || null,
+      curds: rec.curds === true, rash: rec.rash === true, cream: rec.cream === true
+    } : { type: null, amount: null, color: null, consistency: null, curds: false, rash: false, cream: false };
+    var t0 = editing ? String(rec.time) : (dateIso ? dateIso + now.slice(10) : now);
+    var date0 = t0.slice(0, 10), hm0 = t0.slice(11, 16);
+    var today = now.slice(0, 10);
+
+    function poopy() { return st.type === 'poop' || st.type === 'both'; }
+    function body() {
+      var c = colorOf(st.color);
+      var h = '<div class="rs-head"><button type="button" class="rs-x" data-x aria-label="关闭">' + icon('close') + '</button>'
+        + '<h2 id="dpsTitle">' + (editing ? '修改尿布记录' : '记录尿布') + '</h2>'
+        + '<button type="button" class="rs-ok" data-ok aria-label="保存">' + icon('check') + '</button></div>';
+      h += '<div class="rs-when">'
+        + '<label class="rs-tile"><span>日期</span><input type="date" id="dpsDate" value="' + date0 + '" max="' + today + '"></label>'
+        + '<label class="rs-tile"><span>时间</span><input type="time" id="dpsTime" value="' + hm0 + '"></label></div>';
+      h += '<p class="rs-lbl">类型</p><div class="dp-types" role="radiogroup" aria-label="类型">';
+      TYPES.forEach(function (t) {
+        var on = st.type === t.v;
+        h += '<button type="button" class="dp-type' + (on ? ' on' : '') + '" data-t="' + t.v + '" role="radio" aria-checked="' + on + '">'
+          + typeArt(t.v, c && c.hex) + '<span class="dpt-name">' + TYPE_LONG[t.v] + '</span>'
+          + '<i class="dpt-check" aria-hidden="true">' + icon('check') + '</i></button>';
+      });
+      h += '</div>';
+      h += '<p class="rs-lbl">量</p><div class="rs-seg" role="radiogroup" aria-label="量">';
+      AMOUNTS.forEach(function (a) {
+        h += '<button type="button" class="' + (st.amount === a.v ? 'on' : '') + '" data-amt="' + a.v + '" role="radio" aria-checked="' + (st.amount === a.v) + '">' + a.label + '</button>';
+      });
+      h += '</div>';
+      if (poopy()) {
+        h += '<p class="rs-lbl">便便颜色' + (c ? ' · <b>' + c.label + '</b>' : '') + '</p><div class="dp-colors">';
+        COLORS.forEach(function (cc) {
+          var on = st.color === cc.v;
+          h += '<button type="button" class="dp-col' + (on ? ' on' : '') + (cc.warn ? ' warn' : '') + '" data-col="' + cc.v + '" aria-pressed="' + on + '" aria-label="' + cc.label + '">'
+            + swirlSVG(cc.hex, 'dpc-svg') + '<span>' + cc.label + '</span></button>';
+        });
+        h += '</div>';
+        if (c && c.warn) h += '<p class="rs-warn">这个颜色建议留意：如果再次出现，或宝宝精神、吃奶不好，尽快联系医生。</p>';
+        h += '<p class="rs-lbl">性状</p><div class="rs-pills">';
+        CONS.forEach(function (cs) {
+          h += '<button type="button" class="dp-pill' + (st.consistency === cs.v ? ' active' : '') + '" data-cons="' + cs.v + '" aria-pressed="' + (st.consistency === cs.v) + '">' + cs.label + '</button>';
+        });
+        h += '</div>';
+      }
+      h += '<p class="rs-lbl">屁屁情况</p><div class="rs-pills">';
+      FLAGS.forEach(function (f) {
+        if (f.poopOnly && !poopy()) return;
+        h += '<button type="button" class="dp-pill' + (st[f.k] ? ' active' : '') + '" data-flag="' + f.k + '" aria-pressed="' + !!st[f.k] + '">' + f.label + '</button>';
+      });
+      h += '</div>';
+      h += '<label class="rs-note"><span class="rs-lbl">备注</span><input type="text" id="dpsNote" maxlength="40" placeholder="可选，如 换了新码" value="' + Util.escapeHtml((editing && rec.note) || noteDraft || '') + '"></label>';
+      h += '<button type="button" class="btn btn-primary rs-save" data-ok>' + (editing ? '保存修改' : '保存') + '</button>';
+      if (editing) h += '<button type="button" class="btn rs-del" data-delrec>删除这条记录</button>';
+      return h;
+    }
+    var noteDraft = '';
+    root.innerHTML = '<div class="modal-mask" data-dps-mask><div class="modal rec-sheet" role="dialog" aria-modal="true" aria-labelledby="dpsTitle" data-accent="diaper"><div class="rs-body"></div></div></div>';
+    var mask = root.querySelector('[data-dps-mask]');
+    var box = root.querySelector('.rs-body');
+    function close() { root.innerHTML = ''; document.removeEventListener('keydown', onKey); if (global.Sheet) Sheet.sync(); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    function paint() {
+      var ni = box.querySelector('#dpsNote'); if (ni) noteDraft = ni.value;
+      var di = box.querySelector('#dpsDate'), ti = box.querySelector('#dpsTime');
+      if (di) date0 = di.value || date0; if (ti) hm0 = ti.value || hm0;
+      box.innerHTML = body();
+    }
+    paint();
+    box.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('button') : null;
+      if (!b || !box.contains(b)) return;
+      if (b.hasAttribute('data-x')) { close(); return; }
+      if (b.hasAttribute('data-ok')) { save(); return; }
+      if (b.hasAttribute('data-delrec')) {
+        close();
+        Util.removeWithUndo(d.diapers, rec.id, { onSave: function () { Storage.save(); }, onAfter: function () { global.App.rerender(); }, deletedText: '已删除尿布记录' });
+        return;
+      }
+      var v;
+      if ((v = b.getAttribute('data-t'))) { st.type = v; if (!poopy()) { st.color = null; st.consistency = null; st.curds = false; } paint(); return; }
+      if ((v = b.getAttribute('data-amt'))) { st.amount = st.amount === v ? null : v; paint(); return; }
+      if ((v = b.getAttribute('data-col'))) { st.color = st.color === v ? null : v; paint(); return; }
+      if ((v = b.getAttribute('data-cons'))) { st.consistency = st.consistency === v ? null : v; paint(); return; }
+      if ((v = b.getAttribute('data-flag'))) { st[v] = !st[v]; paint(); return; }
+    });
+    mask.addEventListener('click', function (e) { if (e.target === mask) close(); });
+    document.addEventListener('keydown', onKey);
+
+    function save() {
+      if (!st.type) {
+        var tg = box.querySelector('.dp-types');
+        if (tg) { tg.classList.remove('shake'); void tg.offsetWidth; tg.classList.add('shake'); }
+        Util.toast('先选一下类型：尿尿、便便还是都有', 'warn');
+        return;
+      }
+      var dv = (box.querySelector('#dpsDate') || {}).value || date0;
+      var tv = (box.querySelector('#dpsTime') || {}).value || hm0;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dv) || !/^\d{2}:\d{2}/.test(tv)) { Util.toast('日期或时间不完整', 'warn'); return; }
+      var stamp = dv + 'T' + tv.slice(0, 5) + ':' + (editing && String(rec.time).slice(0, 16) === dv + 'T' + tv.slice(0, 5) ? String(rec.time).slice(17, 19) || '00' : (dv + 'T' + tv.slice(0, 5) === now.slice(0, 16) ? now.slice(17, 19) : '00'));
+      if (new Date(stamp).getTime() > Date.now() + 60000) { Util.toast('这个时间还没到，请检查一下', 'warn'); return; }
+      var note = ((box.querySelector('#dpsNote') || {}).value || '').trim().slice(0, 40) || null;
+      var r = editing ? rec : { id: Util.uid() };
+      r.type = st.type; r.time = stamp; r.note = note;
+      ['amount', 'color', 'consistency'].forEach(function (k) { if (st[k]) r[k] = st[k]; else delete r[k]; });
+      FLAGS.forEach(function (f) { if (st[f.k] && !(f.poopOnly && !poopy())) r[f.k] = true; else delete r[f.k]; });
+      if (!editing) d.diapers.push(r);
+      if (!Storage.save()) return;
+      /* 「已记录」：面板内闪一下插画 + 勾，再收起 */
+      box.innerHTML = '<div class="rs-done" role="status">' + typeArt(r.type, colorOf(r.color) && colorOf(r.color).hex)
+        + '<span class="rs-done-ok">' + icon('check') + '</span><p>' + (editing ? '已保存' : '已记录') + '</p></div>';
+      setTimeout(function () {
+        close();
+        global.App.rerender();
+        if (!editing) Util.toast('已记录：' + TYPE_LONG[r.type], 'ok', { label: '撤销', onClick: function () {
+          for (var i = d.diapers.length - 1; i >= 0; i--) if (d.diapers[i].id === r.id) { d.diapers.splice(i, 1); break; }
+          Storage.save(); global.App.rerender(); Util.toast('已撤销', 'ok');
+        } });
+      }, 650);
+    }
+  }
+
   Modules.diaper = {
     id: 'diaper',
     title: '换尿布',
     render: function (view) {
       var d = Storage.get();
-      var today = Util.todayISO();
-      /* 第 131 次（P1-a）：「今日共换」走照护日口径（dayStart 可配，默认 0 = 公历日）；
-         补记的日期戳仍是公历日（backfill || today，记录必须存真实时刻）。 */
       var DS = Util.dayStartHour(d);
       var dayNow = Util.dayKeyOf(new Date(), DS);
-      var html = '';
-
-      /* C7 补记：一次性日期覆盖（App.pendingDate，读取即消费） */
+      /* C7 补记：一次性日期覆盖（App.pendingDate，读取即消费）→ 直接打开记录面板 */
       var backfill = (global.App && App.pendingDate) ? App.pendingDate : null;
       if (global.App) global.App.pendingDate = null;
 
-      /* 一键快记：三个大按钮，按下即保存当前时间 */
-      html += '<div class="card"><h2>一键记录</h2>';
-      html += backfill
-        ? '<p class="hint"><b>补记模式</b>：这条会记到 ' + Util.fmtDate(backfill) + '。</p>'
-        : '<p class="hint">换完尿布点一下，默认记现在；补记先选时刻再点。</p>';
-      html += Util.timePickHTML('dpTime');
-      html += '<div class="quick-row">';
-      TYPES.forEach(function (t) {
-        html += '<button type="button" class="quick-btn" data-quick="' + t.v + '">'
-          + '<span class="quick-ico">' + icon(t.icon) + '</span><span>' + t.t + '</span></button>';
-      });
-      html += '</div></div>';
-
-      /* 第 138 次：便类记录后的就地颜色追问卡；第 195 次扩成「详情卡」：
-         便类 = 颜色 + 性状 + 奶瓣/红屁屁/护臀膏；尿 = 只有红屁屁/护臀膏（从行内「详情」进入，记尿不自动弹）。
-         每点一项即落库，点「完成」收起；全不填也没关系。 */
-      if (pendingColorFor) {
-        var pr = (d.diapers || []).filter(function (x) { return x.id === pendingColorFor; })[0];
-        if (pr) {
-          var isPoop = pr.type === 'poop' || pr.type === 'both';
-          html += '<div class="card diaper-color" data-accent="diaper"><h2>' + (isPoop ? '这条便便怎么样？' : '这次换尿布') + '</h2>'
-            + '<p class="hint">' + Util.fmtDateTime(pr.time) + '（' + Util.escapeHtml(typeInfo(pr.type).t) + '）· 点选即保存，没把握可以不填。</p>';
-          if (isPoop) {
-            html += '<span class="lbl-text">颜色</span><div class="color-chips">';
-            COLORS.forEach(function (c) {
-              html += '<button type="button" class="color-chip' + (c.warn ? ' warn' : '') + (pr.color === c.v ? ' active' : '') + '" data-col="' + c.v + '" style="--chip:' + c.hex + '" aria-pressed="' + (pr.color === c.v) + '">'
-                + '<span class="chip-dot"></span><span>' + c.label + '</span></button>';
-            });
-            html += '</div><span class="lbl-text">性状</span><div class="dp-cons">';
-            CONS.forEach(function (c) {
-              html += '<button type="button" class="dp-pill' + (pr.consistency === c.v ? ' active' : '') + '" data-cons="' + c.v + '" aria-pressed="' + (pr.consistency === c.v) + '">' + c.label + '</button>';
-            });
-            html += '</div>';
-          }
-          html += '<span class="lbl-text">' + (isPoop ? '其他' : '屁屁情况') + '</span><div class="dp-flags">';
-          FLAGS.forEach(function (f) {
-            if (f.poopOnly && !isPoop) return;
-            html += '<button type="button" class="dp-pill' + (pr[f.k] === true ? ' active' : '') + '" data-flag="' + f.k + '" aria-pressed="' + (pr[f.k] === true) + '">' + f.label + '</button>';
-          });
-          html += '</div>';
-          html += '<button type="button" class="btn btn-primary btn-save" data-colskip="1">完成</button></div>';
-        }
-      }
-
-      /* 今日小结 */
-      var todayList = (d.diapers || []).filter(function (r) { return Util.dayKeyOf(r.time, DS) === dayNow; });
+      /* 类型只认三档白名单（导入的坏值按「尿+便」显示，不把原值拼进类名/文案） */
+      var all = (d.diapers || []).filter(function (r) { return r && !isNaN(new Date(r.time).getTime()); }).map(function (r) {
+        return TYPE_LONG[r.type] ? r : Object.assign({}, r, { type: 'both' });
+      }).sort(function (a, b) { return new Date(b.time) - new Date(a.time); });
+      var todayList = all.filter(function (r) { return Util.dayKeyOf(r.time, DS) === dayNow; });
       var peeN = todayList.filter(function (r) { return r.type === 'pee' || r.type === 'both'; }).length;
       var poopN = todayList.filter(function (r) { return r.type === 'poop' || r.type === 'both'; }).length;
-      var latest = (d.diapers || []).slice().sort(function (a, b) { return new Date(b.time) - new Date(a.time); })[0];
-      html += '<div class="card"><h2>今日小结</h2>';
+      var latest = all[0];
+      var html = '';
+
+      /* 2. 摘要句（数字加粗） */
+      var sum;
       if (todayList.length) {
-        html += '<div class="stat-row">'
-          + '<div class="stat"><span class="stat-num">' + todayList.length + '<i class="stat-unit">次</i></span><span class="stat-lbl">今日共换</span></div>'
-          + '<div class="stat"><span class="stat-num">' + peeN + '<i class="stat-unit">次</i></span><span class="stat-lbl">有尿</span></div>'
-          + '<div class="stat"><span class="stat-num">' + poopN + '<i class="stat-unit">次</i></span><span class="stat-lbl">有便</span></div>'
-          + '</div>';
-        if (latest) html += '<p class="hint">上次：' + Util.fmtDateTime(latest.time) + '（' + typeInfo(latest.type).t + '）</p>';
+        sum = '今天换了 <b>' + todayList.length + ' 次</b>尿布，有尿 <b>' + peeN + '</b> 次、有便 <b>' + poopN + '</b> 次。';
       } else {
-        html += '<p class="hint">今天还没有换尿布记录。</p>';
+        sum = '今天还没有<b>尿布</b>记录。';
       }
-      /* 第 186 次：新生儿第 1–7 天湿尿布参考（中性，一句话） */
+      if (latest) sum += '最近一次是<b>' + TYPE_LONG[latest.type] + '</b>，<b>' + Util.escapeHtml(agoText(latest.time)) + '</b>。';
+      html += '<div class="mod-sum"><span class="ms-k">摘要</span><p>' + sum + '</p>';
       var wr = Util.newbornWetRef(d);
       if (wr) {
-        html += '<p class="hint">出生第 ' + wr.day + ' 天，湿尿布常见参考约每天 ' + wr.ref + ' 片' + (wr.day >= 5 ? '以上' : '')
-          + '，今天已记 ' + (todayList.length ? peeN : 0) + ' 片。各家医院口径略有不同，有担心问医生或护士。</p>';
+        html += '<p class="ms-ref">出生第 ' + wr.day + ' 天，湿尿布常见参考约每天 <b>' + wr.ref + ' 片' + (wr.day >= 5 ? '以上' : '') + '</b>，今天已记 ' + peeN + ' 片。有担心问医生或护士。</p>';
       }
       html += '</div>';
 
-      /* 第 138 次：今天有黑/红/灰白等「建议就医」色便便时，页面顶部给一条红线提示。
-         不是诊断，是「如增多或伴异常请就医」的安全兜底（与黄疸/体温同一纪律）。 */
-      var warnToday = (d.diapers || []).filter(function (r) {
-        return Util.dayKeyOf(r.time, DS) === dayNow && colorOf(r.color) && colorOf(r.color).warn;
-      });
+      /* 安全兜底提示（与旧版同口径） */
+      var warnToday = todayList.filter(function (r) { return colorOf(r.color) && colorOf(r.color).warn; });
       if (warnToday.length) {
-        var names = []; warnToday.forEach(function (r) { var c = colorOf(r.color); if (c && names.indexOf(c.label) < 0) names.push(c.label); });
+        var names = []; warnToday.forEach(function (r) { var c = colorOf(r.color); if (names.indexOf(c.label) < 0) names.push(c.label); });
         html += '<div class="warn-box"><p>今天有 <b>' + names.join('、') + '色</b>便便记录。'
           + '若出现增多，或伴随哭闹不安、发热、食欲差、精神萎靡，<b>建议尽快联系医生</b>。</p></div>';
       }
-
-      /* 第 195 次：今天稀水样 ≥3 次——只提示留意补液和就医信号，不下「腹泻」结论 */
-      var wateryN = (d.diapers || []).filter(function (r) { return Util.dayKeyOf(r.time, DS) === dayNow && r.consistency === 'watery'; }).length;
+      var wateryN = todayList.filter(function (r) { return r.consistency === 'watery'; }).length;
       if (wateryN >= 3) {
         html += '<div class="warn-box"><p>今天记了 <b>' + wateryN + ' 次稀水样</b>便便。留意宝宝的尿量和精神；'
           + '若尿明显变少、嘴唇发干、精神差、发热或便里带血，<b>建议尽快联系医生</b>。</p></div>';
       }
 
-      /* 最近记录 */
-      html += '<div class="card"><h2>最近记录</h2>';
-      var list = (d.diapers || []).slice().sort(function (a, b) { return new Date(b.time) - new Date(a.time); }).slice(0, 20);
-      if (list.length) {
-        html += '<ul class="list">';
-        list.forEach(function (r) {
-          var ti = typeInfo(r.type);
-          /* 第 61 次：行改「左时间+类型 / 右备注」双列 */
-          var dot = (r.color && colorOf(r.color)) ? ' <span class="poop-dot" style="--dot:' + colorOf(r.color).hex + '"></span>' : '';
-          html += '<li><span class="row-ico">' + icon(ti.icon) + '</span>'
-            /* 第 160 次：类型挪到第二行，第一行只放时间，窄屏也不被行内按钮挤成「10-…」 */
-            + '<span class="li-main"><b>' + Util.fmtRowTime(r.time) + '</b></span>'
-            + '<span class="li-sub">' + Util.escapeHtml(ti.t) + dot + tagsOf(r).map(function (t) { return ' · ' + t; }).join('') + (r.note ? ' · ' + Util.escapeHtml(r.note) : '') + '</span>'
-            + '<button class="btn btn-mini" data-colorbtn="' + r.id + '" aria-label="' + (tagsOf(r).length || r.color ? '修改详情' : '记录颜色、性状等详情') + '">详情</button>'
-            + '<button class="btn btn-mini" data-note="' + r.id + '" aria-label="' + (r.note ? '修改备注' : '添加备注') + '">备注</button>'
-            + '<button class="icon-btn" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
+      /* 3. 今日看板：24h 时间轴 + 近 7 天（时间轴点类名供 CSS 死类名检查识别：'dt-pee' 'dt-poop' 'dt-both'） */
+      if (all.length && global.DayChart) {
+        html += '<div class="card dash-card"><h2>今天</h2>';
+        html += DayChart.strip({ win: DayChart.windowOf(dayNow, DS), ds: DS, now: Date.now(), label: '今天换尿布的时间',
+          marks: todayList.map(function (r) { return { t: new Date(r.time).getTime(), cls: 'dt-' + r.type, title: Util.fmtRowTime(r.time) + ' ' + TYPE_LONG[r.type] }; }) });
+        html += '<div class="dash-chips dp-legend"><span><i class="lg lg-pee"></i>尿 <b>' + peeN + '</b></span><span><i class="lg lg-poop"></i>便 <b>' + poopN + '</b></span></div>';
+        var d7 = DayChart.lastDays(dayNow, 7).map(function (k) {
+          var n = all.filter(function (r) { return Util.dayKeyOf(r.time, DS) === k; }).length;
+          return { key: k, v: n, txt: String(n) };
         });
-        html += '</ul>';
-      } else {
-        html += '<div class="empty-state"><span class="es-ico">' + icon('diaper') + '</span><p>还没有尿布记录</p><span class="hint">点上方按钮记一次吧。</span></div>';
+        if (d7.filter(function (x) { return x.v; }).length >= 2) html += '<p class="dash-sub">近 7 天换尿布次数</p>' + DayChart.bars(d7, dayNow, '近 7 天换尿布次数');
+        html += '</div>';
       }
-      html += '</div>';
+
+      /* 4. 时间轴（行类名供 CSS 死类名检查识别：'tl-pee' 'tl-poop' 'tl-both'） */
+      if (all.length) {
+        html += '<section class="mod-tl"><p class="ms-k">最近记录</p>';
+        var lastKey = null;
+        html += '<ul class="tl">';
+        all.slice(0, 30).forEach(function (r) {
+          var k = Util.dayKeyOf(r.time, DS);
+          if (k !== lastKey) {
+            lastKey = k;
+            var lab = k === dayNow ? '今天' : (k === Util.addDays(dayNow, -1) ? '昨天' : Util.fmtDate(k));
+            html += '<li class="tl-day">' + Util.escapeHtml(lab) + '</li>';
+          }
+          var dt = new Date(r.time);
+          var hm = isNaN(dt.getTime()) ? '' : pad2(dt.getHours()) + ':' + pad2(dt.getMinutes());
+          var sub = subOf(r);
+          html += '<li class="tl-row tl-' + r.type + '"><span class="tl-time">' + hm + '</span><span class="tl-dot" aria-hidden="true"></span>'
+            + '<button type="button" class="tl-card" data-open="' + r.id + '" aria-label="' + hm + ' ' + TYPE_LONG[r.type] + '，点按修改">'
+            + '<span class="tl-ico">' + miniIco(r) + '</span><span class="tl-txt"><b>' + (TYPE_LONG[r.type] || '尿布') + '</b>'
+            + (sub ? '<small>' + sub + '</small>' : '') + '</span><span class="tl-more" aria-hidden="true">' + icon('chevron-right') + '</span></button>'
+            + '<button type="button" class="tl-del" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
+        });
+        html += '</ul></section>';
+      } else {
+        html += '<div class="mod-empty"><p>点按下方「记录尿布」，选类型就能记下。<br>颜色、性状这些想记再记。</p></div>';
+      }
+
+      /* 5. 底部主按钮 */
+      html += '<div class="mod-cta"><button type="button" class="mc-main" data-new>' + icon('plus') + '<span>记录尿布</span></button></div>';
 
       view.innerHTML = html;
 
-      Array.prototype.forEach.call(view.querySelectorAll('[data-quick]'), function (b) {
+      var nb = view.querySelector('[data-new]');
+      if (nb) nb.addEventListener('click', function () { openSheet(d, null, null); });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-open]'), function (b) {
         b.addEventListener('click', function () {
-          var v = b.getAttribute('data-quick');
-          var dpStamp = Util.stampFrom(view, 'dpTime', backfill || today);
-          if (!dpStamp) return;
-          var rec = { id: Util.uid(), type: v, time: dpStamp, note: null };
-          d.diapers.push(rec);
-          if (Storage.save()) {
-            /* C2：单手误触高发场景——撤销 = 直接移除刚落库的这条 */
-            Util.toast('已记录：' + typeInfo(v).t, 'ok', { label: '撤销', onClick: function () {
-              for (var i = d.diapers.length - 1; i >= 0; i--) {
-                if (d.diapers[i].id === rec.id) { d.diapers.splice(i, 1); break; }
-              }
-              Storage.save(); global.App.rerender(); Util.toast('已撤销', 'ok');
-            } });
-          }
-          /* 第 138 次：便类记录后就地追问颜色（Cali「三键 + 颜色追问」同构）；尿不需要颜色。 */
-          pendingColorFor = (v === 'poop' || v === 'both') ? rec.id : null;
-          global.App.rerender();
-        });
-      });
-
-      /* 第 138 次：颜色追问卡上的色块 / 跳过 */
-      Array.prototype.forEach.call(view.querySelectorAll('[data-col]'), function (b) {
-        b.addEventListener('click', function () {
-          var pr = (d.diapers || []).filter(function (x) { return x.id === pendingColorFor; })[0];
-          if (!pr) return;
-          pr.color = b.getAttribute('data-col');
-          var c = colorOf(pr.color);
-          if (Storage.save() && c && c.warn) Util.toast('已记录颜色（如有增多或异常请就医）', 'ok');
-          /* 第 195 次：选完颜色不再收起，接着可选性状等；点「完成」才收起 */
-          global.App.rerender();
-        });
-      });
-      function curRec() { return (d.diapers || []).filter(function (x) { return x.id === pendingColorFor; })[0]; }
-      Array.prototype.forEach.call(view.querySelectorAll('[data-cons]'), function (b) {
-        b.addEventListener('click', function () {
-          var pr = curRec(); if (!pr) return;
-          var v = b.getAttribute('data-cons');
-          pr.consistency = pr.consistency === v ? null : v; /* 再点同项取消 */
-          Storage.save(); global.App.rerender();
-        });
-      });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-flag]'), function (b) {
-        b.addEventListener('click', function () {
-          var pr = curRec(); if (!pr) return;
-          var k = b.getAttribute('data-flag');
-          if (pr[k] === true) delete pr[k]; else pr[k] = true;
-          Storage.save(); global.App.rerender();
-        });
-      });
-      var colSkip = view.querySelector('[data-colskip]');
-      if (colSkip) colSkip.addEventListener('click', function () {
-        var pr = curRec(); pendingColorFor = null;
-        if (pr && (pr.color || tagsOf(pr).length)) Util.toast('已保存详情', 'ok');
-        global.App.rerender();
-      });
-
-      /* 最近记录行的「颜色」按钮：点开即把该条设为待追问，重渲后顶部出现选择卡 */
-      Array.prototype.forEach.call(view.querySelectorAll('[data-colorbtn]'), function (b) {
-        b.addEventListener('click', function () {
-          var rid = b.getAttribute('data-colorbtn');
-          var it = (d.diapers || []).filter(function (x) { return x.id === rid; })[0];
-          if (!it) return;
-          pendingColorFor = rid;
-          global.App.rerender();
-        });
-      });
-      /* P2-14：行内补备注（数据本有 note 字段，此前无写入入口） */
-      Array.prototype.forEach.call(view.querySelectorAll('[data-note]'), function (b) {
-        b.addEventListener('click', function () {
-          var it = d.diapers.filter(function (x) { return x.id === b.getAttribute('data-note'); })[0];
-          if (!it) return;
-          Util.editText({
-            title: '补一句备注',
-            message: Util.fmtDateTime(it.time) + '（' + typeInfo(it.type).t + '）',
-            value: it.note || '', placeholder: '如 便偏稀 / 换了新码', maxlength: 40, okText: '保存备注',
-            onConfirm: function (v) {
-              it.note = v || null;
-              if (Storage.save()) Util.toast(v ? '备注已保存' : '备注已清除', 'ok');
-              global.App.rerender();
-            }
-          });
+          var it = (d.diapers || []).filter(function (x) { return x.id === b.getAttribute('data-open'); })[0];
+          if (it) openSheet(d, it, null);
         });
       });
       Array.prototype.forEach.call(view.querySelectorAll('[data-del]'), function (b) {
@@ -276,6 +355,7 @@
           });
         });
       });
+      if (backfill) setTimeout(function () { openSheet(d, null, backfill); }, 0);
     },
 
     /* ============================================================

@@ -319,10 +319,37 @@ def test_dash(b):
     p.close()
 
 
+def test_diaper_sheet(b):
+    """第 224 次：尿布页新骨架——底部按钮开半屏、不选类型不保存、选项落库、点时间轴修改、删除可撤销、坏类型不进类名。"""
+    p, errs = fresh(b)
+    ev = p.evaluate
+    ev("App.showTab('diaper')"); p.wait_for_timeout(250)
+    n0 = ev("Storage.get().diapers.length")
+    p.click('[data-new]'); p.wait_for_timeout(250)
+    check('尿布：底部按钮打开半屏记录', ev("!!document.querySelector('#modalRoot .rec-sheet')"))
+    p.click('.rs-save'); p.wait_for_timeout(150)
+    check('尿布：没选类型不保存', ev("Storage.get().diapers.length") == n0)
+    check('尿布：尿尿不显示便便颜色', ev("!document.querySelector('.dp-colors')"))
+    p.click('.dp-type[data-t="poop"]'); p.click('[data-amt="lot"]'); p.click('.dp-col[data-col="green"]'); p.click('[data-cons="mushy"]')
+    p.fill('#dpsNote', '测试备注'); p.click('.rs-save'); p.wait_for_timeout(1000)
+    r = ev("JSON.stringify(Storage.get().diapers.slice(-1)[0])")
+    check('尿布：选项与备注落库', ev("Storage.get().diapers.length") == n0 + 1 and all(x in r for x in ['"poop"', '"lot"', '"green"', '"mushy"', '测试备注']), r)
+    rid = ev("Storage.get().diapers.slice(-1)[0].id")
+    p.click(f'[data-open="{rid}"]'); p.wait_for_timeout(250)
+    check('尿布：点时间轴打开修改面板并带出原值', ev("document.querySelector('.dp-type.on').dataset.t==='poop' && document.querySelector('.dp-col.on').dataset.col==='green'"))
+    p.click('.dp-type[data-t="pee"]'); p.click('.rs-save'); p.wait_for_timeout(1000)
+    r2 = ev("JSON.stringify(Storage.get().diapers.filter(x=>x.id==='" + rid + "')[0])")
+    check('尿布：改成尿尿后清掉颜色/性状', '"pee"' in r2 and 'green' not in r2 and 'mushy' not in r2 and ev("Storage.get().diapers.length") == n0 + 1, r2)
+    ev("(()=>{const d=Storage.get();d.diapers.push({id:'badty',type:'x y<b>',time:Util.nowLocal(),note:null});Storage.save();App.showTab('diaper')})()"); p.wait_for_timeout(250)
+    check('尿布：坏类型不进类名', ev("!document.querySelector('#view [class*=\"<\"]') && !document.getElementById('view').innerHTML.includes('x y')"))
+    check('尿布流程无报错', not errs, errs)
+    p.close()
+
+
 def main():
     with sync_playwright() as pw:
         b = pw.chromium.launch()
-        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_dash, test_css_rules, test_layout_and_toast):
+        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_dash, test_diaper_sheet, test_css_rules, test_layout_and_toast):
             try:
                 fn(b)
             except Exception as e:  # 一组崩了不影响其他组
