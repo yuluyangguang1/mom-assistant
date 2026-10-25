@@ -30,6 +30,20 @@
     if (c >= 95) return { t: '雷阵雨', k: 'thunder' };
     return { t: '多云', k: 'partly' };
   }
+  /* 第 216 次（用户：增加更多天气细节）：把一份天气数据换算成天空要用的细节参数——
+     降水强度（毛毛雨/小/中/大）、风（雨丝倾斜、云速）、雾霾、冷暖、昼夜 */
+  function fxOf(w) {
+    if (!w) return { k: '' };
+    var c = w.code, k = codeInfo(c).k, inten = 0.6;
+    if (c >= 51 && c <= 57) inten = 0.25;
+    else if (c === 61 || c === 80 || c === 71 || c === 85 || c === 77) inten = 0.45;
+    else if (c === 65 || c === 82 || c === 66 || c === 67 || c === 75 || c === 86 || c === 99) inten = 1;
+    return {
+      k: k, inten: inten, drizzle: c >= 51 && c <= 57,
+      wind: typeof w.wind === 'number' ? w.wind : 8,
+      aqi: w.aqi, temp: w.temp, hum: w.hum, day: w.day !== false
+    };
+  }
   function aqiText(v) {
     if (v == null) return '';
     if (v <= 50) return '空气优';
@@ -109,6 +123,7 @@
           hum: cur.relative_humidity_2m != null ? Math.round(cur.relative_humidity_2m) : null,
           code: cur.weather_code,
           day: cur.is_day !== 0,
+          wind: cur.wind_speed_10m != null ? Math.round(cur.wind_speed_10m) : null,
           max: dy.temperature_2m_max ? Math.round(dy.temperature_2m_max[0]) : null,
           min: dy.temperature_2m_min ? Math.round(dy.temperature_2m_min[0]) : null,
           uv: dy.uv_index_max ? Math.round(dy.uv_index_max[0]) : null,
@@ -168,57 +183,79 @@
   }
 
   /* ---------- 天空上的天气层：雨 / 雪粒子（canvas，离开首页自动停） ---------- */
-  function mountFx(canvas, kind) {
+  function mountFx(canvas, kind, fx) {
     if (!canvas || !canvas.getContext) return;
     if (canvas.__wxStop) canvas.__wxStop();
+    var ctx0 = canvas.getContext('2d'); if (ctx0) ctx0.clearRect(0, 0, canvas.width, canvas.height);
     if (kind !== 'rain' && kind !== 'snow' && kind !== 'thunder') return;
     try { if (global.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) {}
-    var ctx = canvas.getContext('2d');
+    fx = fx || {};
+    var ctx = ctx0;
     var dpr = Math.min(global.devicePixelRatio || 1, 2);
-    var W = 0, H = 0, parts = [], raf = 0, alive = true;
+    var W = 0, H = 0, parts = [], raf = 0, alive = true, last = 0;
     var snow = kind === 'snow';
+    var inten = fx.inten != null ? fx.inten : (kind === 'thunder' ? 1 : 0.6);
+    var drizzle = !!fx.drizzle;
+    /* 风：10 km/h 以下基本竖直，30 km/h 约 25° 斜；带一点阵风起伏 */
+    var windK = Math.min(1, Math.max(0, ((fx.wind == null ? 8 : fx.wind) - 4) / 32));
     function size() {
       W = canvas.clientWidth; H = canvas.clientHeight;
       canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     size();
-    /* 第 214 次（融合自然）：粒子分远近三层——远处更细更淡更慢；雨丝用渐变描边（头淡尾实），
-       整体透明度压低，靠 CSS mask 在下半段淡出，不在文字上留下硬线 */
-    var N = snow ? 54 : 90;
+    /* 远近三层：远处多、细、淡、慢 */
+    var N = snow ? Math.round(30 + 70 * inten) : Math.round(drizzle ? 70 : 40 + 120 * inten);
     for (var i = 0; i < N; i++) {
-      var z = Math.random(); z = z * z; /* 0 远 … 1 近，远处多 */
+      var z = Math.random(); z = z * z;
       parts.push({ x: Math.random() * W, y: Math.random() * H, z: z,
-        v: snow ? (0.25 + z * 0.75) : (5 + z * 7),
-        r: snow ? (1.1 + z * 2.4) : (8 + z * 14),
+        v: snow ? (0.25 + z * 0.75) * (0.8 + inten * 0.4) : (drizzle ? 3 + z * 3 : (5 + z * 7) * (0.85 + inten * 0.35)),
+        r: snow ? (1.1 + z * 2.4) * (inten > 0.9 ? 1.25 : 1) : (drizzle ? 3 + z * 5 : (8 + z * 14) * (0.8 + inten * 0.4)),
         s: Math.random() * 6.28 });
     }
-    function tick() {
+    /* 大雨：几道很淡的「雨幕」从画面横扫过去，远处一阵一阵的感觉 */
+    var curtains = (!snow && inten >= 0.6) ? [0, 1].map(function (j) { return { x: Math.random() * W, w: W * (0.35 + Math.random() * 0.3), v: 0.25 + Math.random() * 0.3 + windK * 0.6 }; }) : [];
+    var gustT = Math.random() * 10;
+    function tick(now) {
       if (!alive) return;
       if (!canvas.isConnected) { alive = false; return; }
+      var dt = last ? Math.min((now - last) / 16.7, 3) : 1; last = now;
+      gustT += 0.008 * dt;
+      var gust = 1 + 0.35 * Math.sin(gustT) * Math.sin(gustT * 0.37);
+      var slant = (0.06 + windK * 0.42) * gust;
       ctx.clearRect(0, 0, W, H);
       if (snow) {
         parts.forEach(function (p) {
-          p.y += p.v; p.s += 0.015; p.x += Math.sin(p.s) * (0.2 + p.z * 0.35);
+          p.y += p.v * dt; p.s += 0.015 * dt;
+          p.x += (Math.sin(p.s) * (0.2 + p.z * 0.35) + windK * 1.4 * gust * (0.4 + p.z)) * dt;
           if (p.y > H + 4) { p.y = -4; p.x = Math.random() * W; }
+          if (p.x > W + 6) p.x = -6; else if (p.x < -6) p.x = W + 6;
           var a = 0.6 + p.z * 0.4;
           var g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 1.6);
           g.addColorStop(0, 'rgba(255,255,255,' + a.toFixed(2) + ')');
+          g.addColorStop(0.45, 'rgba(255,255,255,' + (a * 0.6).toFixed(2) + ')');
           g.addColorStop(1, 'rgba(255,255,255,0)');
           ctx.fillStyle = g;
           ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 1.6, 0, 6.283); ctx.fill();
         });
       } else {
+        curtains.forEach(function (c) {
+          c.x += c.v * dt; if (c.x - c.w > W) c.x = -c.w;
+          var g = ctx.createLinearGradient(c.x - c.w, 0, c.x, 0);
+          g.addColorStop(0, 'rgba(220,230,244,0)'); g.addColorStop(0.5, 'rgba(220,230,244,' + (0.07 * inten).toFixed(3) + ')'); g.addColorStop(1, 'rgba(220,230,244,0)');
+          ctx.fillStyle = g; ctx.fillRect(c.x - c.w, 0, c.w, H);
+        });
         ctx.lineCap = 'round';
         parts.forEach(function (p) {
-          p.y += p.v; p.x -= p.v * 0.16;
-          if (p.y > H + 20) { p.y = -20 - Math.random() * 30; p.x = Math.random() * (W + 40); }
-          var x2 = p.x - p.r * 0.16, y2 = p.y + p.r;
+          p.y += p.v * dt; p.x -= p.v * slant * dt;
+          if (p.y > H + 20) { p.y = -20 - Math.random() * 30; p.x = Math.random() * (W + W * slant) ; }
+          if (p.x < -30) p.x += W + 60;
+          var x2 = p.x - p.r * slant, y2 = p.y + p.r;
           var g = ctx.createLinearGradient(p.x, p.y, x2, y2);
-          var a = 0.12 + p.z * 0.28;
+          var a = (drizzle ? 0.1 + p.z * 0.2 : 0.12 + p.z * 0.28) * (0.8 + inten * 0.3);
           g.addColorStop(0, 'rgba(225,234,248,0)');
           g.addColorStop(1, 'rgba(225,234,248,' + a.toFixed(2) + ')');
-          ctx.strokeStyle = g; ctx.lineWidth = 0.6 + p.z * 0.8;
+          ctx.strokeStyle = g; ctx.lineWidth = drizzle ? 0.5 + p.z * 0.4 : 0.6 + p.z * 0.8 * (0.8 + inten * 0.4);
           ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(x2, y2); ctx.stroke();
         });
       }
@@ -234,6 +271,7 @@
     clearCache: clearCache,
     searchCity: searchCity,
     codeInfo: codeInfo,
+    fxOf: fxOf,
     aqiText: aqiText,
     tipOf: tipOf,
     icon: icon,

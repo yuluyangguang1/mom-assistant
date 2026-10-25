@@ -304,25 +304,47 @@
     snow:    { g: 0.55, k: 0.96, c: 0.5,  ca: 1.3,  fog: 0.18 }
   };
   Sky.weather = '';
-  Sky.setWeather = function (k) { Sky.weather = WX[k] ? k : ''; };
-  var mood = { g: 0, k: 1, c: 0, ca: 1, fog: 0 };
+  /* 第 216 次：细节参数（强度、风、雾霾、气温、昼夜）——由 Weather.fxOf 给出 */
+  Sky.fx = {};
+  Sky.setWeather = function (k, fx) { Sky.weather = WX[k] ? k : ''; Sky.fx = fx || {}; };
+  function fxTarget() {
+    var t = WX[Sky.weather] || WX[''], f = Sky.fx || {};
+    var o = { g: t.g, k: t.k, c: t.c, ca: t.ca, fog: t.fog };
+    if (f.inten != null && (Sky.weather === 'rain' || Sky.weather === 'snow' || Sky.weather === 'thunder')) {
+      /* 毛毛雨天色只是发灰，大雨/大雪更沉 */
+      o.k *= 1 + (0.6 - f.inten) * 0.22;
+      o.g *= 0.85 + f.inten * 0.25;
+      o.c = Math.min(1, o.c * (0.8 + f.inten * 0.3));
+    }
+    /* 雾霾：AQI 100 起天空蒙一层暖灰，200 以上明显 */
+    o.haze = (f.aqi != null && f.aqi > 100) ? Math.min(1, (f.aqi - 100) / 150) : 0;
+    /* 冷：0° 以下天色偏冰蓝一点；热：32° 以上晴天阳光更晃 */
+    o.cold = (typeof f.temp === 'number' && f.temp <= 2) ? Math.min(1, (3 - f.temp) / 10) : 0;
+    o.hot = (typeof f.temp === 'number' && f.temp >= 30) ? Math.min(1, (f.temp - 29) / 8) : 0;
+    o.sun = Sky.weather === 'clear' ? 1 : (Sky.weather === 'partly' ? 0.6 : (Sky.weather === '' ? 0 : 0));
+    o.wind = Math.min(4, 1 + Math.max(0, ((f.wind == null ? 8 : f.wind) - 6) / 8));
+    return o;
+  }
+  var mood = { g: 0, k: 1, c: 0, ca: 1, fog: 0, haze: 0, cold: 0, hot: 0, sun: 0, wind: 1 };
   var moodInit = false;
   function stepMood(dt) {
-    var t = WX[Sky.weather] || WX[''];
-    if (!moodInit || dt == null) { mood = { g: t.g, k: t.k, c: t.c, ca: t.ca, fog: t.fog }; moodInit = true; return; }
+    var t = fxTarget();
+    if (!moodInit || dt == null) { mood = t; moodInit = true; return; }
     var a = 1 - Math.exp(-dt / 1.5);
     for (var key in t) mood[key] += (t[key] - mood[key]) * a;
   }
   var WX_GREY_DAY = [176, 186, 200];   /* 阴天的天：偏冷的灰蓝，不是死灰 */
   var WX_CLOUD = [196, 202, 212];      /* 阴天的云：带一点蓝的浅灰 */
   function weatherPal(pal) {
-    if (mood.g < 0.004 && Math.abs(mood.k - 1) < 0.004) return pal;
+    if (mood.g < 0.004 && Math.abs(mood.k - 1) < 0.004 && mood.cold < 0.01 && mood.haze < 0.01) return pal;
     function f(c) {
       var l = c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11;
       /* 去饱和到自身亮度，再朝冷灰拉一点（夜里冷灰按亮度缩放，不会把夜空提亮） */
       var grey = [l, l, l];
       var tone = WX_GREY_DAY.map(function (v) { return v * Math.min(1, l / 190); });
       var g = lerpC(c, lerpC(grey, tone, 0.5), mood.g);
+      if (mood.cold > 0.01) g = lerpC(g, [196, 214, 236].map(function (v) { return v * Math.min(1, l / 200); }), mood.cold * 0.25);
+      if (mood.haze > 0.01) g = lerpC(g, [206, 196, 176].map(function (v) { return v * Math.min(1, l / 190); }), mood.haze * 0.4);
       return [g[0] * mood.k, g[1] * mood.k, g[2] * mood.k];
     }
     return { top: f(pal.top), mid: f(pal.mid), bottom: lerpC(f(pal.bottom), pal.bottom, 0.35),
@@ -604,7 +626,7 @@
       var col = lum > 120 ? lerpC(pal.top, [238, 240, 244], 0.45) : lerpC(pal.top, pal.mid, 0.6).map(function (v) { return v * 1.18; });
       for (var i = 0; i < STRATUS.length; i++) {
         var b = STRATUS[i];
-        if (dt) { b.x += b.sp * DRIFT_PER_SEC * dt; if (b.x - b.w / 2 > 1.3) b.x = -0.3 - b.w / 2; }
+        if (dt) { b.x += b.sp * DRIFT_PER_SEC * dt * mood.wind; if (b.x - b.w / 2 > 1.3) b.x = -0.3 - b.w / 2; }
         var cx = b.x * W, cy = b.y * H, rx = b.w * W * 0.6, ry = b.h * H;
         ctx.save();
         ctx.translate(cx, cy); ctx.scale(rx / ry, 1);
@@ -617,21 +639,85 @@
     }
 
     /* 第 214 次：雾——一层从下往上变淡的同色系薄纱；雷雨——偶尔一道很短的冷白闪 */
-    var flash = 0, nextFlash = 4 + Math.random() * 8;
+    var flash = 0, nextFlash = 4 + Math.random() * 8, bolt = null;
+    var fogT = Math.random() * 100, rayT = Math.random() * 100;
+    function makeBolt() {
+      var x = W * (0.35 + Math.random() * 0.5), y = 0, pts = [[x, y]], end = H * (0.35 + Math.random() * 0.2);
+      while (y < end) { y += 6 + Math.random() * 12; x += (Math.random() - 0.5) * 18; pts.push([x, y]); }
+      var br = pts[Math.floor(pts.length * (0.3 + Math.random() * 0.3))], branch = [[br[0], br[1]]], bx = br[0], by = br[1];
+      for (var i = 0; i < 5; i++) { by += 6 + Math.random() * 8; bx += 6 + Math.random() * 10; branch.push([bx, by]); }
+      return [pts, branch];
+    }
     function paintWeather(pal, dt) {
+      var tS = dt || 0;
+      /* 晴天的阳光：右上角一团没有圆盘的柔光（白天才有），晴间多云时再从云缝里透出几道很淡的光束 */
+      var dayK = (1 - pal.night) * (pal.dark ? 0.45 : 1);
+      if (mood.sun > 0.01 && dayK > 0.05) {
+        var sx = W * 0.86, sy = -H * 0.08, sr = Math.max(W, H) * (0.75 + mood.hot * 0.25);
+        var sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr);
+        var sc = lerpC([255, 248, 228], [255, 232, 196], pal.warm * 0.8 + mood.hot * 0.4);
+        sg.addColorStop(0, rgb(sc, (0.55 + mood.hot * 0.2) * mood.sun * dayK));
+        sg.addColorStop(0.3, rgb(sc, 0.18 * mood.sun * dayK));
+        sg.addColorStop(1, rgb(sc, 0));
+        ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H);
+        if (mood.sun < 0.95 && !reduced) {
+          rayT += tS * 0.05;
+          ctx.save(); ctx.translate(sx, sy); ctx.globalCompositeOperation = 'lighter';
+          for (var r = 0; r < 4; r++) {
+            var ang = 1.95 + r * 0.22 + Math.sin(rayT + r * 1.7) * 0.03;
+            /* 光束要「几乎看不见」：低透明、宽角、从光源处就开始衰减，只在呼吸起伏时隐约可见 */
+            var ra = (0.022 + 0.016 * Math.sin(rayT * 1.3 + r * 2.1)) * dayK;
+            var len = Math.max(W, H) * 1.05, wdt = 0.09 + (r % 2) * 0.05;
+            var rg = ctx.createLinearGradient(0, 0, Math.cos(ang) * len, Math.sin(ang) * len);
+            rg.addColorStop(0, rgb(sc, 0)); rg.addColorStop(0.12, rgb(sc, ra)); rg.addColorStop(0.55, rgb(sc, ra * 0.4)); rg.addColorStop(1, rgb(sc, 0));
+            ctx.fillStyle = rg; ctx.beginPath(); ctx.moveTo(0, 0);
+            ctx.lineTo(Math.cos(ang - wdt) * len, Math.sin(ang - wdt) * len);
+            ctx.lineTo(Math.cos(ang + wdt) * len, Math.sin(ang + wdt) * len); ctx.closePath(); ctx.fill();
+          }
+          ctx.restore();
+        }
+      }
+      /* 雾：底色薄纱 + 几团横向缓慢流动的雾气 */
       if (mood.fog > 0.01) {
         var fc = lerpC(pal.mid, [236, 238, 242], 0.55);
         if (pal.dark || pal.night > 0.5) fc = lerpC(pal.mid, pal.bottom, 0.5);
         var fgd = ctx.createLinearGradient(0, 0, 0, H);
-        fgd.addColorStop(0, rgb(fc, mood.fog * 0.35));
-        fgd.addColorStop(0.6, rgb(fc, mood.fog * 0.8));
-        fgd.addColorStop(1, rgb(fc, mood.fog * 0.5));
+        fgd.addColorStop(0, rgb(fc, mood.fog * 0.25));
+        fgd.addColorStop(0.6, rgb(fc, mood.fog * 0.6));
+        fgd.addColorStop(1, rgb(fc, mood.fog * 0.4));
         ctx.fillStyle = fgd; ctx.fillRect(0, 0, W, H);
+        fogT += tS * 0.012 * mood.wind;
+        for (var f = 0; f < 4; f++) {
+          var fx = ((fogT * (0.6 + f * 0.25) + f * 0.31) % 1.6 - 0.3) * W, fy = H * (0.18 + f * 0.17), fr = H * 0.16;
+          ctx.save(); ctx.translate(fx, fy); ctx.scale(3.2, 1);
+          var fg2 = ctx.createRadialGradient(0, 0, 0, 0, 0, fr);
+          fg2.addColorStop(0, rgb(fc, mood.fog * 0.45)); fg2.addColorStop(1, rgb(fc, 0));
+          ctx.fillStyle = fg2; ctx.beginPath(); ctx.arc(0, 0, fr, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        }
+      }
+      /* 雾霾：从地平线往上的一层暖灰浊气 */
+      if (mood.haze > 0.01) {
+        var hz = ctx.createLinearGradient(0, H * 0.2, 0, H);
+        hz.addColorStop(0, 'rgba(196,182,160,0)');
+        hz.addColorStop(1, 'rgba(196,182,160,' + (mood.haze * 0.35).toFixed(3) + ')');
+        ctx.fillStyle = hz; ctx.fillRect(0, 0, W, H);
       }
       if (Sky.weather === 'thunder' && !reduced && dt) {
         nextFlash -= dt;
-        if (nextFlash <= 0) { flash = 1; nextFlash = 6 + Math.random() * 10; }
+        if (nextFlash <= 0) { flash = 1; nextFlash = 6 + Math.random() * 10; bolt = Math.random() < 0.6 ? makeBolt() : null; }
         if (flash > 0.01) {
+          /* 偶尔带一道很细的闪电（藏在云里，只亮一瞬） */
+          if (bolt && flash > 0.3) {
+            ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+            ctx.shadowColor = 'rgba(200,215,255,.9)'; ctx.shadowBlur = 12;
+            ctx.strokeStyle = 'rgba(245,248,255,' + (0.85 * flash).toFixed(3) + ')';
+            bolt.forEach(function (line, bi) {
+              ctx.lineWidth = bi ? 0.8 : 1.6; ctx.beginPath();
+              line.forEach(function (pt, pi) { if (pi) ctx.lineTo(pt[0], pt[1]); else ctx.moveTo(pt[0], pt[1]); });
+              ctx.stroke();
+            });
+            ctx.restore();
+          }
           var fl = ctx.createRadialGradient(W * 0.6, 0, 0, W * 0.6, 0, Math.max(W, H));
           fl.addColorStop(0, 'rgba(235,240,255,' + (0.42 * flash).toFixed(3) + ')');
           fl.addColorStop(1, 'rgba(235,240,255,0)');
@@ -742,7 +828,7 @@
       for (var L = 0; L < cloudLayers.length; L++) {
         var layer = cloudLayers[L];
         for (var i = 0; i < layer.length; i++) {
-          layer[i].x += layer[i].sp * DRIFT_PER_SEC * dt;
+          layer[i].x += layer[i].sp * DRIFT_PER_SEC * dt * mood.wind;
           if (layer[i].x - layer[i].w / 2 > 1.2) layer[i].x = -0.2 - layer[i].w / 2;
         }
       }

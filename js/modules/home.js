@@ -1575,7 +1575,7 @@
       /* 启动天空（离开首页时 canvas 被移除，循环自动停止） */
       var canvas = view.querySelector('#skyCanvas');
       /* 第 214 次：天气直接改天空画法——mount 前先告诉 Sky 当前天气，首帧就是对的 */
-      if (global.Sky && global.Sky.setWeather) global.Sky.setWeather((wxNow && (d.settings.weather || {}).on && global.Weather) ? Weather.codeInfo(wxNow.code).k : '');
+      if (global.Sky && global.Sky.setWeather) (function (f) { global.Sky.setWeather(f.k, f); })((wxNow && (d.settings.weather || {}).on && global.Weather) ? Weather.fxOf(wxNow) : { k: '' });
       if (global.Sky && canvas) global.Sky.mount(canvas);
       /* 第 212 次：天气——先用缓存画，后台刷新后原地替换天气块，不整页重绘 */
       (function () {
@@ -1584,8 +1584,9 @@
           if (!sky) return;
           var k = w ? Weather.codeInfo(w.code).k : '';
           ['wx-clear', 'wx-partly', 'wx-cloudy', 'wx-fog', 'wx-rain', 'wx-snow', 'wx-thunder'].forEach(function (x) { sky.classList.toggle(x, x === 'wx-' + k); });
-          if (global.Sky && Sky.setWeather) Sky.setWeather(k);
-          Weather.mountFx(view.querySelector('#wxCanvas'), k);
+          var fx = w ? Weather.fxOf(w) : { k: '' };
+          if (global.Sky && Sky.setWeather) Sky.setWeather(k, fx);
+          Weather.mountFx(view.querySelector('#wxCanvas'), k, fx);
         }
         if (!global.Weather) return;
         var cfg = d.settings.weather || {};
