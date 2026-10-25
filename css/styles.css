@@ -5059,6 +5059,8 @@ body.sd-drag #app { border-radius: var(--radius-lg) 0 0 var(--radius-lg); box-sh
   transition: transform .4s cubic-bezier(.32, .72, 0, 1), opacity .4s, visibility .4s;
 }
 body.sd-lock .side-drawer { visibility: visible; }
+/* 第 246 次：解锁后（#app 回到普通流、没有 z-index）抽屉必须立刻消失，否则会叠在页面上露出半透明残影 */
+body:not(.sd-lock) .side-drawer { visibility: hidden; transition: none; }
 body.dark .side-drawer { background: #121110; }
 body.sd-open .side-drawer { transform: none; opacity: 1; }
 body.sd-drag .side-drawer, body.sd-drag .sd-mask, body.sd-drag #app { transition: none; }

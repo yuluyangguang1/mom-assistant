@@ -1658,18 +1658,24 @@
             loop();
           });
         }
+        /* 第 246 次（真机录屏：半宽卡上下拖不动）：不再按「前 / 后半边」判断，改成常见的排序手感——
+           手指进入另一张卡的中心区，就把拖动卡移到那张卡的位置（原来在它前面就插到它后面，反之插到它前面）。
+           刚让位、还在滑动中的卡 280ms 内不再参与判定，避免它滑走途中又被手指扫到来回跳。 */
+        var moving = [], movingT = 0;
         function hitTest() {
           var over = document.elementFromPoint ? document.elementFromPoint(fx, fy) : null;
           while (over && over !== grid && !(over.matches && over.matches(SEL) && over.parentNode === grid)) over = over.parentNode;
           if (!over || over === grid || over === cur) return;
+          if (Date.now() - movingT < 280 && moving.indexOf(over) >= 0) return;
           var r2 = over.getBoundingClientRect();
-          var ny = (fy - r2.top) / r2.height, nx = (fx - r2.left) / r2.width;
-          /* 半宽卡并排时按左右判断，整宽卡按上下判断 */
-          var side = (r2.width < grid.getBoundingClientRect().width * 0.7) ? nx : ny;
-          if (side > 0.25 && side < 0.75) return; /* 中间区留死区，防来回抖 */
-          var before = side <= 0.25;
-          if (before) { if (over.previousSibling !== cur) flipMove(function () { grid.insertBefore(cur, over); }); }
-          else if (over.nextSibling !== cur) flipMove(function () { grid.insertBefore(cur, over.nextSibling); });
+          var nx = (fx - r2.left) / r2.width, ny = (fy - r2.top) / r2.height;
+          if (nx < 0.15 || nx > 0.85 || ny < 0.15 || ny > 0.85) return; /* 只在中心区触发，边缘留缓冲 */
+          var list = kids(), ci = list.indexOf(cur), oi = list.indexOf(over);
+          if (ci < 0 || oi < 0) return;
+          var lo = Math.min(ci, oi), hi = Math.max(ci, oi);
+          moving = list.slice(lo, hi + 1).filter(function (el) { return el !== cur; });
+          movingT = Date.now();
+          flipMove(function () { grid.insertBefore(cur, ci < oi ? over.nextSibling : over); });
           place();
         }
         kids().forEach(function (row) {

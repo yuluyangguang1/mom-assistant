@@ -190,12 +190,30 @@
       if (mr && mr.children.length) return false;
       return !(App.inSub && App.inSub());
     }
+    /* 第 246 次（真机录屏）：iPhone Safari 里从屏幕最左边缘右滑会被浏览器拿去做「后退」，
+       露出上一条历史的截图（黑底、深色页、抽屉残影）。所以一级页上**任意位置向右横滑**都能拉出抽屉，
+       不必贴边；只有会自己横向滑动的地方（横向滚动区、左滑删除行、输入框、编辑排序中的卡片、dock）不接管。 */
+    var NO_PAN = 'input, textarea, select, .sw-row, .record-grid.is-editing, #tabbar, #dockOrb, #quickDock, .qd-mask, [data-no-drawer], .week-strip, .cal-grid, input[type=range]';
+    function hScrollAncestor(el) {
+      for (var n = el; n && n !== document.body && n.nodeType === 1; n = n.parentNode) {
+        if (n.scrollWidth > n.clientWidth + 2) {
+          var ox = global.getComputedStyle(n).overflowX;
+          if (ox === 'auto' || ox === 'scroll') return true;
+        }
+      }
+      return false;
+    }
+    var panAny = false;
     document.addEventListener('touchstart', function (e) {
       if (!e.touches || e.touches.length !== 1) return;
       var t = e.touches[0];
-      mode = null; decided = false;
+      mode = null; decided = false; panAny = false;
       if (isOpen) mode = 'close';
-      else if (t.clientX <= 24 && canEdgeOpen()) { mode = 'open'; build(); }
+      else if (canEdgeOpen()) {
+        var tg = e.target;
+        if (t.clientX <= 24) { mode = 'open'; build(); }
+        else if (!(tg && tg.closest && tg.closest(NO_PAN)) && !hScrollAncestor(tg)) { mode = 'open'; panAny = true; build(); }
+      }
       if (!mode) return;
       sx = t.clientX; sy = t.clientY; st = Date.now();
     }, { passive: true });
@@ -205,10 +223,12 @@
       if (!decided) {
         if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
         if (Math.abs(dy) > Math.abs(dx) || (mode === 'close' && dx > 0)) { mode = null; return; }
+        if (mode === 'open' && (dx < 0 || (panAny && Math.abs(dx) < Math.abs(dy) * 1.4))) { mode = null; return; }
         decided = true;
         if (mode === 'open') { render(); lock(); syncW(); }
       }
       var w = width();
+      if (panAny) dx -= 8; /* 起步判定吃掉的那 8px 不算，免得一判定就跳一下 */
       lastP = mode === 'open' ? dx / w : 1 + dx / w;
       setProgress(lastP, true);
       if (e.cancelable) e.preventDefault();
