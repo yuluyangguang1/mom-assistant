@@ -503,6 +503,9 @@
      不影响任何功能可用性——所以它可以随时为空、为空时全部回落到客观判定。 */
   function stageOf(s) {
     var st = s.settings.stage;
+    /* 第 221 次（单孩正常流程）：引导里选了「孕期中」，生完填了宝宝生日（≥ 末次月经）——
+       这次怀孕已经结束，显式的 pregnancy 不再把首页锁在孕期，自动回到育儿期 */
+    if (st === 'pregnancy' && pregEnded(s)) return 'baby';
     if (st === 'pregnancy' || st === 'baby') return st;
     return (pregnancyWeekOf(s) !== null) ? 'pregnancy' : 'baby';
   }
@@ -528,9 +531,15 @@
     var wk = Math.floor(Util.daysBetween(base, Util.todayISO()) / 7);
     return (wk >= 0 && wk <= 45) ? wk : null;
   }
+  function pregEnded(s) {
+    var base = pregBase(s);
+    return !!base && birthDates(s).some(function (bd) { return bd >= base && bd <= Util.todayISO(); });
+  }
   function isDualStage(s) {
     var base = pregBase(s);
-    if (!base || pregnancyWeekOf(s) === null) return false;
+    /* 第 221 次：选了孕期但还没填孕周、同时已有出生的宝宝——两套工具都显示，宁可多不藏 */
+    if (!base) return s.settings.stage === 'pregnancy' && birthDates(s).some(function (bd) { return bd <= Util.todayISO(); });
+    if (pregnancyWeekOf(s) === null) return false;
     var today = Util.todayISO();
     return birthDates(s).some(function (bd) { return bd < base && bd <= today; });
   }
