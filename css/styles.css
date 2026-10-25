@@ -4319,7 +4319,8 @@ body.dark .sheet-card { background: rgba(255,255,255,.04); }
   border: 1px solid color-mix(in srgb, var(--tile, var(--primary)) 14%, transparent);
 }
 body.dark .rc-card, body.dark .lc-card, body.dark .fn-card {
-  background: linear-gradient(160deg, var(--tile-weak) 0%, rgba(255,255,255,.03) 70%);
+  /* 第 219 次：深色下叠在卡片原底色上，不再透出天空变成发灰的亮块 */
+  background: linear-gradient(160deg, var(--tile-weak) 0%, transparent 70%), var(--surface-solid, #2A2522);
 }
 .rc-h, .lc-head {
   display: flex; align-items: center; gap: 8px; margin: 0 0 12px;

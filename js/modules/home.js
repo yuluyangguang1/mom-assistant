@@ -649,7 +649,7 @@
       function cardHTML(t) {
         var cls = ' canvas-card' + (t._sz === 's' ? ' sz-s' : ' sz-l');
         if (t._ph) {
-          return '<div class="card' + cls + '"><h2>' + t.name + '</h2>'
+          return '<div class="card' + cls + '" data-cid="' + t.id + '"><h2>' + t.name + '</h2>'
             + '<p class="hint">暂无可显示的内容，满足条件后自动出现。</p>' + editBadges(t) + '</div>';
         }
         if (W_HTML[t.id]) return W_HTML[t.id](cls, editBadges(t));
@@ -1182,7 +1182,7 @@
           var gapStr = (gapH ? gapH + ' 小时' : '') + (gapM ? ' ' + gapM + ' 分' : '');
           var leftStr = diffMin >= 60 ? ('还有约 ' + Math.floor(diffMin / 60) + ' 小时' + (diffMin % 60 ? ' ' + (diffMin % 60) + ' 分' : ''))
             : diffMin >= 0 ? ('还有约 ' + diffMin + ' 分钟') : ('已过预计 ' + (-diffMin) + ' 分钟');
-          return '<div class="card feed-next fn-card' + (extraCls || '') + '" data-accent="feeding">'
+          return '<div class="card feed-next fn-card' + (extraCls || '') + '" data-cid="feednext" data-accent="feeding">'
             + '<span class="lc-head"><span class="rc-ico">' + icon('bottle') + '</span>下次喂奶参考</span>'
             + '<div class="fn-main"><b class="lc-big">' + (diffMin >= 0 ? hhmm : '按需') + '</b>'
             + '<span class="fn-left' + (diffMin < 0 ? ' is-over' : '') + '">' + leftStr + '</span></div>'
@@ -1244,7 +1244,7 @@
             + spark(hPts.map(function (r) { return r.heightCm; })) + '</div>';
         }
         inner += '</div>';
-        return '<div class="card gs-card' + (extraCls || '') + '">' + inner + (badges || '') + '</div>';
+        return '<div class="card gs-card' + (extraCls || '') + '" data-cid="growthspark">' + inner + (badges || '') + '</div>';
       }
 
       /* 模块记录（第 56 次：单条信息行；第 57 次随用户反馈改左右结构）——
@@ -1479,7 +1479,8 @@
         });
         if (Modules.home._justAdded) {
           var ja = Modules.home._justAdded; Modules.home._justAdded = null;
-          var el = view.querySelector('.record-grid [data-cid="' + ja + '"], .record-grid [data-go="' + ja + '"]');
+          /* 第 219 次：先按 data-cid 找卡，再找同 id 的磁贴——避免「喂养」磁贴误中「上次喂奶」卡（其 data-go 也是 feeding） */
+          var el = view.querySelector('.record-grid > [data-cid="' + ja + '"]') || view.querySelector('.record-grid > .record-tile[data-go="' + ja + '"], .record-grid > .record-tile[data-quick="' + ja + '"]');
           if (el) {
             el.classList.add('just-added');
             try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e3) { el.scrollIntoView(); }
