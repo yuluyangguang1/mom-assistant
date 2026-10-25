@@ -2781,17 +2781,7 @@ body .tabbar .dock-btn[hidden] { display: none; }
    左侧模块色竖条（与 .list li 的选中语言一致）与轻微呼吸阴影，
    让「正在计时」在长列表里第一眼能被认出来。
    ============================================================ */
-.card.care-live {
-  position: relative; --bar-c: var(--tile, var(--primary)); --bar-w: 4px;
-  padding-left: 18px;
-  animation: care-breathe 2.6s var(--ease) infinite;
-}
-@keyframes care-breathe {
-  0%, 100% { box-shadow: var(--shadow-card); }
-  50%      { box-shadow: 0 2px 4px rgba(90,74,62,.05), 0 10px 26px -10px var(--tile-weak, rgba(200,120,80,.28)); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .card.care-live { animation: none; }
+/* 第 251 次：计时中改成底部迷你计时条（modskel.js），.card.care-live 已删 */
 }
 
 /* ============================================================
@@ -3547,11 +3537,6 @@ input[type=time]::-webkit-date-and-time-value { text-align: left; margin: 0; }
    第 174 次起只剩计时中卡片 .card.care-live 用它：左边条只表示「正在进行」。
    用法：元素上设 --bar-c（颜色），可选 --bar-w（粗细，默认 3px）和 --bar-inset（上下让开的距离）。
    ============================================================ */
-.card.care-live::before {
-  content: ''; position: absolute; left: 0; top: var(--bar-inset, 18px); bottom: var(--bar-inset, 18px);
-  width: var(--bar-w, 3px); border-radius: 0 var(--bar-w, 3px) var(--bar-w, 3px) 0;
-  background: var(--bar-c, var(--primary)); pointer-events: none;
-}
 
 /* ============================================================
    第 174 次 · 卡片体系统一（方案 C）
@@ -5171,3 +5156,21 @@ body.sd-open .touch-glow, body.qd-open .touch-glow { display: none; }
 /* 第 249 次：iOS 触感层（touchfx.js）——透明 label 盖满按钮，内含隐藏 switch；手指真实点到它才有系统触感 */
 .hap-layer { position: absolute; inset: 0; z-index: 3; border-radius: inherit; -webkit-tap-highlight-color: transparent; touch-action: manipulation; cursor: inherit; }
 .hap-sw { position: absolute; width: 1px; height: 1px; margin: 0; visibility: hidden; }
+
+/* ============================================================
+   第 251 次：简单记录类模块迁到新骨架（modskel.js）——洗澡 / 游泳 / 日晒先行
+   页头插画同尿布 / 喂养 / 睡眠缩到 84px；面板里的数值磁贴 + 快选药丸
+   ============================================================ */
+.mod-head.has-hero:has(~ .skel-page) .hero-art { width: 84px; height: 84px; }
+.mod-head.has-hero:has(~ .skel-page) .hero-art img { width: 72px; height: 72px; }
+.mod-head.has-hero:has(~ .skel-page) .hero-badge { right: 2px; top: 2px; min-width: 20px; height: 20px; padding: 0 5px; font-size: 12px; }
+.sk-num { display: flex; flex-direction: row; align-items: baseline; gap: 8px; }
+.sk-num input { flex: 1; min-width: 0; border: none; background: transparent; padding: 0; font: inherit; font-size: calc(22px * var(--fs-mul, 1)); font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; outline: none; -moz-appearance: textfield; }
+.sk-num input::-webkit-outer-spin-button, .sk-num input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.sk-num input::placeholder { color: var(--muted); font-weight: 500; opacity: .7; }
+.sk-num span { color: var(--muted); font-size: var(--fs-sm, 14px); }
+.sk-quick { margin-top: 10px; }
+.skel-page .ft-mini-open { cursor: default; }
+.rs-seg.sk-n2 { grid-template-columns: repeat(2, 1fr); } .rs-seg.sk-n4 { grid-template-columns: repeat(4, 1fr); } .rs-seg.sk-n5 { grid-template-columns: repeat(5, 1fr); }
+.rs-seg.sk-seg button { min-width: 0; padding-left: 4px; padding-right: 4px; }
+.sk-quick + .rs-lbl { margin-top: 18px; }
