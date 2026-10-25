@@ -4481,3 +4481,7 @@ body.dark .mc-main, body.dark .rs-ok, body.dark .dpt-check, body.dark .rs-done-o
 body.dark .rs-save { color: #2A2116; }
 body.dark .dpc-svg, body.dark .tl-svg { filter: drop-shadow(0 0 1px rgba(255,255,255,.55)); }
 @media (max-width: 360px) { .rs-tile { padding: 9px 10px; } .rs-tile input { font-size: 15px; } .dp-type { min-height: 104px; } .dpt-art { width: 66px; } }
+/* 第 225 次：新骨架页的页头插画缩小（168→116），让摘要句上到首屏；后续迁移的模块加进这组选择器 */
+.mod-hero[data-hero="diaper"] .hero-art { width: 116px; height: 116px; }
+.mod-hero[data-hero="diaper"] .hero-art img { width: 100px; height: 100px; }
+.mod-hero[data-hero="diaper"] .hero-badge { right: 6px; top: 6px; min-width: 24px; height: 24px; padding: 0 6px; font-size: 13px; }
