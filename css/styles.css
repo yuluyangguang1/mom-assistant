@@ -1483,11 +1483,6 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 }
 
 /* 下次喂奶参考（home.js）：横向 slim 卡，图标 + 两行文案 */
-.feed-next { display: flex; align-items: flex-start; gap: 12px; }
-.feed-next .row-ico { margin-top: 2px; }
-.feed-next b { font-size: calc(14px * var(--fs-mul)); }
-.feed-next div { font-size: calc(13.5px * var(--fs-mul)); line-height: 1.6; }
-.feed-next .hint { display: block; font-size: calc(12px * var(--fs-mul)); margin-top: 2px; }
 
 /* 体温高温值提示色（temp.js）： danger 同源，不做告警横幅（U-25，提示就医走 warn-box） */
 .temp-high { color: var(--danger); font-weight: 700; }
@@ -4314,3 +4309,47 @@ body.dark .sheet-card { background: rgba(255,255,255,.04); }
 .wa-prog { display: block; height: 6px; border-radius: 3px; background: var(--tile-weak, rgba(0,0,0,.06)); overflow: hidden; margin-top: 2px; }
 .wa-prog i { display: block; height: 100%; border-radius: 3px; background: var(--tile, var(--primary)); }
 @media (prefers-reduced-motion: reduce) { .just-added { animation: none; } .sheet-card { transition: none; } }
+
+/* ============================================================
+   第 218 次 · 现有卡片打磨：记录卡 / 距上次卡 / 下次喂奶参考
+   统一：主题色淡底渐变 + 图标头 + 大号主值 + 次要信息
+   ============================================================ */
+.rc-card, .lc-card, .fn-card {
+  background: linear-gradient(160deg, var(--tile-weak, var(--surface)) 0%, var(--surface) 62%);
+  border: 1px solid color-mix(in srgb, var(--tile, var(--primary)) 14%, transparent);
+}
+body.dark .rc-card, body.dark .lc-card, body.dark .fn-card {
+  background: linear-gradient(160deg, var(--tile-weak) 0%, rgba(255,255,255,.03) 70%);
+}
+.rc-h, .lc-head {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 12px;
+  font-size: calc(14px * var(--fs-mul)); font-weight: 700; color: var(--tile-text, var(--text));
+}
+.rc-ico {
+  flex: none; width: 28px; height: 28px; border-radius: var(--radius-xs);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--tile, var(--primary)) 14%, transparent); color: var(--tile, var(--primary));
+}
+.rc-ico .ico { width: 16px; height: 16px; color: var(--tile, var(--primary)); }
+.card h2.rc-h { color: var(--tile-text, var(--text)); }
+.lc-arrow { margin-left: auto; color: var(--muted); opacity: .55; display: inline-flex; }
+.lc-arrow .ico { width: 15px; height: 15px; }
+.rc-card .quick-btn { background: var(--surface-solid, #fff); border-color: color-mix(in srgb, var(--tile, var(--primary)) 18%, var(--border)); }
+.rc-card .quick-btn .ico { color: var(--tile, var(--primary)); }
+.rc-card .hint { color: var(--muted); }
+.lc-card { display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
+.lc-card .lc-head { margin-bottom: 4px; }
+.lc-big { font-size: calc(28px * var(--fs-mul)); font-weight: 800; line-height: 1.12; letter-spacing: -.01em; color: var(--text); }
+.lc-big small { font-size: .5em; font-weight: 700; color: var(--muted); }
+.lc-sub { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; color: var(--muted); font-size: calc(12.5px * var(--fs-mul)); }
+.lc-chip {
+  padding: 2px 9px; border-radius: var(--radius-pill); font-weight: 700;
+  background: color-mix(in srgb, var(--tile, var(--primary)) 13%, transparent); color: var(--tile-text, var(--tile));
+}
+.lc-empty { font-size: calc(13px * var(--fs-mul)); }
+.fn-main { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.fn-left { font-size: calc(13px * var(--fs-mul)); font-weight: 700; color: var(--tile-text, var(--tile)); }
+.fn-left.is-over { color: var(--muted); }
+.fn-prog { display: block; height: 6px; margin: 10px 0 8px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--tile, var(--primary)) 12%, transparent); overflow: hidden; }
+.fn-prog i { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--tile, var(--primary)); }
+.lc-card:active { transform: scale(.985); }

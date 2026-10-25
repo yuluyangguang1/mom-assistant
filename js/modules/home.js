@@ -502,6 +502,8 @@
           id: cid, _card: true, name: meta.name, icon: meta.icon,
           _last: last ? {
             txt: dayLabel(last, sumNow) + ' ' + hmOf(last) + ' · ' + gapText(nowMs121 - last.getTime()),
+            when: dayLabel(last, sumNow) + ' ' + hmOf(last),
+            gap: gapText(nowMs121 - last.getTime()).replace('距今 ', ''),
             detail: (last && d[def.list]) ? (function () {
               var key = def.key, best = null;
               (d[def.list] || []).forEach(function (r) {
@@ -524,7 +526,7 @@
         var dayNow = careDayNow(); /* 第 131 次（P1-a）：与磁贴同口径 */
         var cnt = (d.diapers || []).filter(function (r) { return careKeyOf(r.time) === dayNow; }).length;
         var dis = editing ? ' disabled' : '';
-        return '<div class="card canvas-card' + extraCls + '" data-cid="rec-diaper"><h2>记尿布</h2>'
+        return '<div class="card canvas-card rc-card' + extraCls + '" data-cid="rec-diaper" data-accent="diaper"><h2 class="rc-h"><span class="rc-ico">' + icon('diaper') + '</span>记尿布</h2>'
           + '<div class="rec-keys">'
           + '<button class="quick-btn" data-reccd="pee" type="button"' + dis + '>' + icon('pee') + '尿</button>'
           + '<button class="quick-btn" data-reccd="poop" type="button"' + dis + '>' + icon('poop') + '便</button>'
@@ -535,7 +537,7 @@
       function recSleepHTML(extraCls, badges) {
         var dis = editing ? ' disabled' : '';
         var os = d.openSleep;
-        var html = '<div class="card canvas-card' + extraCls + '" data-cid="rec-sleep"><h2>睡眠计时</h2>';
+        var html = '<div class="card canvas-card rc-card' + extraCls + '" data-cid="rec-sleep" data-accent="sleep"><h2 class="rc-h"><span class="rc-ico">' + icon('sleep') + '</span>睡眠计时</h2>';
         if (os && os.start) {
           var ms = Date.now() - new Date(os.start).getTime()
             - ((os.pausedMs || 0) + (os.pauseStart ? Date.now() - os.pauseStart : 0));
@@ -560,7 +562,7 @@
       function recBottleHTML(extraCls, badges) {
         var st = recState('bottle', { kind: 'bottle', amount: 60 });
         var dis = editing ? ' disabled' : '';
-        return '<div class="card canvas-card' + extraCls + '" data-cid="rec-bottle"><h2>瓶喂</h2>'
+        return '<div class="card canvas-card rc-card' + extraCls + '" data-cid="rec-bottle" data-accent="feeding"><h2 class="rc-h"><span class="rc-ico">' + icon('feeding') + '</span>瓶喂</h2>'
           + '<div class="rec-seg" role="group" aria-label="奶的种类">'
           + '<button class="rec-seg-btn' + (st.kind === 'bottle' ? ' active' : '') + '" data-recbk="bottle" type="button"' + dis + '>母乳</button>'
           + '<button class="rec-seg-btn' + (st.kind === 'formula' ? ' active' : '') + '" data-recbk="formula" type="button"' + dis + '>配方奶</button>'
@@ -576,7 +578,7 @@
       function recBreastHTML(extraCls, badges) {
         var st = recState('breast', { L: 0, R: 0 });
         var dis = editing ? ' disabled' : '';
-        return '<div class="card canvas-card' + extraCls + '" data-cid="rec-breast"><h2>亲喂</h2>'
+        return '<div class="card canvas-card rc-card' + extraCls + '" data-cid="rec-breast" data-accent="feeding"><h2 class="rc-h"><span class="rc-ico">' + icon('breast') + '</span>亲喂</h2>'
           + '<div class="rec-stepper">'
           + '<button class="rec-step" data-recstep="breast.L:-1" type="button"' + dis + ' aria-label="左侧减少 1 分钟">−1</button>'
           + '<b class="rec-num">左 ' + st.L + '<i>分</i></b>'
@@ -593,7 +595,7 @@
       function recPumpHTML(extraCls, badges) {
         var st = recState('pump', { L: 0, R: 0, ml: 0 });
         var dis = editing ? ' disabled' : '';
-        return '<div class="card canvas-card' + extraCls + '" data-cid="rec-pump"><h2>吸奶</h2>'
+        return '<div class="card canvas-card rc-card' + extraCls + '" data-cid="rec-pump" data-accent="feeding"><h2 class="rc-h"><span class="rc-ico">' + icon('pump') + '</span>吸奶</h2>'
           + '<div class="rec-stepper">'
           + '<button class="rec-step" data-recstep="pump.L:-1" type="button"' + dis + ' aria-label="左侧减少 1 分钟">−1</button>'
           + '<b class="rec-num">左 ' + st.L + '<i>分</i></b>'
@@ -658,11 +660,17 @@
         if (t.id === 'rec-bottle') return recBottleHTML(cls, editBadges(t));
         if (t.id === 'rec-breast') return recBreastHTML(cls, editBadges(t));
         if (t.id === 'rec-pump') return recPumpHTML(cls, editBadges(t));
+        /* 第 218 次：距上次卡改为「大号间隔 + 具体时间 + 明细胶囊」，带主题色 */
+        var LACC = { 'last-feeding': 'feeding', 'last-diaper': 'diaper', 'last-sleep': 'sleep', 'last-growth': 'growth', 'last-temp': 'temp' };
+        var gapTxt = t._last ? (t._last.gap === '不到 1 分钟' ? '刚刚' : t._last.gap) : '';
         var body = t._last
-          ? '<p>' + t._last.txt + '</p>' + (t._last.detail ? '<p class="hint">最近一次：' + t._last.detail + '</p>' : '')
-          : '<p class="hint">暂无记录。记一条就能在这里看到「多久没做了」。</p>';
-        return '<div class="card canvas-card' + cls + '" data-cid="' + t.id + '" data-go="' + t.id.replace('last-', '') + '"'
-          + ' role="button" tabindex="0" aria-label="' + t.name + '"><h2>' + t.name + '</h2>' + body
+          ? '<b class="lc-big">' + Util.escapeHtml(gapTxt) + (gapTxt === '刚刚' ? '' : '<small> 前</small>') + '</b>'
+            + '<span class="lc-sub">' + Util.escapeHtml(t._last.when) + (t._last.detail ? '<span class="lc-chip">' + Util.escapeHtml(t._last.detail) + '</span>' : '') + '</span>'
+          : '<span class="lc-sub lc-empty">还没有记录，记一条就能看到「多久没做了」</span>';
+        return '<div class="card canvas-card lc-card' + cls + '" data-cid="' + t.id + '" data-accent="' + (LACC[t.id] || 'feeding') + '" data-go="' + t.id.replace('last-', '') + '"'
+          + ' role="button" tabindex="0" aria-label="' + t.name + '">'
+          + '<span class="lc-head"><span class="rc-ico">' + icon(t.icon) + '</span>' + t.name
+          + '<span class="lc-arrow" aria-hidden="true">' + icon('chevron-right') + '</span></span>' + body
           + editBadges(t) + '</div>';
       }
 
@@ -1167,12 +1175,20 @@
           var diffMin = Math.round((nextMs - Date.now()) / 60000);
           var nd = new Date(Math.max(nextMs, Date.now()));
           var hhmm = (nd.getHours() < 10 ? '0' : '') + nd.getHours() + ':' + (nd.getMinutes() < 10 ? '0' : '') + nd.getMinutes();
-          return '<div class="card feed-next' + (extraCls || '') + '"><span class="row-ico">' + icon('bottle') + '</span><div>'
-            + '<b>下次喂奶参考</b><br>'
-            + (diffMin >= 0
-              ? '按最近 ' + feedWin.length + ' 次的节奏，大约 ' + hhmm + ' 前后。'
-              : '比预计晚了 ' + (-diffMin) + ' 分钟——按需喂养就好，不用看表。')
-            + '<i class="hint">间隔按你自己的记录估算，仅供参考。</i></div>' + (badges || '') + '</div>';
+          /* 第 218 次：大号预计时间 + 倒计时 + 节奏进度条 */
+          var lastMs = new Date(feedWin[feedWin.length - 1].start).getTime();
+          var pctN = Math.max(4, Math.min(100, Math.round((Date.now() - lastMs) / avgGap * 100)));
+          var gapH = Math.floor(avgGap / 3600000), gapM = Math.round((avgGap % 3600000) / 60000);
+          var gapStr = (gapH ? gapH + ' 小时' : '') + (gapM ? ' ' + gapM + ' 分' : '');
+          var leftStr = diffMin >= 60 ? ('还有约 ' + Math.floor(diffMin / 60) + ' 小时' + (diffMin % 60 ? ' ' + (diffMin % 60) + ' 分' : ''))
+            : diffMin >= 0 ? ('还有约 ' + diffMin + ' 分钟') : ('已过预计 ' + (-diffMin) + ' 分钟');
+          return '<div class="card feed-next fn-card' + (extraCls || '') + '" data-accent="feeding">'
+            + '<span class="lc-head"><span class="rc-ico">' + icon('bottle') + '</span>下次喂奶参考</span>'
+            + '<div class="fn-main"><b class="lc-big">' + (diffMin >= 0 ? hhmm : '按需') + '</b>'
+            + '<span class="fn-left' + (diffMin < 0 ? ' is-over' : '') + '">' + leftStr + '</span></div>'
+            + '<span class="fn-prog"><i style="width:' + pctN + '%"></i></span>'
+            + '<span class="lc-sub">最近 ' + feedWin.length + ' 次平均间隔 ' + gapStr.trim() + (diffMin < 0 ? '，按需喂养就好' : '') + ' · 仅供参考</span>'
+            + (badges || '') + '</div>';
         }
         return '';
       }
