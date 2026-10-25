@@ -3225,7 +3225,18 @@ body.dark .sheet-grab i { background: rgba(235, 235, 245, .3); }
 /* 第 183 次：iOS Safari 不给 ::view-transition-new 画背景，新页快照是透明的，
    推入时旧页（首页问候、快捷按钮）会透过新页叠在一起（用户截图「好好的，全部功能」）。
    转场期间直接把纸色画进 #view 本身，快照自带不透明底。 */
-html[data-nav] #view { view-transition-name: page; background: var(--vt-paper, #FDF9F4); min-height: 100vh; }
+/* 第 248 次（真机录屏：进每个页面背景先亮一下再变灰暗）：转场里垫的是纯纸色，而页面平时的底是
+   「纸色渐变 + 天空环境色（阴天偏灰）」，转场一结束底色就从纯纸色跳到带环境色的灰。
+   转场期间改垫与 body 完全一样的两层背景（同样 fixed 到视口），前后底色一致。 */
+html[data-nav] #view {
+  view-transition-name: page; min-height: 100vh;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1))),
+      rgba(var(--sky-ambient-bottom, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1)))) fixed,
+    var(--bg-grad) fixed;
+  background-color: var(--vt-paper, #FDF9F4);
+}
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 /* 第 167 次：旧根快照（含旧顶栏）直接隐藏——两者都不动画时会叠在一起，旧页日期/标题和新页标题重影发虚 */
 ::view-transition-old(root) { display: none; }
