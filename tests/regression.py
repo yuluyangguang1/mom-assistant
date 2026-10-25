@@ -295,10 +295,34 @@ def test_family(b):
     p.close()
 
 
+GEN_RECENT = """(()=>{const d=Storage.get();const p=n=>String(n).padStart(2,'0');
+const f=t=>{const x=new Date(t);return x.getFullYear()+'-'+p(x.getMonth()+1)+'-'+p(x.getDate())+'T'+p(x.getHours())+':'+p(x.getMinutes())};
+const now=Date.now();d.feedings=[];d.sleeps=[];
+for(let h=2;h<170;h+=2.8){const t=now-h*3600e3;const ty=['breast','bottle','formula'][Math.floor(h)%3];d.feedings.push({id:'f'+h,type:ty,start:f(t),amount:ty=='breast'?null:90,durationMin:ty=='breast'?15:null,side:ty=='breast'?'left':null});}
+for(let h=1;h<170;h+=4.3){const e=now-h*3600e3,s=e-(1+(h%3))*3600e3;d.sleeps.push({id:'s'+h,start:f(s),end:f(e),pausedMs:0,wakings:0});}
+Storage.save();})()"""
+
+
+def test_dash(b):
+    """第 223 次：喂养/睡眠页今日看板——时间轴、近 7 天柱、进行中的觉、照护日 6 点切日。"""
+    p, errs = fresh(b)
+    ev = p.evaluate
+    ev(GEN_RECENT)
+    ev("App.showTab('feeding')"); p.wait_for_timeout(250)
+    check('喂养看板：有时间轴和 7 根柱', ev("!!document.querySelector('.dash-card .dc-strip') && document.querySelectorAll('.dash-card .dc-bar').length===7"))
+    check('喂养看板：今天的点数 = 今日次数', ev("document.querySelectorAll('.dash-card .dc-dot').length") == ev("+document.querySelector('.dash-chips b').textContent"))
+    ev("(()=>{const d=Storage.get();d.openSleep={id:'live',start:new Date(Date.now()-50*60e3).toISOString().slice(0,16),pausedMs:0,pauseStart:null};Storage.save();App.showTab('sleep')})()"); p.wait_for_timeout(250)
+    check('睡眠看板：进行中的觉画成虚段', ev("!!document.querySelector('.dash-card .dc-span.live')"))
+    ev("(()=>{const d=Storage.get();d.openSleep=null;d.settings.dayStart=6;Storage.save();App.showTab('sleep')})()"); p.wait_for_timeout(250)
+    check('照护日 6 点：时间轴从 06 起', ev("document.querySelector('.dc-ticks span').textContent") == '06')
+    check('看板无报错', not errs, errs)
+    p.close()
+
+
 def main():
     with sync_playwright() as pw:
         b = pw.chromium.launch()
-        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_css_rules, test_layout_and_toast):
+        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_dash, test_css_rules, test_layout_and_toast):
             try:
                 fn(b)
             except Exception as e:  # 一组崩了不影响其他组

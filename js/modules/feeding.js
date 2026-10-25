@@ -366,20 +366,35 @@
         : ((lastBreast && lastBreast.side === 'right') ? 'left' : 'left');
       var lastDurRec = sorted.filter(function (r) { return r.type === 'breast' && r.durationMin; })[0];
       var lastAmtRec = sorted.filter(function (r) { return r.type !== 'breast' && r.amount; })[0];
-      html += '<div class="card"><h2>今日概览</h2>';
+      /* 第 223 次：「今日概览」改成首页同款看板——大号「距上次」+ 今日次数/奶量 + 24 小时时间轴 + 近 7 天次数柱。
+         口径不变：次数不算吸奶，奶量只算奶瓶/奶粉，按照护日（dayStart）切日。 */
+      var tName = function (t) { return (TYPES.filter(function (x) { return x.v === t; })[0] || {}).t || ''; };
+      html += '<div class="card dash-card" data-accent="feeding"><h2>今日概览</h2>';
       if (feedToday.length || latest) {
-        html += '<div class="stat-row">';
-        html += '<div class="stat"><span class="stat-num">' + feedToday.length + '<i class="stat-unit">次</i></span><span class="stat-lbl">今日喂养</span></div>';
-        /* 第 185 次：只算宝宝喝下的奶（奶瓶/奶粉），不混吸奶量与辅食克数 */
         var totalAmt = feedToday.reduce(function (s, r) { return s + ((r.type === 'bottle' || r.type === 'formula') ? (r.amount || 0) : 0); }, 0);
-        if (totalAmt) html += '<div class="stat"><span class="stat-num">' + totalAmt + '<i class="stat-unit">ml</i></span><span class="stat-lbl">今日奶量</span></div>';
         if (latestFed) {
-          /* 第 146 次：走统一格式化层（超过 24 小时说天，不再出现「260 小时」） */
           var gg = Util.fmtGap(Date.now() - new Date(latestFed.start).getTime());
-          var gNum = gg.num, gUnit = gg.unit;
-          html += '<div class="stat"><span class="stat-num">' + gNum + '<i class="stat-unit">' + gUnit + '</i></span><span class="stat-lbl">距上次</span></div>';
+          var lastTxt = tName(latestFed.type) + (latestFed.amount && latestFed.type !== 'breast' ? ' ' + latestFed.amount + 'ml' : '')
+            + (latestFed.type === 'breast' && latestFed.durationMin ? ' ' + latestFed.durationMin + ' 分钟' : '');
+          html += '<div class="dash-big"><span class="dash-num">' + Util.escapeHtml(String(gg.num)) + '<i>' + Util.escapeHtml(gg.unit) + '</i></span>'
+            + '<span class="dash-lbl">距上次喂奶' + (lastTxt ? ' · ' + Util.escapeHtml(lastTxt) : '') + '</span></div>';
         }
-        html += '</div>';
+        html += '<div class="dash-chips"><span><b>' + feedToday.length + '</b> 次</span>'
+          + (totalAmt ? '<span><b>' + totalAmt + '</b> ml</span>' : '')
+          + (function () {
+            var br = feedToday.filter(function (r) { return r.type === 'breast'; }).length;
+            return br && br !== feedToday.length ? '<span>亲喂 <b>' + br + '</b> 次</span>' : '';
+          })() + '</div>';
+        if (global.DayChart) {
+          var fWin = DayChart.windowOf(dayNow, DS);
+          html += DayChart.strip({ win: fWin, ds: DS, now: Date.now(), label: '今天的喂奶时间',
+            marks: feedToday.map(function (r) { return { t: new Date(r.start).getTime(), cls: ({ bottle: 'ft-bottle', formula: 'ft-formula', solid: 'ft-solid' })[r.type] || '', title: Util.fmtRowTime(r.start) + ' ' + tName(r.type) }; }) });
+          var f7 = DayChart.lastDays(dayNow, 7).map(function (k) {
+            var n = Util.babyFeeds(d.feedings).filter(function (r) { return Util.dayKeyOf(r.start, DS) === k; }).length;
+            return { key: k, v: n, txt: String(n) };
+          });
+          if (f7.filter(function (x) { return x.v; }).length >= 2) html += '<p class="dash-sub">近 7 天喂奶次数</p>' + DayChart.bars(f7, dayNow, '近 7 天喂奶次数');
+        }
         if (lastBreast && lastBreast.side !== 'both') {
           var nextSide = lastBreast.side === 'left' ? '右' : '左';
           html += '<p class="hint">上次喂的是<b>' + (lastBreast.side === 'left' ? '左' : '右') + '侧</b>，这次建议先喂 <b>' + nextSide + '侧</b>，两侧均衡不易堵奶。</p>';

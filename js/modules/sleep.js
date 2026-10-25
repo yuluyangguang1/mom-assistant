@@ -54,6 +54,44 @@
       var os = openSleep();
       var html = '';
 
+      /* 第 223 次：「今日睡眠」看板（与喂养页同款）——大号今日总睡眠 + 段数/最长一段 + 24 小时时间轴 + 近 7 天总时长柱。
+         按照护日（dayStart）切；跨日的觉按落在当天窗口里的部分算；暂停时长按比例扣掉；进行中的觉算到现在。 */
+      if (global.DayChart && ((d.sleeps || []).length || os)) {
+        var DS = Util.dayStartHour(d), dayNow = Util.dayKeyOf(new Date(), DS), nowMs = Date.now();
+        var segs = (d.sleeps || []).filter(function (x) { return x && x.start && x.end; }).map(function (x) {
+          var a = new Date(x.start).getTime(), b = new Date(x.end).getTime();
+          return { s: a, e: b, k: (b > a) ? Math.max(0, Math.min(1, durMs(x) / (b - a))) : 0 };
+        });
+        if (os) {
+          var oa = new Date(os.start).getTime();
+          var op = (os.pausedMs || 0) + (os.pauseStart ? nowMs - os.pauseStart : 0);
+          if (nowMs > oa) segs.push({ s: oa, e: nowMs, k: Math.max(0, Math.min(1, (nowMs - oa - op) / (nowMs - oa))), live: true });
+        }
+        var minIn = function (w) {
+          var tot = 0, n = 0, lon = 0;
+          segs.forEach(function (g) {
+            var m = DayChart.overlapMin(g.s, g.e, w[0], w[1]) * g.k;
+            if (m > 0) { tot += m; n++; if (m > lon) lon = m; }
+          });
+          return { tot: tot, n: n, lon: lon };
+        };
+        var sWin = DayChart.windowOf(dayNow, DS), st0 = minIn(sWin);
+        var s7 = DayChart.lastDays(dayNow, 7).map(function (k) {
+          var m = minIn(DayChart.windowOf(k, DS)).tot;
+          return { key: k, v: Math.round(m), txt: m ? (Math.round(m / 6) / 10) + 'h' : '' };
+        });
+        if (st0.n || s7.filter(function (x) { return x.v; }).length) {
+          html += '<div class="card dash-card" data-accent="sleep"><h2>今日睡眠</h2>';
+          html += '<div class="dash-big"><span class="dash-num">' + (st0.tot >= 1 ? DayChart.bigMin(st0.tot) : '0<i>分</i>') + '</span>'
+            + '<span class="dash-lbl">' + (os ? '今天已睡（含正在睡的这一觉）' : '今天已睡') + '</span></div>';
+          if (st0.n) html += '<div class="dash-chips"><span><b>' + st0.n + '</b> 觉</span><span>最长 <b>' + Util.escapeHtml(DayChart.fmtMin(st0.lon)) + '</b></span></div>';
+          html += DayChart.strip({ win: sWin, ds: DS, now: nowMs, label: '今天的睡眠时段',
+            spans: segs.map(function (g) { return { s: g.s, e: g.e, cls: g.live ? 'live' : '' }; }) });
+          if (s7.filter(function (x) { return x.v; }).length >= 2) html += '<p class="dash-sub">近 7 天每天睡眠</p>' + DayChart.bars(s7, dayNow, '近 7 天每天睡眠时长');
+          html += '</div>';
+        }
+      }
+
       html += '<div class="card"><h2>睡眠计时</h2>';
       if (os) {
         html += '<p class="big">已睡 <span id="sleepTimer">--</span></p>';

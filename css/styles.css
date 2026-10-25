@@ -4357,3 +4357,40 @@ body.dark .rc-card, body.dark .lc-card, body.dark .fn-card {
 .fn-prog { display: block; height: 6px; margin: 10px 0 8px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--tile, var(--primary)) 12%, transparent); overflow: hidden; }
 .fn-prog i { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--tile, var(--primary)); }
 .lc-card:active { transform: scale(.985); }
+
+/* ===== 第 223 次：喂养/睡眠页「今日看板」（与首页彩色磁贴同一套 --tile 变量） ===== */
+.dash-card { background: var(--tile-weak); border: none; }
+.dash-card h2 { color: var(--tile-text); }
+.dash-big { display: flex; flex-direction: column; gap: 2px; margin: 2px 0 10px; }
+.dash-num { font-size: 40px; line-height: 1.05; font-weight: 800; color: var(--tile-text); font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+.dash-num i { font-style: normal; font-size: 16px; font-weight: 600; margin: 0 4px 0 2px; letter-spacing: 0; }
+.dash-lbl { font-size: var(--fs-sm); color: var(--muted); overflow-wrap: anywhere; }
+.dash-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.dash-chips span { padding: 4px 10px; border-radius: var(--radius-pill); background: var(--surface, #fff); font-size: var(--fs-sm); color: var(--text); }
+.dash-chips b { color: var(--tile-text); font-variant-numeric: tabular-nums; }
+.dash-sub { margin: 14px 0 6px; font-size: var(--fs-xs, 12px); color: var(--muted); }
+.dash-card .hint { margin-top: 10px; }
+
+.dc-strip { margin: 4px 0 2px; }
+.dc-track { position: relative; height: 22px; border-radius: var(--radius-xs); background: var(--surface, #fff); overflow: hidden; }
+.dc-span { position: absolute; top: 3px; bottom: 3px; border-radius: 3px; background: var(--tile); opacity: .85; }
+.dc-span.live { opacity: .5; background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgba(255,255,255,.45) 4px 8px); }
+.dc-dot { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--tile); box-shadow: 0 0 0 2px var(--surface, #fff); }
+.dc-dot.ft-bottle, .dc-dot.ft-formula { background: var(--tile-text); }
+.dc-dot.ft-solid { background: #D9963B; }
+.dc-now { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--danger, #D9534F); opacity: .7; }
+.dc-ticks { position: relative; height: 16px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dc-ticks span { position: absolute; top: 2px; transform: translateX(-50%); }
+.dc-ticks span:first-child { transform: none; }
+.dc-ticks span:last-child { transform: translateX(-100%); }
+
+.dc-bars { display: flex; gap: 6px; align-items: flex-end; height: 92px; }
+.dc-bar { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; height: 100%; }
+.dc-bv { height: 15px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dc-bcol { flex: 1; width: 100%; max-width: 26px; display: flex; align-items: flex-end; }
+.dc-bcol i { display: block; width: 100%; border-radius: var(--radius-xs) var(--radius-xs) 2px 2px; background: var(--tile); opacity: .35; }
+.dc-bar.today .dc-bcol i { opacity: 1; }
+.dc-bar.today .dc-bv { color: var(--tile-text); font-weight: 700; }
+.dc-bl { height: 16px; margin-top: 3px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+body.dark .dash-chips span, body.dark .dc-track { background: rgba(255,255,255,.06); }
+body.dark .dc-dot { box-shadow: 0 0 0 2px rgba(0,0,0,.4); }
