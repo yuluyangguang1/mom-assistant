@@ -1888,9 +1888,27 @@
     /* 浏览器/系统返回（安卓物理返回键、桌面后退按钮、iOS 侧滑在支持时）
        走 popstate 回到首页，与侧滑共用同一条出口。 */
     try {
-      global.addEventListener('popstate', function () {
-        if (subExit) { historyDepth = Math.max(0, historyDepth - 1); exitSubNow(); return; }
-        if (current !== 'home') { historyDepth = Math.max(0, historyDepth - 1); showTab('home'); }
+      /* 第 268 次（用户录屏：刚关掉的功能页会被从右边拉出来）：
+         返回后，刚离开的那一层还留在 history 的「前进」栈里，iOS 就允许从右缘左滑「前进」，
+         拉出那页的系统快照（App 并没有真的进去，松手后又弹回首页）。
+         修法：每次返回落地后清掉前进栈——pushState 一个占位（会丢弃所有前进记录），
+         再静默 back 回到当前层；前进栈里只剩这个占位，万一被拉到占位上也立刻静默退回。 */
+      var ignorePop = 0;
+      var dropForward = function () {
+        try {
+          global.history.pushState({ baoma: 'guard' }, '');
+          ignorePop++;
+          global.history.back();
+        } catch (eG) { ignorePop = 0; }
+      };
+      global.addEventListener('popstate', function (ev) {
+        if (ignorePop > 0) { ignorePop--; return; }
+        var st = ev && ev.state;
+        if (st && st.baoma === 'guard') { ignorePop++; try { global.history.back(); } catch (eB) { ignorePop = 0; } return; }
+        /* 旧版本留下的前进记录：在首页、没有上一层时还收到模块记录 = 被「前进」了，静默退回 */
+        if (st && st.baoma === 1 && current === 'home' && historyDepth <= 0 && !subExit) { ignorePop++; try { global.history.back(); } catch (eB2) { ignorePop = 0; } return; }
+        if (subExit) { historyDepth = Math.max(0, historyDepth - 1); exitSubNow(); dropForward(); return; }
+        if (current !== 'home') { historyDepth = Math.max(0, historyDepth - 1); showTab('home'); dropForward(); }
       });
     } catch (e) { /* 忽略 */ }
   }
