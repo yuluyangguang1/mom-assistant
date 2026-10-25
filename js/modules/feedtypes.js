@@ -545,6 +545,44 @@
      瓶喂
      ============================================================ */
   var BMAX = 300;
+  /* 第 233 次：每日奶量参考——国家卫生健康委《婴幼儿营养喂养评估服务指南（试行）》
+     （国卫办妇幼函〔2024〕452 号，2025-02-08 发布）。指南只给「每日总量」，并明确
+     「允许每次喂奶量有波动，避免刻板要求每次摄入固定的奶量，但每日喂奶总量要达到要求」，
+     所以这里不再给「每顿建议量」，只给全天参考；快捷奶量取自己最近常冲的量。
+     满月、3 月龄两档是指南对混合喂养 / 人工喂养的口径；6 月龄起是每日奶类总量（含母乳）。 */
+  var NHC_REF = [
+    { from: 0, to: 2, label: '满月前后', lo: 600, hi: 700, mixed: true },
+    { from: 2, to: 6, label: '3 月龄前后', lo: 800, hi: 900, mixed: true },
+    { from: 6, to: 8, label: '6 月龄', lo: 800, hi: 1000, times: '5～6 次' },
+    { from: 8, to: 12, label: '8 月龄', lo: 700, hi: 800, times: '4～5 次' },
+    { from: 12, to: 18, label: '12 月龄', lo: 600, hi: 700, times: '2～3 次' },
+    { from: 18, to: 37, label: '18～24 月龄', lo: 400, hi: 600, times: '2～3 次' }
+  ];
+  function ageMonthsOf(d) {
+    var b = d && d.settings && d.settings.baby && d.settings.baby.birthDate;
+    if (!b || !/^\d{4}-\d{2}-\d{2}/.test(b)) return null;
+    var bd = new Date(b.slice(0, 10) + 'T00:00:00'), n = new Date();
+    if (!isFinite(bd.getTime()) || bd > n) return null;
+    return Math.max(0, (n.getFullYear() - bd.getFullYear()) * 12 + (n.getMonth() - bd.getMonth()) - (n.getDate() < bd.getDate() ? 1 : 0));
+  }
+  function nhcRef(d) {
+    var m = ageMonthsOf(d); if (m == null) return null;
+    for (var i = 0; i < NHC_REF.length; i++) if (m >= NHC_REF[i].from && m < NHC_REF[i].to) return NHC_REF[i];
+    return null;
+  }
+  function refLine(ref) {
+    if (!ref) return '';
+    return ref.label + '每日' + (ref.mixed ? '喂奶' : '奶类') + '约 ' + ref.lo + '～' + ref.hi + ' mL' + (ref.times ? '，分 ' + ref.times : '')
+      + (ref.mixed ? '（混合 / 人工喂养）' : '（含母乳）');
+  }
+  /* 快捷奶量：最近 20 条瓶喂里出现最多的 4 个量（按大小排），不足用 60/90/120/150 补 */
+  function quickAmounts(list) {
+    var cnt = {};
+    list.slice(0, 20).forEach(function (r) { var a = bottleAmt(r); if (a) cnt[a] = (cnt[a] || 0) + 1; });
+    var top = Object.keys(cnt).map(Number).sort(function (a, b) { return cnt[b] - cnt[a] || b - a; }).slice(0, 4);
+    [60, 90, 120, 150, 180].forEach(function (v) { if (top.length < 4 && top.indexOf(v) < 0) top.push(v); });
+    return top.sort(function (a, b) { return a - b; });
+  }
   function bottleSVG(v) {
     /* 奶瓶：瓶身 x 40–140、y 92–232；刻度 100/200/300 */
     var top = 100, bot = 228, h = bot - top;
@@ -575,7 +613,10 @@
     var amt = last ? bottleAmt(last) : 90;
     if (!amt) amt = 90;
     var now = Date.now();
-    var sugg = [90, 120, 150, 180];
+    var sugg = quickAmounts(list);
+    var ref = nhcRef(d);
+    var DSb = Util.dayStartHour(d), dnb = Util.dayKeyOf(new Date(), DSb);
+    var todayMl = list.filter(function (r) { return Util.dayKeyOf(r.start, DSb) === dnb; }).reduce(function (s2, r) { return s2 + bottleAmt(r); }, 0);
     var body = whenTiles('s', '开始时间', isoDay(now), hm(now), isoDay(now))
       + '<div class="ft-endrow"><span>结束时间</span><button type="button" class="ft-switch" role="switch" aria-checked="false" data-endsw aria-label="记结束时间"><i></i></button></div>'
       + '<div class="ft-endbox" data-endbox hidden>' + whenTiles('e', '', isoDay(now), hm(now), isoDay(now)).replace('<p class="rs-lbl"></p>', '') + '</div>'
@@ -585,7 +626,8 @@
       + '<p class="ft-amtk"><b>奶量</b> 1–' + BMAX + ' mL</p>'
       + '<div class="ft-amt"><label class="ft-amtbox"><input type="number" inputmode="numeric" min="1" max="' + BMAX + '" id="bAmt" value="' + amt + '" aria-label="奶量（毫升）"><small>mL</small></label>'
       + '<div class="ft-btl" data-btl>' + bottleSVG(amt) + '</div></div>'
-      + '<p class="rs-lbl">建议奶量</p><div class="ft-quick ft-sugg">' + sugg.map(function (v) { return '<button type="button" class="ft-q' + (v === amt ? ' is-on' : '') + '" data-amt="' + v + '">' + v + 'mL</button>'; }).join('') + '</div>'
+      + '<p class="rs-lbl">常用奶量</p><div class="ft-quick ft-sugg">' + sugg.map(function (v) { return '<button type="button" class="ft-q' + (v === amt ? ' is-on' : '') + '" data-amt="' + v + '">' + v + 'mL</button>'; }).join('') + '</div>'
+      + (ref ? '<p class="ft-ref">' + esc(refLine(ref)) + '。今天已瓶喂 <b>' + todayMl + ' mL</b>。每顿多一点少一点都正常，看全天总量就好。<small>出处：国家卫生健康委《婴幼儿营养喂养评估服务指南（试行）》，2025 年 2 月</small></p>' : '')
       + '<label class="rs-lbl ft-note">备注<input type="text" id="bNote" maxlength="40" placeholder="可选"></label>'
       + '<div class="ft-two"><button type="button" class="btn ft-go" data-go>' + SV.play + '开始喂奶</button>'
       + '<button type="button" class="btn btn-primary ft-save" data-save>' + icon('check') + '保存</button></div>';
@@ -705,7 +747,10 @@
             return { key: k, v: v, txt: v ? String(v) : '' };
           }), dayNow, '近 7 天瓶喂奶量');
         }
-        amtHtml += '<p class="hint">' + (nd ? '有记录的 ' + nd + ' 天，日均 <b>' + Math.round((bm + fm) / nd) + ' mL</b>。' : '') + '只统计你自己记的数，不设目标值。</p>';
+        var refB = nhcRef(d);
+        amtHtml += '<p class="hint">' + (nd ? '有记录的 ' + nd + ' 天，日均瓶喂 <b>' + Math.round((bm + fm) / nd) + ' mL</b>。' : '')
+          + (refB ? '参考：' + esc(refLine(refB)) + '。亲喂的量没法算进来，混合喂养时只看这个数会偏低。' : '只统计你自己记的数。') + '</p>'
+          + (refB ? '<p class="ms-ref">出处：国家卫生健康委《婴幼儿营养喂养评估服务指南（试行）》（国卫办妇幼函〔2024〕452 号）</p>' : '');
         var srcHtml = '<h2>母乳与配方奶</h2><p class="hint">近 7 天瓶喂母乳 <b>' + bm + ' mL</b>，配方奶 <b>' + fm + ' mL</b>。</p>';
         html += insightChips([{ ico: icon('bottle'), t: '近 7 天奶量', html: amtHtml }, { ico: icon('formula'), t: '母乳与配方', html: srcHtml }]);
       }
@@ -762,6 +807,8 @@
         });
       }
     },
-    _bottleSVG: bottleSVG
+    _bottleSVG: bottleSVG,
+    _nhcRef: nhcRef,
+    _quick: quickAmounts
   };
 })(window);

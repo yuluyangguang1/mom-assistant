@@ -4701,6 +4701,13 @@ body.dark .bt-ring { fill: #E9E6E0; }
   .ftf-side { width: 60px; height: 60px; }
   .ftf-big { font-size: clamp(44px, 15vw, 64px); }
   .ftf-st b { font-size: 22px; }
+  .ft-amt { grid-template-columns: 1fr 38%; gap: 8px; }
+  .ft-amtbox { padding: 12px; }
+  .ft-amtbox input { font-size: 40px; }
+  .ft-two .btn { font-size: 15px; padding: 0 8px; white-space: nowrap; }
 }
 /* 第 232 次：打磨 */
 body.ftf-open { overflow: hidden; }
+.ft-ref { margin: 12px 0 0; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--tile-weak); font-size: var(--fs-sm, 14px); line-height: 1.6; color: var(--text); }
+.ft-ref b { color: var(--tile-text); }
+.ft-ref small { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); }
