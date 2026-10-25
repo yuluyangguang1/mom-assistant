@@ -4476,10 +4476,10 @@ body.dark .dpt-art img { filter: brightness(.92); }
 body.dark .mc-main, body.dark .rs-ok, body.dark .dpt-check, body.dark .rs-done-ok { color: #2A2116; }
 body.dark .rs-save { color: #2A2116; }
 @media (max-width: 360px) { .rs-tile { padding: 9px 10px; } .rs-tile input { font-size: 15px; } .dp-type { min-height: 104px; } .dpt-art { width: 66px; } }
-/* 第 225 次：新骨架页的页头插画缩小（168→116），让摘要句上到首屏；后续迁移的模块加进这组选择器 */
-.mod-hero[data-hero="diaper"] .hero-art { width: 116px; height: 116px; }
-.mod-hero[data-hero="diaper"] .hero-art img { width: 100px; height: 100px; }
-.mod-hero[data-hero="diaper"] .hero-badge { right: 6px; top: 6px; min-width: 24px; height: 24px; padding: 0 6px; font-size: 13px; }
+/* 第 225 次：新骨架页的页头插画缩小（168→116，第 229 次再缩到 84），让摘要句上到首屏；后续迁移的模块加进这组选择器 */
+.mod-hero[data-hero="diaper"] .hero-art { width: 84px; height: 84px; }
+.mod-hero[data-hero="diaper"] .hero-art img { width: 72px; height: 72px; }
+.mod-hero[data-hero="diaper"] .hero-badge { right: 2px; top: 2px; min-width: 20px; height: 20px; padding: 0 5px; font-size: 12px; }
 /* 第 226 次：尿布面板「扣减用品」——开关 + 可扣减用品卡（剩余随勾选实时变化，≤10 件标红提醒补货） */
 .rs-stock { margin-top: 18px; }
 .rs-sw-row { display: flex; align-items: center; gap: 10px; min-height: 44px; }
