@@ -4616,13 +4616,15 @@ body.dark .bt-ring { fill: #E9E6E0; }
 .ft-two .ft-save { margin-top: 0; }
 .ft-go { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 54px; border-radius: var(--radius-pill); background: var(--tile-weak); border-color: transparent; color: var(--tile-text); font-weight: 700; }
 .ft-go svg { width: 20px; height: 20px; }
-.fd-entry { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 14px; }
-.fd-ent { display: flex; align-items: center; gap: 10px; min-height: 76px; padding: 10px 12px; border: none; border-radius: var(--radius); background: var(--tile-weak); color: var(--text); font: inherit; text-align: left; cursor: pointer; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--tile) 30%, transparent); }
-.fd-ent img { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0; }
-.fd-ent span { display: flex; flex-direction: column; min-width: 0; }
-.fd-ent b { font-size: calc(17px * var(--fs-mul, 1)); color: var(--tile-text); }
-.fd-ent small { font-size: var(--fs-xs, 12px); color: var(--muted); overflow-wrap: anywhere; }
-.fd-ent:active { transform: scale(.98); }
+.fd-none { margin: 6px 2px; text-align: center; color: var(--muted); font-size: var(--fs-sm, 14px); line-height: 1.7; }
+.fd-none p { margin: 0; }
+/* 第 254 次：喂养 ⊕ 先选记什么 */
+.fd-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fd-pk { display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 120px; padding: 14px 8px; border: none; border-radius: var(--radius); background: var(--tile-weak, var(--surface-2)); color: var(--text); font: inherit; cursor: pointer; }
+.fd-pk img { width: 52px; height: 52px; object-fit: contain; }
+.fd-pk b { font-size: calc(16px * var(--fs-mul, 1)); }
+.fd-pk small { font-size: var(--fs-xs, 12px); color: var(--muted); }
+.fd-pk:active { transform: scale(.97); }
 .ft-tt b { font-size: calc(18px * var(--fs-mul, 1)); font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
 .ft-hid { position: absolute; inset: 0; width: 100% !important; height: 100%; opacity: 0; cursor: pointer; z-index: 1; }
 .ftf-side.is-on .ico { color: #2A1520; }
@@ -5141,8 +5143,17 @@ body.sd-open .touch-glow, body.qd-open .touch-glow { display: none; }
 .rs-hint.sk-hint { margin: 10px 0 14px; }
 
 /* 第 253 次：新骨架空状态——大插画 + 一句话，按钮停在底部（对标 Cali 空页） */
-.sk-empty { min-height: calc(100vh - 360px); min-height: calc(100dvh - 360px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 12px 8px 24px; text-align: center; }
+.sk-empty { flex: 1 0 auto; min-height: 320px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 12px 8px 24px; text-align: center; }
 .sk-empty img { width: 200px; height: 200px; object-fit: contain; }
 .sk-empty p { margin: 0; color: var(--muted); font-size: calc(15px * var(--fs-mul, 1)); }
 .sk-empty .sk-empty-ref { max-width: 320px; font-size: calc(12.5px * var(--fs-mul, 1)); line-height: 1.6; }
 .mod-head.has-hero:has(~ .skel-page .sk-empty) .hero-status { display: none; }
+
+/* 第 254 次：开始记录的按钮只停在 dock 栏上方——内容少时把页面撑满，按钮推到底部，不再停在页面中间 */
+.view:has(> .ft-page), .view:has(> .mod-cta) { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; box-sizing: border-box; }
+.view:has(> .ft-page) > *, .view:has(> .mod-cta) > * { flex-shrink: 0; }
+.view > .mod-cta { margin-top: auto; }
+.view > .ft-page { flex: 1 0 auto; display: flex; flex-direction: column; }
+.ft-page > * { flex-shrink: 0; }
+.ft-page > .mod-cta { margin-top: auto; }
+body.dock-left .view:has(> .ft-page), body.dock-right .view:has(> .ft-page), body.dock-left .view:has(> .mod-cta), body.dock-right .view:has(> .mod-cta) { min-height: 0; }

@@ -31,8 +31,7 @@
     {
       key: 'common', title: '通用', items: [
         { id: 'feeding', name: '喂养' },
-        { id: 'breast', name: '亲喂' },
-        { id: 'bottle', name: '瓶喂' },
+        /* 第 254 次：亲喂、瓶喂只从喂养页底部进入，不在全部功能里单列 */
         { id: 'diaper', name: '尿布' },
         { id: 'sleep', name: '睡眠' },
         { id: 'whitenoise', name: '哄睡白噪音' },

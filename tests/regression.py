@@ -427,21 +427,25 @@ def test_diaper_photos(b):
 
 
 def test_feeding_sheet(b):
-    """第 230/231 次：喂养页=入口+吸奶/辅食；亲喂、瓶喂独立页（全屏计时、瓶喂面板）。"""
+    """第 254 次：喂养页中间不再放入口卡；底部「开始亲喂 | ⊕」，⊕ 先选瓶喂 / 补记亲喂 / 吸奶 / 辅食。"""
     p, errs = fresh(b)
     ev = p.evaluate
     ev("App.showTab('feeding')"); p.wait_for_timeout(300)
-    check('喂养：有亲喂、瓶喂入口卡', ev("document.querySelectorAll('[data-goto]').length") == 2)
+    check('喂养：页面中间没有入口卡，底部是开始亲喂 + ⊕', ev("!document.querySelector('.fd-entry') && !!document.querySelector('.mod-cta [data-fstart]') && !!document.querySelector('.mod-cta [data-fadd]')"))
     check('喂养：面板默认隐藏', ev("document.querySelector('[data-fd-mask]').hidden"))
-    p.click('[data-new]'); p.wait_for_timeout(300)
+    p.click('[data-fadd]'); p.wait_for_timeout(300)
+    check('喂养：⊕ 先选四种', ev("[...document.querySelectorAll('[data-pk]')].map(x=>x.dataset.pk).join()") == 'bottle,manual,pump,solid')
+    p.click('[data-pk="pump"]'); p.wait_for_timeout(300)
     check('喂养：面板只剩吸奶、辅食', ev("[...document.querySelectorAll('#fType [data-t]')].map(x=>x.dataset.t).join()") == 'pump,solid')
     n0 = ev("Storage.get().feedings.length")
     ev("(()=>{const r=document.querySelector('#wrapRulerPump .ruler-range');r.value=80;r.dispatchEvent(new Event('input',{bubbles:true}));r.dispatchEvent(new Event('change',{bubbles:true}))})()")
     p.click('[data-fdok]'); p.wait_for_timeout(400)
     check('喂养：吸奶保存成功、面板收起', ev("Storage.get().feedings.length") == n0 + 1 and ev("document.querySelector('[data-fd-mask]').hidden"))
+    ev("App.showTab('alltools')"); p.wait_for_timeout(300)
+    check('全部功能：不再单列亲喂、瓶喂', not ev("/亲喂|瓶喂/.test(document.querySelector('#view').textContent)"))
 
-    # 亲喂
-    p.click('[data-goto="breast"]'); p.wait_for_timeout(400)
+    # 亲喂（独立页仍保留，从首页磁贴 / 迷你条进入）
+    ev("App.showTab('breast')"); p.wait_for_timeout(400)
     check('亲喂：独立页、粉色强调', ev("App.currentTab()") == 'breast' and ev("!!document.querySelector('.ft-page[data-accent=breast] [data-start]')"))
     p.click('[data-start]'); p.wait_for_timeout(400)
     check('亲喂：开始后进全屏计时', ev("!!document.querySelector('.ftf .ftf-big') && !!Storage.get().feedingTimer"))

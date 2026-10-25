@@ -417,16 +417,7 @@
           + '<button type="button" class="btn-mini" data-ftend="15">15 分钟前</button></div>'
           + '<button type="button" class="btn-mini" id="ftCancel">取消计时</button></div>';
       }
-      /* 第 231 次：入口卡——亲喂（粉）、瓶喂（黄）各自一页 */
-      (function () {
-        var lb = sorted.filter(function (r) { return r.type === 'breast'; })[0];
-        var lbt = sorted.filter(function (r) { return r.type === 'bottle' || r.type === 'formula'; })[0];
-        var bSub = ftimer ? (ftimer.paused ? '计时已暂停' : '正在亲喂 · 点开继续') : (lb ? '上次 ' + Util.fmtAgo(lb.start) : '开始计时');
-        var tSub = d.bottleTimer ? '正在瓶喂' : (lbt ? '上次 ' + Util.fmtAgo(lbt.start) + (lbt.amount ? ' · ' + lbt.amount + ' mL' : '') : '记奶量');
-        html += '<div class="fd-entry">'
-          + '<button type="button" class="fd-ent" data-accent="breast" data-goto="breast"><img src="assets/hero/breast.webp" alt="" width="56" height="56"><span><b>亲喂</b><small>' + Util.escapeHtml(bSub) + '</small></span></button>'
-          + '<button type="button" class="fd-ent" data-accent="bottle" data-goto="bottle"><img src="assets/hero/bottle.webp" alt="" width="56" height="56"><span><b>瓶喂</b><small>' + Util.escapeHtml(tSub) + '</small></span></button></div>';
-      })();
+      /* 第 254 次：页面中间的亲喂 / 瓶喂入口卡撤掉——开始记录的按钮只放在 dock 栏上方 */
       html += '<div class="card dash-card" data-accent="feeding"><h2>今天</h2>';
       if (feedToday.length || latest) {
         var totalAmt = feedToday.reduce(function (s, r) { return s + ((r.type === 'bottle' || r.type === 'formula') ? (r.amount || 0) : 0); }, 0);
@@ -657,11 +648,29 @@
         });
         html += '</ul></section>';
       } else {
-        html += '<div class="mod-empty"><p>亲喂、瓶喂点上面的卡片进去记。<br>吸奶和辅食点下方按钮。</p></div>';
+        html += '<div class="fd-none"><p>点底部「开始亲喂」边喂边计时；瓶喂或补记点右边的 ⊕。</p></div>';
       }
 
       /* 底部主按钮 + 半屏记录面板（面板默认隐藏，保存/开始计时后 App.rerender 自然收起） */
-      html += '<div class="mod-cta"><button type="button" class="mc-main" data-new>' + icon('plus') + '<span>记录吸奶 / 辅食</span></button></div>';
+      /* 第 254 次：底部唯一入口。亲喂计时中 → 迷你计时条；瓶喂计时中 → 迷你条；否则「开始亲喂 | ⊕」 */
+      var SVf = (global.FTUI && global.FTUI.SV) || {};
+      var MB = Modules.breast, ftS = (ftimer && MB && MB._state) ? MB._state(ftimer, Date.now()) : null;
+      if (ftS) {
+        html += '<div class="mod-cta ft-cta"><div class="ft-mini" data-accent="breast">'
+          + '<button type="button" class="ft-mini-open" data-fmini="open" aria-label="打开计时">' + (SVf.nurse || '')
+          + '<b data-fmini-cur>' + Util.fmtClock(ftS.T).replace(/^0(\d:)/, '$1') + '</b></button>'
+          + '<span class="ft-mini-side">' + (ftS.paused ? '暂停' : (ftS.side === 'left' ? '左' : '右')) + '</span>'
+          + '<button type="button" class="ft-mini-b" data-fmini="swap" aria-label="换边">' + (SVf.swap || '') + '</button>'
+          + '<button type="button" class="ft-mini-b" data-fmini="pause" aria-label="' + (ftS.paused ? '继续' : '暂停') + '">' + (ftS.paused ? SVf.play : SVf.pause) + '</button></div></div>';
+      } else if (d.bottleTimer) {
+        html += '<div class="mod-cta ft-cta"><div class="ft-mini" data-accent="bottle">'
+          + '<button type="button" class="ft-mini-open" data-goto="bottle" aria-label="打开瓶喂">' + icon('bottle') + '<b>瓶喂中</b></button>'
+          + '<span class="ft-mini-side">点开结束</span></div></div>';
+      } else {
+        html += '<div class="mod-cta ft-cta"><div class="ft-split" data-accent="breast">'
+          + '<button type="button" class="ft-split-main" data-fstart>' + (SVf.play || '') + '<span>开始亲喂</span></button>'
+          + '<button type="button" class="ft-split-add" data-fadd aria-label="记瓶喂或补记">' + (SVf.plusc || icon('plus')) + '</button></div></div>';
+      }
       html += '<div class="modal-mask fd-mask" data-fd-mask hidden><div class="modal rec-sheet" role="dialog" aria-modal="true" aria-labelledby="fdsTitle" data-accent="feeding"><div class="rs-body">'
         + '<div class="rs-head"><button type="button" class="rs-x" data-fdx aria-label="关闭">' + icon('close') + '</button>'
         + '<h2 id="fdsTitle">吸奶 / 辅食</h2>'
@@ -680,8 +689,44 @@
         Array.prototype.forEach.call(view.querySelectorAll('[data-goto]'), function (b) {
           b.addEventListener('click', function () { global.App.showTab(b.getAttribute('data-goto')); });
         });
-        var nb = view.querySelector('[data-new]');
-        if (nb) nb.addEventListener('click', openF);
+        var fs = view.querySelector('[data-fstart]');
+        if (fs) fs.addEventListener('click', function () { if (Modules.breast && Modules.breast._start) Modules.breast._start(); });
+        Array.prototype.forEach.call(view.querySelectorAll('[data-fmini]'), function (b) {
+          b.addEventListener('click', function () {
+            var k = b.getAttribute('data-fmini');
+            if (k === 'open') Modules.breast._openFull(); else { Modules.breast._act(k); global.App.rerender(); }
+          });
+        });
+        var fa = view.querySelector('[data-fadd]');
+        if (fa) fa.addEventListener('click', function () {
+          /* ⊕：先选记什么。吸奶 / 辅食是过渡入口，等泵奶、辅食独立页做好后从这里拿掉 */
+          var opts = [
+            { k: 'bottle', img: 'bottle', t: '瓶喂', s: '记奶量' },
+            { k: 'manual', img: 'breast', t: '补记亲喂', s: '喂完才想起来' },
+            { k: 'pump', img: 'feeding', t: '吸奶', s: '记奶量' },
+            { k: 'solid', img: 'feeding', t: '辅食', s: '吃了什么' }
+          ];
+          var body = '<div class="fd-pick">' + opts.map(function (o) {
+            return '<button type="button" class="fd-pk" data-pk="' + o.k + '"><img src="assets/hero/' + o.img + '.webp" alt="" width="52" height="52"><b>' + o.t + '</b><small>' + o.s + '</small></button>';
+          }).join('') + '</div>';
+          global.FTUI.openSheet('feeding', '记一笔', body, function (api) {
+            var ok = api.box.querySelector('[data-ok]'); if (ok) ok.style.visibility = 'hidden';
+            api.box.addEventListener('click', function (e) {
+              var b = e.target.closest ? e.target.closest('[data-pk]') : null; if (!b) return;
+              var k = b.getAttribute('data-pk'); api.close();
+              if (k === 'bottle') Modules.bottle._new();
+              else if (k === 'manual') Modules.breast._manual();
+              else { openF(); var tb = view.querySelector('#fType [data-t="' + k + '"]'); if (tb) tb.click(); }
+            });
+          });
+        });
+        if (ftS) {
+          var fTick = setInterval(function () {
+            var el = view.querySelector('[data-fmini-cur]'), x = Storage.get().feedingTimer;
+            if (!el || !x) { clearInterval(fTick); return; }
+            el.textContent = Util.fmtClock(Modules.breast._state(x, Date.now()).T).replace(/^0(\d:)/, '$1');
+          }, 1000);
+        }
         mask.addEventListener('click', function (e) { if (e.target === mask) closeF(); });
         mask.querySelector('[data-fdx]').addEventListener('click', closeF);
         mask.querySelector('[data-fdok]').addEventListener('click', function () { var sv = view.querySelector('#fSave'); if (sv) sv.click(); });

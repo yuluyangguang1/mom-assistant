@@ -536,6 +536,14 @@
       if (t && fullEl) paintFull();
     },
     _openFull: openFull,
+    /* 第 254 次：喂养页底部「开始亲喂 | ⊕」直接调用，不再跳到亲喂页 */
+    _start: function () {
+      var d = Storage.get();
+      var lastB = (d.feedings || []).filter(function (r) { return r && r.type === 'breast' && (r.side === 'left' || r.side === 'right'); })
+        .sort(function (a, b) { return ms(b.start) - ms(a.start); })[0];
+      startTimer(d, lastB); if (Util.haptic) Util.haptic('ok'); global.App.rerender(); openFull();
+    },
+    _manual: function () { openManualBreast(Storage.get()); },
     _act: function (k) { act(k); },
     _closeFull: closeFull,
     _state: tState,
@@ -719,6 +727,7 @@
   Modules.bottle = {
     id: 'bottle',
     title: '瓶喂',
+    _new: function () { openBottleSheet(Storage.get()); },
     render: function (view) {
       var d = Storage.get();
       var DS = Util.dayStartHour(d);
