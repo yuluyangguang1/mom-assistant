@@ -5189,20 +5189,28 @@ body.dark [data-accent="pump"] { --tile: #EEDF75; --tile-text: #EEDF75; --tile-w
 .pm-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0; }
 .pm-l { font-size: var(--fs-sm, 14px); color: var(--muted); }
 
-/* 第 259 次：启动动画层——与 iOS 启动图同色同布局（tools/gen_pwa_assets.py 的 SPLASH） */
-.boot { position: fixed; inset: 0; z-index: 9999; background: #221E1A; transition: opacity .45s ease; }
+/* 第 259 次：启动动画层——与 iOS 启动图同色同布局（tools/gen_pwa_assets.py 的 SPLASH）
+   第 260 次：落位逐像素对齐启动图——
+   · 文字用 assets/boot-text.png（生成启动图的同一段 HTML 渲染，3x），
+     系统字体与 Noto Sans SC 字高不同，用 CSS 文字接棒会整块偏几像素「跳一下」；
+   · 图标用 512 图 + decoding=sync，首帧就有图，不出现空白帧。 */
+.boot { position: fixed; inset: 0; z-index: 9999; background: #221E1A; will-change: opacity; transition: opacity .42s cubic-bezier(.4,0,.2,1); }
 html:not(.is-booting) .boot { display: none; }
-.boot-c { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); text-align: center; transition: transform .45s ease; }
+.boot-c { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); text-align: center; will-change: transform; transition: transform .42s cubic-bezier(.4,0,.2,1); }
 .boot-ico { position: relative; display: block; width: 112px; height: 112px; margin: 0 auto; }
-.boot-ico img { display: block; width: 112px; height: 112px; border-radius: calc(var(--radius-lg) + 2px); box-shadow: 0 10px 30px rgba(0,0,0,.08); }
-.boot h1 { margin: 22px 0 0; font-size: 24px; font-weight: 700; color: #EDE3D8; letter-spacing: .12em; }
-.boot p { margin: 8px 0 0; font-size: 13px; color: #A89A8C; letter-spacing: .2em; }
-.boot-ico i { position: absolute; right: -6px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: #FFD369; opacity: 0; }
-.boot.is-play .boot-ico img { animation: bootPop .62s cubic-bezier(.34,1.56,.64,1); }
-.boot.is-play .boot-ico i { animation: bootBub .7s ease-out forwards; }
-.boot.is-play .boot-ico i:nth-child(3) { animation-delay: .1s; width: 8px; height: 8px; }
-.boot.is-play .boot-ico i:nth-child(4) { animation-delay: .2s; width: 6px; height: 6px; }
+.boot-ico img { display: block; width: 112px; height: 112px; border-radius: calc(var(--radius-lg) + 2px); box-shadow: 0 10px 30px rgba(0,0,0,.08); will-change: transform; }
+.boot-txt { display: block; width: 260px; height: 82px; margin: 0 auto; }
+/* 「咿」「呀」两个对话泡泡 + 一个小圆点，从图标右上角冒出 */
+.boot-ico i { position: absolute; left: 92px; top: -8px; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: #FFD369; color: #5B3A1E; font-style: normal; font-size: 15px; line-height: 1; font-weight: 700; box-shadow: 0 4px 14px rgba(255,211,105,.35); opacity: 0; transform: scale(.3); will-change: transform, opacity; }
+.boot-ico i:nth-child(3) { left: 104px; top: 22px; width: 26px; height: 26px; font-size: 13px; }
+.boot-ico i:nth-child(4) { left: 116px; top: -2px; width: 10px; height: 10px; }
+.boot.is-play .boot-ico img { animation: bootPop .6s cubic-bezier(.34,1.56,.64,1) both; }
+.boot.is-play .boot-ico i:nth-child(2) { animation: bootBubA .9s cubic-bezier(.2,.8,.3,1) .12s both; }
+.boot.is-play .boot-ico i:nth-child(3) { animation: bootBubB .9s cubic-bezier(.2,.8,.3,1) .26s both; }
+.boot.is-play .boot-ico i:nth-child(4) { animation: bootBubC .8s cubic-bezier(.2,.8,.3,1) .36s both; }
 .boot.is-out { opacity: 0; pointer-events: none; }
-.boot.is-out .boot-c { transform: translate(-50%, -50%) scale(1.06); }
+.boot.is-out .boot-c { transform: translate(-50%, -50%) scale(1.05); }
 @keyframes bootPop { 0% { transform: scale(1) rotate(0); } 35% { transform: scale(1.1) rotate(-5deg); } 65% { transform: scale(.97) rotate(3deg); } 100% { transform: scale(1) rotate(0); } }
-@keyframes bootBub { 0% { opacity: 0; transform: translate(0, 0) scale(.4); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(22px, -30px) scale(1.1); } }
+@keyframes bootBubA { 0% { opacity: 0; transform: translate(0,0) scale(.3); } 35% { opacity: 1; transform: translate(10px,-18px) scale(1.05); } 100% { opacity: 1; transform: translate(16px,-30px) scale(1); } }
+@keyframes bootBubB { 0% { opacity: 0; transform: translate(0,0) scale(.3); } 35% { opacity: 1; transform: translate(18px,-6px) scale(1.05); } 100% { opacity: 1; transform: translate(28px,-12px) scale(1); } }
+@keyframes bootBubC { 0% { opacity: 0; transform: translate(0,0) scale(.3); } 40% { opacity: 1; } 100% { opacity: .9; transform: translate(26px,-34px) scale(1); } }

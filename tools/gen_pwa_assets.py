@@ -19,10 +19,12 @@ THEMES = {'boot': ('#221E1A', '#EDE3D8', '#A89A8C')}
 SPLASH = """<html><head><style>%s
 html,body{margin:0;height:100%%;background:%s;font-family:S,sans-serif}
 .c{position:absolute;left:50%%;top:44%%;transform:translate(-50%%,-50%%);text-align:center}
+/* 第 260 次：文字块固定 260×60，与 App 内启动动画层的 boot-text.png 同尺寸同位置 */
+.t{display:flow-root;width:260px;height:82px;margin:0 auto}
 img{width:112px;height:112px;border-radius:26px;display:block;margin:0 auto;box-shadow:0 10px 30px rgba(0,0,0,.08)}
-h1{margin:22px 0 0;font-size:24px;font-weight:700;color:%s;letter-spacing:.12em}
-p{margin:8px 0 0;font-size:13px;color:%s;letter-spacing:.2em}
-</style></head><body><div class="c"><img src="data:image/png;base64,%s"><h1>咿呀记</h1><p>陪你和宝宝每一天</p></div></body></html>"""
+h1{margin:22px 0 0;font-size:24px;line-height:34px;font-weight:700;color:%s;letter-spacing:.12em}
+p{margin:8px 0 0;font-size:13px;line-height:18px;font-weight:700;color:%s;letter-spacing:.2em}
+</style></head><body><div class="c"><img src="data:image/png;base64,%s"><div class="t"><h1>咿呀记</h1><p>陪你和宝宝每一天</p></div></div></body></html>"""
 
 TILE = {'feeding': '#2E8C84', 'diaper': '#A6832B', 'sleep': '#686BAF', 'contraction': '#C0604A'}
 SHORTCUTS = [('feeding', '记喂养'), ('diaper', '换尿布'), ('sleep', '记睡眠'), ('contraction', '宫缩计时')]
@@ -48,6 +50,12 @@ with sync_playwright() as pw:
             pg.set_content("<html><body style='margin:0;background:transparent'><div style='width:%dpx;height:%dpx;border-radius:%dpx;background:%s;display:flex;align-items:center;justify-content:center;color:#fff'>%s</div>"
                            "<style>svg{width:%dpx;height:%dpx;stroke:#fff;stroke-width:1.8}</style></body></html>" % (px, px, round(px * .22), TILE[mid], svgs[mid], round(px * .54), round(px * .54)))
             pg.screenshot(path=str(ROOT / ('assets/shortcuts/%s-%d.png' % (mid, px))), omit_background=True); pg.close()
+    # 第 260 次：启动动画层的文字直接用同一段 HTML 渲染成图（3x），与启动图逐像素一致——
+    # 系统字体与 Noto Sans SC 字高不同，用 CSS 文字接棒会「跳一下」。
+    bg, ink, sub = THEMES['boot']
+    pg = b.new_page(viewport={'width': 390, 'height': 844}, device_scale_factor=3)
+    pg.set_content((SPLASH % (FONT_CSS, bg, ink, sub, LOGO)).replace('.c{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);', '.c{position:absolute;left:0;top:0;')); pg.wait_for_timeout(150)
+    pg.locator('.t').screenshot(path=str(ROOT / 'assets/boot-text.png')); pg.close()
     b.close()
 (ROOT / 'tools/_startup_links.html').write_text('\n'.join(links) + '\n')
 print(len(links), 'splash links written to tools/_startup_links.html')
