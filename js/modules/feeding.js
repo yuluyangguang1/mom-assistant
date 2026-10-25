@@ -648,7 +648,7 @@
         });
         html += '</ul></section>';
       } else {
-        html += '<div class="fd-none"><p>点底部「开始亲喂」边喂边计时；瓶喂或补记点右边的 ⊕。</p></div>';
+        html += '<div class="fd-none"><p>左下角切换亲喂 / 瓶喂，喂完才想起来就点 ⊕ 补记。</p></div>';
       }
 
       /* 底部主按钮 + 半屏记录面板（面板默认隐藏，保存/开始计时后 App.rerender 自然收起） */
@@ -667,9 +667,19 @@
           + '<button type="button" class="ft-mini-open" data-goto="bottle" aria-label="打开瓶喂">' + icon('bottle') + '<b>瓶喂中</b></button>'
           + '<span class="ft-mini-side">点开结束</span></div></div>';
       } else {
-        html += '<div class="mod-cta ft-cta"><div class="ft-split" data-accent="breast">'
-          + '<button type="button" class="ft-split-main" data-fstart>' + (SVf.play || '') + '<span>开始亲喂</span></button>'
-          + '<button type="button" class="ft-split-add" data-fadd aria-label="记瓶喂或补记">' + (SVf.plusc || icon('plus')) + '</button></div></div>';
+        /* 第 255 次：左侧切换钮在亲喂 / 瓶喂之间切换；主按钮和 ⊕ 补记跟着切换走。
+           模式记在 d.feedMode，没有时跟最近一条亲喂 / 瓶喂记录走。 */
+        var fm = d.feedMode;
+        if (fm !== 'breast' && fm !== 'bottle') {
+          var lbb = sorted.filter(function (r) { return r.type === 'breast' || r.type === 'bottle' || r.type === 'formula'; })[0];
+          fm = (lbb && lbb.type !== 'breast') ? 'bottle' : 'breast';
+        }
+        var isB = fm === 'breast';
+        html += '<div class="mod-cta ft-cta fd-cta"><button type="button" class="fd-mode" data-accent="' + (isB ? 'bottle' : 'breast') + '" data-fmode aria-label="切换到' + (isB ? '瓶喂' : '亲喂') + '">'
+          + '<img src="assets/hero/' + (isB ? 'bottle' : 'breast') + '.webp" alt="" width="30" height="30"><small>⇄ ' + (isB ? '瓶喂' : '亲喂') + '</small></button>'
+          + '<div class="ft-split" data-accent="' + fm + '">'
+          + '<button type="button" class="ft-split-main" data-fstart="' + fm + '">' + (SVf.play || '') + '<span>' + (isB ? '开始亲喂' : '开始瓶喂') + '</span></button>'
+          + '<button type="button" class="ft-split-add" data-fadd="' + fm + '" aria-label="补记一次' + (isB ? '亲喂' : '瓶喂') + '">' + (SVf.plusc || icon('plus')) + '</button></div></div>';
       }
       html += '<div class="modal-mask fd-mask" data-fd-mask hidden><div class="modal rec-sheet" role="dialog" aria-modal="true" aria-labelledby="fdsTitle" data-accent="feeding"><div class="rs-body">'
         + '<div class="rs-head"><button type="button" class="rs-x" data-fdx aria-label="关闭">' + icon('close') + '</button>'
@@ -690,7 +700,16 @@
           b.addEventListener('click', function () { global.App.showTab(b.getAttribute('data-goto')); });
         });
         var fs = view.querySelector('[data-fstart]');
-        if (fs) fs.addEventListener('click', function () { if (Modules.breast && Modules.breast._start) Modules.breast._start(); });
+        if (fs) fs.addEventListener('click', function () {
+          if (fs.getAttribute('data-fstart') === 'bottle') { if (Modules.bottle && Modules.bottle._new) Modules.bottle._new(true); }
+          else if (Modules.breast && Modules.breast._start) Modules.breast._start();
+        });
+        var fmb = view.querySelector('[data-fmode]');
+        if (fmb) fmb.addEventListener('click', function () {
+          var dd = Storage.get();
+          dd.feedMode = (view.querySelector('[data-fstart]').getAttribute('data-fstart') === 'breast') ? 'bottle' : 'breast';
+          Storage.save(); if (Util.haptic) Util.haptic('tick'); global.App.rerender();
+        });
         Array.prototype.forEach.call(view.querySelectorAll('[data-fmini]'), function (b) {
           b.addEventListener('click', function () {
             var k = b.getAttribute('data-fmini');
@@ -699,26 +718,7 @@
         });
         var fa = view.querySelector('[data-fadd]');
         if (fa) fa.addEventListener('click', function () {
-          /* ⊕：先选记什么。吸奶 / 辅食是过渡入口，等泵奶、辅食独立页做好后从这里拿掉 */
-          var opts = [
-            { k: 'bottle', img: 'bottle', t: '瓶喂', s: '记奶量' },
-            { k: 'manual', img: 'breast', t: '补记亲喂', s: '喂完才想起来' },
-            { k: 'pump', img: 'feeding', t: '吸奶', s: '记奶量' },
-            { k: 'solid', img: 'feeding', t: '辅食', s: '吃了什么' }
-          ];
-          var body = '<div class="fd-pick">' + opts.map(function (o) {
-            return '<button type="button" class="fd-pk" data-pk="' + o.k + '"><img src="assets/hero/' + o.img + '.webp" alt="" width="52" height="52"><b>' + o.t + '</b><small>' + o.s + '</small></button>';
-          }).join('') + '</div>';
-          global.FTUI.openSheet('feeding', '记一笔', body, function (api) {
-            var ok = api.box.querySelector('[data-ok]'); if (ok) ok.style.visibility = 'hidden';
-            api.box.addEventListener('click', function (e) {
-              var b = e.target.closest ? e.target.closest('[data-pk]') : null; if (!b) return;
-              var k = b.getAttribute('data-pk'); api.close();
-              if (k === 'bottle') Modules.bottle._new();
-              else if (k === 'manual') Modules.breast._manual();
-              else { openF(); var tb = view.querySelector('#fType [data-t="' + k + '"]'); if (tb) tb.click(); }
-            });
-          });
+          if (fa.getAttribute('data-fadd') === 'bottle') Modules.bottle._new(false); else Modules.breast._manual();
         });
         if (ftS) {
           var fTick = setInterval(function () {

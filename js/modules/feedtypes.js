@@ -727,7 +727,7 @@
   Modules.bottle = {
     id: 'bottle',
     title: '瓶喂',
-    _new: function () { openBottleSheet(Storage.get()); },
+    _new: function (startNow) { openBottleSheet(Storage.get(), !!startNow); },
     render: function (view) {
       var d = Storage.get();
       var DS = Util.dayStartHour(d);
