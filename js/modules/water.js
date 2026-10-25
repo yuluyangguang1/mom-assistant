@@ -27,7 +27,6 @@
           if (c.last) s += '上次是<b>' + Util.escapeHtml(c.ago(c.last.time)) + '</b>' + (mlOf(c.last) ? '，<b>' + mlOf(c.last) + ' ml</b>' : '') + '。';
           return s;
         },
-        instant: QUICK.map(function (ml) { return { label: '+' + ml + ' ml', vals: { ml: ml } }; }),
         fields: [{ k: 'ml', t: 'num', label: '喝了多少', unit: 'ml', min: 1, max: 500, quick: QUICK, ph: '如 80', optional: false }],
         notePh: '如 用学饮杯 / 喝了半杯',
         title: function (r) { return mlOf(r) ? mlOf(r) + ' ml' : '饮水'; },

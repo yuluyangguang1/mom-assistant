@@ -536,7 +536,6 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
 .date-slider[data-off="1"] .ds-range { opacity: .35; }
 
 /* 一键快记大按钮（换尿布等高频单手场景）：大触控面 + 图标在上文字在下 */
-.quick-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); }
 .quick-btn {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   padding: 14px 8px; border: 1px solid var(--border); border-radius: var(--radius-md);
@@ -545,8 +544,6 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
   transition: transform .15s var(--ease), background .2s var(--ease), border-color .2s var(--ease);
   -webkit-tap-highlight-color: transparent;
 }
-.quick-btn .quick-ico { display: inline-flex; color: var(--tile, var(--primary)); }
-.quick-btn .quick-ico .ico { width: 26px; height: 26px; }
 .quick-btn:active { transform: scale(.95); background: var(--tile-weak, var(--primary-weak)); border-color: var(--tile, var(--primary)); }
 .quick-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 @keyframes segPop {
@@ -1386,22 +1383,6 @@ body.hc:not(.dark) .alltools-entry { border: 2px solid var(--tile, var(--border)
 
 /* 第 66 次（F 线）：妈妈情绪随记——5 档 chip / 处境多选 / 14 天圆点时间轴。
    时间轴刻意不做折线：趋势温和呈现，不放大波动制造「病感情感」。 */
-.mood-lv { display: flex; gap: 8px; }
-.mood-lv button {
-  flex: 1; padding: 11px 0; border-radius: var(--radius-pill);
-  border: 1px solid var(--border); background: var(--surface);
-  color: var(--text); font-size: calc(13.5px * var(--fs-mul)); font-family: inherit; cursor: pointer;
-  min-height: 44px; box-sizing: border-box; /* 第 128 次：padding 撑到 41px，补 min-height 到 U-08 下限 44 */
-}
-.mood-lv button.active {
-  background: var(--tile-weak); border-color: var(--tile);
-  color: var(--tile-text); font-weight: 600;
-}
-.mood-tags { display: flex; flex-wrap: wrap; gap: 8px; }
-.mood-tags button.active {
-  background: var(--tile-weak); border-color: var(--tile);
-  color: var(--tile-text); font-weight: 600;
-}
 .mtl { display: flex; justify-content: space-between; gap: 2px; }
 .mtl-d { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .mtl-dot {
@@ -2897,11 +2878,6 @@ body .tabbar.is-sub #backBtn {
    但有一批可点元素低于 44px 下限。按「点得中」优先级修四处：
    ============================================================ */
 /* ① 情绪标签 32 → 44：一排五个、记录时连点，是最容易被手指漏掉的控件 */
-.mood-tags button {
-  padding: 7px 14px; border-radius: var(--radius-pill); font-size: calc(13.5px * var(--fs-mul));
-  border: 1px solid var(--border); background: var(--surface);
-  color: var(--text); font-family: inherit; cursor: pointer;
-  /* ↑ 第 171 次：同名选择器合并到此处 */ min-height: 44px; padding: 0 14px; }
 
 /* ② 复选行 23 → 36：经期症状 / 用品勾选 / 记账附带项都是「点文字切换」，
    23px 的行高在移动端容错只有 ±5px（第 128 次的 .ds-opt 已到 44，
@@ -3671,8 +3647,7 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
 .ruler-ticks .rt.is-covered em { opacity: 0; transition: opacity .18s ease; }
 /* ④ 表单节奏：一组药丸/选项之后紧跟下一个字段标题时，留出段落间距，
    避免「和什么有关」「想多说一句」贴着上一排药丸（情绪页实测 0–4px）。 */
-.mood-lv + .lbl-text, .mood-tags + .lbl-text, .mood-tags + label, .mood-lv + label,
-.seg + .lbl-text, .seg + label, .ruler + label, .ruler + .lbl-text { margin-top: 16px; }
+.seg + .lbl-text,.seg + label,.ruler + label,.ruler + .lbl-text { margin-top: 16px; }
 /* ⑤ 设置·数据统计：三列小格（数字在上、模块名在下），零记录淡显 */
 .kv-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .card .kv-stats li, .kv-stats li + li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 0; border-radius: var(--radius-sm); background: var(--surface-2); }
@@ -3684,8 +3659,6 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
    变成逐字竖排（不/显/示）。改为每行最多 4 枚、文字不折行，多的自然换行。 */
 .seg-wrap2 .seg-btn { flex: 0 0 calc(25% - 4.5px); white-space: nowrap; }
 /* ⑦ 一键记录 4 枚（吃药/维D）在 3 列网格里落单一枚 → 正好 4 枚时排成一行 4 列 */
-.quick-row:has(> .quick-btn:nth-child(4):last-child) { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-xs); }
-.quick-row:has(> .quick-btn:nth-child(4):last-child) .quick-btn { padding: 12px 4px; font-size: calc(13px * var(--fs-mul)); white-space: nowrap; }
 /* ⑨ 经期「症状」：原生小方框与上方经量/痛经的药丸语言不一致 → 同款药丸多选（勾选即主色弱底） */
 .chk-pills { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
 .chk-pills .chk { position: relative; display: inline-flex; align-items: center; margin: 0; padding: 9px 14px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface); cursor: pointer; transition: background-color .2s var(--ease), border-color .2s var(--ease), transform .12s var(--ease); }
@@ -4373,8 +4346,6 @@ body.dark .dc-dot { box-shadow: 0 0 0 2px rgba(0,0,0,.4); }
 /* 删除走左滑（swipe-row.js 找 [data-del]）；按钮本身只留给读屏和键盘 */
 .tl-del { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
 .tl-del:focus-visible { position: static; width: auto; height: 44px; margin: 0 0 0 6px; padding: 0 10px; clip: auto; border-radius: var(--radius-xs); background: var(--surface); }
-.mod-empty { margin: 6px 2px; text-align: center; color: var(--muted); font-size: var(--fs-sm, 14px); line-height: 1.7; }
-.mod-empty p { margin: 0; }
 
 .mod-cta { position: sticky; z-index: 5; bottom: calc(92px + env(safe-area-inset-bottom)); margin: 18px 0 0; display: flex; justify-content: center; pointer-events: none; }
 body.dock-left .mod-cta, body.dock-right .mod-cta { position: static; }
@@ -5164,10 +5135,14 @@ body.sd-open .touch-glow, body.qd-open .touch-glow { display: none; }
 .rs-seg.sk-n2 { grid-template-columns: repeat(2, 1fr); } .rs-seg.sk-n4 { grid-template-columns: repeat(4, 1fr); } .rs-seg.sk-n5 { grid-template-columns: repeat(5, 1fr); }
 .rs-seg.sk-seg button { min-width: 0; padding-left: 4px; padding-right: 4px; }
 .sk-quick + .rs-lbl, .sk-seg + .rs-lbl { margin-top: 18px; }
-/* 第 252 次：饮水 / 体温 / 黄疸迁到新骨架——一键记录药丸、体温高值行 */
-.sk-instant { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 0 14px; }
-.sk-ib { min-height: 48px; border: none; border-radius: var(--radius-pill); background: var(--tile-weak); color: var(--tile-text); font: inherit; font-weight: 800; font-size: calc(15px * var(--fs-mul, 1)); font-variant-numeric: tabular-nums; cursor: pointer; transition: transform .15s var(--spring, ease); }
-.sk-ib:active { transform: scale(.95); }
+/* 第 252 次：体温高值行 */
 .tl-warn .tl-dot { background: var(--danger, #D9534F); }
 .tl-warn .tl-txt b { color: var(--danger, #D9534F); }
 .rs-hint.sk-hint { margin: 10px 0 14px; }
+
+/* 第 253 次：新骨架空状态——大插画 + 一句话，按钮停在底部（对标 Cali 空页） */
+.sk-empty { min-height: calc(100vh - 360px); min-height: calc(100dvh - 360px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 12px 8px 24px; text-align: center; }
+.sk-empty img { width: 200px; height: 200px; object-fit: contain; }
+.sk-empty p { margin: 0; color: var(--muted); font-size: calc(15px * var(--fs-mul, 1)); }
+.sk-empty .sk-empty-ref { max-width: 320px; font-size: calc(12.5px * var(--fs-mul, 1)); line-height: 1.6; }
+.mod-head.has-hero:has(~ .skel-page .sk-empty) .hero-status { display: none; }

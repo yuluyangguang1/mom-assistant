@@ -8,16 +8,16 @@
  * 用法：ModSkel.render(view, cfg)
  *   cfg.id / accent / noun（「洗澡」）/ listKey（d 上的数组名）/ icon
  *   cfg.care        true = 走 care.js 的会话计时（开始 → 迷你计时条 → 结束）
- *   cfg.fields      [{ k, t:'num', label, unit, min, max, quick:[..] } | { k, t:'seg', label, opts:[{v,label}], def }]
+ *   cfg.fields      [{ k, t:'num', label, unit, min, max, quick:[..] } | { k, t:'text', label, max, quick:['..'] } | { k, t:'seg', label, opts:[{v,label}], def }]
  *   cfg.summary(ctx)  返回摘要句 HTML（数字由模块自己 escape；ctx 见下）
  *   cfg.ref         摘要下的一行安全提示（静态可信 HTML）
  *   cfg.title(r) / cfg.sub(r)  时间轴卡片的主 / 副文字（纯文本，这里统一 escape）
  *   cfg.bars        'count' | 'minutes'：近 7 天柱状图按次数还是分钟数
- *   cfg.empty       空状态文案（纯文本）
+ *   cfg.empty       （第 253 次起不再显示，空状态统一为插画 + 一句话；保留字段兼容）
  *   cfg.onSaved(rec, editing)  可选：保存后的钩子
  *   cfg.dash(ctx)   可选：替换默认今日看板（返回 '' 不显示）；cfg.extra(ctx) 看板后追加的卡片
- *   cfg.instant     可选：[{ label, vals }] 一键记录药丸（如饮水 +50 ml），记为「现在」
  *   cfg.validate(vals)  可选：跨字段校验，返回错误文案或 null；cfg.sheetHint 面板底部小字
+ *   cfg.always(ctx) 可选：无论空不空都显示在底部的卡片（如情绪页紧急指引）；cfg.bind(view, ctx) 自定义事件
  *   cfg.rowCls(r)   可选：时间轴行附加类名（如体温高值 'tl-warn'）；cfg.foot 页面底部医学提示
  * 记录形状不变：{ id, time, <fields...>, note }，time 为本地 yyyy-mm-ddThh:mm:ss。
  */
@@ -52,6 +52,7 @@
     var st = {};
     cfg.fields.forEach(function (f) {
       st[f.k] = editing ? (rec[f.k] != null ? rec[f.k] : null) : (f.def != null ? f.def : null);
+      if (f.t === 'multi') st[f.k] = Array.isArray(st[f.k]) ? st[f.k].slice() : [];
     });
     var body = FT.whenTiles('sk', '时间', t0.slice(0, 10), t0.slice(11, 16), now.slice(0, 10));
     cfg.fields.forEach(function (f) {
@@ -69,11 +70,31 @@
           });
           body += '</div>';
         }
+      } else if (f.t === 'text') {
+        /* 第 253 次：文字字段（药名、项目名…）+ 常用快选 */
+        body += '<p class="rs-lbl">' + esc(f.label) + (f.optional === false ? '' : ' <span class="rs-lbl-n">可选</span>') + '</p>'
+          + '<label class="rs-tile sk-num sk-text"><input type="text" id="sk_' + f.k + '" maxlength="' + (f.max || 30) + '"'
+          + ' placeholder="' + esc(f.ph || '') + '" value="' + (st[f.k] != null ? esc(st[f.k]) : '') + '" aria-label="' + esc(f.label) + '"></label>';
+        if (f.quick && f.quick.length) {
+          body += '<div class="rs-pills sk-quick">';
+          f.quick.forEach(function (q) {
+            body += '<button type="button" class="dp-pill' + (st[f.k] === q ? ' active' : '') + '" data-q="' + f.k + '" data-v="' + esc(q) + '">' + esc(q) + '</button>';
+          });
+          body += '</div>';
+        }
+      } else if (f.t === 'multi') {
+        /* 第 253 次：可多选标签（如情绪的「和什么有关」），存为数组 */
+        body += '<p class="rs-lbl">' + esc(f.label) + ' <span class="rs-lbl-n">可多选</span></p><div class="rs-pills sk-multi" role="group" aria-label="' + esc(f.label) + '">';
+        f.opts.forEach(function (o) {
+          var on = st[f.k].indexOf(o.v) >= 0;
+          body += '<button type="button" class="dp-pill' + (on ? ' active' : '') + '" data-multi="' + f.k + '" data-v="' + esc(o.v) + '" aria-pressed="' + on + '">' + esc(o.label) + '</button>';
+        });
+        body += '</div>';
       } else if (f.t === 'seg') {
         /* 选项数决定列数（类名供 CSS 死类名检查识别：'sk-n2' 'sk-n4' 'sk-n5'；3 列是 .rs-seg 默认） */
         body += '<p class="rs-lbl">' + esc(f.label) + '</p><div class="rs-seg sk-seg sk-n' + Math.min(5, f.opts.length) + '" role="radiogroup" aria-label="' + esc(f.label) + '">';
         f.opts.forEach(function (o) {
-          var on = st[f.k] === o.v;
+          var on = st[f.k] != null && String(st[f.k]) === String(o.v);
           body += '<button type="button" class="' + (on ? 'on' : '') + '" data-seg="' + f.k + '" data-v="' + esc(o.v) + '" role="radio" aria-checked="' + on + '">' + esc(o.label) + '</button>';
         });
         body += '</div>';
@@ -98,6 +119,12 @@
           Array.prototype.forEach.call(box.querySelectorAll('[data-q="' + k + '"]'), function (x) { x.classList.toggle('active', x === b); });
           return;
         }
+        if ((k = b.getAttribute('data-multi'))) {
+          var mv = b.getAttribute('data-v'), at = st[k].indexOf(mv);
+          if (at >= 0) st[k].splice(at, 1); else st[k].push(mv);
+          b.classList.toggle('active', at < 0); b.setAttribute('aria-pressed', String(at < 0));
+          return;
+        }
         if ((k = b.getAttribute('data-seg'))) {
           st[k] = b.getAttribute('data-v');
           Array.prototype.forEach.call(box.querySelectorAll('[data-seg="' + k + '"]'), function (x) {
@@ -108,7 +135,8 @@
       Array.prototype.forEach.call(box.querySelectorAll('.sk-num input'), function (inp) {
         inp.addEventListener('input', function () {
           var k = inp.id.slice(3);
-          Array.prototype.forEach.call(box.querySelectorAll('[data-q="' + k + '"]'), function (x) { x.classList.toggle('active', inp.value !== '' && Number(x.getAttribute('data-v')) === Number(inp.value)); });
+          Array.prototype.forEach.call(box.querySelectorAll('[data-q="' + k + '"]'), function (x) { var v = x.getAttribute('data-v');
+            x.classList.toggle('active', inp.value !== '' && (inp.type === 'text' ? v === inp.value.trim() : Number(v) === Number(inp.value))); });
         });
       });
 
@@ -130,6 +158,19 @@
             if (f.step && isFinite(n)) n = Math.round(n * 10) / 10;
             if (!isFinite(n) || n < f.min || n > f.max) { Util.markInvalid(el, f.label + '填 ' + f.min + '–' + f.max + ' ' + (f.unit || '')); return; }
             vals[f.k] = n;
+          } else if (f.t === 'text') {
+            var te = box.querySelector('#sk_' + f.k);
+            var tv = te ? String(te.value).trim().slice(0, f.max || 30) : '';
+            if (!tv && f.optional === false) { if (te) Util.markInvalid(te, '先填一下' + f.label); return; }
+            vals[f.k] = tv || null;
+          } else if (f.t === 'multi') {
+            vals[f.k] = st[f.k].slice();
+          } else if (f.t === 'seg') {
+            var sv = st[f.k] != null ? st[f.k] : f.def;
+            if (sv == null && f.optional === false) { Util.toast('先选一下' + f.label, 'warn'); return; }
+            var hit = null;
+            f.opts.forEach(function (o) { if (sv != null && String(o.v) === String(sv)) hit = o.v; });
+            vals[f.k] = hit;
           } else {
             vals[f.k] = st[f.k] != null ? st[f.k] : (f.def != null ? f.def : null);
           }
@@ -188,19 +229,22 @@
       var other = cfg.care && Care ? Care.other(d, cfg.id) : null;
       var html = '';
 
-      /* 1. 摘要句 + 安全提示 */
-      html += '<div class="mod-sum"><span class="ms-k">摘要</span><p>' + cfg.summary(ctx) + '</p>'
-        + (cfg.ref ? '<p class="ms-ref">' + cfg.ref + '</p>' : '') + '</div>';
-
-      /* 1.5 一键记录 */
-      if (cfg.instant && cfg.instant.length) {
-        html += '<div class="sk-instant" role="group" aria-label="一键记录' + esc(cfg.noun) + '">';
-        cfg.instant.forEach(function (q, i) { html += '<button type="button" class="sk-ib" data-inst="' + i + '">' + esc(q.label) + '</button>'; });
-        html += '</div>';
+      /* 0. 空状态（第 253 次，对标 Cali）：页面上不填表，只放大插画 + 一句「点按底部 + 开始记录」，
+         记录一律走底部按钮 → 半屏面板 / 计时页 */
+      var isEmpty = !all.length && !live;
+      if (isEmpty) {
+        html += '<div class="sk-empty"><img src="assets/hero/' + esc(cfg.id) + '.webp" alt="" width="220" height="220" decoding="async">'
+          + '<p>' + (cfg.care ? '点按底部开始，或用 ⊕ 补记' : '点按底部 + 开始记录') + '</p>'
+          + (cfg.foot && cfg.ref ? '<p class="sk-empty-ref">' + cfg.ref + '</p>' : '') + '</div>';
       }
 
+      /* 1. 摘要句 + 安全提示 */
+      if (!isEmpty) html += '<div class="mod-sum"><span class="ms-k">摘要</span><p>' + cfg.summary(ctx) + '</p>'
+        + (cfg.ref ? '<p class="ms-ref">' + cfg.ref + '</p>' : '') + '</div>';
+
       /* 2. 今日看板 */
-      if (cfg.dash) html += cfg.dash(ctx);
+      if (isEmpty) { /* 空状态不出看板 */ }
+      else if (cfg.dash) html += cfg.dash(ctx);
       else if (all.length && DC) {
         html += '<div class="card dash-card"><h2>今天</h2>';
         html += DC.strip({ win: DC.windowOf(dayNow, DS), ds: DS, now: Date.now(), label: '今天' + cfg.noun + '的时间',
@@ -218,7 +262,7 @@
         }
         html += '</div>';
       }
-      if (cfg.extra) html += cfg.extra(ctx);
+      if (cfg.extra && !isEmpty) html += cfg.extra(ctx);
 
       /* 3. 时间轴 */
       if (all.length) {
@@ -235,8 +279,6 @@
             + '<button type="button" class="tl-del" data-del="' + esc(r.id) + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
         });
         html += '</ul></section>';
-      } else if (!live) {
-        html += '<div class="mod-empty"><p>' + esc(cfg.empty) + '</p></div>';
       }
 
       /* 4. 底部：计时中 → 迷你计时条；会话类 → 「开始 | ⊕」；其他 → 单个大按钮 */
@@ -255,7 +297,8 @@
         html += '<div class="mod-cta"><button type="button" class="mc-main" data-new>' + icon('plus') + '<span>记录' + esc(cfg.noun) + '</span></button></div>';
       }
 
-      if (cfg.foot) html += '<p class="hint med-note">' + cfg.foot + '</p>';
+      if (cfg.always) html += cfg.always(ctx);
+      if (cfg.foot && !isEmpty) html += '<p class="hint med-note">' + cfg.foot + '</p>';
       view.innerHTML = '<div class="ft-page skel-page" data-accent="' + cfg.accent + '">' + html + '</div>';
 
       /* 绑定 */
@@ -282,22 +325,6 @@
           }
         });
       });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-inst]'), function (b) {
-        b.addEventListener('click', function () {
-          var q = cfg.instant[+b.getAttribute('data-inst')];
-          var list = d[cfg.listKey] = d[cfg.listKey] || [];
-          var r = { id: Util.uid(), time: Util.nowLocal() };
-          Object.keys(q.vals).forEach(function (k) { r[k] = q.vals[k]; });
-          r.note = null;
-          list.push(r);
-          if (!Storage.save()) return;
-          global.App.rerender();
-          Util.toast('已记录 ' + q.label.replace(/^\+\s*/, ''), 'ok', { label: '撤销', onClick: function () {
-            for (var j = list.length - 1; j >= 0; j--) if (list[j].id === r.id) { list.splice(j, 1); break; }
-            Storage.save(); global.App.rerender();
-          } });
-        });
-      });
       Array.prototype.forEach.call(view.querySelectorAll('[data-new]'), function (b) {
         b.addEventListener('click', function () { openSheet(cfg, d, null, null); });
       });
@@ -311,6 +338,7 @@
       Array.prototype.forEach.call(view.querySelectorAll('[data-del]'), function (b) {
         b.addEventListener('click', function () { remove(cfg, d, b.getAttribute('data-del')); });
       });
+      if (cfg.bind) cfg.bind(view, ctx);
       if (backfill) setTimeout(function () { openSheet(cfg, d, null, backfill); }, 0);
     },
     _optLabel: optLabel
