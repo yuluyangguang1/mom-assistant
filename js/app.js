@@ -276,11 +276,17 @@
     if (top(prevId) && top(id)) return 'fade';
     return 'push';
   }
+  var IS_IOS_WEBKIT = (function () {
+    try { return !!(global.CSS && CSS.supports && CSS.supports('-webkit-touch-callout', 'none')); } catch (e) { return false; }
+  })();
   function showTab(id, opts) {
     if (!Modules[id]) return;
     var kind = (opts && opts.silent) ? '' : navKind(current, id);
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (kind && !reduce && !_vtBusy && !(opts && opts.noVT) && (Date.now() - _swipeBackT > 800) && typeof document.startViewTransition === 'function') {
+    /* 第 264 次（真机逐帧：返回首页时新页快照空白 4 帧再整页蹦出来、状态栏颜色比页面先变、底部一条硬边）：
+       iOS WebKit 的 View Transition 快照在主屏应用里不可靠，再叠上系统边缘取色就是「卡一下」。
+       iOS 上一律不用 View Transition，走 showTabNow 自带的方向性 fadeUp 入场（只动 transform/opacity）。 */
+    if (kind && !reduce && !IS_IOS_WEBKIT && !_vtBusy && !(opts && opts.noVT) && (Date.now() - _swipeBackT > 800) && typeof document.startViewTransition === 'function') {
       _vtBusy = true;
       document.documentElement.setAttribute('data-nav', kind);
       var o2 = {}; for (var k in (opts || {})) o2[k] = opts[k]; o2._vt = true;
