@@ -269,6 +269,9 @@
       var dim = Math.max(0.3, Math.min(1, 0.3 + (lum - 0.25) * 2.8)).toFixed(3);
       var s = document.documentElement.style;
       s.setProperty('--sky-ambient-top', pal.top.map(Math.round).join(','));
+      /* 第 263 次：状态栏取色要用天空最上沿的真实颜色 */
+      global.__skyDim = +dim;
+      if (global.syncStatusColor) global.syncStatusColor();
       s.setProperty('--sky-ambient-bottom', pal.bottom.map(Math.round).join(','));
       s.setProperty('--sky-live-rgb', pal.bottom.map(Math.round).join(','));
       s.setProperty('--sky-ambient-a', ambA);

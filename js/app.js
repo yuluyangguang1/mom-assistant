@@ -42,6 +42,77 @@
      保持原有 10px 基础内边距 + env() 的行为不变。
      display-mode 还能监听（从浏览器标签「添加到主屏幕」后热切换），
      切回标签页时恢复 10px，无需刷新。 */
+
+  /* 第 262/263 次：状态栏为实色（不再 black-translucent），颜色 = theme-color。
+     必须与状态栏下方紧挨着的那一行像素同色，否则就是一条「黑横条」：
+       · 首页且天空还在顶上 → 读天空画布在视口第 0 行的平均色（暗色下再叠 .home-sky::after 的暖炭罩 rgba(34,30,26,.40×dim)）
+       · 其他情况 → body 底色与渐变层合成出的顶行颜色
+     顶部 .edge-strip 用同一个值（--status-color），WebKit 就用它铺状态栏而不是画模糊。 */
+  var statusColorCache = '';
+  function hex2(n) { n = Math.max(0, Math.min(255, Math.round(n))); return (n < 16 ? '0' : '') + n.toString(16); }
+  function parseRgba(str) {
+    var m = str && str.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+))?/);
+    return m ? [+m[1], +m[2], +m[3], m[4] == null ? 1 : +m[4]] : null;
+  }
+  var edgeBottomCache = '';
+  function bodyEdgeColor(b, bottom) {
+    var cs = global.getComputedStyle(b);
+    var base = parseRgba(cs.backgroundColor) || [253, 249, 244, 1];
+    var out = [base[0], base[1], base[2]];
+    var layers = (cs.backgroundImage || '').split(/(?=(?:linear|radial)-gradient\()/).filter(function (x) { return /gradient\(/.test(x); });
+    for (var L = layers.length - 1; L >= 0; L--) {
+      var all = layers[L].match(/rgba?\([^)]*\)/g);
+      var col = all && parseRgba(all[bottom ? all.length - 1 : 0]);
+      if (col) out = out.map(function (v, j) { return v * (1 - col[3]) + col[j] * col[3]; });
+    }
+    return '#' + out.map(hex2).join('');
+  }
+  function syncStatusColor() {
+    try {
+      var b = document.body; if (!b) return;
+      var c = '';
+      var sky = b.classList.contains('in-home') && document.querySelector('.home-sky');
+      var cv = sky && sky.querySelector('.sky-canvas');
+      var r = cv && cv.getBoundingClientRect();
+      if (cv && r.height && r.top <= 0 && r.bottom > 80 && cv.width && cv.height) {
+        /* 直接读天空画布上「视口第 0 行」那一整行像素取平均（Chromium 对拍：与截图误差 ≤1） */
+        var y = Math.max(0, Math.min(cv.height - 1, Math.round(-r.top / r.height * cv.height)));
+        var px = cv.getContext('2d').getImageData(0, y, cv.width, 1).data;
+        var rgb = [0, 0, 0], n = 0;
+        for (var i = 0; i < px.length; i += 4) { rgb[0] += px[i]; rgb[1] += px[i + 1]; rgb[2] += px[i + 2]; n++; }
+        rgb = rgb.map(function (v) { return v / n; });
+        if (b.classList.contains('dark')) {
+          var a = 0.40 * (global.__skyDim == null ? 1 : global.__skyDim), k = [34, 30, 26];
+          rgb = rgb.map(function (v, j) { return v * (1 - a) + k[j] * a; });
+        }
+        c = '#' + rgb.map(hex2).join('');
+      } else {
+        /* 其他页：顶上是 body 的底色 + 渐变层（环境光染色 rgba(天空色, .11) 叠在暖底渐变上）。
+           按层从下往上合成每层的首个色标 = 视口第 0 行的真实颜色（Chromium 对拍误差 ≤1）。 */
+        c = bodyEdgeColor(b, false);
+      }
+      /* 底边同理：取各层末尾色标合成，给底部 .edge-strip 用 */
+      var cb = bodyEdgeColor(b, true);
+      if (cb !== edgeBottomCache) { edgeBottomCache = cb; document.documentElement.style.setProperty('--edge-bottom-color', cb); }
+      if (!c || c === statusColorCache) return;
+      statusColorCache = c;
+      document.documentElement.style.setProperty('--status-color', c);
+      if (global.Boot && Boot.setThemeColor) Boot.setThemeColor(c);
+      else { var tm = document.querySelector('meta[name="theme-color"]'); if (tm) tm.setAttribute('content', c); }
+    } catch (e) { /* 取不到就保持原值 */ }
+  }
+  global.syncStatusColor = syncStatusColor;
+  /* 天空画布是活的（渐入、随时刻换色），首页时每 1.5s 再取一次；写入有缓存，没变不动 DOM */
+  setInterval(function () {
+    if (document.hidden || !document.body || !document.body.classList.contains('in-home')) return;
+    syncStatusColor();
+  }, 1500);
+  var statusRaf = 0;
+  document.addEventListener('scroll', function () {
+    if (statusRaf) return;
+    statusRaf = requestAnimationFrame(function () { statusRaf = 0; syncStatusColor(); });
+  }, { capture: true, passive: true });
+
   function syncStandalone() {
     try {
       var root = document.documentElement;
@@ -303,6 +374,7 @@
     else document.body.classList.remove('in-module');
     if (id === 'home') document.body.classList.add('in-home');
     else document.body.classList.remove('in-home');
+    syncStatusColor(); requestAnimationFrame(syncStatusColor);
     /* 第 43 次：模块页左上角小日期徽标（首页大日期在天空卡片内，二者互不重复）。
        第 167 次：二级页不再显示日期（styles.css 末尾 .mod-date visibility:hidden），
        文字仍照写——它撑着顶栏这一行的高度，清空会让首页天空整体上移约 20px。 */
@@ -417,14 +489,7 @@
        第 100 次起：底栏排列由 leftHand 开关升级为 handMode 三态——
        dock-left / dock-right 把五个入口收进屏幕同侧竖排，normal 不挂类。 */
     document.body.classList.toggle('deep-night', dark && isDeepNightNow());
-    /* 第 262 次：状态栏改为实色（不再 black-translucent），颜色 = theme-color，跟页面顶色走 */
-    try {
-      var tc = global.getComputedStyle(document.body).getPropertyValue('--header-bg-top').trim();
-      if (tc) {
-        if (global.Boot && Boot.setThemeColor) Boot.setThemeColor(tc);
-        else { var tm = document.querySelector('meta[name="theme-color"]'); if (tm) tm.setAttribute('content', tc); }
-      }
-    } catch (eTc) { /* 取不到就保持原值 */ }
+    if (global.syncStatusColor) global.syncStatusColor();
     /* dock-left/right 用 add/remove 而非 toggle(cls, force)：QA 桩的 toggle 不吃 force
        会退化成「反转」（与 showTab in-module 同款处理），真实语义两者等价且幂等 */
     var hand = handMode();
