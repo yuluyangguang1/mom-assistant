@@ -369,7 +369,54 @@
       /* 第 223 次：「今日概览」改成首页同款看板——大号「距上次」+ 今日次数/奶量 + 24 小时时间轴 + 近 7 天次数柱。
          口径不变：次数不算吸奶，奶量只算奶瓶/奶粉，按照护日（dayStart）切日。 */
       var tName = function (t) { return (TYPES.filter(function (x) { return x.v === t; })[0] || {}).t || ''; };
-      html += '<div class="card dash-card" data-accent="feeding"><h2>今日概览</h2>';
+      /* 第 230 次：喂养页按尿布页新骨架重排——摘要句 → 计时卡 → 今天看板 → 参考卡 → 储奶 → 时间轴 → 底部主按钮；
+         记录表单收进半屏面板（.fd-mask，仍在 #view 里，原有绑定一行不改）。 */
+      var fedToday = feedToday;
+      var sumTxt;
+      if (fedToday.length) {
+        var amtT = fedToday.reduce(function (s2, r) { return s2 + ((r.type === 'bottle' || r.type === 'formula') ? (r.amount || 0) : 0); }, 0);
+        sumTxt = '今天喂了 <b>' + fedToday.length + ' 次</b>' + (amtT ? '，瓶喂共 <b>' + amtT + ' ml</b>' : '') + '。';
+      } else {
+        sumTxt = '今天还没有<b>喂奶</b>记录。';
+      }
+      if (latestFed) {
+        var gs = Util.fmtGap(Date.now() - new Date(latestFed.start).getTime());
+        sumTxt += '距上次<b>' + Util.escapeHtml(tName(latestFed.type)) + '</b>已过 <b>' + Util.escapeHtml(String(gs.num) + gs.unit) + '</b>。';
+      }
+      html += '<div class="mod-sum"><span class="ms-k">摘要</span><p>' + sumTxt + '</p></div>';
+      var ftimer = d.feedingTimer || null;
+      var timerHtml = '';
+      if (ftimer) {
+        /* 第 140 次（P1-6）：计时从「一个总时长」升级为「分侧累计 + 随时换边」。
+           旧数据只有 { start }，这里一律补成新形状再读（sideStart 缺省 = start）。 */
+        var ftSide = (ftimer.side === 'right') ? 'right' : 'left';
+        var ftSideStart = ftimer.sideStart || ftimer.start;
+        var accL = typeof ftimer.accL === 'number' ? ftimer.accL : 0;
+        var accR = typeof ftimer.accR === 'number' ? ftimer.accR : 0;
+        var curMs = Math.max(0, Date.now() - new Date(ftSideStart).getTime());
+        var ftMs = Math.max(0, Date.now() - new Date(ftimer.start).getTime());
+        var ftCrossDay = Util.dayKeyOf(ftimer.start, DS) !== dayNow; /* 第 131 次（P1-a）：跨的是照护日 */
+        var lMs = accL + (ftSide === 'left' ? curMs : 0);
+        var rMs = accR + (ftSide === 'right' ? curMs : 0);
+        timerHtml += '<div class="card backfill-note feed-live"><p class="hint"><b>计时中</b> · 从 ' + Util.fmtDateTime(ftimer.start)
+          + ' 开始，已 <span id="ftTotal">' + Util.fmtClock(ftMs) + '</span>' + (ftCrossDay ? '（不是这一次喂的？可取消）' : '') + '</p>'
+          + '<div class="feed-split"><span class="fs-item' + (ftSide === 'left' ? ' is-cur' : '') + '">'
+          + '左 <b id="ftL">' + Util.fmtClock(lMs) + '</b></span>'
+          + '<span class="fs-item' + (ftSide === 'right' ? ' is-cur' : '') + '">'
+          + '右 <b id="ftR">' + Util.fmtClock(rMs) + '</b></span>'
+          + '<span class="fs-now">正在喂 <b>' + (ftSide === 'left' ? '左' : '右') + '侧</b></span></div>'
+          + '<div class="row"><button type="button" class="btn" id="ftSwitch">换到' + (ftSide === 'left' ? '右' : '左') + '侧</button>'
+          + '<button type="button" class="btn btn-primary" id="ftEnd">结束</button></div>'
+          /* 第 140 次：结束时间回填——忘了按结束时的补救，不用手改时长 */
+          + '<div class="ft-back"><span class="hint">忘了按结束？按实际结束时间回填：</span>'
+          + '<button type="button" class="btn-mini" data-ftend="0">现在</button>'
+          + '<button type="button" class="btn-mini" data-ftend="5">5 分钟前</button>'
+          + '<button type="button" class="btn-mini" data-ftend="10">10 分钟前</button>'
+          + '<button type="button" class="btn-mini" data-ftend="15">15 分钟前</button></div>'
+          + '<button type="button" class="btn-mini" id="ftCancel">取消计时</button></div>';
+      }
+      html += timerHtml;
+      html += '<div class="card dash-card" data-accent="feeding"><h2>今天</h2>';
       if (feedToday.length || latest) {
         var totalAmt = feedToday.reduce(function (s, r) { return s + ((r.type === 'bottle' || r.type === 'formula') ? (r.amount || 0) : 0); }, 0);
         if (latestFed) {
@@ -471,94 +518,70 @@
         }
       }
 
-      html += '<div class="card"><h2>快速记录</h2>';
-      /* P1-8 母乳计时：边喂边点，结束自动填入时长；表单保留可手填（补记 / 修正）。
-         计时状态存 d.feedingTimer（跨刷新保留）；结束时长走 _pendingDur 回填一次。 */
-      var ftimer = d.feedingTimer || null;
-      if (ftimer) {
-        /* 第 140 次（P1-6）：计时从「一个总时长」升级为「分侧累计 + 随时换边」。
-           旧数据只有 { start }，这里一律补成新形状再读（sideStart 缺省 = start）。 */
-        var ftSide = (ftimer.side === 'right') ? 'right' : 'left';
-        var ftSideStart = ftimer.sideStart || ftimer.start;
-        var accL = typeof ftimer.accL === 'number' ? ftimer.accL : 0;
-        var accR = typeof ftimer.accR === 'number' ? ftimer.accR : 0;
-        var curMs = Math.max(0, Date.now() - new Date(ftSideStart).getTime());
-        var ftMs = Math.max(0, Date.now() - new Date(ftimer.start).getTime());
-        var ftCrossDay = Util.dayKeyOf(ftimer.start, DS) !== dayNow; /* 第 131 次（P1-a）：跨的是照护日 */
-        var lMs = accL + (ftSide === 'left' ? curMs : 0);
-        var rMs = accR + (ftSide === 'right' ? curMs : 0);
-        html += '<div class="backfill-note feed-live"><p class="hint"><b>计时中</b> · 从 ' + Util.fmtDateTime(ftimer.start)
-          + ' 开始，已 <span id="ftTotal">' + Util.fmtClock(ftMs) + '</span>' + (ftCrossDay ? '（不是这一次喂的？可取消）' : '') + '</p>'
-          + '<div class="feed-split"><span class="fs-item' + (ftSide === 'left' ? ' is-cur' : '') + '">'
-          + '左 <b id="ftL">' + Util.fmtClock(lMs) + '</b></span>'
-          + '<span class="fs-item' + (ftSide === 'right' ? ' is-cur' : '') + '">'
-          + '右 <b id="ftR">' + Util.fmtClock(rMs) + '</b></span>'
-          + '<span class="fs-now">正在喂 <b>' + (ftSide === 'left' ? '左' : '右') + '侧</b></span></div>'
-          + '<div class="row"><button type="button" class="btn" id="ftSwitch">换到' + (ftSide === 'left' ? '右' : '左') + '侧</button>'
-          + '<button type="button" class="btn btn-primary" id="ftEnd">结束</button></div>'
-          /* 第 140 次：结束时间回填——忘了按结束时的补救，不用手改时长 */
-          + '<div class="ft-back"><span class="hint">忘了按结束？按实际结束时间回填：</span>'
-          + '<button type="button" class="btn-mini" data-ftend="0">现在</button>'
-          + '<button type="button" class="btn-mini" data-ftend="5">5 分钟前</button>'
-          + '<button type="button" class="btn-mini" data-ftend="10">10 分钟前</button>'
-          + '<button type="button" class="btn-mini" data-ftend="15">15 分钟前</button></div>'
-          + '<button type="button" class="btn-mini" id="ftCancel">取消计时</button></div>';
-      }
-      html += '<div class="seg seg-wrap3" id="fType">';
+      var fh = '';
+      /* P1-8 母乳计时：计时卡在页面上（见上方 timerHtml），表单在半屏面板里。 */
+      fh += '<div class="seg seg-wrap3" id="fType">';
       TYPES.forEach(function (t) {
-        html += '<button type="button" class="seg-btn' + (t.v === defType ? ' active' : '') + '" data-t="' + t.v + '">' + icon(t.v) + t.t + '</button>';
+        fh += '<button type="button" class="seg-btn' + (t.v === defType ? ' active' : '') + '" data-t="' + t.v + '">' + icon(t.v) + t.t + '</button>';
       });
-      html += '</div>';
+      fh += '</div>';
       /* 第 43 次：亲喂改为左右两根独立滑杆，瓶喂改为母乳/配方奶两根独立滑杆。
          原来是一个「侧别三选 + 一个时长框」/「一个奶量框」，换边要在两个控件间来回切。
          拆成两根后：一根管一侧（或一种奶），互不干扰，0 = 不吃那一侧。 */
       var pendDur = Modules.feeding._pendingDur;
       Modules.feeding._pendingDur = null;
       /* 亲喂：左 / 右 两根 */
-      html += '<div id="wrapRulerL"><span class="lbl-text">左侧（分钟）</span>'
+      fh += '<div id="wrapRulerL"><span class="lbl-text">左侧（分钟）</span>'
         + Util.rulerHTML('fRulerL', { unit: '分', label: '左侧时长' }) + '</div>';
-      html += '<div id="wrapRulerR"><span class="lbl-text">右侧（分钟）</span>'
+      fh += '<div id="wrapRulerR"><span class="lbl-text">右侧（分钟）</span>'
         + Util.rulerHTML('fRulerR', { unit: '分', label: '右侧时长' }) + '</div>';
       /* 瓶喂：母乳 / 配方奶 两根 */
-      html += '<div id="wrapRulerBm"><span class="lbl-text">母乳（ml）</span>'
+      fh += '<div id="wrapRulerBm"><span class="lbl-text">母乳（ml）</span>'
         + Util.rulerHTML('fRulerBm', { unit: 'ml', label: '母乳量' }) + '</div>';
-      html += '<div id="wrapRulerFm"><span class="lbl-text">配方奶（ml）</span>'
+      fh += '<div id="wrapRulerFm"><span class="lbl-text">配方奶（ml）</span>'
         + Util.rulerHTML('fRulerFm', { unit: 'ml', label: '配方奶量' }) + '</div>';
-      html += '<div id="wrapRulerLeft"><span class="lbl-text">剩下没喝完（ml，选填）</span>'
+      fh += '<div id="wrapRulerLeft"><span class="lbl-text">剩下没喝完（ml，选填）</span>'
         + Util.rulerHTML('fRulerLeft', { unit: 'ml', label: '剩余量' })
         + '<p class="hint" id="fLeftHint">上面填冲了多少，这里填剩多少，记下的是实际喝下的量。</p></div>';
       /* 吸奶：单根奶量 + 复用上面的左右时长 */
-      html += '<div id="wrapRulerPump"><span class="lbl-text">吸奶量（ml/g）</span>'
+      fh += '<div id="wrapRulerPump"><span class="lbl-text">吸奶量（ml/g）</span>'
         + Util.rulerHTML('fRulerPump', { unit: 'ml', label: '吸奶量' }) + '</div>';
       if (!ftimer) {
-        html += '<div id="ftStartWrap"><button type="button" class="btn-mini" id="ftStart">开始计时（结束自动填入时长）</button></div>';
+        fh += '<div id="ftStartWrap"><button type="button" class="btn-mini" id="ftStart">开始计时（结束自动填入时长）</button></div>';
       }
         /* 第 185 次：记录时刻（计时结束回填时自动填成开始时刻） */
         var pendStart = (pendDur && pendDur.start) ? String(pendDur.start) : '';
-        html += Util.timePickHTML('fTime', pendStart ? pendStart.slice(11, 16) : '');
-        html += '<label>备注<input type="text" id="fNote" placeholder="可选"></label>';
+        fh += Util.timePickHTML('fTime', pendStart ? pendStart.slice(11, 16) : '');
+        fh += '<label>备注<input type="text" id="fNote" placeholder="可选"></label>';
         /* 第 69 次（B3）：辅食可选「新食材」——记录后 2–3 天观察期由上方动态卡提示 */
-        html += '<div id="wrapNewFood" style="display:none"><label>新食材<input type="text" id="fNewFood" placeholder="可选，如 南瓜——将进入 2–3 天观察期"></label></div>';
+        fh += '<div id="wrapNewFood" style="display:none"><label>新食材<input type="text" id="fNewFood" placeholder="可选，如 南瓜——将进入 2–3 天观察期"></label></div>';
         /* 第 108 次：辅食结构化。菜名用于「同一天同一道菜只记一行」的查重；
            食材按「荤｜素｜主食」分段存纯 text，做法存一整句话、展示时拆步骤。
            两块都只在切到辅食时显示，不占其他喂养类型的表单空间。 */
-        html += '<div id="wrapSolid" style="display:none">'
+        fh += '<div id="wrapSolid" style="display:none">'
           + '<label>菜名<input type="text" id="fDish" placeholder="如：番茄肉酱面"></label>'
           + '<label>食材（荤｜素｜主食）<input type="text" id="fIng" placeholder="如：荤：肉末50g｜素：番茄1个｜主食：面条50g"></label>'
           + '<p class="hint">用「｜」分段、段首写「荤：」「素：」「主食：」，回头一眼看清放了什么。</p>'
           + '<label>做法（一句话即可）<input type="text" id="fSteps" placeholder="如：番茄炒出沙，下肉末炒散，焖 8 分钟成酱"></label>'
           + '<p class="hint">写一句话就行，保存后会自动按句号拆成步骤。</p>'
           + '</div>';
-        html += '<p class="hint" id="solidHint" style="display:none">辅食的种类与克数不成线性，暂不提供滑杆——请在备注里写明（如「南瓜泥 60g」）。</p>';
-      html += '<button class="btn btn-primary btn-save" id="fSave">保存</button></div>';
+        fh += '<p class="hint" id="solidHint" style="display:none">辅食的种类与克数不成线性，暂不提供滑杆——请在备注里写明（如「南瓜泥 60g」）。</p>';
+      fh += '<button class="btn btn-primary btn-save rs-save" id="fSave">保存</button>';
 
       html += stashCard(d, sorted);
 
-      html += '<div class="card"><h2>最近记录</h2>';
-      var list = d.feedings.slice().sort(function (a, b) { return new Date(b.start) - new Date(a.start); }).slice(0, 20);
+      var list = d.feedings.filter(function (r) { return r && !isNaN(new Date(r.start).getTime()); })
+        .sort(function (a, b) { return new Date(b.start) - new Date(a.start); }).slice(0, 30);
+      var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
       if (list.length) {
-        html += '<ul class="list">';
+        html += '<section class="mod-tl"><p class="ms-k">最近记录</p><ul class="tl">';
+        var lastKey = null;
         list.forEach(function (r) {
+          var dk = Util.dayKeyOf(r.start, DS);
+          if (dk !== lastKey) {
+            lastKey = dk;
+            html += '<li class="tl-day">' + Util.escapeHtml(dk === dayNow ? '今天' : (dk === Util.addDays(dayNow, -1) ? '昨天' : Util.fmtDate(dk))) + '</li>';
+          }
           var typeName = (TYPES.filter(function (t) { return t.v === r.type; })[0] || {}).t || r.type;
           var detail = (r.type === 'breast')
             ? (r.durationMin ? r.durationMin + ' 分' : '')
@@ -614,20 +637,52 @@
             }
             /* 第 61 次：行改「左时间+类型 / 右详情」双列（替代 ｜ 串行）；li-sub 恒输出作右推锚点 */
             var sub = [sideTxt, detail, r.note ? Util.escapeHtml(r.note) : null].filter(Boolean).join(' · ');
-            html += '<li><span class="row-ico">' + icon(r.type) + '</span>'
-              + '<span class="li-main"><b>' + Util.fmtRowTime(r.start) + '</b>' + Util.escapeHtml(typeName) + '</span>'
-              + '<span class="li-sub">' + sub + '</span>'
-              + solidBadges
-              + '<button class="icon-btn" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
+            var dt = new Date(r.start), hm = p2(dt.getHours()) + ':' + p2(dt.getMinutes());
+            /* 行类名供 CSS 死类名检查识别：'tl-f-breast' 'tl-f-bottle' 'tl-f-formula' 'tl-f-pump' 'tl-f-solid' 'tl-f-other' */
+            var tcls = TYPES.some(function (t) { return t.v === r.type; }) ? r.type : 'other';
+            html += '<li class="tl-row tl-f-' + tcls + '"><span class="tl-time">' + hm + '</span><span class="tl-dot" aria-hidden="true"></span>'
+              + '<button type="button" class="tl-card" data-open="' + r.id + '" aria-label="' + hm + ' ' + Util.escapeHtml(typeName) + '，点按修改">'
+              + '<span class="tl-ico">' + icon(TYPES.some(function (t) { return t.v === r.type; }) ? r.type : 'feeding') + '</span>'
+              + '<span class="tl-txt"><b>' + Util.escapeHtml(typeName) + '</b>' + (sub ? '<small>' + sub + '</small>' : '') + solidBadges + '</span>'
+              + '<span class="tl-more" aria-hidden="true">' + icon('chevron-right') + '</span></button>'
+              + '<button type="button" class="tl-del" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
         });
-        html += '</ul>';
+        html += '</ul></section>';
       } else {
-        html += '<div class="empty-state"><span class="es-ico">' + icon('feeding') + '</span><p>还没有喂养记录</p><span class="hint">点上方表单记第一笔吧。</span></div>';
+        html += '<div class="mod-empty"><p>点按下方「记录喂养」，选母乳、奶瓶、奶粉、吸奶或辅食就能记下。<br>母乳可以边喂边计时。</p></div>';
       }
-      html += '</div>';
+
+      /* 底部主按钮 + 半屏记录面板（面板默认隐藏，保存/开始计时后 App.rerender 自然收起） */
+      html += '<div class="mod-cta"><button type="button" class="mc-main" data-new>' + icon('plus') + '<span>记录喂养</span></button></div>';
+      html += '<div class="modal-mask fd-mask" data-fd-mask hidden><div class="modal rec-sheet" role="dialog" aria-modal="true" aria-labelledby="fdsTitle" data-accent="feeding"><div class="rs-body">'
+        + '<div class="rs-head"><button type="button" class="rs-x" data-fdx aria-label="关闭">' + icon('close') + '</button>'
+        + '<h2 id="fdsTitle">记录喂养</h2>'
+        + '<button type="button" class="rs-ok" data-fdok aria-label="保存">' + icon('check') + '</button></div>'
+        + fh + '</div></div></div>';
 
       view.innerHTML = html;
       bindStash(view);
+      (function () {
+        var mask = view.querySelector('[data-fd-mask]');
+        if (!mask) return;
+        function openF() { mask.hidden = false; document.addEventListener('keydown', onKey); if (global.Sheet && Sheet.attach) Sheet.attach(mask); }
+        function closeF() { mask.hidden = true; document.removeEventListener('keydown', onKey); if (global.Sheet && Sheet.reset) Sheet.reset(mask); }
+        function onKey(e) { if (e.key === 'Escape') closeF(); }
+        Modules.feeding._closeSheet = closeF;
+        var nb = view.querySelector('[data-new]');
+        if (nb) nb.addEventListener('click', openF);
+        mask.addEventListener('click', function (e) { if (e.target === mask) closeF(); });
+        mask.querySelector('[data-fdx]').addEventListener('click', closeF);
+        mask.querySelector('[data-fdok]').addEventListener('click', function () { var sv = view.querySelector('#fSave'); if (sv) sv.click(); });
+        Array.prototype.forEach.call(view.querySelectorAll('[data-open]'), function (b) {
+          b.addEventListener('click', function () {
+            var it = d.feedings.filter(function (x) { return x.id === b.getAttribute('data-open'); })[0];
+            if (it && global.RecordEdit) RecordEdit.open('feeding', it, d.feedings);
+          });
+        });
+        /* 补记、或计时刚结束回填了时长：直接把面板打开让人确认 */
+        if (backfill || pendDur != null) setTimeout(openF, 0);
+      })();
 
       var type = defType;   /* U-06：跟随上次记录的类型 */
 

@@ -4527,3 +4527,19 @@ body.dark .rs-save { color: #2A2116; }
 .tl-ph i { position: absolute; right: 2px; bottom: 2px; min-width: 16px; height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: var(--radius-pill); background: rgba(0,0,0,.6); color: #fff; font-size: 10px; font-style: normal; line-height: 16px; text-align: center; }
 .ph-view { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom); background: rgba(0,0,0,.92); animation: rsPop .2s ease both; cursor: zoom-out; }
 .ph-view img { max-width: 100%; max-height: 100%; border-radius: var(--radius-sm); object-fit: contain; }
+/* 第 230 次：喂养页迁到新骨架——页头同尿布页缩小；时间轴点按类型着色；记录表单进半屏面板（.fd-mask 在 #view 内，默认隐藏） */
+.mod-hero[data-hero="feeding"] .hero-art { width: 84px; height: 84px; }
+.mod-hero[data-hero="feeding"] .hero-art img { width: 72px; height: 72px; }
+.mod-hero[data-hero="feeding"] .hero-badge { right: 2px; top: 2px; min-width: 20px; height: 20px; padding: 0 5px; font-size: 12px; }
+.fd-mask[hidden] { display: none !important; }
+.fd-mask .rec-sheet .seg { margin-top: 4px; }
+.fd-mask .rs-save { margin-top: 14px; }
+.tl-f-breast .tl-dot { background: var(--tile); }
+.tl-f-bottle .tl-dot { background: #7FA5C8; }
+.tl-f-formula .tl-dot { background: #C9A56B; }
+.tl-f-pump .tl-dot { background: #B98BB0; }
+.tl-f-solid .tl-dot { background: #8DAE6A; }
+.tl-f-other .tl-dot { background: var(--muted); }
+.tl-txt .ing-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.tl-txt .li-sub { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
+.feed-live { margin-top: 0; }

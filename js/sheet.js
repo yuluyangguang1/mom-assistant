@@ -109,5 +109,18 @@
 
   new MutationObserver(sync).observe(root, { childList: true, subtree: false });
   sync();
-  window.Sheet = { sync: sync };
+  /* 第 230 次：#view 里自带的面板（喂养记录表单常驻页面、靠 hidden 开合）也走同一套底部面板呈现。
+     attach 在打开时调；reset 在关闭时调，清掉下拉关闭留下的位移，下次打开从头推入。 */
+  function attach(mask) {
+    enhance(mask);
+    document.body.classList.add('sheet-open');
+  }
+  function reset(mask) {
+    var panel = panelOf(mask);
+    mask.classList.remove('sheet-leaving');
+    mask.style.removeProperty('--sheet-dim');
+    if (panel) { panel.style.transform = ''; panel.style.transition = ''; }
+    sync();
+  }
+  window.Sheet = { sync: sync, attach: attach, reset: reset };
 })();

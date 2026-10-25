@@ -426,10 +426,45 @@ def test_diaper_photos(b):
     p.close()
 
 
+def test_feeding_sheet(b):
+    """第 230 次：喂养页新骨架——表单在半屏面板里，保存/计时/编辑/删除都照旧。"""
+    p, errs = fresh(b)
+    ev = p.evaluate
+    ev("App.showTab('feeding')"); p.wait_for_timeout(300)
+    check('喂养：面板默认隐藏', ev("document.querySelector('[data-fd-mask]').hidden"))
+    check('喂养：有摘要句和底部主按钮', ev("!!document.querySelector('.mod-sum') && !!document.querySelector('.mod-cta [data-new]')"))
+    p.click('[data-new]'); p.wait_for_timeout(300)
+    check('喂养：点主按钮打开底部面板', ev("!document.querySelector('[data-fd-mask]').hidden && document.querySelector('[data-fd-mask]').classList.contains('as-sheet')"))
+    n0 = ev("Storage.get().feedings.length")
+    p.click('#fType [data-t="formula"]'); p.wait_for_timeout(150)
+    ev("(()=>{const r=document.querySelector('#wrapRulerFm .ruler-range');r.value=90;r.dispatchEvent(new Event('input',{bubbles:true}));r.dispatchEvent(new Event('change',{bubbles:true}))})()")
+    ev("(()=>{const r=document.querySelector('#wrapRulerBm .ruler-range');r.value=0;r.dispatchEvent(new Event('input',{bubbles:true}));r.dispatchEvent(new Event('change',{bubbles:true}))})()")
+    p.click('[data-fdok]'); p.wait_for_timeout(500)
+    last = ev("Storage.get().feedings.slice(-1)[0]")
+    check('喂养：面板里保存成功', ev("Storage.get().feedings.length") == n0 + 1 and last.get('type') == 'formula', last)
+    check('喂养：保存后面板收起、时间轴出现', ev("document.querySelector('[data-fd-mask]').hidden && !!document.querySelector('.tl-card')"))
+    p.click('.tl-card'); p.wait_for_timeout(300)
+    check('喂养：点时间轴卡片打开编辑', ev("!!document.querySelector('.rec-edit')"))
+    p.click('[data-re-cancel]'); p.wait_for_timeout(200)
+    p.click('[data-new]'); p.wait_for_timeout(200)
+    p.click('#fType [data-t="breast"]'); p.wait_for_timeout(100)
+    p.click('#ftStart'); p.wait_for_timeout(400)
+    check('喂养：开始计时后面板收起、页面出现计时卡', ev("document.querySelector('[data-fd-mask]').hidden && !!document.querySelector('.feed-live #ftEnd')"))
+    p.click('#ftEnd'); p.wait_for_timeout(500)
+    check('喂养：结束计时后自动打开面板确认', ev("!document.querySelector('[data-fd-mask]').hidden"))
+    p.click('[data-fdx]'); p.wait_for_timeout(200)
+    check('喂养：关闭按钮收起面板', ev("document.querySelector('[data-fd-mask]').hidden && !document.body.classList.contains('sheet-open')"))
+    n1 = ev("Storage.get().feedings.length")
+    ev("document.querySelector('.tl-del').click()"); p.wait_for_timeout(400)
+    check('喂养：时间轴删除', ev("Storage.get().feedings.length") == n1 - 1)
+    check('喂养新骨架无报错', not errs, errs)
+    p.close()
+
+
 def main():
     with sync_playwright() as pw:
         b = pw.chromium.launch()
-        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_dash, test_diaper_sheet, test_diaper_stock, test_diaper_photos, test_css_rules, test_layout_and_toast):
+        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_dash, test_diaper_sheet, test_diaper_stock, test_diaper_photos, test_feeding_sheet, test_css_rules, test_layout_and_toast):
             try:
                 fn(b)
             except Exception as e:  # 一组崩了不影响其他组
