@@ -141,7 +141,8 @@
   /* 把一朵积云预渲染成离屏精灵（软边水彩感内置于精灵，避免每帧大半径渐变）。
      画法：底边平、顶部起伏的一排软圆——泡径必须小于泡距，让天空从缝隙里透出来，
      否则会糊成一整片（已实测踩坑：泡径过大时整块天空被白云盖满）。 */
-  function renderCloudSprite(cloud, W, H, tint, alpha, dpr) {
+  function renderCloudSprite(cloud, W, H, tint, alpha, dpr, vol) {
+    vol = vol || { hi: 0.22, sh: 0.18, shade: [150, 160, 178] };
     var cw = cloud.w * W, ch = cw * 0.42;
     /* 第 47 次（修「云太生硬」）：精灵按 0.45 倍分辨率预渲染、绘制时再放大——
        双线性放大插值天然带雾化柔边，泡与泡的融合不再有「剪出来的圆弧硬边」。
@@ -177,6 +178,26 @@
       c.arc(px, py, pr, 0, Math.PI * 2);
       c.fill();
     }
+    /* 第 215 次（用户：云彩更自然）：①顶部再撒一圈小泡，轮廓从「一排圆」变成菜花状的不规则顶；
+       ②两端加几缕很淡的絮，云边散开而不是戛然而止 */
+    var small = 5 + Math.floor(r() * 4);
+    for (var k = 0; k < small; k++) {
+      var t = 0.12 + r() * 0.76, bell2 = Math.sin(t * Math.PI);
+      var sx = cw * t, sr = ch * (0.16 + 0.12 * r()) * (0.75 + bell2 * 0.5);
+      /* 小泡圆心压在主体轮廓线内侧，只让外缘鼓出一点——避免浮成一颗颗白点 */
+      var sy = baseY - ch * (0.2 + 0.42 * bell2) - r() * ch * 0.06;
+      var gs = c.createRadialGradient(sx, sy, 0, sx, sy, sr);
+      gs.addColorStop(0, rgb(tint, alpha * 0.45)); gs.addColorStop(0.5, rgb(tint, alpha * 0.22)); gs.addColorStop(1, rgb(tint, 0));
+      c.fillStyle = gs; c.beginPath(); c.arc(sx, sy, sr, 0, Math.PI * 2); c.fill();
+    }
+    for (var w = 0; w < 4; w++) {
+      var side = w % 2 ? 1 : -1;
+      var wx = cw / 2 + side * cw * (0.36 + r() * 0.12), wy = baseY - ch * (0.08 + r() * 0.14);
+      var wr = ch * (0.16 + r() * 0.1);
+      var gw = c.createRadialGradient(wx, wy, 0, wx, wy, wr);
+      gw.addColorStop(0, rgb(tint, alpha * 0.3)); gw.addColorStop(1, rgb(tint, 0));
+      c.fillStyle = gw; c.beginPath(); c.ellipse(wx, wy, wr * 1.6, wr * 0.7, 0, 0, Math.PI * 2); c.fill();
+    }
     /* 底部收一条略实的基座，让云「坐得住」而不是一坨雾（第 47 次：同步调软） */
     var bw = cw * 0.55, bh = ch * 0.15;
     var g2 = c.createRadialGradient(cw / 2, baseY, 0, cw / 2, baseY, bw / 2);
@@ -187,6 +208,15 @@
     c.beginPath();
     c.ellipse(cw / 2, baseY, bw / 2, bh, 0, 0, Math.PI * 2);
     c.fill();
+    /* ③体积感：只在云本体上（source-atop）做顶亮底暗——上沿受光、下腹微灰，阴雨天下腹更沉 */
+    c.globalCompositeOperation = 'source-atop';
+    var gv = c.createLinearGradient(0, baseY - ch * 0.95, 0, baseY + ch * 0.1);
+    gv.addColorStop(0, 'rgba(255,255,255,' + vol.hi.toFixed(3) + ')');
+    gv.addColorStop(0.45, 'rgba(255,255,255,0)');
+    gv.addColorStop(0.7, rgb(vol.shade, 0));
+    gv.addColorStop(1, rgb(vol.shade, vol.sh));
+    c.fillStyle = gv; c.fillRect(0, 0, cw, chAll);
+    c.globalCompositeOperation = 'source-over';
     return { cv: cv, w: cw, h: chAll };
   }
 
@@ -452,7 +482,14 @@
     function buildSprite(i, night, warm, dark) { /* wc 取 rebuildPal.wc */
       var def = flatDefs[i];
       var ct = cloudTint(night, warm, def.layerIdx, dark, rebuildPal ? rebuildPal.wc : 0);
-      return renderCloudSprite(def, W, H, ct.tint, ct.alpha * def.am, dpr);
+      var wc = rebuildPal ? rebuildPal.wc : 0;
+      var nt = rebuildPal ? rebuildPal.night : 0;
+      var vol = {
+        hi: (1 - nt) * (0.12 - wc * 0.08) * (rebuildPal && rebuildPal.dark ? 0.5 : 1),
+        sh: 0.14 + wc * 0.32 + nt * 0.05,
+        shade: lerpC(scaleC(ct.tint, 0.72), [110, 122, 142], wc * 0.6)
+      };
+      return renderCloudSprite(def, W, H, ct.tint, ct.alpha * def.am, dpr, vol);
     }
     function pairSprites() {
       sprites = [];
@@ -461,7 +498,7 @@
     function ensureSprites(pal, full) {
       /* 第 92 次：key 首位加暗色标志——切主题后染色档位不变也能触发整套重建 */
       var wcq = Math.round(mood.c * 8) / 8;
-      var key = (pal.dark ? 1 : 0) + ':w' + wcq + ':' + Math.round(pal.night * TARGET) + ':' + Math.round(pal.warm * TARGET) + ':' + Math.round(W) + ':' + dpr;
+      var key = 'v215:' + (pal.dark ? 1 : 0) + ':w' + wcq + ':' + Math.round(pal.night * TARGET) + ':' + Math.round(pal.warm * TARGET) + ':' + Math.round(W) + ':' + dpr;
       if (key === spriteKey && rebuildLeft < 0) return;
       if (rebuildLeft < 0) {
         /* 进入新档位：跨 mount 缓存命中则整套即用（不排队），否则开始分摊重建 */
@@ -550,13 +587,32 @@
         ctx.drawImage(sp.img.cv, cx - sp.img.w * 0.09, cy - sp.img.h * 0.09, sp.img.w * 1.18, sp.img.h * 1.18);
         ctx.globalAlpha = 1;
         ctx.drawImage(sp.img.cv, cx, cy, sp.img.w, sp.img.h);
-        /* 第 214 次：阴雨天云更厚——同一朵再放大叠一层（只多几次 drawImage） */
-        if (mood.ca > 1.02) {
-          var ex = (mood.ca - 1) * 1.1, sc = 1 + ex * 0.6;
-          ctx.globalAlpha = Math.min(0.7, ex);
-          ctx.drawImage(sp.img.cv, cx - sp.img.w * (sc - 1) / 2, cy - sp.img.h * (sc - 1) / 2 * 0.6, sp.img.w * sc, sp.img.h * sc);
-          ctx.globalAlpha = 1;
-        }
+      }
+    }
+
+    /* 第 215 次：阴雨天不再把同一朵云放大重叠（会有重影），而是在积云后面铺一层层云——
+       几条横向拉长、边缘极软的云带缓慢漂移，颜色取自天空本身提亮/压暗，天越阴越密 */
+    var STRATUS = [
+      { y: 0.06, h: 0.16, x: 0.2, w: 1.1, sp: 0.0016, a: 1 },
+      { y: 0.24, h: 0.14, x: 0.75, w: 0.9, sp: 0.0024, a: 0.85 },
+      { y: 0.42, h: 0.12, x: 0.35, w: 1.0, sp: 0.002, a: 0.7 },
+      { y: 0.58, h: 0.1, x: 0.9, w: 0.8, sp: 0.003, a: 0.5 }
+    ];
+    function paintStratus(pal, dt) {
+      if (mood.c < 0.03) return;
+      var lum = (pal.mid[0] + pal.mid[1] + pal.mid[2]) / 3;
+      var col = lum > 120 ? lerpC(pal.top, [238, 240, 244], 0.45) : lerpC(pal.top, pal.mid, 0.6).map(function (v) { return v * 1.18; });
+      for (var i = 0; i < STRATUS.length; i++) {
+        var b = STRATUS[i];
+        if (dt) { b.x += b.sp * DRIFT_PER_SEC * dt; if (b.x - b.w / 2 > 1.3) b.x = -0.3 - b.w / 2; }
+        var cx = b.x * W, cy = b.y * H, rx = b.w * W * 0.6, ry = b.h * H;
+        ctx.save();
+        ctx.translate(cx, cy); ctx.scale(rx / ry, 1);
+        var g = ctx.createRadialGradient(0, 0, 0, 0, 0, ry);
+        var a = Math.min(1, mood.c) * 0.5 * b.a;
+        g.addColorStop(0, rgb(col, a)); g.addColorStop(0.5, rgb(col, a * 0.55)); g.addColorStop(1, rgb(col, 0));
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, ry, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
       }
     }
 
@@ -679,6 +735,7 @@
       syncAmbient(pal); /* 第 53 次：环境光 CSS 变量随色板更新（量化节流，变了才写 DOM） */
       ensureSprites(pal, false);
       paintSky(pal, t / 1000);
+      paintStratus(pal, dt);
       paintClouds(t / 1000);
       paintWeather(pal, dt);
       /* 云缓慢漂移（仅在画面内循环），按真实时间推进 */
@@ -711,6 +768,7 @@
       syncAmbient(pal);
       ensureSprites(pal, true); /* reduced-motion：一次性建完整套，不做分摊 */
       paintSky(pal, 0);
+      paintStratus(pal, 0);
       paintClouds(0);
       paintWeather(pal, 0);
       fadeBottomOut();
