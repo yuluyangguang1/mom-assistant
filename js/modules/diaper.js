@@ -117,6 +117,52 @@
   }
 
   /* 半屏记录面板：rec 为空 = 新建；dateIso 为补记日期 */
+  /* ---------- 第 226 次：扣减用品（对标 Cali「扣减用品」开关） ----------
+     记录上新增可选 used: [supplyId]，表示这次换尿布用掉的用品（各 1 件）。
+     偏好 settings.diaperStock = { on, ids } 记住上次的开关和选择，首页快记也照它扣。
+     改记录 → 先退旧的再扣新的；删记录/撤销 → 原样退回，库存永远和记录对得上。 */
+  var Sup = function () { return (Modules.supplies && typeof Modules.supplies._consume === 'function') ? Modules.supplies : null; };
+  function countable(d) { var S = Sup(); return S ? S._countable(d) : []; }
+  function validUsed(d, ids) {
+    var ok = countable(d).map(function (x) { return x.id; }), out = [];
+    (Array.isArray(ids) ? ids : []).forEach(function (id) { if (typeof id === 'string' && ok.indexOf(id) >= 0 && out.indexOf(id) < 0) out.push(id); });
+    return out;
+  }
+  function stockPref(d) {
+    var p = (d.settings && d.settings.diaperStock) || null;
+    var list = countable(d);
+    var on = p ? p.on !== false : list.length > 0;
+    var ids = validUsed(d, p && p.ids);
+    if (on && !ids.length && !p) { var dp = list.filter(function (x) { return x.cat === '纸尿裤'; })[0]; if (dp) ids = [dp.id]; }
+    return { on: on && list.length > 0, ids: ids };
+  }
+  function applyUse(d, ids, delta) { var S = Sup(); return S ? S._consume(d, ids, delta) : []; }
+  /** 扣减后的一句提示：只报最紧的那一件，≤10 件时提醒补货 */
+  function stockNote(touched) {
+    var S = Sup(); if (!S || !touched.length) return '';
+    var m = touched.slice().sort(function (a, b) { return a.pieces - b.pieces; })[0];
+    return ' · ' + m.name + ' 剩 ' + m.pieces + S._pcsUnit(m) + (m.pieces <= 10 ? '，该补货了' : '');
+  }
+  /** 快记（首页三键、＋号）共用：按偏好给新记录挂 used 并扣库存，返回提示尾巴 */
+  function autoUse(d, rec) {
+    var p = stockPref(d);
+    if (!p.on || !p.ids.length) return '';
+    rec.used = p.ids.slice();
+    return stockNote(applyUse(d, rec.used, 1));
+  }
+  /** 删除一条尿布记录（带撤销），库存同步退回/再扣 */
+  function removeRec(d, id) {
+    var it = (d.diapers || []).filter(function (x) { return x && x.id === id; })[0];
+    if (!it) return;
+    var used = validUsed(d, it.used);
+    applyUse(d, used, -1);
+    Util.removeWithUndo(d.diapers, id, {
+      onSave: function () { Storage.save(); }, onAfter: function () { global.App.rerender(); },
+      onUndo: function () { applyUse(d, used, 1); },
+      deletedText: used.length ? '已删除尿布记录，用品已退回' : '已删除尿布记录'
+    });
+  }
+
   function openSheet(d, rec, dateIso) {
     var root = document.getElementById('modalRoot');
     if (!root) return;
@@ -126,6 +172,10 @@
       type: TYPE_LONG[rec.type] ? rec.type : null /* 坏类型：面板里要求重选 */, amount: rec.amount || null, color: rec.color || null, consistency: rec.consistency || null,
       curds: rec.curds === true, rash: rec.rash === true, cream: rec.cream === true
     } : { type: null, amount: null, color: null, consistency: null, curds: false, rash: false, cream: false };
+    var pref0 = stockPref(d);
+    st.used = editing ? validUsed(d, rec.used) : pref0.ids.slice();
+    st.useOn = editing ? st.used.length > 0 : pref0.on;
+    var oldUsed = editing ? validUsed(d, rec.used) : [];
     var t0 = editing ? String(rec.time) : (dateIso ? dateIso + now.slice(10) : now);
     var date0 = t0.slice(0, 10), hm0 = t0.slice(11, 16);
     var today = now.slice(0, 10);
@@ -173,6 +223,25 @@
         h += '<button type="button" class="dp-pill' + (st[f.k] ? ' active' : '') + '" data-flag="' + f.k + '" aria-pressed="' + !!st[f.k] + '">' + f.label + '</button>';
       });
       h += '</div>';
+      var cl = countable(d), S = Sup();
+      h += '<div class="rs-stock"><div class="rs-sw-row"><span class="rs-sw-ico" aria-hidden="true">' + icon('supplies') + '</span><span class="rs-sw-t">扣减用品</span>'
+        + '<button type="button" class="rs-switch" role="switch" data-usesw aria-checked="' + !!st.useOn + '" aria-label="扣减用品"><i></i></button></div>';
+      if (st.useOn) {
+        if (!cl.length) {
+          h += '<p class="rs-stock-empty">还没有可扣减的用品。去消耗品里给纸尿裤填上「一共几片」，这里就能选。</p>'
+            + '<button type="button" class="btn rs-stock-go" data-gosup>去添加</button>';
+        } else {
+          h += '<div class="rs-stock-list">';
+          cl.forEach(function (it) {
+            var on = st.used.indexOf(it.id) >= 0;
+            var left = it.pieces - (on && oldUsed.indexOf(it.id) < 0 ? 1 : 0) + (!on && oldUsed.indexOf(it.id) >= 0 ? 1 : 0);
+            h += '<button type="button" class="rs-stock-item' + (on ? ' on' : '') + (left <= 10 ? ' low' : '') + '" data-use="' + Util.escapeHtml(it.id) + '" aria-pressed="' + on + '">'
+              + '<b>' + Util.escapeHtml(it.name) + '</b><span>' + (on ? '用 1' + S._pcsUnit(it) + ' · ' : '') + '剩 ' + Math.max(0, left) + S._pcsUnit(it) + '</span></button>';
+          });
+          h += '</div>';
+        }
+      }
+      h += '</div>';
       h += '<label class="rs-note"><span class="rs-lbl">备注</span><input type="text" id="dpsNote" maxlength="40" placeholder="可选，如 换了新码" value="' + Util.escapeHtml((editing && rec.note) || noteDraft || '') + '"></label>';
       h += '<button type="button" class="btn btn-primary rs-save" data-ok>' + (editing ? '保存修改' : '保存') + '</button>';
       if (editing) h += '<button type="button" class="btn rs-del" data-delrec>删除这条记录</button>';
@@ -198,15 +267,18 @@
       if (b.hasAttribute('data-ok')) { save(); return; }
       if (b.hasAttribute('data-delrec')) {
         close();
-        Util.removeWithUndo(d.diapers, rec.id, { onSave: function () { Storage.save(); }, onAfter: function () { global.App.rerender(); }, deletedText: '已删除尿布记录' });
+        removeRec(d, rec.id);
         return;
       }
+      if (b.hasAttribute('data-usesw')) { st.useOn = !st.useOn; if (st.useOn && !st.used.length) { var c0 = countable(d)[0]; if (c0) st.used = [c0.id]; } paint(); return; }
+      if (b.hasAttribute('data-gosup')) { close(); global.App.showTab('supplies'); return; }
       var v;
       if ((v = b.getAttribute('data-t'))) { st.type = v; if (!poopy()) { st.color = null; st.consistency = null; st.curds = false; } paint(); return; }
       if ((v = b.getAttribute('data-amt'))) { st.amount = st.amount === v ? null : v; paint(); return; }
       if ((v = b.getAttribute('data-col'))) { st.color = st.color === v ? null : v; paint(); return; }
       if ((v = b.getAttribute('data-cons'))) { st.consistency = st.consistency === v ? null : v; paint(); return; }
       if ((v = b.getAttribute('data-flag'))) { st[v] = !st[v]; paint(); return; }
+      if ((v = b.getAttribute('data-use'))) { var ix = st.used.indexOf(v); if (ix >= 0) st.used.splice(ix, 1); else st.used.push(v); paint(); return; }
     });
     mask.addEventListener('click', function (e) { if (e.target === mask) close(); });
     document.addEventListener('keydown', onKey);
@@ -228,7 +300,17 @@
       r.type = st.type; r.time = stamp; r.note = note;
       ['amount', 'color', 'consistency'].forEach(function (k) { if (st[k]) r[k] = st[k]; else delete r[k]; });
       FLAGS.forEach(function (f) { if (st[f.k] && !(f.poopOnly && !poopy())) r[f.k] = true; else delete r[f.k]; });
-      if (!editing) d.diapers.push(r);
+      /* 库存：先退回这条原来扣的，再按现在的选择扣 */
+      var newUsed = st.useOn ? validUsed(d, st.used) : [];
+      applyUse(d, oldUsed, -1);
+      var touched = applyUse(d, newUsed, 1);
+      if (newUsed.length) r.used = newUsed; else delete r.used;
+      if (!editing) {
+        d.settings = d.settings || {};
+        d.settings.diaperStock = { on: !!st.useOn, ids: newUsed.length ? newUsed : validUsed(d, st.used) };
+        d.diapers.push(r);
+      }
+      var tail = stockNote(touched);
       if (!Storage.save()) return;
       /* 「已记录」：面板内闪一下插画 + 勾，再收起 */
       box.innerHTML = '<div class="rs-done" role="status">' + typeArt(r.type, colorOf(r.color) && colorOf(r.color).hex)
@@ -236,8 +318,11 @@
       setTimeout(function () {
         close();
         global.App.rerender();
-        if (!editing) Util.toast('已记录：' + TYPE_LONG[r.type], 'ok', { label: '撤销', onClick: function () {
-          for (var i = d.diapers.length - 1; i >= 0; i--) if (d.diapers[i].id === r.id) { d.diapers.splice(i, 1); break; }
+        if (!editing) Util.toast('已记录：' + TYPE_LONG[r.type] + tail, 'ok', { label: '撤销', onClick: function () {
+          /* 只在记录还在时撤销并退库存；用记录当下的 used（中途可能被改过） */
+          var gone = null;
+          for (var i = d.diapers.length - 1; i >= 0; i--) if (d.diapers[i].id === r.id) { gone = d.diapers.splice(i, 1)[0]; break; }
+          if (gone) applyUse(d, validUsed(d, gone.used), -1);
           Storage.save(); global.App.rerender(); Util.toast('已撤销', 'ok');
         } });
       }, 650);
@@ -348,11 +433,7 @@
       });
       Array.prototype.forEach.call(view.querySelectorAll('[data-del]'), function (b) {
         b.addEventListener('click', function () {
-          Util.removeWithUndo(d.diapers, b.getAttribute('data-del'), {
-            onSave: function () { Storage.save(); },
-            onAfter: function () { global.App.rerender(); },
-            deletedText: '已删除尿布记录'
-          });
+          removeRec(d, b.getAttribute('data-del'));
         });
       });
       if (backfill) setTimeout(function () { openSheet(d, null, backfill); }, 0);
@@ -368,6 +449,10 @@
        数据形状与页面内的 rec 完全一致（{id,type,time,note}），
        统计口径因此天然对齐——不是为了「快捷」另造一套字段。
        ============================================================ */
+    _autoUse: autoUse,
+    _applyUse: applyUse,
+    _validUsed: validUsed,
+    _stockPref: stockPref,
     _quickHTML: function (d) {
       var html = '';
       TYPES.forEach(function (t) {
@@ -383,14 +468,17 @@
           if (ev && ev.stopPropagation) ev.stopPropagation();
           var v = b.getAttribute('data-qk');
           var rec = { id: Util.uid(), type: v, time: Util.nowLocal(), note: null };
+          var tail = autoUse(d, rec);
           d.diapers.push(rec);
           if (Storage.save()) {
-            Util.toast('已记录：' + typeInfo(v).t, 'ok', {
+            Util.toast('已记录：' + typeInfo(v).t + tail, 'ok', {
               label: '撤销',
               onClick: function () {
+                var gone = null;
                 for (var i = d.diapers.length - 1; i >= 0; i--) {
-                  if (d.diapers[i].id === rec.id) { d.diapers.splice(i, 1); break; }
+                  if (d.diapers[i].id === rec.id) { gone = d.diapers.splice(i, 1)[0]; break; }
                 }
+                if (gone) applyUse(d, validUsed(d, gone.used), -1);
                 Storage.save();
                 done();
               }

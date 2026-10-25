@@ -647,9 +647,9 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
   background: var(--surface-2); border-radius: 3px; overflow: hidden;
 }
 .sup-bar > i { display: block; height: 100%; border-radius: 3px; background: var(--tile, var(--primary)); transition: width .28s ease; }
-.list li .li-num.sup-low  { color: #C0392B; }
-.list li .li-num.sup-mid  { color: #9A6A12; }
-.list li .li-num.sup-ok   { color: #2C6B54; }
+.sup-num.sup-low, .sup-state .sup-low { color: #C0392B; }
+.sup-num.sup-mid, .sup-state .sup-mid { color: #9A6A12; }
+.sup-num.sup-ok, .sup-state .sup-ok { color: #2C6B54; }
 
 /* ---- 第 108 次 · 辅食食材分段标签（喂养模块辅食结构化） ----
    食材按「荤｜素｜主食」分段存纯 text，展示层解析成一段一个标签。
@@ -680,9 +680,9 @@ body.dark .list li .ing-tag { background: rgba(255, 255, 255, .05); border-color
 body.dark .list li .ing-tag.ing-meat   { color: #E8B48C; background: rgba(232, 180, 140, .12); border-color: rgba(232, 180, 140, .26); }
 body.dark .list li .ing-tag.ing-veg    { color: #8FCDB2; background: rgba(143, 205, 178, .12); border-color: rgba(143, 205, 178, .26); }
 body.dark .list li .ing-tag.ing-staple { color: #E3C88E; background: rgba(227, 200, 142, .12); border-color: rgba(227, 200, 142, .26); }
-body.dark .list li .li-num.sup-low { color: #F0A79A; }
-body.dark .list li .li-num.sup-mid { color: #E8C88A; }
-body.dark .list li .li-num.sup-ok  { color: #8FCDB2; }
+body.dark .sup-num.sup-low, body.dark .sup-state .sup-low { color: #F0A79A; }
+body.dark .sup-num.sup-mid, body.dark .sup-state .sup-mid { color: #E8C88A; }
+body.dark .sup-num.sup-ok, body.dark .sup-state .sup-ok { color: #8FCDB2; }
 .list li .li-num {
   flex: 0 0 auto; margin-left: auto; padding-left: 12px;
   font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
@@ -4485,3 +4485,32 @@ body.dark .dpc-svg, body.dark .tl-svg { filter: drop-shadow(0 0 1px rgba(255,255
 .mod-hero[data-hero="diaper"] .hero-art { width: 116px; height: 116px; }
 .mod-hero[data-hero="diaper"] .hero-art img { width: 100px; height: 100px; }
 .mod-hero[data-hero="diaper"] .hero-badge { right: 6px; top: 6px; min-width: 24px; height: 24px; padding: 0 6px; font-size: 13px; }
+/* 第 226 次：尿布面板「扣减用品」——开关 + 可扣减用品卡（剩余随勾选实时变化，≤10 件标红提醒补货） */
+.rs-stock { margin-top: 18px; }
+.rs-sw-row { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.rs-sw-ico { display: inline-flex; color: var(--muted); } .rs-sw-ico .ico { width: 20px; height: 20px; }
+.rs-sw-t { flex: 1; font-weight: 600; color: var(--text); }
+.rs-switch { position: relative; width: 51px; height: 31px; flex: none; padding: 0; border: none; border-radius: var(--radius-pill); background: var(--border); cursor: pointer; transition: background .2s; }
+.rs-switch i { position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,.2); transition: transform .2s var(--spring, ease); }
+.rs-switch[aria-checked="true"] { background: var(--tile); }
+.rs-switch[aria-checked="true"] i { transform: translateX(20px); }
+.rs-stock-empty { margin: 6px 0 8px; color: var(--muted); font-size: var(--fs-sm, 14px); line-height: 1.55; }
+.rs-stock-go { min-height: 40px; }
+.rs-stock-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin-top: 6px; }
+.rs-stock-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 10px 12px; border: 2px solid transparent; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.rs-stock-item b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm, 14px); }
+.rs-stock-item span { color: var(--muted); font-size: 12px; }
+.rs-stock-item.on { border-color: var(--tile); background: var(--tile-weak); }
+.rs-stock-item.low span { color: var(--danger, #C0392B); }
+/* 第 226 次：消耗品清单行改三段式网格（原单行 flex 把名称挤成 0 宽、按钮溢出屏外） */
+.list li.sup-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; column-gap: 10px; row-gap: 4px; align-items: center; }
+.sup-ico { display: inline-flex; color: var(--muted); } .sup-ico .ico { width: 22px; height: 22px; }
+.sup-main { grid-column: 2 / 4; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sup-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.sup-main small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.sup-num { grid-column: 4; justify-self: end; font-size: calc(22px * var(--fs-mul, 1)); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sup-num i { margin-left: 2px; font-size: 12px; font-style: normal; font-weight: 600; }
+.sup-row .sup-bar { grid-column: 1 / -1; margin-top: 2px; }
+.sup-state { grid-column: 1 / 3; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.sup-acts { grid-column: 3 / 5; display: flex; gap: 2px; justify-content: flex-end; }
+.sup-acts .icon-btn { min-width: 38px; padding-left: 4px; padding-right: 4px; }

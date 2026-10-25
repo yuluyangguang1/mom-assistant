@@ -1328,10 +1328,15 @@
     }
     function saveOne(arrName, rec, msg) {
       var d2 = Storage.get();
+      /* 第 226 次：＋号快记尿布也按「扣减用品」偏好扣库存，撤销时退回 */
+      var DM = global.Modules && Modules.diaper;
+      if (arrName === 'diapers' && DM && typeof DM._autoUse === 'function') msg += DM._autoUse(d2, rec);
       d2[arrName].push(rec);
       if (Storage.save()) Util.toast(msg, 'ok', { label: '撤销', onClick: function () {
         var arr = Storage.get()[arrName];
-        for (var i = arr.length - 1; i >= 0; i--) if (arr[i].id === rec.id) { arr.splice(i, 1); break; }
+        var gone = null;
+        for (var i = arr.length - 1; i >= 0; i--) if (arr[i].id === rec.id) { gone = arr.splice(i, 1)[0]; break; }
+        if (gone && gone.used && DM && typeof DM._applyUse === 'function') DM._applyUse(Storage.get(), DM._validUsed(Storage.get(), gone.used), -1);
         Storage.save(); rerender(); Util.toast('已撤销', 'ok');
       } });
       close(); detachOutside(); rerender();

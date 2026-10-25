@@ -99,9 +99,54 @@
 
   /* ---------- 纯派生工具（不写库） ---------- */
 
-  /** 剩余天数：availDays 是「这行总共还剩多少天」，减去已过天数。 */
+  /* ---------- 第 226 次：按件计数 + 换尿布扣减（对标 Cali「扣减用品」） ----------
+     可选字段 pieces = 还剩多少片/抽/个（非负整数）。填了它，这行就「可扣减」：
+     记一次尿布时勾选的用品各减 1；改记录/删记录/撤销会原样退回。
+     没填 pieces 的老数据完全照旧按天数算，不做任何迁移。
+     剩余天数在有 pieces 时改用「近 7 天实际用量」估算，比手填天数准。 */
+  var PIECES_MAX = 99999;
+  function hasPieces(s) { return !!s && typeof s.pieces === 'number' && isFinite(s.pieces) && s.pieces >= 0; }
+  function pcsUnit(s) { return s && s.cat === '纸尿裤' ? '片' : (s && s.cat === '清洁' ? '抽' : '个'); }
+  function parsePieces(v) {
+    var n = parseInt(v, 10);
+    return (isNaN(n) || n < 0) ? null : Math.min(PIECES_MAX, n);
+  }
+  /** 近 7 天每天用掉几件：数尿布记录里 used 含这件的条数（只看当前宝宝的记录）。 */
+  function dailyUse(id, d) {
+    d = d || (Storage && Storage.get && Storage.get());
+    var now = Date.now(), since = now - 7 * 864e5, n = 0, first = now;
+    ((d && d.diapers) || []).forEach(function (r) {
+      if (!r || !Array.isArray(r.used) || r.used.indexOf(id) < 0) return;
+      var t = new Date(r.time).getTime();
+      if (t >= since && t <= now + 60000) { n++; if (t < first) first = t; }
+    });
+    /* 分母 = 窗口内第一次扣减到现在的天数（至少 1 天、最多 7 天）：刚开始用时不会被 ÷7 稀释成「够用 300 天」 */
+    return n ? n / Math.max(1, Math.min(7, (now - first) / 864e5)) : 0;
+  }
+  /** 给一组 id 加减库存：delta=+1 扣一件，-1 退一件。返回真正动到的用品。 */
+  function consume(d, ids, delta) {
+    var touched = [];
+    if (!d || !Array.isArray(d.supplies) || !Array.isArray(ids)) return touched;
+    ids.forEach(function (id) {
+      var it = d.supplies.filter(function (x) { return x && x.id === id; })[0];
+      if (!hasPieces(it)) return;
+      it.pieces = Math.max(0, Math.min(PIECES_MAX, it.pieces - delta));
+      touched.push(it);
+    });
+    return touched;
+  }
+
+  /** 剩余天数：availDays 是「这行总共还剩多少天」，减去已过天数。
+      第 226 次：有 pieces 且近 7 天有用量时，改为 片数 ÷ 日均用量。 */
   function supplyLeft(s) {
     if (!s) return 0;
+    if (hasPieces(s)) {
+      if (s.pieces === 0) return 0;
+      var rate = dailyUse(s.id);
+      if (rate > 0) return Math.floor(s.pieces / rate);
+      /* 还没有用量数据：手填过天数就按天数；没填就按片数粗分档（≤10 该补货，≤30 快用完） */
+      if (!(parseInt(s.availDays, 10) > 0)) return s.pieces <= 10 ? LOW_DAYS : (s.pieces <= 30 ? MID_DAYS : MID_DAYS + 23);
+    }
     var total = parseInt(s.availDays, 10);
     if (isNaN(total) || total < 0) return 0;
     var used = Util.daysBetween(s.date, Util.todayISO());
@@ -123,6 +168,8 @@
 
   /** 进度条百分比：剩余 / 总可用天数，钳到 5%–100% 让空条也看得见。 */
   function leftPercent(s) {
+    /* 按件计数的行：以「够用 30 天」为满格 */
+    if (hasPieces(s)) return Math.min(100, Math.max(5, Math.round(supplyLeft(s) / 30 * 100)));
     var total = parseInt(s.availDays, 10) || 0;
     if (total <= 0) return 5;
     var pct = Math.round(supplyLeft(s) / total * 100);
@@ -164,6 +211,7 @@
     if (isNaN(avail) || avail < 0) avail = 0;
     var price = parseFloat(input.price);
     if (isNaN(price) || price < 0) price = 0;
+    var pcs = parsePieces(input.pieces);
 
     var dup = findDuplicate(list, name, date);
     if (dup) {
@@ -176,6 +224,7 @@
       if (price > 0) dup.price = price;
       if (input.unit) dup.unit = input.unit;
       if (input.cat) dup.cat = input.cat;
+      if (pcs !== null) dup.pieces = Math.min(PIECES_MAX, (hasPieces(dup) ? dup.pieces : 0) + pcs);
       dup.history = pushHistory(dup.history, { date: date, price: price, qty: qty, unit: dup.unit || '' });
       return { item: dup, merged: true };
     }
@@ -191,6 +240,7 @@
       unit: input.unit || '件',
       history: pushHistory([], { date: date, price: price, qty: qty, unit: input.unit || '件' })
     };
+    if (pcs !== null) item.pieces = pcs;
     list.push(item);
     return { item: item, merged: false };
   }
@@ -292,6 +342,16 @@
     },
 
     _left: supplyLeft,
+    _hasPieces: hasPieces,
+    _pcsUnit: pcsUnit,
+    _consume: consume,
+    _dailyUse: dailyUse,
+    /* 可扣减的用品：填了片数的那些，纸尿裤排最前 */
+    _countable: function (d) {
+      return ((d && d.supplies) || []).filter(hasPieces).sort(function (a, b) {
+        return (a.cat === '纸尿裤' ? 0 : 1) - (b.cat === '纸尿裤' ? 0 : 1);
+      });
+    },
     _state: supplyState,
     _lows: lowSupplies,
     _findDuplicate: findDuplicate,
@@ -326,7 +386,7 @@
       if (lows.length) {
         html += '<div class="warn-box"><b>该补货了</b>：'
           + lows.map(function (s) {
-              return Util.escapeHtml(s.name) + '（剩 ' + supplyLeft(s) + ' 天）';
+              return Util.escapeHtml(s.name) + (hasPieces(s) ? '（剩 ' + s.pieces + pcsUnit(s) + '）' : '（剩 ' + supplyLeft(s) + ' 天）');
             }).join('、')
           + '</div>';
       }
@@ -359,6 +419,7 @@
       html += '<label>能用多少天<input type="number" id="spAvail" step="1" min="0" inputmode="numeric" placeholder="如 30"></label>';
       html += '<label>数量<input type="number" id="spQty" step="1" min="0" inputmode="numeric" value="1"></label>';
       html += '</div>';
+      html += '<label>一共几片 / 几抽<span class="hint-inline">（可选，填了就能随换尿布自动扣减）</span><input type="number" id="spPieces" step="1" min="0" inputmode="numeric" placeholder="如 2 包 × 60 片 = 120"></label>';
       html += '<label>单位<select id="spUnit">';
       UNITS.forEach(function (u) { html += '<option value="' + u + '">' + u + '</option>'; });
       html += '</select></label>';
@@ -385,21 +446,28 @@
           /* 第 112 次：本月该品类在记账里花了多少（渲染期派生，不落库）。
              与用户自己的账单比，不与他人比。 */
           var ms = monthSpend(d.finance && d.finance.records, s.cat);
-          html += '<li>'
-            + icon('supplies')
-            + '<span class="li-main"><b>' + Util.escapeHtml(s.name) + '</b>' + Util.escapeHtml(s.cat || '') + '</span>'
-            + '<span class="li-sub">' + Util.fmtDate(s.date) + ' 买 · ' + qty + Util.escapeHtml(unit)
-            + (s.price > 0 ? ' · ' + s.price.toFixed(2) + ' 元' : '')
-            + '</span>'
-            + '<span class="li-num ' + st.cls + '">' + left + '<i>天</i></span>'
+          /* 第 226 次：原来的行把 9 个子元素塞进一条横向 flex，名称被挤成 0 宽、按钮溢出屏外。
+             改成专用的三段式网格：图标 | 名称+购买信息 | 剩余数；进度条整行；状态 + 操作一行。 */
+          var numHtml = hasPieces(s)
+            ? s.pieces + '<i>' + pcsUnit(s) + '</i>'
+            : left + '<i>天</i>';
+          var rate = hasPieces(s) ? dailyUse(s.id, d) : 0;
+          html += '<li class="sup-row">'
+            + '<span class="sup-ico">' + icon('supplies') + '</span>'
+            + '<span class="sup-main"><b>' + Util.escapeHtml(s.name) + '</b>'
+            + '<small>' + Util.escapeHtml(s.cat || '') + ' · ' + Util.fmtDate(s.date) + ' 买 · ' + qty + Util.escapeHtml(unit)
+            + (s.price > 0 ? ' · ' + s.price.toFixed(2) + ' 元' : '') + '</small></span>'
+            + '<span class="sup-num ' + st.cls + '">' + numHtml + '</span>'
             + '<div class="sup-bar"><i style="width:' + leftPercent(s) + '%"></i></div>'
-            + '<span class="li-sub">' + st.text
+            + '<span class="sup-state"><b class="' + st.cls + '">' + st.text + '</b>'
+            + (hasPieces(s) ? (rate > 0 ? ' · 每天约 ' + (Math.round(rate * 10) / 10) + pcsUnit(s) + '，够用 ' + left + ' 天' : ' · 换尿布时自动扣减') : '')
             + (ms > 0 ? ' · 本月该品类 ' + ms.toFixed(2) + ' 元' : '')
             + '</span>'
+            + '<span class="sup-acts">'
             + '<button class="icon-btn" data-spbuy="' + s.id + '" title="记录新购">＋购</button>'
             + '<button class="icon-btn" data-spedit="' + s.id + '" title="修改">改</button>'
             + '<button class="icon-btn" data-spdel="' + s.id + '" title="删除">✕</button>'
-            + '</li>';
+            + '</span></li>';
         });
         html += '</ul>';
       }
@@ -511,7 +579,8 @@
             price: view.querySelector('#spPrice').value,
             availDays: view.querySelector('#spAvail').value,
             qty: view.querySelector('#spQty').value,
-            unit: view.querySelector('#spUnit').value
+            unit: view.querySelector('#spUnit').value,
+            pieces: (view.querySelector('#spPieces') || {}).value
           });
           if (res.error) { Util.markInvalid(nameEl, res.error); return; }
           /* 第 112 次：联动写账。放在 Storage.save() 之前，
@@ -565,13 +634,13 @@
       var expBtn = view.querySelector('#spExport');
       if (expBtn) {
         expBtn.addEventListener('click', function () {
-          var lines = ['名称,类别,购买日期,单价,数量,单位,可用天数,剩余天数'];
+          var lines = ['名称,类别,购买日期,单价,数量,单位,可用天数,剩余天数,剩余片数'];
           list.forEach(function (s) {
             lines.push([
               '"' + String(s.name || '').replace(/"/g, '""') + '"',
               s.cat || '', s.date || '',
               s.price || 0, parseInt(s.qty, 10) || 1, s.unit || '',
-              s.availDays || 0, supplyLeft(s)
+              s.availDays || 0, supplyLeft(s), hasPieces(s) ? s.pieces : ''
             ].join(','));
           });
           Util.download('消耗品_' + Util.todayISO() + '.csv', lines.join('\n'), 'text/csv');
@@ -618,6 +687,7 @@
       '<label>购买日期<input type="date" id="edDate" value="' + Util.escapeHtml(s.date || '') + '"></label>' +
       '<label>能用多少天<input type="number" id="edAvail" value="' + (parseInt(s.availDays, 10) || 0) + '" min="0" step="1"></label>' +
       '</div>' +
+      '<label>还剩几' + pcsUnit(s) + '（可选，换尿布自动扣减）<input type="number" id="edPieces" value="' + (hasPieces(s) ? s.pieces : '') + '" min="0" step="1" inputmode="numeric" placeholder="不填 = 不参与扣减"></label>' +
       '<button class="btn btn-primary" style="width:100%" id="edSave">保存</button>',
       function (root) {
         root.querySelector('#edSave').addEventListener('click', function () {
@@ -634,6 +704,8 @@
           s.cat = root.querySelector('#edCat').value;
           s.date = date;
           s.availDays = parseInt(root.querySelector('#edAvail').value, 10) || 0;
+          var ep = parsePieces(root.querySelector('#edPieces').value);
+          if (ep === null) delete s.pieces; else s.pieces = ep;
           Storage.save();
           closeSheet();
           global.App.rerender();
@@ -658,6 +730,7 @@
       '<label>这次买几' + (s.unit || '件') + '<input type="number" id="byQty" value="1" min="0" step="1" inputmode="numeric"></label>' +
       '<label>这批能用多少天<input type="number" id="byAvail" value="' + (s.availDays || '') + '" min="0" step="1" inputmode="numeric"></label>' +
       '</div>' +
+      '<label>这次一共几' + pcsUnit(s) + '（可选）<input type="number" id="byPieces" min="0" step="1" inputmode="numeric" placeholder="' + (hasPieces(s) ? '现有 ' + s.pieces + pcsUnit(s) + '，会加上去' : '填了就能随换尿布扣减') + '"></label>' +
       /* 第 112 次：新购同样可以联动写账。默认不勾，理由同主表单。 */
       '<label class="chk"><input type="checkbox" id="byAlsoCost">同时在记账里记这一笔</label>' +
       '<button class="btn btn-primary" style="width:100%" id="bySave">记录新购</button>',
@@ -685,6 +758,8 @@
           s.date = date;
           s.price = price;
           s.history = pushHistory(s.history, { date: date, price: price, qty: addQty, unit: s.unit || '' });
+          var bp = parsePieces(root.querySelector('#byPieces').value);
+          if (bp !== null) s.pieces = Math.min(PIECES_MAX, (hasPieces(s) ? s.pieces : 0) + bp);
           Storage.save();
           closeSheet();
           Util.toast('已记录新购');

@@ -346,10 +346,49 @@ def test_diaper_sheet(b):
     p.close()
 
 
+def test_diaper_stock(b):
+    """第 226 次：换尿布扣减用品——记录扣 1、改记录取消退回、删除退回且撤销再扣、快记按偏好扣、没片数的老用品不参与、导入坏偏好被清洗。"""
+    p, errs = fresh(b)
+    ev = p.evaluate
+    ev("""(()=>{const d=Storage.get();d.supplies=d.supplies||[];
+      d.supplies.push({id:'dpS',name:'纸尿裤 S',cat:'纸尿裤',date:Util.todayISO(),price:0,availDays:0,qty:2,unit:'包',pieces:50,history:[]});
+      d.supplies.push({id:'wipe1',name:'湿巾',cat:'清洁',date:Util.todayISO(),price:0,availDays:0,qty:1,unit:'包',pieces:80,history:[]});
+      d.supplies.push({id:'old1',name:'老纸尿裤',cat:'纸尿裤',date:Util.todayISO(),price:0,availDays:30,qty:1,unit:'包',history:[]});
+      delete d.settings.diaperStock;Storage.save();App.showTab('diaper')})()""")
+    p.wait_for_timeout(250)
+    pcs = lambda i: ev(f"Storage.get().supplies.filter(x=>x.id==='{i}')[0].pieces")
+    p.click('[data-new]'); p.wait_for_timeout(250)
+    check('扣减：有片数的用品默认开、默认选纸尿裤', ev("document.querySelector('[data-usesw]').getAttribute('aria-checked')==='true' && !!document.querySelector('.rs-stock-item.on[data-use=\"dpS\"]')"))
+    check('扣减：没填片数的老用品不出现', ev("!document.querySelector('[data-use=\"old1\"]')"))
+    p.click('[data-use="wipe1"]'); p.click('.dp-type[data-t="pee"]'); p.click('.rs-save'); p.wait_for_timeout(1000)
+    rid = ev("Storage.get().diapers.slice(-1)[0].id")
+    check('扣减：保存后各扣 1', pcs('dpS') == 49 and pcs('wipe1') == 79, (pcs('dpS'), pcs('wipe1')))
+    check('扣减：记录上挂 used、偏好记住', ev("JSON.stringify(Storage.get().diapers.slice(-1)[0].used)") == '["dpS","wipe1"]' and ev("Storage.get().settings.diaperStock.ids.length") == 2)
+    p.click(f'[data-open="{rid}"]'); p.wait_for_timeout(250)
+    p.click('[data-use="wipe1"]'); p.click('.rs-save'); p.wait_for_timeout(1000)
+    check('扣减：修改时取消湿巾会退回、纸尿裤不重复扣', pcs('dpS') == 49 and pcs('wipe1') == 80, (pcs('dpS'), pcs('wipe1')))
+    ev(f"document.querySelector('[data-del=\"{rid}\"]').click()"); p.wait_for_timeout(300)
+    check('扣减：删除记录退回库存', pcs('dpS') == 50)
+    ev("(()=>{const bs=[...document.querySelectorAll('.toast button, .toast-action')];bs.length&&bs[bs.length-1].click()})()"); p.wait_for_timeout(300)
+    check('扣减：撤销删除再扣回', pcs('dpS') == 49 and ev(f"Storage.get().diapers.some(x=>x.id==='{rid}')"), pcs('dpS'))
+    ev("App.showTab('home')"); p.wait_for_timeout(300)
+    n0 = ev("Storage.get().diapers.length")
+    ev("(()=>{const r={id:Util.uid(),type:'pee',time:Util.nowLocal()};const t=Modules.diaper._autoUse(Storage.get(),r);Storage.get().diapers.push(r);Storage.save();window.__t=t})()")
+    check('扣减：快记按偏好扣并给剩余提示', pcs('dpS') == 48 and pcs('wipe1') == 79 and '剩 48' in ev("window.__t"), ev("window.__t"))
+    ev("App.showTab('supplies')"); p.wait_for_timeout(300)
+    check('扣减：消耗品页显示剩余片数', '48' in ev("document.getElementById('view').innerText") and '片' in ev("document.getElementById('view').innerText"))
+    bad = json.dumps(dict(seed, version=3, settings=dict(seed.get('settings', {}), diaperStock={'on': 'x', 'ids': ['<img src=x onerror=1>', 5, 'ok_id']})), ensure_ascii=False)
+    ev('t=>Storage.importJSON(t)', bad)
+    ids = ev("JSON.stringify(Storage.get().settings.diaperStock.ids)")
+    check('扣减：导入坏偏好被清洗', '<' not in ids and '5' not in ids.replace('ok_id', ''), ids)
+    check('扣减流程无报错', not errs, errs)
+    p.close()
+
+
 def main():
     with sync_playwright() as pw:
         b = pw.chromium.launch()
-        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_dash, test_diaper_sheet, test_css_rules, test_layout_and_toast):
+        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_dash, test_diaper_sheet, test_diaper_stock, test_css_rules, test_layout_and_toast):
             try:
                 fn(b)
             except Exception as e:  # 一组崩了不影响其他组

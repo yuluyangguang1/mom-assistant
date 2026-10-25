@@ -1168,6 +1168,7 @@
       onClick: function () {
         if (idx > arr.length) idx = arr.length;
         arr.splice(idx, 0, item);
+        if (typeof opts.onUndo === 'function') opts.onUndo(item);
         if (typeof opts.onSave === 'function') opts.onSave();
         if (typeof opts.onAfter === 'function') opts.onAfter();
       }

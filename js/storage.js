@@ -403,6 +403,14 @@
          id 只认小写字母/数字短串（与模块 id 同域），size 只认 s/l，
          条目数设上限（items ≤ 24 / removed ≤ 40），坏数据宁可丢弃不进内存。
          items 与 removed 全空等价于没编辑过 → 回落 null（自动策展）。 */
+      /* 第 226 次：换尿布「扣减用品」偏好——on 布尔，ids 最多 8 个安全 id */
+      if (s.diaperStock && typeof s.diaperStock === 'object' && !Array.isArray(s.diaperStock)) {
+        base.settings.diaperStock = {
+          on: s.diaperStock.on !== false,
+          ids: (Array.isArray(s.diaperStock.ids) ? s.diaperStock.ids : []).filter(function (x) { return typeof x === 'string'; })
+            .slice(0, 8).map(function (x) { return safeId(x.slice(0, 64)); }).filter(Boolean)
+        };
+      }
       if (s.homeLayout && typeof s.homeLayout === 'object' && !Array.isArray(s.homeLayout)) {
         var hlItems = [];
         (Array.isArray(s.homeLayout.items) ? s.homeLayout.items : []).slice(0, 48).forEach(function (it) {
