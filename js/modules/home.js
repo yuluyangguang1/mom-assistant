@@ -975,7 +975,7 @@
           var g = gapText(ms);
           return (g === '不到 1 分钟') ? '刚刚' : g.replace('距今 ', '') + '前';
         }
-        var FT = { breast: '母乳', bottle: '奶瓶', formula: '奶粉', pump: '吸奶', solid: '辅食' };
+        var FT = { breast: '母乳', bottle: '奶瓶', formula: '奶粉', pump: '泵奶', solid: '辅食' };
         var DT = { pee: '尿', poop: '便', both: '尿+便' };
         var feedVal = '—', feedGap = '';
         if (lf) {
@@ -1904,7 +1904,7 @@
           if (Storage.save()) {
             /* 第 125 次：toast 文案与 feeding.js 同源——带类型名与明细
                （『已记录：瓶喂 母乳 60 ml』『已记录：亲喂 左 15 分』）。 */
-            var fTxt = ({ bottle: '瓶喂', breast: '亲喂', pump: '吸奶' })[kind] || kind;
+            var fTxt = ({ bottle: '瓶喂', breast: '亲喂', pump: '泵奶' })[kind] || kind;
             var fDetail = '';
             if (kind === 'bottle') fDetail = (st.kind === 'formula' ? '配方奶 ' : '母乳 ') + st.amount + ' ml';
             else if (kind === 'breast') {

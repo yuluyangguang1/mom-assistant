@@ -12,7 +12,7 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v219';
+var CACHE = 'baoma-static-v220';
 /* v90（第 129 次）：首屏降噪——对标 Cali 首屏设计（HomeWidgetSnapshot 无 reminder 字段，
    逾期只以 VaccineReminderPlan.pendingCount 计数存在）。疫苗逾期 / 儿保过参考时间 /
    发育观察期过期这三类「今天不可能完成」的陈旧待办，从三条整卡合并为一行「待补」汇总
@@ -87,6 +87,8 @@ var ASSETS = [
   'assets/hero/breast.webp',
   'assets/hero/bottle.webp',
   'assets/feed/night.webp',
+  'assets/feed/pump-night.webp',
+  'assets/hero/pump.webp',
   'assets/sleep/nursery.webp',
   'assets/hero/sleep.webp',
   'assets/hero/diaper.webp',
@@ -139,6 +141,7 @@ var ASSETS = [
   'js/modules/settings.js',
   'js/modules/feeding.js',
   'js/modules/feedtypes.js',
+  'js/modules/pump.js',
   'js/modules/diaper.js',
   'js/modules/meds.js',
   'js/modules/sleep.js',

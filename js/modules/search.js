@@ -65,7 +65,7 @@
     { key: 'babies',      title: '宝宝档案', go: 'settings',    icon: 'baby' }
   ];
 
-  var FEED_TYPE = { breast: '母乳', bottle: '奶瓶', formula: '奶粉', pump: '吸奶', solid: '辅食' };
+  var FEED_TYPE = { breast: '母乳', bottle: '奶瓶', formula: '奶粉', pump: '泵奶', solid: '辅食' };
   var DIAPER_TYPE = {
     pee: { t: '尿', x: '小便 尿' },
     poop: { t: '便', x: '大便 便' },

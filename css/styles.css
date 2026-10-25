@@ -5158,3 +5158,33 @@ body.dock-left .view:has(> .ft-page), body.dock-right .view:has(> .ft-page), bod
 .fd-mode img { width: 28px; height: 28px; object-fit: contain; }
 .fd-mode small { font-size: 11px; color: var(--muted); line-height: 1.1; }
 .fd-mode:active { transform: scale(.95); }
+
+/* 第 256 次：泵奶独立模块（奶油黄，对照 Cali） */
+[data-accent="pump"] { --tile: #F2DE6B; --tile-text: #6E5A00; --tile-weak: #FBF6DA; --tile-on: #332900; }
+body.dark [data-accent="pump"] { --tile: #EEDF75; --tile-text: #EEDF75; --tile-weak: rgba(238,223,117,.16); --tile-on: #2A2508; }
+.mod-hero[data-hero="pump"] .hero-art { width: 84px; height: 84px; }
+.mod-hero[data-hero="pump"] .hero-art img { width: 72px; height: 72px; }
+.ftf-pump { background: #0E0B08; }
+.ftf-pump .ftf-bg { background-image: url(../assets/feed/pump-night.webp); background-position: 72% top; }
+.ftf-pump .ftf-bg::after { background: linear-gradient(180deg, rgba(14,11,8,.1) 0%, rgba(14,11,8,.1) 40%, rgba(14,11,8,.85) 60%, #0E0B08 76%); }
+.ftf-pump.is-dim .ftf-bg { background-image: none; }
+.ftf-pump.is-dim .ftf-bg::after { background: #0E0B08; }
+.ftf-pump .ftf-chip .ico, .ftf-pump .ftf-side .ico { color: #F2DE6B; }
+.ftf-pump .ftf-st i .ico { color: rgba(255,255,255,.55); }
+.ftf-pump .ftf-chip i { background: #F2DE6B; }
+.ftf-pump .ftf-chip i.is-off { background: #888; }
+.ftf-pump .ftf-side.is-on { background: #F2DE6B; color: #2A2300; box-shadow: 0 0 28px rgba(242,222,107,.5); }
+.ftf-pump .ftf-side.is-on .ico { color: #2A2300; }
+.ftf-pump .ftf-main-btn { background: #F2DE6B; color: #2A2300; }
+.pf-st { border: none; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0; }
+.pf-st span em { font-style: normal; color: #F2DE6B; font-weight: 700; }
+.pf-ctl { grid-template-columns: 1fr 64px; }
+.pa-seg { margin-bottom: 4px; }
+.pa-btl { display: flex; justify-content: center; touch-action: none; }
+.pa-btl .ft-bottle { max-height: 220px; }
+.pa-val { margin: 0; text-align: center; color: var(--tile-text); }
+.pa-val b { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pa-val small { margin-left: 4px; font-size: 15px; color: var(--muted); }
+.pa-sum { text-align: center; }
+.pm-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0; }
+.pm-l { font-size: var(--fs-sm, 14px); color: var(--muted); }

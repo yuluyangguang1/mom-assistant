@@ -25,7 +25,9 @@
         { k: 'start', l: '时间', t: 'dt' },
         { k: 'durationL', l: '左侧（分钟）', t: 'num', min: 0, max: 120, step: 1, show: function (r) { return r.type === 'breast' || r.type === 'pump'; } },
         { k: 'durationR', l: '右侧（分钟）', t: 'num', min: 0, max: 120, step: 1, show: function (r) { return r.type === 'breast' || r.type === 'pump'; } },
-        { k: 'amount', l: '吸奶量（ml）', t: 'num', min: 0, max: 600, step: 5, show: function (r) { return r.type === 'pump'; } },
+        { k: 'amountL', l: '左侧奶量（ml）', t: 'num', min: 0, max: 300, step: 5, show: function (r) { return r.type === 'pump'; } },
+        { k: 'amountR', l: '右侧奶量（ml）', t: 'num', min: 0, max: 300, step: 5, show: function (r) { return r.type === 'pump'; } },
+        { k: 'amount', l: '泵奶总量（ml）', t: 'num', min: 0, max: 600, step: 5, show: function (r) { return r.type === 'pump' && !r.amountL && !r.amountR; } },
         { k: 'amountBm', l: '母乳（ml）', t: 'num', min: 0, max: 400, step: 5, show: function (r) { return r.type === 'bottle' || r.type === 'formula'; } },
         { k: 'amountFm', l: '配方奶（ml）', t: 'num', min: 0, max: 400, step: 5, show: function (r) { return r.type === 'bottle' || r.type === 'formula'; } },
         { k: 'dish', l: '菜名', t: 'text', max: 40, show: function (r) { return r.type === 'solid'; } },
@@ -41,6 +43,8 @@
           if (r.type === 'breast' && !L && !R && (r.secL || r.secR)) return null;
           r.side = (L && R) ? 'both' : (L ? 'left' : (R ? 'right' : null));
           if (r.type === 'breast' && !L && !R) return '请至少填一侧时长';
+          /* 第 256 次：泵奶分左右奶量时，总量 = 左 + 右 */
+          if (r.type === 'pump' && (r.amountL || r.amountR)) r.amount = (r.amountL || 0) + (r.amountR || 0);
         } else if (r.type === 'bottle' || r.type === 'formula') {
           var bm = r.amountBm || 0, fm = r.amountFm || 0;
           /* 老记录只有 amount：两项都没填时保留原 amount */

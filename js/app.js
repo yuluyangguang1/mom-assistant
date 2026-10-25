@@ -1255,7 +1255,7 @@
     var side = (last && last.side) || 'left';
     var dur = (last && last.durationMin) || (t === 'breast' ? 15 : null);
     var amt = (last && last.amount) || (t !== 'breast' && t !== 'pump' ? 120 : null);
-    var name = { breast: '母乳', bottle: '奶瓶', formula: '奶粉', pump: '吸奶', solid: '辅食'}[t] || '母乳';
+    var name = { breast: '母乳', bottle: '奶瓶', formula: '奶粉', pump: '泵奶', solid: '辅食'}[t] || '母乳';
     var sideT = side === 'right' ? '右侧' : (side === 'both' ? '双侧' : '左侧');
 
     /* 瓶喂沿用上次的母乳/配方奶配比；上次只有合计（旧数据或他从别处导入）时，

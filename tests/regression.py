@@ -447,7 +447,7 @@ def test_feeding_sheet(b):
     check('喂养：亲喂模式 ⊕ 打开补记亲喂', '亲喂' in ev("(document.querySelector('#ftsTitle')||{}).textContent"))
     p.keyboard.press('Escape'); p.wait_for_timeout(200)
     p.reload(); p.wait_for_timeout(600); ev("App.showTab('feeding')"); p.wait_for_timeout(300)
-    check('喂养：刷新后模式仍在', ev("document.querySelector('[data-fstart]').dataset.fstart") == 'breast')
+    check('喂养：刷新后模式仍在', ev("document.querySelector('[data-fstart]').dataset.fstart") == 'breast' and ev("Storage.get().feedMode") == 'breast')
     ev("App.showTab('alltools')"); p.wait_for_timeout(300)
     check('全部功能：不再单列亲喂、瓶喂', not ev("/亲喂|瓶喂/.test(document.querySelector('#view').textContent)"))
 
@@ -535,10 +535,53 @@ def test_feeding_sheet(b):
     p.close()
 
 
+def test_pump(b):
+    """第 256 次：泵奶独立模块——全屏计时左右分开、结束时左右分别记奶量。"""
+    p, errs = fresh(b)
+    ev = p.evaluate
+    ev("App.showTab('pump')"); p.wait_for_timeout(300)
+    check('泵奶：独立页，底部开始泵奶 + ⊕', ev("App.currentTab()") == 'pump' and ev("!!document.querySelector('.mod-cta [data-pstart]') && !!document.querySelector('.mod-cta [data-padd]')"))
+    p.click('[data-pstart]'); p.wait_for_timeout(400)
+    check('泵奶：开始后进全屏、默认双侧', ev("!!document.querySelector('.ftf-pump') && Storage.get().pumpTimer.L && Storage.get().pumpTimer.R") and '双侧' in ev("document.querySelector('.ftf-chip').textContent"))
+    ev("(()=>{const t=Storage.get().pumpTimer;const z=n=>String(n).padStart(2,'0');const d=new Date(Date.now()-60000);const s=d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate())+'T'+z(d.getHours())+':'+z(d.getMinutes())+':'+z(d.getSeconds());t.start=s;t.since=s;Storage.save()})()")
+    p.click('.ftf [data-p="R"]'); p.wait_for_timeout(200)
+    st = ev("Storage.get().pumpTimer")
+    check('泵奶：关掉右侧，已泵时间结算到两侧', st['R'] is False and st['accL'] >= 59000 and st['accR'] >= 59000, st)
+    check('泵奶：只剩左侧', '左侧泵奶中' in ev("document.querySelector('.ftf-chip').textContent"))
+    p.click('.ftf [data-p="L"]'); p.wait_for_timeout(200)
+    check('泵奶：两侧都关 = 暂停', '已暂停' in ev("document.querySelector('.ftf-chip').textContent"))
+    p.click('.ftf [data-p="pause"]'); p.wait_for_timeout(200)
+    check('泵奶：继续时两侧重新打开', ev("Storage.get().pumpTimer.L && Storage.get().pumpTimer.R && !Storage.get().pumpTimer.paused"))
+    p.reload(); p.wait_for_timeout(600)
+    check('泵奶：刷新后计时还在', ev("!!Storage.get().pumpTimer && Storage.get().pumpTimer.accL >= 59000"))
+    ev("App.showTab('pump')"); p.wait_for_timeout(300)
+    check('泵奶：页面底部变迷你计时条', ev("!!document.querySelector('.ft-mini [data-pm=open]')"))
+    p.click('[data-pm="open"]'); p.wait_for_timeout(300)
+    p.click('.ftf [data-p="stop"]'); p.wait_for_timeout(300)
+    check('泵奶：结束弹出左右奶量面板', ev("(document.querySelector('#ftsTitle')||{}).textContent") == '结束泵奶')
+    ev("(()=>{})()")
+    for side, frac in (('L', 0.6), ('R', 0.75)):
+        p.click(f'[data-ps="{side}"]'); p.wait_for_timeout(100)
+        bb = p.query_selector('[data-pbtl] svg').bounding_box()
+        p.mouse.click(bb['x'] + bb['width'] / 2, bb['y'] + bb['height'] * frac); p.wait_for_timeout(100)
+    p.click('[data-psave]'); p.wait_for_timeout(400)
+    r = ev("Storage.get().feedings.filter(x=>x.type==='pump').slice(-1)[0]")
+    check('泵奶：保存左右时间和左右奶量', r and r['amountL'] > 0 and r['amountR'] > 0 and r['amount'] == r['amountL'] + r['amountR'] and r['secL'] >= 59 and r['side'] == 'both' and not ev("Storage.get().pumpTimer"), r)
+    check('泵奶：记录出现在泵奶时间轴', ev("!!document.querySelector('.tl-f-pump')"))
+    ev("App.showTab('feeding')"); p.wait_for_timeout(300)
+    check('喂养：最近记录不再列泵奶', not ev("!!document.querySelector('.tl-f-pump')"))
+    ev("App.showTab('alltools')"); p.wait_for_timeout(300)
+    check('全部功能：有泵奶入口', ev("/泵奶/.test(document.querySelector('#view').textContent)"))
+    ev("Storage.importJSON(JSON.stringify(Object.assign({},Storage.get(),{pumpTimer:{start:'2026-10-01T10:00:00',L:'yes',accL:-5,mlL:9999}})))")
+    check('导入：坏的泵奶计时被清洗', ev("(t=>t.L===false && t.accL===0 && t.mlL===null)(Storage.get().pumpTimer)"))
+    check('泵奶无报错', not errs, errs)
+    p.close()
+
+
 def main():
     with sync_playwright() as pw:
         b = pw.chromium.launch()
-        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_dash, test_diaper_sheet, test_diaper_stock, test_diaper_photos, test_feeding_sheet, test_css_rules, test_layout_and_toast):
+        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_dash, test_diaper_sheet, test_diaper_stock, test_diaper_photos, test_feeding_sheet, test_pump, test_css_rules, test_layout_and_toast):
             try:
                 fn(b)
             except Exception as e:  # 一组崩了不影响其他组

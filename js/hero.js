@@ -203,6 +203,12 @@
       if (el > 280) return { status: '已过预产期 ' + (el - 280) + ' 天', ring: 1 }; /* 第 193 次：不再显示「孕 43 周」 */
       return { status: '孕 ' + Math.floor(el / 7) + ' 周 ' + (el % 7) + ' 天', ring: Math.min(1, el / 280) };
     },
+    pump: function (d) {
+      var t = d.pumpTimer;
+      if (t && t.start) return { status: (t.paused || !(t.L || t.R)) ? '泵奶已暂停' : '正在泵奶', state: 'live' };
+      var r = lastOf((d.feedings || []).filter(function (x) { return x && x.type === 'pump'; }), 'start');
+      return { status: r ? '上次 ' + Util.fmtAgo(r.start) + (r.amount ? ' · ' + r.amount + ' mL' : '') : '还没有泵奶记录' };
+    },
     whitenoise: function (d) {
       var w = d.whitenoise || {};
       var on = w.playing && (!w.until || w.until > Date.now());

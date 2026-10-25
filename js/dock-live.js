@@ -58,6 +58,13 @@
         state: s0.paused ? 'paused' : 'on',
         acts: [{ k: 'breast-pp', ico: s0.paused ? 'play' : 'pause', label: s0.paused ? '继续' : '暂停' }] });
     }
+    if (d.pumpTimer && d.pumpTimer.start && M.pump && M.pump._state) {
+      var pt = d.pumpTimer, prun = !pt.paused && (pt.L || pt.R);
+      out.push({ k: 'pump', go: 'pump', ico: 'pump', label: prun ? ((pt.L && pt.R) ? '双侧泵奶' : (pt.L ? '泵奶 · 左侧' : '泵奶 · 右侧')) : '泵奶 · 暂停',
+        val: function () { var t = Storage.get().pumpTimer; return t ? clock(M.pump._state(t, Date.now()).T) : ''; },
+        state: prun ? 'on' : 'paused',
+        acts: [{ k: 'pump-pp', ico: prun ? 'pause' : 'play', label: prun ? '暂停' : '继续' }] });
+    }
     if (d.bottleTimer && d.bottleTimer.start) {
       out.push({ k: 'bottle', go: 'bottle', ico: 'feeding', label: '瓶喂中',
         val: function () { var t = Storage.get().bottleTimer; return t ? clock(Date.now() - ms(t.start)) : ''; }, state: 'on', acts: [] });
@@ -97,6 +104,8 @@
       Util.toast('哄睡声音已停止', 'ok');
     } else if (k === 'breast-pp') {
       if (M.breast._act) M.breast._act('pause');
+    } else if (k === 'pump-pp') {
+      if (M.pump && M.pump._act) M.pump._act('pause');
     } else if (k === 'sleep-end') {
       var os = d.openSleep;
       if (!os || !os.start) return;
@@ -112,6 +121,7 @@
     if (r.k === 'whitenoise' && M.whitenoise) M.whitenoise._open = true;
     if (global.App) App.showTab(r.go);
     if (r.k === 'breast' && M.breast && M.breast._openFull) setTimeout(function () { M.breast._openFull(); }, 0);
+    if (r.k === 'pump' && M.pump && M.pump._openFull) setTimeout(function () { M.pump._openFull(); }, 0);
     if (r.k === 'sleep' && M.sleep && M.sleep._openFull) setTimeout(function () { M.sleep._openFull(); }, 0);
   }
 

@@ -14,7 +14,7 @@
     { v: 'breast', t: '母乳' },
     { v: 'bottle', t: '奶瓶' },
     { v: 'formula', t: '奶粉' },
-    { v: 'pump', t: '吸奶' },
+    { v: 'pump', t: '泵奶' },
     { v: 'solid', t: '辅食' }
   ];
 
@@ -225,7 +225,7 @@
     var stashedIds = {};
     all.forEach(function (x) { if (x.fromId) stashedIds[x.fromId] = 1; });
     if (lastPump && !stashedIds[lastPump.id]) {
-      h += '<div class="row stash-quick"><button type="button" class="btn" data-stash-from="' + Util.escapeHtml(String(lastPump.id)) + '" data-place="fridge">把最近一次吸奶 ' + lastPump.amount + ' ml 存冷藏</button>'
+      h += '<div class="row stash-quick"><button type="button" class="btn" data-stash-from="' + Util.escapeHtml(String(lastPump.id)) + '" data-place="fridge">把最近一次泵奶 ' + lastPump.amount + ' ml 存冷藏</button>'
         + '<button type="button" class="btn" data-stash-from="' + Util.escapeHtml(String(lastPump.id)) + '" data-place="freezer">存冷冻</button></div>';
     }
     h += '<details class="stash-add"><summary>手动存一份</summary>'
@@ -572,7 +572,7 @@
 
       html += stashCard(d, sorted);
 
-      var list = d.feedings.filter(function (r) { return r && !isNaN(new Date(r.start).getTime()); })
+      var list = d.feedings.filter(function (r) { return r && r.type !== 'pump' && !isNaN(new Date(r.start).getTime()); }) /* 第 256 次：泵奶记录在泵奶页看 */
         .sort(function (a, b) { return new Date(b.start) - new Date(a.start); }).slice(0, 30);
       var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
       if (list.length) {

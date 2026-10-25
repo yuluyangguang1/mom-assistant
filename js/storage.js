@@ -48,7 +48,7 @@
      feeding.js 注释写着「跨刷新保留」，但它既不在 defaultData 也不在 OBJECT_KEYS，
      sanitize() 只拷白名单键 → 刷新一次就被丢掉，计时凭空消失。
      补进两处（默认 null + 白名单）才真正兑现那句注释。 */
-  var OBJECT_KEYS = ['pregnancy', 'prenatal', 'packing', 'finance', 'vaccines', 'checkups', 'metrics', 'feedingTimer', 'bottleTimer',
+  var OBJECT_KEYS = ['pregnancy', 'prenatal', 'packing', 'finance', 'vaccines', 'checkups', 'metrics', 'feedingTimer', 'bottleTimer', 'pumpTimer',
     /* 第 138 次：照料类会话式记录——洗澡/游泳/日晒共用同一个「进行中」槽位。
        之所以合成一个键而不是三个：宝宝不可能同时在洗澡和晒太阳，一个槽位足够，
        也避免三个键要有三套开始/结束/取消逻辑（care.js 单一来源）。 */
@@ -58,7 +58,7 @@
      这些键属于「某一个宝宝」，其余（经期/孕期/宫缩/胎动/情绪/记账/待产包/囤货/白噪音/埋点）属于妈妈或全家。
      存储形态：当前宝宝的数据仍放在顶层（所有模块零改动照常读写），
      其他宝宝的数据收在各自档案的 rec 里；switchBaby 时整组换入换出。 */
-  var BABY_KEYS = ['feedings', 'sleeps', 'openSleep', 'feedingTimer', 'bottleTimer', 'openCare', 'growth', 'diapers', 'meds',
+  var BABY_KEYS = ['feedings', 'sleeps', 'openSleep', 'feedingTimer', 'bottleTimer', 'pumpTimer', 'openCare', 'growth', 'diapers', 'meds',
     'milestones', 'milestoneObs', 'temps', 'baths', 'swims', 'suns', 'waters', 'jaundices',
     'supplements', 'supplementPlans', 'vaccines', 'checkups'];
 
@@ -218,6 +218,10 @@
       feedingTimer: null,
       /* 第 231 次：瓶喂进行中 { start, src: 'bm'|'fm', amount } */
       bottleTimer: null,
+      /* 第 256 次：泵奶进行中 { start, since, L, R, accL, accR, accT, paused, mlL, mlR } */
+      pumpTimer: null,
+      /* 第 255 次：喂养页底部当前是亲喂还是瓶喂 'breast' | 'bottle' | null */
+      feedMode: null,
       /* 第 138 次：照料会话进行中：{ kind: 'bath'|'swim'|'sun', start } */
       openCare: null,
       contractions: [],
@@ -537,6 +541,22 @@
     } else {
       base.bottleTimer = null;
     }
+    /* 第 256 次：泵奶进行中，逐字段重判 */
+    var rpt = raw.pumpTimer;
+    if (rpt && typeof rpt === 'object' && !isNaN(new Date(rpt.start).getTime())) {
+      var okT = function (v) { return v && !isNaN(new Date(v).getTime()) ? String(v).slice(0, 19) : null; };
+      base.pumpTimer = { start: String(rpt.start).slice(0, 19), since: okT(rpt.since) || String(rpt.start).slice(0, 19), L: rpt.L === true, R: rpt.R === true };
+      ['accL', 'accR', 'accT'].forEach(function (k) {
+        base.pumpTimer[k] = (typeof rpt[k] === 'number' && isFinite(rpt[k]) && rpt[k] >= 0 && rpt[k] < 864e5) ? rpt[k] : 0;
+      });
+      ['mlL', 'mlR'].forEach(function (k) {
+        var v = Number(rpt[k]); base.pumpTimer[k] = (isFinite(v) && v > 0 && v <= 600) ? Math.round(v) : null;
+      });
+      if (rpt.paused === true) base.pumpTimer.paused = true;
+    } else {
+      base.pumpTimer = null;
+    }
+    base.feedMode = (raw.feedMode === 'breast' || raw.feedMode === 'bottle') ? raw.feedMode : null;
     /* 第 80 次（宝宝档案）逐条清洗：id/name/photo/birthDate 形状合法才保留。
        photo 是 dataURL（pickPhoto 已在本机压到 288px），上限 30 万字符兜底防超配额；
        birthDate 只收 YYYY-MM-DD 形状。 */
