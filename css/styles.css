@@ -4727,6 +4727,11 @@ body .tabbar.lg::after {
 }
 body .tabbar.lg > * { position: relative; z-index: 1; }
 body .tabbar.lg.lg-press { scale: .975; }
+/* 第 243 次：真正的「点 dock 往左缩」根因——CSS 的 scale 属性先于 transform 生效，
+   缩放原点是盒子中心，但盒子又被 translateX(-50%) 挪走半宽，结果右缘不动、左缘缩进 ~6px。
+   把缩放原点放到盒子左缘中点（translate 之后它正好落在 dock 中心），按下就两边对称收。
+   左右手竖排时 transform 为 none，原点保持默认中心。 */
+body:not(.dock-left):not(.dock-right) .tabbar.lg { transform-origin: 0 50%; }
 
 body.dark .tabbar.lg {
   --lg-tint: color-mix(in srgb, var(--surface) 46%, transparent);
