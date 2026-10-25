@@ -179,7 +179,9 @@
       var h = '<div class="rs-head"><button type="button" class="rs-x" data-x aria-label="关闭">' + icon('close') + '</button>'
         + '<h2 id="dpsTitle">' + (editing ? '修改尿布记录' : '记录尿布') + '</h2>'
         + '<button type="button" class="rs-ok" data-ok aria-label="保存">' + icon('check') + '</button></div>';
-      h += '<div class="rs-when">'
+      /* 第 242 次：日期 / 时间磁贴与亲喂、瓶喂、睡眠面板统一（「今天」「14:46」，不露系统输入框样式） */
+      h += global.FTUI ? global.FTUI.whenTiles('dps', '', date0, hm0, today).replace('<p class="rs-lbl"></p>', '')
+        : '<div class="rs-when">'
         + '<label class="rs-tile"><span>日期</span><input type="date" id="dpsDate" value="' + date0 + '" max="' + today + '"></label>'
         + '<label class="rs-tile"><span>时间</span><input type="time" id="dpsTime" value="' + hm0 + '"></label></div>';
       h += '<p class="rs-lbl">类型</p><div class="dp-types" role="radiogroup" aria-label="类型">';
@@ -267,6 +269,7 @@
       var di = box.querySelector('#dpsDate'), ti = box.querySelector('#dpsTime');
       if (di) date0 = di.value || date0; if (ti) hm0 = ti.value || hm0;
       box.innerHTML = body();
+      if (global.FTUI) global.FTUI.bindWhen(box);
       if (PH) PH.hydrate(box);
     }
     paint();
@@ -429,21 +432,17 @@
         html += '<ul class="tl">';
         all.slice(0, 30).forEach(function (r) {
           var k = Util.dayKeyOf(r.time, DS);
-          if (k !== lastKey) {
-            lastKey = k;
-            var lab = k === dayNow ? '今天' : (k === Util.addDays(dayNow, -1) ? '昨天' : Util.fmtDate(k));
-            html += '<li class="tl-day">' + Util.escapeHtml(lab) + '</li>';
-          }
+          void k; void lastKey; /* 第 242 次：不再插日期分组行，日期写在时间上方（与亲喂 / 瓶喂 / 睡眠同款） */
           var dt = new Date(r.time);
           var hm = isNaN(dt.getTime()) ? '' : pad2(dt.getHours()) + ':' + pad2(dt.getMinutes());
           var sub = subOf(r);
           var phs = global.Photos ? Photos.clean(r.photos) : [];
-          html += '<li class="tl-row tl-' + r.type + '"><span class="tl-time">' + hm + '</span><span class="tl-dot" aria-hidden="true"></span>'
+          html += '<li class="tl-row tl-' + r.type + '"><span class="tl-time ft-tlt"><small>' + (isNaN(dt.getTime()) ? '' : (dt.getMonth() + 1) + '/' + dt.getDate()) + '</small>' + hm + '</span><span class="tl-dot" aria-hidden="true"></span>'
             + '<button type="button" class="tl-card" data-open="' + r.id + '" aria-label="' + hm + ' ' + TYPE_LONG[r.type] + '，点按修改">'
             + '<span class="tl-ico">' + miniIco(r) + '</span><span class="tl-txt"><b>' + (TYPE_LONG[r.type] || '尿布') + '</b>'
             + (sub ? '<small>' + sub + '</small>' : '') + '</span>'
             + (phs.length ? '<span class="tl-ph"><img data-phid="' + phs[0] + '" alt="">' + (phs.length > 1 ? '<i>' + phs.length + '</i>' : '') + '</span>' : '')
-            + '<span class="tl-more" aria-hidden="true">' + icon('chevron-right') + '</span></button>'
+            + '<span class="tl-more" aria-hidden="true">' + (global.FTUI ? global.FTUI.SV.more : icon('chevron-right')) + '</span></button>'
             + '<button type="button" class="tl-del" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
         });
         html += '</ul></section>';

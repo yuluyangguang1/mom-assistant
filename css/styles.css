@@ -4352,8 +4352,8 @@ body.dark .dc-dot { box-shadow: 0 0 0 2px rgba(0,0,0,.4); }
    ============================================================ */
 .ms-k { margin: 0 0 6px; font-size: var(--fs-xs, 12px); color: var(--muted); letter-spacing: .5px; }
 .mod-sum { margin: 0 2px 14px; }
-.mod-sum > p:not(.ms-ref) { margin: 0; font-size: calc(19px * var(--fs-mul, 1)); line-height: 1.55; color: var(--text); font-weight: 500; overflow-wrap: anywhere; }
-.mod-sum b { font-weight: 800; color: var(--tile-text, var(--text)); }
+.mod-sum > p:not(.ms-ref) { margin: 0; font-size: calc(21px * var(--fs-mul, 1)); line-height: 1.55; color: var(--muted); font-weight: 500; overflow-wrap: anywhere; }
+.mod-sum b { font-weight: 800; color: var(--text); white-space: nowrap; } /* 第 242 次：各模块摘要统一成「灰字 + 加粗白字」（照参考截图） */
 .ms-ref { margin: 8px 0 0; font-size: var(--fs-sm, 14px); color: var(--muted); line-height: 1.6; }
 .dc-dot.dt-pee { background: #7FA5C8; }
 .dc-dot.dt-poop { background: #A9713F; }
@@ -4363,8 +4363,6 @@ body.dark .dc-dot { box-shadow: 0 0 0 2px rgba(0,0,0,.4); }
 
 .mod-tl { margin: 4px 2px 0; }
 .tl { list-style: none; margin: 0; padding: 0; position: relative; }
-.tl-day { margin: 14px 0 6px 60px; font-size: var(--fs-xs, 12px); color: var(--muted); font-weight: 600; }
-.tl-day:first-child { margin-top: 2px; }
 .tl-row { position: relative; display: flex; align-items: center; gap: 0; min-height: 60px; }
 .tl-row::before { content: ''; position: absolute; left: 51px; top: 0; bottom: 0; width: 2px; background: color-mix(in srgb, var(--tile, #A6832B) 22%, transparent); }
 .tl-time { width: 44px; flex-shrink: 0; font-size: var(--fs-sm, 14px); font-variant-numeric: tabular-nums; color: var(--muted); text-align: left; }
@@ -4529,8 +4527,6 @@ body.dark [data-accent="bottle"] { --tile: #EBD866; --tile-text: #EBD866; --tile
 .mod-hero[data-hero="breast"] .hero-art, .mod-hero[data-hero="bottle"] .hero-art { width: 84px; height: 84px; }
 .mod-hero[data-hero="breast"] .hero-art img, .mod-hero[data-hero="bottle"] .hero-art img { width: 72px; height: 72px; }
 
-.ft-page .ft-sum > p:not(.ms-ref) { font-size: calc(21px * var(--fs-mul, 1)); color: var(--muted); }
-.ft-page .ft-sum b { color: var(--text); white-space: nowrap; }
 .ft-k { margin-top: 4px; }
 .ft-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
 .ft-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border: none; border-radius: var(--radius-pill); background: var(--surface); color: var(--text); font: inherit; font-size: var(--fs-sm, 14px); font-weight: 600; cursor: pointer; box-shadow: 0 6px 16px -12px rgba(51,48,43,.35); }

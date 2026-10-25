@@ -813,6 +813,6 @@
     _quick: quickAmounts
   };
   /* 第 241 次：睡眠页复用同一套面板 / 时间磁贴 / 洞察小按钮 */
-  global.FTUI = { SV: SV, openSheet: openSheet, whenTiles: whenTiles, readWhen: readWhen, setWhen: setWhen,
+  global.FTUI = { SV: SV, openSheet: openSheet, whenTiles: whenTiles, readWhen: readWhen, setWhen: setWhen, bindWhen: bindWhen,
     dayLabel: dayLabel, hm: hm, loc: loc, isoDay: isoDay, ms: ms, fmtMin: fmtMin, insightChips: insightChips, bindChips: bindChips };
 })(window);

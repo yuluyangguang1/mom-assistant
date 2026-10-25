@@ -589,10 +589,7 @@
         var lastKey = null;
         list.forEach(function (r) {
           var dk = Util.dayKeyOf(r.start, DS);
-          if (dk !== lastKey) {
-            lastKey = dk;
-            html += '<li class="tl-day">' + Util.escapeHtml(dk === dayNow ? '今天' : (dk === Util.addDays(dayNow, -1) ? '昨天' : Util.fmtDate(dk))) + '</li>';
-          }
+          void dk; void lastKey; /* 第 242 次：日期写在时间上方，不再插分组行 */
           var typeName = (TYPES.filter(function (t) { return t.v === r.type; })[0] || {}).t || r.type;
           var detail = (r.type === 'breast')
             ? (r.durationMin ? r.durationMin + ' 分' : '')
@@ -651,11 +648,11 @@
             var dt = new Date(r.start), hm = p2(dt.getHours()) + ':' + p2(dt.getMinutes());
             /* 行类名供 CSS 死类名检查识别：'tl-f-breast' 'tl-f-bottle' 'tl-f-formula' 'tl-f-pump' 'tl-f-solid' 'tl-f-other' */
             var tcls = TYPES.some(function (t) { return t.v === r.type; }) ? r.type : 'other';
-            html += '<li class="tl-row tl-f-' + tcls + '"><span class="tl-time">' + hm + '</span><span class="tl-dot" aria-hidden="true"></span>'
+            html += '<li class="tl-row tl-f-' + tcls + '"><span class="tl-time ft-tlt"><small>' + (dt.getMonth() + 1) + '/' + dt.getDate() + '</small>' + hm + '</span><span class="tl-dot" aria-hidden="true"></span>'
               + '<button type="button" class="tl-card" data-open="' + r.id + '" aria-label="' + hm + ' ' + Util.escapeHtml(typeName) + '，点按修改">'
               + '<span class="tl-ico">' + icon(TYPES.some(function (t) { return t.v === r.type; }) ? r.type : 'feeding') + '</span>'
               + '<span class="tl-txt"><b>' + Util.escapeHtml(typeName) + '</b>' + (sub ? '<small>' + sub + '</small>' : '') + solidBadges + '</span>'
-              + '<span class="tl-more" aria-hidden="true">' + icon('chevron-right') + '</span></button>'
+              + '<span class="tl-more" aria-hidden="true">' + (global.FTUI ? global.FTUI.SV.more : icon('chevron-right')) + '</span></button>'
               + '<button type="button" class="tl-del" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
         });
         html += '</ul></section>';
