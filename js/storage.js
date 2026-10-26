@@ -293,6 +293,53 @@
     return o;
   }
 
+  /* 第 281 次（真机 bug 的善后）：第 280 次新向导点一次保存会存出两条一模一样的营养品计划。
+     启动时合并：同名、同剂型、同频率（含星期 / 间隔）、同服用时间与用量、创建时刻相差 5 秒内，且没有服用记录（planId）的重复计划，
+     只留一条；有记录的一条不动。只看 v2 计划（有 times 的；旧版计划没有这个 bug）。创建时刻取 createdAt，没有就取 id 前 8 位里的时间戳。
+     删掉的那条若开着本机提醒（localStorage 独立键），并到留下的那条上。返回删掉的条数。 */
+  var SUP_REMIND_KEY = 'yiya-sup-remind';
+  function supBorn(p) {
+    if (typeof p.createdAt === 'number' && isFinite(p.createdAt)) return p.createdAt;
+    var m = /^([0-9a-z]{8})[0-9a-z]+$/.exec(String(p.id || ''));
+    var t = m ? parseInt(m[1], 36) : NaN;
+    return (t > 1.5e12 && t < 4.2e12) ? t : NaN;
+  }
+  function supSig(p) {
+    if (!p || !p.name || !Array.isArray(p.times) || !p.times.length) return null;
+    var times = p.times.filter(function (x) { return x && typeof x.t === 'string'; }).map(function (x) { return x.t + '*' + x.n; }).sort();
+    if (!times.length) return null;
+    var days = Array.isArray(p.days) ? p.days.slice().sort().join(',') : '';
+    return [String(p.name).trim(), p.form || '', p.freq || 'daily', p.freq === 'weekly' ? days : '', p.freq === 'interval' ? String(p.every) : '', times.join('|'), p.active === false ? 0 : 1].join('\u0001');
+  }
+  function dedupeSupPlans(plans, recs, rmap) {
+    if (!Array.isArray(plans) || plans.length < 2) return 0;
+    var used = {};
+    (Array.isArray(recs) ? recs : []).forEach(function (r) { if (r && r.planId) used[r.planId] = 1; });
+    var groups = {}, drop = {};
+    plans.forEach(function (p) { var k = supSig(p); if (k && isFinite(supBorn(p))) (groups[k] = groups[k] || []).push(p); });
+    Object.keys(groups).forEach(function (k) {
+      var g = groups[k].slice().sort(function (a, b) { return supBorn(a) - supBorn(b); });
+      /* 按时间连成簇：相邻两条相差 ≤ 5 秒算同一次误存 */
+      var cl = [], cur = [];
+      g.forEach(function (p) { if (cur.length && supBorn(p) - supBorn(cur[0]) > 5000) { cl.push(cur); cur = []; } cur.push(p); });
+      if (cur.length) cl.push(cur);
+      cl.forEach(function (c) {
+        if (c.length < 2) return;
+        var withRec = c.filter(function (p) { return used[p.id]; });
+        var keep = withRec.length ? withRec[0] : c[0];
+        c.forEach(function (p) {
+          if (p === keep || used[p.id]) return;
+          drop[p.id] = 1;
+          if (rmap && rmap[p.id] === 1 && rmap[keep.id] !== 0) rmap[keep.id] = 1;
+          if (rmap) delete rmap[p.id];
+        });
+      });
+    });
+    var n = 0;
+    for (var i = plans.length - 1; i >= 0; i--) if (plans[i] && drop[plans[i].id]) { plans.splice(i, 1); n++; }
+    return n;
+  }
+
   function sanitize(raw) {
     var base = defaultData();
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base;
@@ -632,6 +679,7 @@
       try {
         this.data = sanitize(JSON.parse(raw));
         this.migrate();
+        this._supDedupe();
       } catch (e) {
         /* 损坏自愈：备份原文，再回退默认值。用户数据不静默丢失。 */
         try { localStorage.setItem(CORRUPT_BACKUP_KEY, raw); } catch (e2) {}
@@ -661,6 +709,23 @@
     },
 
     get: function () { return this.data; },
+
+    /* 第 281 次：合并误存成多份的营养品计划（当前宝宝 + 其他宝宝档案里的），有合并就落盘一次 */
+    _supDedupe: function () {
+      var d = this.data, n = 0, rmap = null;
+      try { rmap = JSON.parse(localStorage.getItem(SUP_REMIND_KEY) || '{}'); } catch (e) { rmap = null; }
+      if (!rmap || typeof rmap !== 'object' || Array.isArray(rmap)) rmap = {};
+      try {
+        n += dedupeSupPlans(d.supplementPlans, d.supplements, rmap);
+        (d.babies || []).forEach(function (b) { if (b && b.rec) n += dedupeSupPlans(b.rec.supplementPlans, b.rec.supplements, rmap); });
+      } catch (e) { return 0; }
+      if (n) {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch (e) { /* 存不下就下次再合并 */ }
+        try { localStorage.setItem(SUP_REMIND_KEY, JSON.stringify(rmap)); } catch (e) {}
+      }
+      return n;
+    },
+    _dedupeSupPlans: dedupeSupPlans,
 
     /* ============================================================
        第 80 次（宝宝档案）：多宝宝支持 API。

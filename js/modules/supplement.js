@@ -262,6 +262,12 @@
 
   /* ---------- 页面状态 ---------- */
   var selDay = null; /* 选中的日期（null = 今天） */
+  /* 第 281 次：营养品面板关掉后的 450ms 内，页面上的按钮不响应（快速双击 ✓ / 保存 / 删除，第二下不会穿到页面上的卡片）；
+     记录服用按「计划 + 第几个时间 + 日期」700ms 内只认一次（快速双击不会记了又撤销） */
+  /* 这些时间窗只拦手指（isTrusted）的连点；脚本派发的 click（键盘快捷、测试）不受影响。回声点击另由 Util.hapEcho 拦 */
+  var pageQuiet = 0, takeLock = {};
+  function human(e) { return !!(e && e.isTrusted); }
+  function lockTake(key) { var t = Date.now(); if (takeLock[key] && t - takeLock[key] < 700) return false; takeLock[key] = t; return true; }
   function md(k) { return Number(k.slice(0, 4)) + '年' + Number(k.slice(5, 7)) + '月' + Number(k.slice(8, 10)) + '日'; }
 
   /* ============================================================
@@ -295,6 +301,9 @@
       times: [{ t: '08:00', n: 1 }], start: today, endOn: false, end: '', meal: '', remind: false, stockId: '', stockN: 1, note: ''
     };
     var step = 0, view = 'step', q = '';
+    /* 第 281 次：新建时 id 在打开向导时就定下（保存按 id 幂等：已在清单里就改那一条，不再 push 第二条）；saving = 提交中 */
+    var newId = editing ? null : Util.uid(), saving = false, dead = false;
+    var quietUntil = 0, shownAt = 0; /* 子页切回 / 确认页刚出现时，短时间内的第二下点击不算（快速双击不会穿到新画出来的按钮上） */
     var stage = (d.settings && d.settings.stage) === 'pregnancy' ? 'mom' : 'baby';
 
     F.openSheet('supplement', editing ? '编辑营养品' : '添加营养品', '<div class="spw-wrap" data-spw></div>', function (api) {
@@ -326,6 +335,7 @@
         Array.prototype.forEach.call(prog.children, function (x, i) { x.classList.toggle('on', i <= step); });
         prog.hidden = view !== 'step';
         bindWhen();
+        shownAt = Date.now();
         if (panel && panel.scrollTo) { try { panel.scrollTop = 0; } catch (e) { /* 旧内核 */ } }
       }
       function heroHTML() {
@@ -504,25 +514,50 @@
           var n2 = wrap.querySelector('#spwQ'); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) { /* type=search 不支持时忽略 */ } }
         });
       }
+      /* 同名：启用中的 → 'on'；只有停用的同名（新建时）→ 那一条（给「重新启用」）；没有 → null。口径同第 278 次（同名不能同时启用） */
       function dupName(nm) {
         nm = String(nm || '').trim();
-        return (d.supplementPlans || []).some(function (p) { return p && p !== plan && p.active !== false && String(p.name).trim() === nm; });
+        var all = (Storage.get().supplementPlans || []).filter(function (p) { return p && p !== plan && p.id !== newId && String(p.name || '').trim() === nm; });
+        if (all.some(function (p) { return p.active !== false; })) return 'on';
+        return (!editing && all.length) ? all[0] : null;
+      }
+      function nameBlocked() {
+        var hit = dupName(st.name);
+        if (!hit) return false;
+        if (step !== 0) { step = 0; view = 'step'; paint(); }
+        var ni = wrap.querySelector('#spwName');
+        if (hit === 'on') { Util.markInvalid(ni, '「' + st.name + '」已经在清单里了，换个名字区分'); return true; }
+        Util.markInvalid(ni, '「' + st.name + '」停用过，可以把那一条重新启用');
+        Util.toast('「' + hit.name + '」已停用', 'warn', { label: '重新启用', onClick: function () {
+          var dd = Storage.get(), tp = (dd.supplementPlans || []).filter(function (x) { return x.id === hit.id; })[0];
+          if (!tp) return;
+          if (!dead) api.close();
+          if (tp.active === false) toggle(dd, tp); else if (global.App) App.rerender();
+        } });
+        return true;
       }
       function check() {
         if (step === 0) {
           st.name = (st.name || '').trim().slice(0, 16);
           if (!st.name) { var ni = wrap.querySelector('#spwName'); Util.markInvalid(ni, '填一下名称，或从常用预设里选'); return false; }
-          if (dupName(st.name)) { Util.markInvalid(wrap.querySelector('#spwName'), '「' + st.name + '」已经在清单里了，换个名字区分'); return false; }
+          if (nameBlocked()) return false;
           if (!st.form) { Util.toast('选一下剂型', 'warn'); var g = wrap.querySelector('.spw-forms'); if (g) { g.classList.remove('shake'); void g.offsetWidth; g.classList.add('shake'); } return false; }
         }
         if (step === 2 && st.endOn && !st.end) { Util.toast('选一下结束日期，或关掉「设置结束日期」', 'warn'); return false; }
         if (step === 3 && st.freq === 'weekly' && !st.days.length) { Util.toast('至少选一天', 'warn'); return false; }
         return true;
       }
-      function save() {
+      function save(btn) {
+        if (saving || dead) return;
+        st.name = (st.name || '').trim().slice(0, 16);
+        if (nameBlocked()) return; /* 第 281 次：保存时再查一遍同名（打开向导后别处 / 别的宝宝切换回来可能已加了同名） */
+        saving = true;
+        if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
         var dd = Storage.get();
         var times = st.times.slice().sort(function (a, b) { return a.t < b.t ? -1 : 1; }).map(function (x) { return { t: x.t, n: x.n }; });
-        var p = editing ? plan : { id: Util.uid(), active: true, sortOrder: (dd.supplementPlans || []).length };
+        var exist = editing ? null : (dd.supplementPlans || []).filter(function (x) { return x && x.id === newId; })[0];
+        var isNew = !editing && !exist;
+        var p = editing ? plan : (exist || { id: newId, active: true, sortOrder: (dd.supplementPlans || []).length, createdAt: Date.now() });
         p.name = st.name; p.form = st.form; p.perDay = times.length; p.v = 2;
         if (st.preset) p.preset = st.preset; else delete p.preset;
         p.spec = st.specOn && st.spec.trim() ? st.spec.trim().slice(0, 24) : null;
@@ -534,8 +569,8 @@
         p.stock = st.stockId && supplyOf(dd, st.stockId) ? { id: st.stockId, n: st.stockN } : null;
         p.note = (st.note || '').trim().slice(0, 200) || null;
         delete p.remindAt; /* 提醒改由「本机提醒」管 */
-        if (!editing) { dd.supplementPlans = dd.supplementPlans || []; dd.supplementPlans.push(p); }
-        if (!Storage.save()) return;
+        if (isNew) { dd.supplementPlans = dd.supplementPlans || []; dd.supplementPlans.push(p); }
+        if (!Storage.save()) { saving = false; if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); } return; }
         setRemind(p.id, st.remind);
         api.close();
         if (!editing) selDay = null;
@@ -543,12 +578,16 @@
         Util.toast(editing ? '已保存修改' : '已添加营养品：' + p.name, 'ok');
       }
 
+      /* 第 281 次：捕获阶段委托——先滤掉触感层的回声点击（见 Util.hapEcho），面板关掉后（box 已脱离文档）一律不再响应 */
+      api.onClose = function () { dead = true; pageQuiet = Date.now() + 450; };
       box.addEventListener('click', function (e) {
+        if ((Util.hapEcho && Util.hapEcho(e)) || dead || !box.isConnected) return;
         var b = e.target.closest ? e.target.closest('button') : null;
         if (!b || !box.contains(b) || b.disabled) return;
+        if (human(e) && Date.now() < quietUntil) return;
         var v;
         if (b.hasAttribute('data-x') && view !== 'step') { e.stopImmediatePropagation(); view = view === 'addsup' ? 'pick' : 'step'; paint(); return; }
-        if (b.hasAttribute('data-next')) { if (!check()) return; if (step === 5) { save(); return; } step++; paint(); return; }
+        if (b.hasAttribute('data-next')) { if (!check()) return; if (step === 5) { if (human(e) && Date.now() - shownAt < 350) return; save(b); return; } step++; paint(); return; }
         if (b.hasAttribute('data-prev')) { if (step > 0) { step--; paint(); } return; }
         if ((v = b.getAttribute('data-form'))) {
           if (st.form !== v) { st.form = v; var pr = presetOf(st.preset); st.unit = (pr && pr.f === v && pr.u) ? pr.u : ''; }
@@ -580,14 +619,16 @@
         if (b.hasAttribute('data-supsave')) { addSup(); return; }
         if (b.hasAttribute('data-unlink')) { st.stockId = ''; view = 'step'; paint(); return; }
         if ((v = b.getAttribute('data-sup'))) {
-          st.stockId = v; view = 'step';
+          st.stockId = v; view = 'step'; quietUntil = Date.now() + 450;
           var s = supplyOf(d, v);
           paint();
           if (s && !countable(s)) Util.toast('这件用品没记剩余数量，扣减不会生效；可以在用品页补上', 'warn');
           return;
         }
       }, true);
+      var supBusy = false;
       function addSup() {
+        if (supBusy) return;
         var ni = wrap.querySelector('#spwSupName'), qi = wrap.querySelector('#spwSupN');
         var nm = (ni.value || '').trim().slice(0, 20);
         if (!nm) { Util.markInvalid(ni, '填一下用品名称'); return; }
@@ -600,6 +641,7 @@
         var res = S && S._upsert ? S._upsert(dd.supplies, { name: nm, cat: '维D/药品', unit: pk, qty: 1, pieces: n, date: Util.todayISO() }) : null;
         if (!res || res.error) { Util.toast((res && res.error) || '用品模块没加载，稍后再试', 'warn'); return; }
         res.item.pcsU = u;
+        supBusy = true; quietUntil = Date.now() + 450; setTimeout(function () { supBusy = false; }, 600);
         if (!Storage.save()) return;
         st.stockId = res.item.id; view = 'step'; q = '';
         paint();
@@ -625,9 +667,11 @@
       + '<button type="button" class="btn spr-b" data-toggle="' + esc(p.id) + '">' + (p.active === false ? '启用' : '停用') + '</button>'
       + '<button type="button" class="btn spr-b spr-del" data-delplan="' + esc(p.id) + '">删除</button></div></div>';
     F.openSheet('supplement', '提醒设置', body, function (api) {
-      var box = api.box;
+      var box = api.box, dead = false;
       box.closest('.modal').classList.add('spr-sheet');
+      api.onClose = function () { dead = true; pageQuiet = Date.now() + 450; };
       box.addEventListener('click', function (e) {
+        if ((Util.hapEcho && Util.hapEcho(e)) || dead) return;
         var b = e.target.closest ? e.target.closest('button') : null;
         if (!b || !box.contains(b)) return;
         if (b.hasAttribute('data-remsw2')) { on = !on; b.setAttribute('aria-checked', String(on)); return; }
@@ -666,7 +710,8 @@
   function openManage() {
     var F = global.FTUI; if (!F) return;
     F.openSheet('supplement', '管理营养品', '<div data-mg></div>', function (api) {
-      var box = api.box, mg = box.querySelector('[data-mg]');
+      var box = api.box, mg = box.querySelector('[data-mg]'), dead = false, mgQuiet = 0, mgTog = {};
+      api.onClose = function () { dead = true; pageQuiet = Date.now() + 450; };
       box.closest('.modal').classList.add('spm-sheet');
       function paint() {
         var d = Storage.get(), plans = sortPlans((d.supplementPlans || []).filter(function (p) { return p && p.name; }));
@@ -699,8 +744,17 @@
         mg.innerHTML = h;
       }
       box.addEventListener('click', function (e) {
+        if ((Util.hapEcho && Util.hapEcho(e)) || dead) return;
         var b = e.target.closest ? e.target.closest('button') : null;
         if (!b || !box.contains(b)) return;
+        /* 第 281 次：删除后下面的行会顶上来，450ms 内的任何第二下都不算（不会删到下一行）；
+           停用 / 启用同一条 450ms 内只认一次（不会把刚停用的又启用），换一条照常点 */
+        var now = Date.now(), tg = b.getAttribute('data-toggle');
+        if (human(e)) {
+          if (now < mgQuiet || (tg && mgTog[tg] && now - mgTog[tg] < 450)) return;
+          if (b.hasAttribute('data-delplan') || b.hasAttribute('data-delrec')) mgQuiet = now + 450;
+          if (tg) mgTog[tg] = now;
+        }
         var d = Storage.get(), v, again = function () { if (box.isConnected) paint(); if (global.App) App.rerender(); };
         if (b.hasAttribute('data-ok')) { api.close(); return; }
         if ((v = b.getAttribute('data-toggle'))) { var tp = (d.supplementPlans || []).filter(function (p) { return p.id === v; })[0]; if (tp) toggle(d, tp, again); return; }
@@ -742,9 +796,11 @@
       Array.prototype.forEach.call(root.querySelectorAll('[data-qk-sup]'), function (b) {
         b.addEventListener('click', function (ev) {
           if (ev && ev.stopPropagation) ev.stopPropagation();
+          if (Util.hapEcho && Util.hapEcho(ev)) return;
           var plan = (d.supplementPlans || []).filter(function (p) { return p.id === b.getAttribute('data-qk-sup'); })[0];
           if (!plan) return;
           var k = Util.dayKeyOf(new Date(), Util.dayStartHour(d));
+          if (human(ev) && !lockTake(plan.id + '|q|' + k)) return;
           var sl = slotsOf(norm(plan), mine(recsOn(d, k), plan)), idx = sl.indexOf(null);
           if (take(d, plan, k, idx < 0 ? 0 : idx, false, done)) done();
         });
@@ -826,22 +882,27 @@
         b.addEventListener('click', function () { var x = b.getAttribute('data-day'); selDay = x === today ? null : x; App.rerender(); });
       });
       Array.prototype.forEach.call(view.querySelectorAll('[data-take]'), function (b) {
-        b.addEventListener('click', function () {
+        b.addEventListener('click', function (e) {
+          if (human(e) && Date.now() < pageQuiet) return;
           var p = (d.supplementPlans || []).filter(function (x) { return x.id === b.getAttribute('data-take'); })[0];
           if (!p) return;
           var j = Number(b.getAttribute('data-slot')) || 0;
+          if (human(e) && !lockTake(p.id + '|' + j + '|' + k)) return;
           var r = slotsOf(norm(p), mine(recsOn(d, k), p))[j];
           if (r) untake(d, r); else if (take(d, p, k, j)) App.rerender();
         });
       });
       Array.prototype.forEach.call(view.querySelectorAll('[data-plan]'), function (b) {
-        b.addEventListener('click', function () {
+        b.addEventListener('click', function (e) {
+          if ((human(e) && Date.now() < pageQuiet) || document.querySelector('#modalRoot > .modal-mask:not(.sheet-leaving)')) return;
           var p = (d.supplementPlans || []).filter(function (x) { return x.id === b.getAttribute('data-plan'); })[0];
           if (p) openPlan(p);
         });
       });
-      view.querySelector('[data-manage]').addEventListener('click', openManage);
-      view.querySelector('[data-spadd]').addEventListener('click', function () { openWizard(null); });
+      /* 第 281 次：面板已开着 / 刚关掉时不再开第二个（快速双击「+ 添加营养品」不会叠开两个向导） */
+      var canOpen = function (e) { return !(human(e) && Date.now() < pageQuiet) && !document.querySelector('#modalRoot > .modal-mask:not(.sheet-leaving)'); };
+      view.querySelector('[data-manage]').addEventListener('click', function (e) { if (canOpen(e)) openManage(); });
+      view.querySelector('[data-spadd]').addEventListener('click', function (e) { if (canOpen(e)) openWizard(null); });
     }
   };
 })(window);

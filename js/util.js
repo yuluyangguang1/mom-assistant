@@ -1582,6 +1582,14 @@
     } catch (e) { return false; }
   }
   Util._iosTick = iosTick;
+  /* 第 281 次（真机：营养品点一次保存存出两条）：iOS 触感层（touchfx.js 给叶子按钮塞的 label.hap-layer，以及上面 iosTick 的隐藏 label）
+     被点到后，浏览器会按 label 的激活行为再派发一次「点 switch」的合成 click（isTrusted=false）。switch 自己在目标阶段 stopPropagation，
+     冒泡监听收不到；但**捕获阶段**的委托监听（以及按钮已被移出文档、整棵子树脱离后的监听）会再收一次，按钮逻辑就跑两遍。
+     委托点击的监听先用它过滤：是回声就直接 return。 */
+  Util.hapEcho = function (e) {
+    var t = e && e.target;
+    return !!(t && t.nodeType === 1 && t.tagName === 'INPUT' && (t.id === '__hapSw' || (t.classList && t.classList.contains('hap-sw'))));
+  };
   Util.haptic = function (kind) {
     try {
       var nav = global.navigator;

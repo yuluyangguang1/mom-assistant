@@ -116,6 +116,14 @@
     }
   }
   function queueArm() { if (!armQueued) { armQueued = true; requestAnimationFrame(armAll); } }
+  /* 第 281 次：label 激活派发给 switch 的合成 click 不再进到任何人的捕获阶段监听（文档里的那份在 window 捕获最先拦下；
+     按钮已脱离文档的那份到不了 window，由各委托监听用 Util.hapEcho 过滤）。只停传播、不 preventDefault，switch 照常切换出触感。 */
+  if (IOS_HAP) {
+    global.addEventListener('click', function (ev) {
+      var t = ev.target;
+      if (t && t.nodeType === 1 && t.tagName === 'INPUT' && (t.id === '__hapSw' || (t.classList && t.classList.contains('hap-sw')))) ev.stopImmediatePropagation();
+    }, true);
+  }
   if (IOS_HAP) {
     try {
       new MutationObserver(function (muts) {

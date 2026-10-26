@@ -1374,7 +1374,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v244（第 280 次升）', "var CACHE = 'baoma-static-v244';" in sw)
+    check('#275 SW 版本 v245（第 281 次升）', "var CACHE = 'baoma-static-v245';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -2423,9 +2423,168 @@ def test_r280(b):
     check('#280 pageerror 为 0', not errs, errs)
     ctx.close()
 
+def test_r281(b):
+    """第 281 次（真机：营养品点一次「保存营养品」存出两条）：iOS 触感层 label 的激活点击回声被向导捕获阶段委托再收一次 → save 两次。
+    触屏 + 去掉 navigator.vibrate 模拟 iPhone 走触感层，真 tap：首次 / 开关多次 / 快速双击 / 预设与自定义两条路径都只存一条；
+    保存时同名复查、停用同名给「重新启用」；本机提醒开关、子页 ✕、添加用品、记录服用双击、管理停用双击不重复；
+    启动时合并已存成两份的计划（有记录不动）；「+ 添加营养品」不压列表。"""
+    ctx = b.new_context(viewport={'width': 393, 'height': 852}, has_touch=True, device_scale_factor=2)
+    ctx.add_init_script("try{delete Navigator.prototype.vibrate}catch(e){}")
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(1000)
+    ev = p.evaluate
+    check('#281 测试环境：触屏且无 navigator.vibrate（走 iOS 触感层）', ev("('ontouchstart' in window)&&typeof navigator.vibrate!=='function'"))
+
+    def clear(extra=''):
+        ev("(()=>{const d=Storage.get();d.supplementPlans=[];d.supplements=[];d.supplies=[];d.settings.stage='pregnancy';" + extra + "Storage.save();localStorage.removeItem('yiya-sup-remind')})()")
+        ev("Sheet.closeAll()"); ev("App.showTab('supplement',{noVT:true})"); p.wait_for_timeout(350)
+
+    def tap(sel, wait=200):
+        loc = p.locator(sel).first
+        loc.scroll_into_view_if_needed(); loc.tap(); p.wait_for_timeout(wait)
+
+    def xy(sel):
+        return ev("s=>{const r=document.querySelector(s).getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2]}", sel)
+
+    def dtap(sel, wait=500):
+        p.locator(sel).first.scroll_into_view_if_needed(); x, y = xy(sel)
+        p.touchscreen.tap(x, y); p.touchscreen.tap(x, y); p.wait_for_timeout(wait)
+
+    def n():
+        return ev("(Storage.get().supplementPlans||[]).length")
+
+    def to_last(preset=True, name='叶酸'):
+        tap('[data-spadd]', 420)
+        if preset:
+            p.locator('#spwPreset').select_option('m-fa'); p.wait_for_timeout(160)
+        else:
+            p.locator('#spwName').fill(name); p.wait_for_timeout(80); tap('[data-form="片剂"]')
+        for _ in range(5):
+            tap('[data-next]')
+        p.wait_for_timeout(250)  # 确认页刚出现的 350ms 内不认保存（防「下一步」双击直接穿到保存）
+
+    clear(); to_last(); tap('[data-next]', 500)
+    check('#281 预设「叶酸」走完 6 步、点一次「保存营养品」：只存 1 条，日程 1 张、清单 1 条', [n(), ev("document.querySelectorAll('.sp-dose').length"), ev("document.querySelectorAll('.sp-item').length")] == [1, 1, 1], n())
+    clear(); tap('[data-spadd]', 420); tap('.rs-head [data-x]', 420); to_last(); tap('[data-next]', 500)
+    check('#281 关掉向导再打开、保存一次：1 条', n() == 1, n())
+    clear()
+    for _ in range(3):
+        tap('[data-spadd]', 420); tap('.rs-head [data-x]', 420)
+    to_last(); tap('[data-next]', 500)
+    check('#281 开关 3 次后保存一次：1 条（不随打开次数叠加）', n() == 1, n())
+    clear(); to_last(); dtap('[data-next]')
+    check('#281 快速双击「保存营养品」：1 条', n() == 1, n())
+    clear(); to_last(False, '鱼油'); tap('[data-next]', 500)
+    check('#281 自定义名称路径保存一次：1 条', n() == 1, n())
+    # 同名：启用中的第 1 步拦；保存时复查
+    to_last(False, '鱼油')
+    check('#281 新增同名（启用中）：第 1 步就拦下标红', ev("[document.querySelector('.spw-of').textContent,!!document.querySelector('#spwName.is-invalid')]") == ['第 1 步，共 6 步', True])
+    ev("Sheet.closeAll()"); p.wait_for_timeout(300)
+    clear(); to_last()
+    ev("(()=>{const d=Storage.get();d.supplementPlans.push({id:'dupA',name:'叶酸',form:'片剂',perDay:1,active:true,v:2,times:[{t:'08:00',n:1}],unit:'片',freq:'daily'});Storage.save()})()")
+    tap('[data-next]', 500)
+    check('#281 保存时复查同名（打开向导后别处已加了「叶酸」）：不新增，退回第 1 步标红', [n(), ev("(document.querySelector('.spw-of')||{}).textContent"), ev("!!document.querySelector('#spwName.is-invalid')")] == [1, '第 1 步，共 6 步', True], [n(), ev("(document.querySelector('.spw-of')||{}).textContent")])
+    ev("Sheet.closeAll()"); p.wait_for_timeout(300)
+    # 停用的同名 → 「重新启用」
+    clear("d.supplementPlans=[{id:'off1',name:'叶酸',form:'片剂',perDay:1,active:false,v:2,times:[{t:'20:00',n:1}],unit:'片',freq:'daily'}];")
+    tap('[data-spadd]', 420); p.locator('#spwPreset').select_option('m-fa'); p.wait_for_timeout(160); tap('[data-next]', 300)
+    rb = ev("[(document.querySelector('.spw-of')||{}).textContent, !!document.querySelector('#spwName.is-invalid'), [...document.querySelectorAll('.toast button, #toastRoot button')].map(b=>b.textContent.trim())]")
+    check('#281 新增与已停用的同名：拦下并给「重新启用」', rb[0] == '第 1 步，共 6 步' and rb[1] and '重新启用' in rb[2], rb)
+    ev("[...document.querySelectorAll('.toast button, #toastRoot button')].filter(b=>b.textContent.trim()==='重新启用')[0].click()"); p.wait_for_timeout(500)
+    re1 = ev("[Storage.get().supplementPlans.length, Storage.get().supplementPlans[0].active, document.querySelectorAll('#modalRoot .modal-mask').length, document.querySelectorAll('.sp-item').length]")
+    check('#281 点「重新启用」：原来那条启用、不新增、向导关闭、清单出现', re1 == [1, True, 0, 1], re1)
+    # 第 5 步：本机提醒开关一下就开；子页 ✕ 只退一层；添加用品双击只加一件
+    clear(); tap('[data-spadd]', 420); p.locator('#spwPreset').select_option('m-fa'); p.wait_for_timeout(160)
+    for _ in range(4):
+        tap('[data-next]')
+    tap('[data-remsw]')
+    check('#281 第 5 步「本机提醒」点一下：开（不被回声切回去）', ev("document.querySelector('[data-remsw]').getAttribute('aria-checked')") == 'true')
+    tap('[data-pick]', 300); tap('.rs-head [data-addsup]', 300); tap('.rs-head [data-x]', 300)
+    check('#281 「添加用品」子页点 ✕：只退回「选择用品」', ev("document.querySelector('#ftsTitle').textContent") == '选择用品', ev("document.querySelector('#ftsTitle').textContent"))
+    tap('.rs-head [data-addsup]', 300); p.locator('#spwSupName').fill('叶酸片'); p.locator('#spwSupN').fill('30')
+    dtap('[data-supsave]')
+    check('#281 「添加用品」快速双击保存：用品只加 1 件、回到第 5 步并关联', [ev("(Storage.get().supplies||[]).filter(s=>s.name==='叶酸片').length"), ev("(document.querySelector('.spw-of')||{}).textContent")] == [1, '第 5 步，共 6 步'])
+    tap('[data-next]', 450); tap('[data-next]', 500)
+    check('#281 走完保存：1 条、本机提醒开、关联用品', [n(), ev("Modules.supplement._remindOn(Storage.get().supplementPlans[0])"), bool(ev("Storage.get().supplementPlans[0].stock"))] == [1, True, True])
+    # 记录服用：快速双击只记一次
+    ev("(()=>{const d=Storage.get();d.supplementPlans[0].times=[{t:'00:00',n:1}];Storage.save()})()"); ev("App.rerender()"); p.wait_for_timeout(300)
+    dtap('.sp-dose', 700)
+    check('#281 记录服用快速双击：只记 1 次、不被第二下撤销，库存 30→29', [ev("Storage.get().supplements.length"), ev("!!document.querySelector('.sp-dose.is-done')"), ev("Storage.get().supplies.filter(s=>s.name==='叶酸片')[0].pieces")] == [1, True, 29])
+    p.wait_for_timeout(500); tap('.sp-dose', 600)
+    check('#281 隔一会儿再点：照常撤销', [ev("Storage.get().supplements.length"), ev("!!document.querySelector('.sp-dose.is-done')")] == [0, False])
+    # 管理：停用双击不来回切；提醒设置 ✓ 双击只存一次
+    tap('[data-manage]', 400); dtap('.spm-b[data-toggle]')
+    check('#281 管理里「停用」快速双击：停用，不被第二下又启用', ev("Storage.get().supplementPlans[0].active") is False)
+    ev("Sheet.closeAll()"); p.wait_for_timeout(300)
+    ev("(()=>{const d=Storage.get();d.supplementPlans[0].active=true;Storage.save()})()"); ev("App.rerender()"); p.wait_for_timeout(300)
+    tap('.sp-item', 400); tap('[data-remsw2]')
+    check('#281 提醒设置：开关点一下就切换（不被回声切回去）', ev("document.querySelector('[data-remsw2]').getAttribute('aria-checked')") == 'false')
+    dtap('.rs-head [data-ok]')
+    check('#281 提醒设置 ✓ 快速双击：关掉提醒、面板关闭、不报错', [ev("Modules.supplement._remindOn(Storage.get().supplementPlans[0])"), ev("document.querySelectorAll('#modalRoot .modal-mask').length")] == [False, 0])
+    tap('.sp-item', 400); dtap('[data-delplan]', 600)
+    check('#281 提醒设置「删除」快速双击：只删这一条', n() == 0, n())
+    # 编辑保存：不新增
+    clear(); to_last(); tap('[data-next]', 500); tap('.sp-item', 400); tap('[data-edit]', 500)
+    ev("(()=>{const d=Storage.get();window.__ed=d.supplementPlans[0];})()")
+    for _ in range(5):
+        tap('[data-next]')
+    p.wait_for_timeout(250); dtap('[data-next]')
+    check('#281 编辑后快速双击「保存修改」：仍是 1 条、面板关闭', [n(), ev("document.querySelectorAll('#modalRoot .modal-mask').length")] == [1, 0], n())
+    # 确认页刚出现就点（「下一步」双击穿过去）：不保存，停在确认页
+    tap('[data-spadd]', 420); p.locator('#spwName').fill('钙片'); p.wait_for_timeout(80)
+    for _ in range(4):
+        tap('[data-next]')
+    dtap('[data-next]', 300)
+    check('#281 第 5 步「下一步」快速双击：停在确认页、不直接保存', [n(), ev("(document.querySelector('.spw-of')||{}).textContent")] == [1, '第 6 步，共 6 步'])
+    ev("Sheet.closeAll()"); p.wait_for_timeout(300)
+    # —— 启动合并 ——
+    def boot(plans, recs='[]', rem='{}'):
+        ev("([P,R,M])=>{const d=Storage.get();d.supplementPlans=JSON.parse(P);d.supplements=JSON.parse(R);Storage.save();localStorage.setItem('yiya-sup-remind',M)}", [plans, recs, rem])
+        p.reload(); p.wait_for_timeout(900)
+        return ev("[Storage.get().supplementPlans.map(p=>p.id), JSON.parse(localStorage.getItem('yiya-sup-remind')||'{}'), 1]")
+    T0 = 1793000000000
+
+    def pl(i, ms, **kw):
+        o = dict(id=i, name='叶酸', form='片剂', perDay=1, active=True, v=2, times=[dict(t='20:00', n=1)], unit='片', freq='daily', start='2026-10-26', createdAt=ms)
+        o.update(kw); return o
+    J = lambda x: json.dumps(x, ensure_ascii=False)
+    r1 = boot(J([pl('a1', T0), pl('a2', T0 + 300)]), rem=J({'a2': 1}))
+    check('#281 启动合并：同名同剂型同时间同频率、5 秒内、都没记录的两条 → 合并成 1 条（本机提醒并过来）', r1[0] == ['a1'] and r1[1] == {'a1': 1}, r1)
+    check('#281 合并结果已落盘（再读一次还是 1 条）', ev("JSON.parse(localStorage.getItem('momhelper_data_v1')).supplementPlans.length") == 1)
+    r2 = boot(J([pl('b1', T0), pl('b2', T0 + 300)]), J([dict(id='r1', time='2026-10-26T20:01:00', name='叶酸', planId='b1'), dict(id='r2', time='2026-10-26T20:02:00', name='叶酸', planId='b2')]))
+    check('#281 两条都有服用记录：都不动', r2[0] == ['b1', 'b2'], r2)
+    r3 = boot(J([pl('c1', T0), pl('c2', T0 + 300)]), J([dict(id='r3', time='2026-10-26T20:01:00', name='叶酸', planId='c2')]))
+    check('#281 只有后一条有记录：留有记录的那条、删空的那条', r3[0] == ['c2'], r3)
+    r4 = boot(J([pl('d1', T0), pl('d2', T0 + 300, times=[dict(t='08:00', n=1)]), pl('d3', T0 + 9000), pl('d4', T0 + 300, form='胶囊'), pl('d5', T0 + 200, freq='interval', every=2)]))
+    check('#281 时间不同 / 超过 5 秒 / 剂型不同 / 频率不同：都不合并', r4[0] == ['d1', 'd2', 'd3', 'd4', 'd5'], r4)
+    r5 = boot(J([dict(id='e1', name='叶酸', form='片剂', perDay=1, active=True, sortOrder=0), dict(id='e2', name='叶酸', form='片剂', perDay=1, active=True, sortOrder=1)]))
+    check('#281 旧版计划（没有 times）不参与合并', r5[0] == ['e1', 'e2'], r5)
+    uid = ev("[Util.uid(), Date.now()]")
+    r6 = boot(J([pl('mvpbi6ehxc73jx', None), pl('mvpbi6h1b737uy', None)]))
+    check('#281 没有 createdAt 的老重复（按 id 里的时间戳判断 5 秒内）也合并', r6[0] == ['mvpbi6ehxc73jx'], [r6, uid])
+    # —— 「+ 添加营养品」不压列表 ——
+    plans = J([pl('z%d' % i, T0 + i * 60000, name='营养品%d' % i, times=[dict(t='%02d:00' % (8 + i), n=1)]) for i in range(5)])
+    ov = """()=>{const btn=document.querySelector('.sp-page [data-spadd]');const se=document.scrollingElement;const max=se.scrollHeight-innerHeight;const bad=[];
+      for(let y=0;y<=max+100;y+=60){scrollTo(0,y);const b=btn.getBoundingClientRect();
+        for(const c of document.querySelectorAll('.sp-card')){const r=c.getBoundingClientRect();if(r.bottom>b.top+1&&r.top<b.bottom-1)bad.push([y,Math.round(r.bottom),Math.round(b.top)])}}
+      scrollTo(0,se.scrollHeight);const last=[...document.querySelectorAll('.sp-item')].pop().getBoundingClientRect(),b=btn.getBoundingClientRect();
+      return {bad:bad.slice(0,3),gap:Math.round(b.top-last.bottom)}}"""
+    boot(plans); ev("Sheet.closeAll()"); ev("App.showTab('supplement',{noVT:true})"); p.wait_for_timeout(400)
+    res = []
+    for dark, w, fs in ((False, 393, 1), (True, 393, 1), (False, 320, 1), (False, 393, 1.33), (True, 320, 1.33)):
+        p.set_viewport_size({'width': w, 'height': 640 if w == 320 else 852})
+        ev("([dk,fs])=>{document.body.classList.toggle('dark',dk);document.body.classList.toggle('fs-xl',fs>1)}", [dark, fs]); p.wait_for_timeout(250)
+        res.append(ev(ov))
+    ev("document.body.classList.remove('fs-xl')"); p.set_viewport_size({'width': 393, 'height': 852})
+    check('#281 「+ 添加营养品」在列表后正常排、不压任何卡片，与最后一张卡片至少空 16px（浅 / 深、320 宽、1.33 倍字号）', all(not r['bad'] and r['gap'] >= 16 for r in res), res)
+    check('#281 pageerror 为 0', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -2443,7 +2602,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r277',),
           ('test_r278',),
           ('test_r279',),
-          ('test_r280',))  # 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r280',),
+          ('test_r281',))  # 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

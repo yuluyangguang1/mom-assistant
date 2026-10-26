@@ -5833,6 +5833,9 @@ body.dark .spw-wd.on { color: var(--tile-on); }
 .modal-mask.as-sheet > .spr-sheet.is-sheet { height: calc(100vh - env(safe-area-inset-top) - 44px); }
 .spr-sheet .rs-x, .spr-sheet .rs-ok, .spw .rs-x { width: 46px; height: 46px; }
 .spw .rs-switch[aria-checked="false"], .spr .rs-switch[aria-checked="false"] { background: color-mix(in srgb, var(--text) 18%, transparent); }
+/* 第 281 次（真机：底部「+ 添加营养品」压住清单最后一张卡片）：营养品页的按钮不再吸底悬浮，排在清单后面的正常流里；
+   内容少时仍由 .ft-page > .mod-cta 的 margin-top:auto 推到底部，padding-top 保证和最后一张卡片至少空 20px */
+.ft-page.sp-page > .mod-cta, body.has-live .ft-page.sp-page > .mod-cta { position: static; bottom: auto; padding-top: 20px; }
 .sp-foot { margin: 14px 4px 0; font-size: calc(12.5px * var(--fs-mul, 1)); color: var(--muted); line-height: 1.6; }
 @media (max-width: 360px) {
   .sp-card { gap: 10px; padding: 14px 14px 14px 12px; min-height: 96px; }
