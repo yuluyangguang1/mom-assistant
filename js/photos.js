@@ -192,16 +192,69 @@
       });
       input.click();
     },
-    /** 全屏看图：点任意处关闭 */
-    view: function (id) {
+    /** 全屏看图：点一下关闭；左右滑（或 ← →）看同一条记录的上下张。
+        第 278 次（审计 #30）：登记 history（App._pushOverlay），系统返回 / Esc 先关大图、留在底下面板里 */
+    view: function (id, list) {
+      var ids = (Array.isArray(list) && list.indexOf(id) >= 0) ? list.slice() : [id];
+      var idx = ids.indexOf(id);
+      var prev = document.querySelector('body > .ph-view');
+      if (prev && prev._phClose) prev._phClose();
       Photos.url(id).then(function (u) {
         if (!u) { Util.toast('这张照片不在这台设备上', 'warn'); return; }
         var el = document.createElement('div');
-        el.className = 'ph-view'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', '照片');
-        var img = document.createElement('img'); img.src = u; img.alt = '记录照片';
+        el.className = 'ph-view'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', '照片');
+        var img = document.createElement('img'); img.src = u; img.alt = '记录照片'; img.setAttribute('data-phid', id); img.draggable = false;
         el.appendChild(img);
-        el.addEventListener('click', function () { if (el.parentNode) el.parentNode.removeChild(el); });
+        var cnt = null;
+        if (ids.length > 1) { cnt = document.createElement('div'); cnt.className = 'ph-count'; cnt.setAttribute('aria-live', 'polite'); el.appendChild(cnt); }
+        var closed = false, release = null;
+        function paintCount() { if (cnt) cnt.textContent = (idx + 1) + ' / ' + ids.length; }
+        function close(fromPop) {
+          if (closed) return; closed = true;
+          if (el.parentNode) el.parentNode.removeChild(el);
+          document.removeEventListener('keydown', onKey, true);
+          if (!fromPop && release) release();
+          if (global.queueStatusColor) global.queueStatusColor();
+        }
+        el._phClose = function () { close(false); };
+        el._phIndex = function () { return idx; };
+        function show(i) {
+          if (i < 0 || i >= ids.length) { img.style.transform = ''; return false; }
+          idx = i; paintCount();
+          Photos.url(ids[i]).then(function (u2) {
+            if (closed) return;
+            if (!u2) { Util.toast('这张照片不在这台设备上', 'warn'); return; }
+            img.src = u2; img.setAttribute('data-phid', ids[i]);
+          });
+          return true;
+        }
+        function onKey(e) {
+          if (e.key === 'ArrowLeft') { e.preventDefault(); show(idx - 1); }
+          else if (e.key === 'ArrowRight') { e.preventDefault(); show(idx + 1); }
+        }
+        document.addEventListener('keydown', onKey, true);
+        /* 手势：横向过 50px 换张（到头回弹），没怎么动算点一下 = 关闭 */
+        var sx = 0, sy = 0, pid = null, moved = false;
+        el.addEventListener('pointerdown', function (e) { pid = e.pointerId; sx = e.clientX; sy = e.clientY; moved = false; img.style.transition = 'none'; });
+        el.addEventListener('pointermove', function (e) {
+          if (pid !== e.pointerId) return;
+          var dx = e.clientX - sx, dy = e.clientY - sy;
+          if (Math.abs(dx) > 8 || Math.abs(dy) > 8) moved = true;
+          if (ids.length > 1 && Math.abs(dx) > Math.abs(dy)) img.style.transform = 'translateX(' + dx + 'px)';
+        });
+        function up(e) {
+          if (pid !== e.pointerId) return; pid = null;
+          var dx = e.clientX - sx, dy = e.clientY - sy;
+          img.style.transition = ''; img.style.transform = '';
+          if (ids.length > 1 && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) show(idx + (dx < 0 ? 1 : -1));
+        }
+        el.addEventListener('pointerup', up);
+        el.addEventListener('pointercancel', function (e) { if (pid === e.pointerId) { pid = null; img.style.transition = ''; img.style.transform = ''; } });
+        el.addEventListener('click', function () { if (moved) { moved = false; return; } close(false); });
+        paintCount();
         document.body.appendChild(el);
+        release = global.App && App._pushOverlay ? App._pushOverlay(function () { close(true); }) : null;
+        if (global.queueStatusColor) global.queueStatusColor();
       });
     }
   };

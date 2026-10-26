@@ -3683,6 +3683,8 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
    小号名称在上，数值加粗在下，三枚等宽且不折行。 */
 #gMetrics .seg-btn { flex-direction: column; gap: 1px; padding: 8px 6px; border-radius: var(--radius-md); line-height: 1.25; font-size: calc(12px * var(--fs-mul)); color: var(--muted); }
 #gMetrics .seg-btn b { white-space: nowrap; font-size: calc(15px * var(--fs-mul)); color: var(--text); font-variant-numeric: tabular-nums; }
+#gMetrics .seg-btn b.g-untouched { color: var(--muted); font-weight: 600; font-size: var(--fs-sm); }
+.g-only-hint { margin: 6px 0 0; }
 #gMetrics .seg-btn.active, #gMetrics .seg-btn.active b { color: var(--primary-text); }
 /* ③ 尺滑杆：被指针压住的那枚刻度数字淡出（配合 util.js rulerPaint 的 is-covered） */
 .ruler-ticks .rt.is-covered em { opacity: 0; transition: opacity .18s ease; }
@@ -4538,8 +4540,9 @@ body.dark .rs-save { color: #2A2116; }
 .tl-ph { position: relative; flex: none; width: 40px; height: 40px; margin-left: 6px; border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2); }
 .tl-ph img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .tl-ph i { position: absolute; right: 2px; bottom: 2px; min-width: 16px; height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: var(--radius-pill); background: rgba(0,0,0,.6); color: #fff; font-size: 10px; font-style: normal; line-height: 16px; text-align: center; }
-.ph-view { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom); background: rgba(0,0,0,.92); animation: rsPop .2s ease both; cursor: zoom-out; }
-.ph-view img { max-width: 100%; max-height: 100%; border-radius: var(--radius-sm); object-fit: contain; }
+.ph-view { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom); background: rgba(0,0,0,.92); animation: rsPop .2s ease both; cursor: zoom-out; touch-action: none; user-select: none; -webkit-user-select: none; }
+.ph-view img { max-width: 100%; max-height: 100%; border-radius: var(--radius-sm); object-fit: contain; transition: transform .22s var(--ease); -webkit-user-drag: none; pointer-events: none; }
+.ph-count { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 18px); transform: translateX(-50%); padding: 4px 12px; border-radius: var(--radius-pill); background: rgba(255,255,255,.16); color: #fff; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; pointer-events: none; }
 /* 第 230 次：喂养页迁到新骨架——页头同尿布页缩小；时间轴点按类型着色；记录表单进半屏面板（.fd-mask 在 #view 内，默认隐藏） */
 .mod-hero[data-hero="feeding"] .hero-art { width: 84px; height: 84px; }
 .mod-hero[data-hero="feeding"] .hero-art img { width: 72px; height: 72px; }

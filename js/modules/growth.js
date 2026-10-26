@@ -106,7 +106,15 @@
           .sort(function (a, b) { return new Date(b.date) - new Date(a.date); })[0];
         gvals[m.k] = lastM ? lastM[m.field] : null;
       });
+      /* 第 278 次（审计 #31）：预填的上次值只是滑杆起点。只有这次在滑杆 / ＋− 上动过的项才算「今天量了」，
+         保存时没动过的项留空（null），不再把上次的身长 / 头围复制成今天的新测量 */
+      var gTouched = {};
       var gActive = 'weight';
+      function chipVal(m) {
+        var v = gvals[m.k];
+        if (v == null) return '--';
+        return gTouched[m.k] ? fmtMet(m, v) + ' ' + m.unit : '上次 ' + fmtMet(m, v);
+      }
 
       html += '<div class="card"><h2>记录一次测量</h2>';
       html += Util.dateSlider({ id: 'gDate', title: '日期', value: Util.todayISO(), min: Util.addDays(Util.todayISO(), -31), max: Util.todayISO(), floor: Util.recordFloor(d) });
@@ -114,9 +122,9 @@
       METS.forEach(function (m) {
         var v = gvals[m.k];
         html += '<button type="button" class="seg-btn' + (m.k === gActive ? ' active' : '') + '" data-mk="' + m.k + '">'
-          + m.name + ' <b>' + (v != null ? fmtMet(m, v) + ' ' + m.unit : '--') + '</b></button>';
+          + m.name + ' <b class="g-untouched">' + chipVal(m) + '</b></button>';
       });
-      html += '</div>';
+      html += '</div><p class="hint g-only-hint">只保存这次调过的项，没量的留空。</p>';
       html += Util.rulerHTML('gRuler', { unit: metOf(gActive).unit, label: '测量值' });
       html += '<button class="btn btn-primary btn-save" id="gSave">保存</button></div>';
 
@@ -214,10 +222,9 @@
         if (!seg) return;
         Array.prototype.forEach.call(seg.querySelectorAll('[data-mk]'), function (b) {
           var m = metOf(b.getAttribute('data-mk'));
-          var v = gvals[m.k];
           b.classList.toggle('active', m.k === gActive);
           var bEl = b.querySelector('b');
-          if (bEl) bEl.textContent = (v != null ? fmtMet(m, v) + ' ' + m.unit : '--');
+          if (bEl) { bEl.textContent = chipVal(m); bEl.classList.toggle('g-untouched', !gTouched[m.k]); }
         });
       }
       function paintGRuler() {
@@ -229,6 +236,7 @@
         v = Math.min(m.max, Math.max(m.min, v));
         v = Math.round(v / m.step) * m.step;
         gvals[gActive] = Math.round(v * 100) / 100;
+        gTouched[gActive] = true;
         Util.rulerPaint('gRuler', { min: m.min, max: m.max, step: m.step, value: gvals[gActive], anchor: m.anchor, dec: m.dec, unit: m.unit, label: m.name });
         paintGMetrics();
       }
@@ -257,9 +265,10 @@
 
       view.querySelector('#gSave').addEventListener('click', function () {
         var date = view.querySelector('#gDate').value;
-        var w = gvals.weight, h = gvals.height, c = gvals.head;
+        var pick = function (k) { return gTouched[k] && gvals[k] != null ? gvals[k] : null; };
+        var w = pick('weight'), h = pick('height'), c = pick('head');
         if (!date) { Util.markInvalid(view.querySelector('#gDate'), '请填写日期'); return; }
-        if (w == null && h == null && c == null) { Util.toast('请先在滑杆上设置至少一项测量值', 'warn'); return; }
+        if (w == null && h == null && c == null) { Util.toast('请先在滑杆上调一下这次量了的那一项', 'warn'); return; }
         d.growth.push({
           id: Util.uid(), date: date,
           weightKg: w, heightCm: h, headCm: c

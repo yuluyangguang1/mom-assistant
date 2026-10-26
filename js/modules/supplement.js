@@ -230,7 +230,7 @@
           return;
         }
         /* 同名计划只允许一条：重复添加会让「今天该吃的」出现两行一样的 */
-        var dup = (d.supplementPlans || []).some(function (p) { return p.name === nm && p.active !== false; });
+        var dup = (d.supplementPlans || []).some(function (p) { return String(p.name).trim() === nm && p.active !== false; });
         if (dup) { Util.toast('「' + nm + '」已经在计划里了', 'warn'); return; }
         var ra = (view.querySelector('#spRemind').value || '').slice(0, 5);
         var plan = {
@@ -268,10 +268,15 @@
       Array.prototype.forEach.call(view.querySelectorAll('[data-toggle]'), function (b) {
         b.addEventListener('click', function () {
           var pid = b.getAttribute('data-toggle');
-          (d.supplementPlans || []).forEach(function (p) {
-            if (p.id === pid) p.active = (p.active === false);
-          });
-          if (Storage.save()) Util.toast('已切换计划状态', 'ok');
+          var tp = (d.supplementPlans || []).filter(function (p) { return p.id === pid; })[0];
+          if (!tp) return;
+          /* 第 278 次（审计 #40）：重新启用时已有同名的启用中计划 → 不启用，提示（否则「今天该吃的」出现两行、各自计数） */
+          if (tp.active === false && (d.supplementPlans || []).some(function (p) { return p !== tp && p.active !== false && String(p.name).trim() === String(tp.name).trim(); })) {
+            Util.toast('「' + tp.name + '」已经有一条在用的计划，先停用或删掉那条再启用', 'warn');
+            return;
+          }
+          tp.active = (tp.active === false);
+          if (Storage.save()) Util.toast(tp.active ? '已启用：' + tp.name : '已停用：' + tp.name, 'ok');
           global.App.rerender();
         });
       });

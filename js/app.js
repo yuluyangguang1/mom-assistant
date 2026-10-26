@@ -480,6 +480,20 @@
     var list = document.querySelectorAll('body > .ftf');
     return list.length ? list[list.length - 1] : null;
   }
+  /* 第 278 次（审计 #30 / #41）：Esc 按层由上到下关——照片大图 → 面板（含盖在侧拉页上的切换宝宝面板）→ 其余交给各层自己
+     （侧拉页、快记、白噪音播放页）。window 捕获阶段先于各面板挂在 document 上的 Esc，一次只关最上面一层。 */
+  try {
+    global.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' && e.key !== 'Esc') return;
+      var pv = document.querySelectorAll('body > .ph-view'), top = null;
+      if (pv.length) top = function () { var t = pv[pv.length - 1]; if (t._phClose) t._phClose(); else if (t.parentNode) t.parentNode.removeChild(t); };
+      else if (global.Sheet && Sheet.isOpen && Sheet.isOpen()) top = function () { Sheet.closeTop(); };
+      if (!top) return;
+      e.stopImmediatePropagation(); e.preventDefault();
+      top();
+      if (global.queueStatusColor) global.queueStatusColor();
+    }, true);
+  } catch (eK) {}
   function collapseFullLayer(el) {
     if (!el) return false;
     var btn = el.querySelector('.ftf-top [data-f="down"], .ftf-top [data-p="down"], .ftf-top [aria-label="收起"]');
@@ -2096,6 +2110,7 @@
 
   function onSwipeStart(e) {
     if (historyDepth <= 0) return;                /* 没有上一层，不响应 */
+    if (document.querySelector('body > .ph-view')) return; /* 第 278 次：照片大图上的横滑是换张 */
     if (global.Sheet && Sheet.isOpen && Sheet.isOpen()) return; /* 第 272 次：面板开着时左缘拖动交给面板（下拉关闭），不拖底下的页 */
     if (swipeActive) return;
     var t = e.touches && e.touches[0];
@@ -2195,6 +2210,21 @@
         },
         _entry: function () { return drawerEntry; }
       };
+      /* 第 278 次（审计 #30）：盖在面板上面的临时层（照片大图）登记自己的 history。
+         系统返回 / popstate 先关最上面这一层、留在面板里；它自己关掉（点一下 / Esc）时调返回的 release，静默退掉这条记录。 */
+      var ovEntries = [], ovPopped = false;
+      global.App._pushOverlay = function (closeFn) {
+        if (global.__yiyaRewinding || rewind > 0) return null;
+        try { global.history.pushState({ baoma: 'ov' }, ''); } catch (eO) { return null; }
+        var en = { close: closeFn };
+        ovEntries.push(en);
+        return function release() {
+          var i = ovEntries.indexOf(en); if (i < 0) return;
+          ovEntries.splice(i, 1); ovPopped = true; ignorePop++;
+          try { global.history.back(); } catch (eO2) { ignorePop = Math.max(0, ignorePop - 1); ovPopped = false; }
+        };
+      };
+      global.App._ovDepth = function () { return ovEntries.length; };
       var dropForward = function () {
         try {
           global.history.pushState({ baoma: 'guard' }, '');
@@ -2210,7 +2240,7 @@
          万一退回时浏览器要重新载入文档，先写 swReload 让启动动画跳过（第 267 次同一机制）。 */
       var rewind = 0;
       var st0 = global.history.state;
-      if (st0 && (st0.baoma === 1 || st0.baoma === 'guard' || st0.baoma === 'drawer')) {
+      if (st0 && (st0.baoma === 1 || st0.baoma === 'guard' || st0.baoma === 'drawer' || st0.baoma === 'ov')) {
         rewind = 12;
         global.__yiyaRewinding = true;
         try { global.sessionStorage.setItem('swReload', '1'); } catch (eS) {}
@@ -2219,7 +2249,7 @@
       global.addEventListener('popstate', function (ev) {
         if (rewind > 0) {
           var rs = ev && ev.state;
-          if (rs && (rs.baoma === 1 || rs.baoma === 'guard' || rs.baoma === 'drawer') && --rewind > 0) { try { global.history.back(); return; } catch (eR2) {} }
+          if (rs && (rs.baoma === 1 || rs.baoma === 'guard' || rs.baoma === 'drawer' || rs.baoma === 'ov') && --rewind > 0) { try { global.history.back(); return; } catch (eR2) {} }
           rewind = 0;
           try { global.sessionStorage.removeItem('swReload'); } catch (eS2) {}
           dropForward();
@@ -2232,10 +2262,14 @@
           ignorePop--;
           /* 第 276 次：关侧拉页退掉它那条记录后，再清掉前进栈（否则 iOS 能从右缘把侧拉页「前进」拉出来） */
           if (!ignorePop && drawerPopped) { drawerPopped = false; dropForward(); return; }
+          if (!ignorePop && ovPopped) { ovPopped = false; dropForward(); return; }
           if (!ignorePop && restoreWait && !global.__yiyaRewinding) restoreWait();
           return;
         }
         var st = ev && ev.state;
+        /* 第 278 次（审计 #30）：照片大图等最上层临时层开着 → 只关它（它登记的那条记录已被这次 back 退掉） */
+        if (ovEntries.length) { var oe = ovEntries.pop(); try { oe.close(); } catch (eOC) {} dropForward(); return; }
+        if (st && st.baoma === 'ov') { ignorePop++; try { global.history.back(); } catch (eOB) { ignorePop = 0; } return; }
         if (st && st.baoma === 'guard') { ignorePop++; try { global.history.back(); } catch (eB) { ignorePop = 0; } return; }
         /* 第 276 次：系统返回 / popstate 时侧拉页开着 → 先关它、留在原页。
            侧拉页上面还盖着面板（切换宝宝）时先关面板，把侧拉页那条记录补回来。 */

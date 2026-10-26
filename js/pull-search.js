@@ -39,6 +39,10 @@
     if (doc.documentElement.classList.contains('wp-lock') || doc.documentElement.classList.contains('is-booting')) return false;
     var mr = doc.getElementById('modalRoot');
     if (mr && mr.children.length) return false;
+    /* 第 278 次（审计 #35）：首页编辑布局 / 「添加组件」面板（#homeSheet 在 #view 里，不进 #modalRoot）开着时不接管下拉 */
+    var H = global.Modules && global.Modules.home;
+    if (H && (H._edit || H._sheet)) return false;
+    if (doc.querySelector('#homeSheet:not([hidden]), .home-sheet:not([hidden]), body > .ph-view')) return false;
     if (tg && tg.closest && tg.closest('input, textarea, select, input[type=range], #tabbar, #dockOrb, #quickDock, .dock-live, [data-no-pull], .record-grid.is-editing')) return false;
     return true;
   }

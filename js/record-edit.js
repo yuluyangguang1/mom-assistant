@@ -128,8 +128,9 @@
       fields: [
         { k: 'date', l: '日期', t: 'date' },
         { k: 'weightKg', l: '体重（kg）', t: 'num', min: 0.5, max: 40, step: 0.01 },
-        { k: 'heightCm', l: '身长（cm）', t: 'num', min: 30, max: 130, step: 0.1 },
-        { k: 'headCm', l: '头围（cm）', t: 'num', min: 20, max: 60, step: 0.1 }
+        /* 第 278 次（审计 #38）：和生长页录入滑杆（growth.js METS）同一套范围 */
+        { k: 'heightCm', l: '身长（cm）', t: 'num', min: 20, max: 160, step: 0.1 },
+        { k: 'headCm', l: '头围（cm）', t: 'num', min: 20, max: 70, step: 0.1 }
       ],
       fix: function (r) {
         if (r.weightKg == null && r.heightCm == null && r.headCm == null) return '至少保留一项测量值';
@@ -231,6 +232,8 @@
             if (f.req) { Util.markInvalid(el, '请填写' + f.l); return; }
             next[f.k] = null;
           } else {
+            /* 第 278 次（审计 #38）：没动的数值（和原值一样）原样保留、不做范围校验——老数据 / 导入的值超出范围时，也能只改日期等别的字段 */
+            if (typeof rec[f.k] === 'number' && isFinite(rec[f.k]) && parseFloat(raw) === rec[f.k]) { next[f.k] = rec[f.k]; continue; }
             var n = parseFloat(raw);
             if (!isFinite(n) || n < f.min || n > f.max) { Util.markInvalid(el, '请填 ' + f.min + '–' + f.max); return; }
             next[f.k] = Math.round(n * 100) / 100;

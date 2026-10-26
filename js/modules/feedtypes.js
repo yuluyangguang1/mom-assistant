@@ -137,11 +137,12 @@
     if (onReady) onReady(api);
     return api;
   }
-  function whenTiles(prefix, label, dateV, timeV, maxDate) {
+  /* 第 278 次（审计 #39）：minDate 选填（辅食传宝宝生日），日期框最早只到这天 */
+  function whenTiles(prefix, label, dateV, timeV, maxDate, minDate) {
     return '<p class="rs-lbl">' + esc(label) + '</p><div class="rs-when ft-when">'
       + '<label class="rs-tile ft-tile"><span class="ft-ti">' + SV.cal + '</span><span class="ft-tt"><small>' + (prefix === 'e' ? '结束日期' : '日期') + '</small>'
       + '<b data-show="' + prefix + 'Date">' + esc(dayWord(dateV)) + '</b>'
-      + '<input type="date" class="ft-hid" id="' + prefix + 'Date" value="' + dateV + '" max="' + maxDate + '" aria-label="' + (prefix === 'e' ? '结束日期' : '日期') + '"></span></label>'
+      + '<input type="date" class="ft-hid" id="' + prefix + 'Date" value="' + dateV + '" max="' + maxDate + '"' + (/^\d{4}-\d{2}-\d{2}$/.test(minDate || '') ? ' min="' + minDate + '"' : '') + ' aria-label="' + (prefix === 'e' ? '结束日期' : '日期') + '"></span></label>'
       + '<label class="rs-tile ft-tile"><span class="ft-ti">' + SV.clock + '</span><span class="ft-tt"><small>' + (prefix === 'e' ? '结束时间' : '时间') + '</small>'
       + '<b data-show="' + prefix + 'Time">' + esc(timeV) + '</b>'
       + '<input type="time" class="ft-hid" id="' + prefix + 'Time" value="' + timeV + '" aria-label="' + (prefix === 'e' ? '结束时间' : '时间') + '"></span></label></div>';

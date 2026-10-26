@@ -356,7 +356,8 @@
     el.onended = function () {
       if (engine.el !== el) return;
       stop();
-      if (global.Util && Util.toast) Util.toast('白噪音已按 ' + minutes + ' 分钟定时关闭。', 'ok');
+      /* 第 278 次（审计顺查）：暂停时改过音量 / 定时会按剩余分钟重建元素，提示要写用户设定的分钟数（prefMin），不是剩下的 */
+      if (global.Util && Util.toast) Util.toast('白噪音已按 ' + (prefMin != null ? prefMin : minutes) + ' 分钟定时关闭。', 'ok');
       if (global.App) global.App.rerender();
     };
     var p;
@@ -437,7 +438,7 @@
     engine.src = src;
     engine.gain = gain;
     engine.playing = true;
-    engine.pending = { type: type, volume: volume, minutes: minutes, linkSleep: linkSleep };
+    engine.pending = { type: type, volume: volume, minutes: minutes, linkSleep: linkSleep, prefMin: prefMin };
 
     /* 解锁：已在 running 直接淡入；suspended 则等 resume 兑现再淡入。
        两种情况都【不】重建节点，只动增益。 */
@@ -449,7 +450,7 @@
       if (ctx.state === 'running') {
         engine.pending = null;
         fadeTo(gainOf(volume), 3);
-        writeState(true, type, volume, minutes, linkSleep);
+        writeCtxState(type, volume, minutes, linkSleep, prefMin);
         if (global.Util && Util.toast) Util.toast('白噪音已开始播放', 'ok');
         return true;
       }
@@ -485,7 +486,7 @@
         if (pd && engine.gain) {
           engine.pending = null;
           fadeTo(gainOf(pd.volume), 3);
-          writeState(true, pd.type, pd.volume, pd.minutes, pd.linkSleep);
+          writeCtxState(pd.type, pd.volume, pd.minutes, pd.linkSleep, pd.prefMin);
         } else {
           engine.pending = null;
         }
@@ -498,6 +499,12 @@
   }
 
   /** 播放状态落库：只有 ctx 真的 running 才记 playing=true（避免界面撒谎） */
+  /* 第 278 次（审计顺查）：按剩余分钟重建时（暂停中改音量），minutes 记用户设定的分钟数（prefMin），until 按剩余分钟算——
+     和元素播放那条路（startElem）一致，到点提示 / 进度环都按设定分钟数 */
+  function writeCtxState(type, volume, minutes, linkSleep, prefMin) {
+    writeState(true, type, volume, prefMin != null ? prefMin : minutes, linkSleep);
+    if (prefMin != null && minutes > 0) { var w0 = Storage.get().whitenoise; if (w0) { w0.until = Date.now() + minutes * 60000; Storage.save(); } }
+  }
   function writeState(playing, type, volume, minutes, linkSleep) {
     var d = Storage.get();
     if (playing) {

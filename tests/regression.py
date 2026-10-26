@@ -1374,7 +1374,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v241（第 277 次升）', "var CACHE = 'baoma-static-v241';" in sw)
+    check('#275 SW 版本 v242（第 278 次升）', "var CACHE = 'baoma-static-v242';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -1927,9 +1927,191 @@ def test_r277(b):
     ctx.close()
 
 
+
+CSV_CAP = r"""(()=>{window.__csv=[];if(window.__csvHooked)return;window.__csvHooked=1;const o=URL.createObjectURL;URL.createObjectURL=function(b){if(b&&b.text)b.text().then(t=>window.__csv.push(t));return o.call(URL,b)};})()"""
+PH3 = r"""async()=>{const ids=[];for(const c of ['#f00','#0f0','#00f']){const cv=document.createElement('canvas');cv.width=300;cv.height=200;const x=cv.getContext('2d');x.fillStyle=c;x.fillRect(0,0,300,200);const bl=await new Promise(r=>cv.toBlob(r,'image/jpeg'));ids.push(await Photos.put(bl))}
+  const d=Storage.get();d.feedings.push({id:'sol278',type:'solid',start:Util.nowLocal(),unit:'g',qty:30,amount:30,dish:'米粉',photos:ids});Storage.save();return ids}"""
+PH_ST = "(()=>{const v=document.querySelector('body > .ph-view');return {view:document.querySelectorAll('.ph-view').length,sheet:document.querySelectorAll('#modalRoot .modal-mask:not(.sheet-leaving)').length,st:(history.state||{}).baoma,idx:v&&v._phIndex?v._phIndex():-1,cnt:(document.querySelector('.ph-count')||{}).textContent||'',note:(document.querySelector('#sdNote')||{}).value,tab:App.currentTab(),hl:history.length}})()"
+
+
+def test_r278(b):
+    """第 278 次：第四轮审计 #30–#41 + 白噪音到点提示（暂停中改音量后写设定分钟数）。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3)
+    p.reload(); p.wait_for_timeout(1200)
+    ev = p.evaluate
+    go = lambda t: (ev(f"App.showTab('{t}',{{noVT:true}})"), p.wait_for_timeout(450))
+    # —— #30 面板里看照片大图：返回 / Esc 先关大图（面板和已填内容还在），左右滑看上下张 ——
+    go('solid')
+    ids = ev(PH3)
+    ev("Modules.solid._edit(Storage.get().feedings.find(r=>r.id==='sol278'))"); p.wait_for_timeout(700)
+    ev("(()=>{const n=document.querySelector('#sdNote');n.value='还没保存的备注';n.dispatchEvent(new Event('input',{bubbles:true}))})()")
+    ev("document.querySelector('[data-phview]').click()"); p.wait_for_timeout(600)
+    a = ev(PH_ST)
+    check('#30 点缩略图打开大图：登记一条 history（ov），显示「1 / 3」', a['view'] == 1 and a['st'] == 'ov' and a['cnt'] == '1 / 3' and a['idx'] == 0 and len(ids) == 3, a)
+    p.mouse.move(300, 420); p.mouse.down(); p.mouse.move(140, 425, steps=6); p.mouse.up(); p.wait_for_timeout(350)
+    a1 = ev(PH_ST)
+    p.keyboard.press('ArrowRight'); p.wait_for_timeout(250)
+    a2 = ev(PH_ST)
+    p.mouse.move(100, 420); p.mouse.down(); p.mouse.move(300, 425, steps=6); p.mouse.up(); p.wait_for_timeout(350)
+    a3 = ev(PH_ST)
+    check('#30 大图左滑看下一张、→ 再下一张、右滑回上一张（横滑不当成点一下关闭）', a1['idx'] == 1 and a1['cnt'] == '2 / 3' and a2['idx'] == 2 and a3['idx'] == 1 and a3['view'] == 1
+          and ev("document.querySelector('.ph-view img').getAttribute('data-phid')") == ids[1], [a1, a2, a3])
+    ev("history.back()"); p.wait_for_timeout(900)
+    a4 = ev(PH_ST)
+    check('#30 系统返回（popstate）：只关大图，面板还开着、没保存的备注还在，留在辅食页', a4['view'] == 0 and a4['sheet'] == 1 and a4['note'] == '还没保存的备注' and a4['tab'] == 'solid', a4)
+    ev("document.querySelectorAll('[data-phview]')[2].click()"); p.wait_for_timeout(600)
+    check('#30 从第 3 张缩略图打开：从第 3 张开始', ev(PH_ST)['idx'] == 2)
+    p.keyboard.press('Escape'); p.wait_for_timeout(500)
+    a5 = ev(PH_ST)
+    check('#30 Esc：先关大图，面板不关', a5['view'] == 0 and a5['sheet'] == 1 and a5['note'] == '还没保存的备注', a5)
+    hl0 = ev("history.length")  # 前面开关过一次：前进栈里留着一条 guard，长度按这一刻比
+    ev("document.querySelector('[data-phview]').click()"); p.wait_for_timeout(600)
+    p.mouse.click(200, 420); p.wait_for_timeout(900)
+    a6 = ev(PH_ST)
+    check('#30 点一下关闭大图：退掉它那条记录（history 不涨）、面板还在', a6['view'] == 0 and a6['sheet'] == 1 and a6['hl'] == hl0 and a6['st'] != 'ov', [a6, hl0])
+    ev("history.back()"); p.wait_for_timeout(900)
+    a7 = ev(PH_ST)
+    check('#30 大图关掉后再返回：这次才关面板，仍在辅食页', a7['sheet'] == 0 and a7['tab'] == 'solid', a7)
+    ev("Storage.get().feedings=Storage.get().feedings.filter(r=>r.id!=='sol278');Storage.save()")
+    # —— #31 生长只量体重：身长 / 头围不复制上次值 ——
+    go('growth')
+    n0 = ev("Storage.get().growth.length")
+    pre = ev("[...document.querySelectorAll('#gMetrics [data-mk] b')].map(b=>b.textContent)")
+    ev("document.querySelector('#gSave').click()"); p.wait_for_timeout(300)
+    blocked = ev("Storage.get().growth.length") == n0
+    ev("document.querySelector('#gMetrics [data-mk=weight]').click()")
+    for _ in range(4): ev("document.querySelector('#gRulerPlus').click()")
+    chips = ev("[...document.querySelectorAll('#gMetrics [data-mk] b')].map(b=>b.textContent)")
+    ev("document.querySelector('#gSave').click()"); p.wait_for_timeout(500)
+    g = ev("Storage.get().growth.slice(-1)[0]")
+    check('#31 生长：预填的上次值标「上次」，一项都没调时不让保存', all(x.startswith('上次') for x in pre if x != '--') and blocked and chips[0].endswith('kg') and chips[1].startswith('上次'), [pre, chips, blocked])
+    check('#31 生长：只调了体重就保存 → 新记录只有体重，身长 / 头围为空（不再复制上次的值）', g['weightKg'] is not None and g['heightCm'] is None and g['headCm'] is None and ev("Storage.get().growth.length") == n0 + 1, g)
+    ev("__x=0") if False else None
+    ev(CSV_CAP); go('settings')
+    ev("(()=>{const s=document.querySelector('#sCsvModule');s.value='growth';document.querySelector('#sCsv').click()})()"); p.wait_for_timeout(400)
+    gl = ev("(window.__csv.slice(-1)[0]||'').split(/\\r?\\n/).filter(l=>l.startsWith(Storage.get().growth.slice(-1)[0].date)).pop()")
+    check('#31 生长 CSV：这一行身长 / 头围两列为空', gl is not None and gl.endswith(',,'), gl)
+    # —— #32 经期：连点保存只存一条；已有未结束 / 区间重叠时拦下；重复老数据不影响预测 ——
+    ev("Storage.get().periods=[];Storage.save()"); go('period')
+    ev("document.querySelector('#pSave').click();document.querySelector('#pSave').click()"); p.wait_for_timeout(500)
+    ev("document.querySelector('#pSave').click()"); p.wait_for_timeout(500)
+    pr = ev("Storage.get().periods.map(x=>[x.start,x.end])")
+    check('#32 经期：连点保存 / 再点一次，只存下一条进行中的经期，并提示先结束它', len(pr) == 1 and pr[0][1] is None and '还没结束' in ev("(document.querySelector('.field-error')||{}).textContent||''"), pr)
+    ev("(()=>{const d=Storage.get(),t=Util.todayISO();d.periods=[{id:'q1',start:Util.addDays(t,-20),end:Util.addDays(t,-15),symptoms:[]}];Storage.save();App.rerender()})()"); p.wait_for_timeout(400)
+    ev("(()=>{const i=document.querySelector('#pStart');i.value=Util.addDays(Util.todayISO(),-17);const e=document.querySelector('#pEnd');e.value=Util.addDays(Util.todayISO(),-12);document.querySelector('#pSave').click()})()"); p.wait_for_timeout(400)
+    ov = ev("[Storage.get().periods.length, (document.querySelector('.field-error')||{}).textContent||'']")
+    ev("(()=>{const i=document.querySelector('#pStart');i.value=Util.addDays(Util.todayISO(),-50);const e=document.querySelector('#pEnd');e.value=Util.addDays(Util.todayISO(),-46);document.querySelector('#pSave').click()})()"); p.wait_for_timeout(400)
+    check('#32 经期：和已有记录区间重叠时拦下并说明；不重叠的补记照常保存', ov[0] == 1 and '重叠' in ov[1] and ev("Storage.get().periods.length") == 2, ov)
+    pw = ev("Modules.period._predictWindow([{start:'2026-06-01'},{start:'2026-06-29'},{start:'2026-07-27'},{start:'2026-08-24'},{start:'2026-08-24'}])")
+    check('#32 经期预测：老数据里同一天的重复记录只算一次，预测照常给出', pw.get('ok') is True, pw)
+    # —— #33 喂养 CSV：勺 / 碗的量与单位、菜名 ——
+    ev("(()=>{const d=Storage.get();d.feedings.push({id:'c1',type:'solid',start:'2026-10-20T18:12:00',unit:'spoon',qty:3,amount:null,dish:'南瓜泥😀'},{id:'c2',type:'solid',start:'2026-10-20T19:00:00',unit:'bowl',qty:1.5,amount:null,dish:'米粥'});Storage.save()})()")
+    go('settings')
+    ev("(()=>{window.__csv=[];const s=document.querySelector('#sCsvModule');s.value='feedings';document.querySelector('#sCsv').click()})()"); p.wait_for_timeout(400)
+    fc = ev("window.__csv.slice(-1)[0]||''")
+    import csv as _csv, io as _io
+    rows = list(_csv.reader(_io.StringIO(fc.lstrip('\ufeff'), newline='')))
+    sp = [r for r in rows if r and r[0] == '2026-10-20T18:12:00']; bw = [r for r in rows if r and r[0] == '2026-10-20T19:00:00']
+    check('#33 喂养 CSV：表头分「量 / 单位 / 名称」，按勺 / 碗记的辅食写出 3 勺 / 1.5 碗和菜名', rows[0][4:7] == ['量', '单位', '名称'] and sp and sp[0][4:7] == ['3', '勺', '南瓜泥😀'] and bw and bw[0][4:7] == ['1.5', '碗', '米粥'], [rows[0], sp, bw])
+    ev("Storage.get().feedings=Storage.get().feedings.filter(r=>r.id!=='c1'&&r.id!=='c2');Storage.save()")
+    # —— #34 交接班：停用补剂不列、按次数写 1/2、辅食写量 ——
+    ev("(()=>{const d=Storage.get();d.supplementPlans=[{id:'a',name:'铁剂',form:'滴剂',perDay:1,active:false,sortOrder:0},{id:'b',name:'维生素D',form:'滴剂',perDay:2,active:true,sortOrder:1},{id:'c',name:'DHA',form:'滴剂',perDay:1,active:true,sortOrder:2}];d.supplements=[{id:'x',time:Util.nowLocal(),name:'维生素D',planId:'b'}];d.feedings.push({id:'sz',type:'solid',start:Util.nowLocal(),unit:'spoon',qty:3,dish:'米粉'});Storage.save()})()")
+    ho = ev("Modules.settings._handoff(Storage.get())")
+    sl = [l for l in ho.split('\n') if l.startswith('已吃') or l.startswith('还没打卡')]
+    fl = [l for l in ho.split('\n') if l.startswith('上次') and '辅食' in l]
+    check('#34 交接班：停用的铁剂不列；维生素D 写「1/2」；没吃的 DHA 列为未打卡', sl and '铁剂' not in ho and '维生素D 1/2' in sl[0] and '未打卡 DHA' in sl[0], sl)
+    check('#34 交接班：辅食写名称和量（3 勺）', fl and '米粉' in fl[0] and '3 勺' in fl[0], fl)
+    ev("Storage.get().feedings=Storage.get().feedings.filter(r=>r.id!=='sz');Storage.save()")
+    # —— #36 / #37 首页磁贴 ——
+    ev("(()=>{const d=Storage.get(),t=Util.todayISO();d.periods=[{id:'p1',start:Util.addDays(t,-6),end:Util.addDays(t,-2),symptoms:[]},{id:'p2',start:Util.addDays(t,-62),end:Util.addDays(t,-57),symptoms:[]}];d.growth=[{id:'g1',date:Util.addDays(t,-6),weightKg:null,heightCm:62,headCm:null}];Storage.save()})()")
+    go('home'); ev("Modules.home._edit=true;Modules.home._sheet=true;App.rerender()"); p.wait_for_timeout(700)
+    hs = ev("document.querySelector('#homeSheet').innerText.replace(/\\s+/g,' ')")
+    check('#36 首页经期磁贴：按开始日期取最近一次（上次 6 天前，不是补记的 62 天前）', '上次 6 天前' in hs and '上次 62 天前' not in hs, hs[:300])
+    check('#37 首页生长磁贴：最近一条没有体重时写身长，不出现「null kg」', '最近身长 62 cm' in hs and 'null' not in hs, hs[:300])
+    # —— #35 编辑布局 / 添加组件面板开着时不触发下拉搜索（CDP 真触摸） ——
+    cdp = ctx.new_cdp_session(p)
+    def pull(y0, y1):
+        cdp.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [{'x': 200, 'y': y0}]})
+        for i in range(1, 13):
+            cdp.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': 200, 'y': y0 + (y1 - y0) * i / 12}]}); p.wait_for_timeout(16)
+        s = ev("[PullSearch._state().mode, document.querySelector('#view').style.transform||'']")
+        cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []}); p.wait_for_timeout(600)
+        return s + [ev("App.currentTab()")]
+    ev("scrollTo(0,0)")
+    c1 = pull(500, 800)
+    ev("Modules.home._sheet=false;App.rerender()"); p.wait_for_timeout(500); ev("scrollTo(0,0)")
+    c2 = pull(200, 550)
+    check('#35 首页「添加组件」面板 / 编辑布局时下拉：不接管、页面不被拽下、不进搜索页', c1[0] is None and 'translate' not in c1[1] and c1[2] == 'home' and c2[0] is None and c2[2] == 'home', [c1, c2])
+    ev("Modules.home._edit=false;App.rerender()"); p.wait_for_timeout(500); ev("scrollTo(0,0)")
+    c3 = pull(250, 600)
+    check('#35 对照：正常首页顶部下拉仍进搜索页', c3[2] == 'search', c3)
+    go('home')
+    # —— #38 生长编辑范围与滑杆一致、没动的字段不校验 ——
+    ev("(()=>{const d=Storage.get();d.growth.push({id:'gE',date:Util.addDays(Util.todayISO(),-1),weightKg:7.2,heightCm:25,headCm:62.5});Storage.save()})()")
+    go('growth')
+    ev("document.querySelector('[data-del=gE]').closest('li').querySelector('.li-main').click()"); p.wait_for_timeout(500)
+    ev("(()=>{const e=document.querySelector('#reF_date');e.value=Util.addDays(Util.todayISO(),-2);e.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('[data-re-ok]').click()})()"); p.wait_for_timeout(500)
+    ge = ev("Storage.get().growth.find(r=>r.id==='gE')")
+    check('#38 生长编辑：头围 62.5 / 身长 25 的记录只改日期也能保存（范围同录入滑杆 20–70 / 20–160）', ge['date'] == ev("Util.addDays(Util.todayISO(),-2)") and ge['headCm'] == 62.5 and ge['heightCm'] == 25, ge)
+    ev("document.querySelector('[data-del=gE]').closest('li').querySelector('.li-main').click()"); p.wait_for_timeout(500)
+    ev("(()=>{const e=document.querySelector('#reF_headCm');e.value='75';document.querySelector('[data-re-ok]').click()})()"); p.wait_for_timeout(300)
+    check('#38 生长编辑：改成超出范围的值仍拦下（请填 20–70）', '20–70' in ev("(document.querySelector('#modalRoot .field-error')||{}).textContent||''") and ev("Storage.get().growth.find(r=>r.id==='gE').headCm") == 62.5)
+    ev("Sheet.closeAll()"); p.wait_for_timeout(300)
+    # —— #39 辅食日期不早于出生、量 ≤0 标红 ——
+    go('solid')
+    ns0 = ev("Storage.get().feedings.filter(r=>r.type==='solid').length")
+    ev("Modules.solid._open()"); p.wait_for_timeout(600)
+    mn = ev("document.querySelector('#sdDate').min")
+    ev("(()=>{const e=document.querySelector('#sdDate');e.value='2025-03-01';e.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('[data-sdsave]').click()})()"); p.wait_for_timeout(400)
+    pb = ev("[Storage.get().feedings.filter(r=>r.type==='solid').length, !!document.querySelector('#modalRoot .modal-mask')]")
+    check('#39 辅食：日期框最早到出生日；选到出生前保存被拦下、面板不关', mn == '2026-05-20' and pb == [ns0, True], [mn, pb])
+    ev("(()=>{const e=document.querySelector('#sdDate');e.value=Util.todayISO();e.dispatchEvent(new Event('change',{bubbles:true}));const q=document.querySelector('#sdQty');q.value='-20';q.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-sdsave]').click()})()"); p.wait_for_timeout(400)
+    ng = ev("[Storage.get().feedings.filter(r=>r.type==='solid').length, document.querySelector('#sdQty').classList.contains('is-invalid'), [...document.querySelectorAll('#toastRoot .toast')].some(t=>/大于 0/.test(t.textContent))]")
+    check('#39 辅食：量填负数不存、数字框标红并提示', ng == [ns0, True, True], ng)
+    ev("Sheet.closeAll()"); p.wait_for_timeout(300)
+    # —— #40 补剂：重新启用时已有同名启用中计划 → 不启用 ——
+    ev("(()=>{const d=Storage.get();d.supplementPlans=[{id:'a',name:'维生素D',form:'滴剂',perDay:1,active:false,sortOrder:0},{id:'b',name:'维生素D',form:'滴剂',perDay:1,active:true,sortOrder:1}];Storage.save()})()")
+    go('supplement')
+    ev("document.querySelector('[data-toggle=a]').click()"); p.wait_for_timeout(400)
+    sp2 = ev("Storage.get().supplementPlans.map(x=>[x.id,x.active])")
+    check('#40 补剂：已有同名启用中计划时不能再启用旧的那条，提示先停用 / 删掉', sp2 == [['a', False], ['b', True]] and ev("[...document.querySelectorAll('#toastRoot .toast')].some(t=>/已经有一条在用/.test(t.textContent))"), sp2)
+    ev("document.querySelector('[data-toggle=b]').click()"); p.wait_for_timeout(300); ev("document.querySelector('[data-toggle=a]').click()"); p.wait_for_timeout(300)
+    check('#40 补剂：停用新的那条后，旧的可以正常启用', ev("Storage.get().supplementPlans.map(x=>[x.id,x.active])") == [['a', True], ['b', False]])
+    # —— #41 Esc 由上到下：侧拉页上盖着切换宝宝面板 ——
+    go('feeding')
+    ev("Drawer.open()"); p.wait_for_timeout(500); ev("App._openBabySheet()"); p.wait_for_timeout(500)
+    p.keyboard.press('Escape'); p.wait_for_timeout(500)
+    e1 = ev("[Drawer.isOpen(), Sheet.isOpen()]")
+    p.keyboard.press('Escape'); p.wait_for_timeout(600)
+    e2 = ev("[Drawer.isOpen(), Sheet.isOpen()]")
+    check('#41 Esc：先关切换宝宝面板（侧拉页还开着），再按关侧拉页', e1 == [True, False] and e2 == [False, False], [e1, e2])
+    # —— 白噪音：暂停中改音量后到点，提示写设定的分钟数 ——
+    go('home')
+    ev(FAKE_AUDIO)
+    go('whitenoise')
+    ev("(()=>{const s=Storage.get();s.whitenoise=Object.assign(s.whitenoise||{},{minutes:30,type:'pink',volume:3,playing:false,paused:false});Storage.save()})()")
+    p.click('.wn-art[data-type="pink"]'); p.wait_for_timeout(400)
+    if not ev("document.getElementById('wpToggle').getAttribute('data-state')=='starting'"):
+        p.click('#wpToggle'); p.wait_for_timeout(120)
+    ev("__FA[__FA.length-1]._ok()"); p.wait_for_timeout(150)
+    ev("__FA[__FA.length-1].pause()"); p.wait_for_timeout(150)
+    ev("(()=>{const w=Storage.get().whitenoise;w.leftMs=4*60000;Storage.save();const v=document.querySelector('#wpVol');v.value='5';v.dispatchEvent(new Event('input',{bubbles:true}));v.dispatchEvent(new Event('change',{bubbles:true}))})()"); p.wait_for_timeout(150)
+    p.click('#wpToggle'); p.wait_for_timeout(200)
+    ev("__FA[__FA.length-1]._ok()"); p.wait_for_timeout(150)
+    wv = ev("[Storage.get().whitenoise.minutes, Math.round((Storage.get().whitenoise.until-Date.now())/60000)]")
+    ev("(()=>{const a=__FA[__FA.length-1];a.ended=true;a.onended&&a.onended()})()"); p.wait_for_timeout(200)
+    tt = ev("[...document.querySelectorAll('.toast')].map(t=>t.textContent).join('|')")
+    check('#278 白噪音：暂停中改音量后继续（按剩余 4 分钟重建），到点提示仍写「已按 30 分钟定时关闭」', wv[0] == 30 and wv[1] == 4 and '30 分钟定时关闭' in tt and '4 分钟定时关闭' not in tt, [wv, tt[-120:]])
+    ev("Modules.whitenoise._stop&&Modules.whitenoise._stop()")
+    check('第 278 次无报错', not errs, errs)
+    ctx.close()
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -1944,7 +2126,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r274',),
           ('test_r275_boot', 'test_r275_glass'),
           ('test_r276', 'test_flows', 'test_pump'),
-          ('test_r277',))  # 第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r277',),
+          ('test_r278',))  # 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

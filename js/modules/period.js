@@ -33,6 +33,8 @@
   function _predictWindow(periods) {
     var ps = (periods || []).filter(function (x) { return x.start; })
       .slice().sort(function (a, b) { return new Date(a.start) - new Date(b.start); });
+    /* 第 278 次（审计 #32）：老数据里同一天开始的重复记录只算一次（间隔 0 天会把预测判成「不在范围」） */
+    ps = ps.filter(function (x, i) { return i === 0 || String(x.start).slice(0, 10) !== String(ps[i - 1].start).slice(0, 10); });
     var gaps = [];
     for (var i = 1; i < ps.length; i++) gaps.push(Util.daysBetween(ps[i - 1].start, ps[i].start));
     if (gaps.length < 3) return { ok: false, reason: 'few' };
@@ -271,11 +273,35 @@
         });
       });
 
+      var pSaving = false;
       view.querySelector('#pSave').addEventListener('click', function () {
+        if (pSaving) return; /* 第 278 次（审计 #32）：连点只存一次 */
         var start = view.querySelector('#pStart').value;
         if (!start) { Util.markInvalid(view.querySelector('#pStart'), '请填写开始日期'); return; }
         var end = view.querySelector('#pEnd').value;
         if (end && Util.daysBetween(start, end) < 0) { Util.markInvalid(view.querySelector('#pEnd'), '结束日期不能早于开始日期'); return; }
+        /* 第 278 次（审计 #32）：已有一条没结束的经期时，新记录（开始在它之后）先请用户结束它；
+           区间（没结束的算到今天）和已有记录重叠时拦下 */
+        var day = function (x) { return String(x || '').slice(0, 10); };
+        var nS = day(start), nE = day(end) || today;
+        if (nE < nS) nE = nS;
+        var open = d.periods.filter(function (x) { return x && x.start && !x.end && day(x.start) <= nS; })
+          .sort(function (a, b) { return day(b.start) < day(a.start) ? -1 : 1; })[0];
+        if (open) {
+          Util.markInvalid(view.querySelector('#pStart'), Util.fmtDate(day(open.start)) + ' 开始的经期还没结束，请先在上面点「今天结束」或「选日期结束」');
+          return;
+        }
+        var clash = d.periods.filter(function (x) {
+          if (!x || !x.start) return false;
+          var s0 = day(x.start), e0 = day(x.end) || today;
+          if (e0 < s0) e0 = s0;
+          return nS <= e0 && s0 <= nE;
+        })[0];
+        if (clash) {
+          Util.markInvalid(view.querySelector(end ? '#pEnd' : '#pStart'), '和 ' + Util.fmtDate(day(clash.start)) + (clash.end ? '–' + Util.fmtDate(day(clash.end)) : ' 开始（未结束）') + ' 那次经期重叠');
+          return;
+        }
+        pSaving = true;
         var syms = Array.prototype.map.call(view.querySelectorAll('.pSym:checked'), function (c) { return c.value; });
         d.periods.push({ id: Util.uid(), start: start, end: end || null, symptoms: syms, flow: flowSel, pain: painSel });
         if (Storage.save()) Util.toast('已记录经期：' + Util.fmtDate(start), 'ok'); /* C1 */

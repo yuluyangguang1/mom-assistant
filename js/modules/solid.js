@@ -134,7 +134,10 @@
     if (!isFinite(t0)) t0 = now;
     var PH = global.Photos || null;
 
-    var body = F.whenTiles('sd', '喂养时间', F.isoDay(t0), F.hm(t0), F.isoDay(now))
+    /* 第 278 次（审计 #39）：日期最早到宝宝出生那天 */
+    var bd0 = (Storage.get().settings && Storage.get().settings.baby && Storage.get().settings.baby.birthDate) || '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(bd0)) bd0 = '';
+    var body = F.whenTiles('sd', '喂养时间', F.isoDay(t0), F.hm(t0), F.isoDay(now), bd0)
       + '<p class="rs-lbl">辅食性状</p><div class="sd-texs" role="radiogroup" aria-label="辅食性状">'
       + TEX.map(function (t) { return texCard(t, st.texture === t.v); }).join('') + '</div>'
       + '<p class="rs-lbl">进食量</p><div class="rs-seg sd-seg" role="radiogroup" aria-label="单位">'
@@ -230,7 +233,7 @@
           var on = st.cats.indexOf(v) >= 0; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
           return;
         }
-        if ((v = b.getAttribute('data-phview'))) { if (PH) PH.view(v); return; }
+        if ((v = b.getAttribute('data-phview'))) { if (PH) PH.view(v, st.photos); return; }
         if ((v = b.getAttribute('data-phrm'))) { st.photos = st.photos.filter(function (x) { return x !== v; }); paintPhotos(); if (global.Photos && Photos.release) Photos.release(v); return; }
         if (PH && (b.hasAttribute('data-phadd') || b.hasAttribute('data-phcam'))) {
           if (busy) return;
@@ -258,6 +261,19 @@
         var t = F.readWhen(box, 'sd');
         if (!isFinite(t)) { Util.toast('日期或时间不完整', 'warn'); return; }
         if (t > Date.now() + 60000) { Util.toast('这个时间还没到，请检查一下', 'warn'); return; }
+        if (bd0 && F.isoDay(t) < bd0 && !(editing && F.isoDay(ms(rec.start)) === F.isoDay(t))) {
+          Util.markInvalid(box.querySelector('#sdDate'), '不能早于宝宝出生（' + Util.fmtDate(bd0) + '）');
+          Util.toast('日期不能早于宝宝出生', 'warn'); return;
+        }
+        /* 第 278 次（审计 #39）：量填了 0 或负数不再悄悄存成「没记量」，标红提示；不记量就留空 */
+        var qRaw = String(qIn.value || '').trim();
+        if (qRaw !== '' && !(parseFloat(qRaw) > 0)) {
+          /* 数字框很窄，错误字放不下：只标红框 + 提示岛说明（改了就去掉红框） */
+          qIn.classList.add('is-invalid'); qIn.setAttribute('aria-invalid', 'true');
+          qIn.addEventListener('input', function un() { qIn.classList.remove('is-invalid'); qIn.removeAttribute('aria-invalid'); qIn.removeEventListener('input', un); });
+          try { qIn.focus(); } catch (eF) {}
+          Util.toast('进食量要大于 0，不记量就留空', 'warn'); return;
+        }
         var U = UNITS[st.unit], q = readQ();
         if (q > U.max) { Util.toast('进食量最多 ' + U.max + ' ' + U.t, 'warn'); return; }
         q = q ? Math.round(q * 10) / 10 : 0;

@@ -260,17 +260,30 @@
       /* 第 128 次：昨夜最长连续改走共享口径（昨夜整组取最长一段），
          不再取「start 最新的已结束睡眠」——午睡会把磁贴顶成错值。 */
       var lastLongestH = lastNightLongestH(d);
-      var weightRecent = (d.growth || []).slice()
-        .sort(function (a, b) { return new Date(b.date) - new Date(a.date); })[0];
+      /* 第 278 次（审计 #37）：取最近一条「有体重」的记录；都没有体重时退到最近的身长 / 头围，不再出现「最近 null kg」 */
+      var growthByDate = (d.growth || []).filter(function (r) { return r && r.date; }).slice()
+        .sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
+      var weightRecent = growthByDate.filter(function (r) { return r.weightKg != null && r.weightKg !== ''; })[0];
+      var growthSum = '暂无';
+      if (weightRecent) growthSum = '最近 ' + weightRecent.weightKg + ' kg';
+      else {
+        var hR = growthByDate.filter(function (r) { return r.heightCm != null && r.heightCm !== ''; })[0];
+        var cR = growthByDate.filter(function (r) { return r.headCm != null && r.headCm !== ''; })[0];
+        if (hR) growthSum = '最近身长 ' + hR.heightCm + ' cm';
+        else if (cR) growthSum = '最近头围 ' + cR.headCm + ' cm';
+      }
       var wk = pregnancyWeek(d);
       var pk = (d.packing && d.packing.items) ? d.packing.items : [];
       var pkDone = pk.filter(function (x) { return x.checked; }).length;
       var pkPct = pk.length ? Math.round(pkDone / pk.length * 100) : 0;
       var periods = d.periods || [];
-      var ongoing = periods.filter(function (p) { return p.start && (!p.end || p.end >= today); })[0];
+      /* 第 278 次（审计 #36）：按开始日期倒序取最近一次（补记的更早记录排在数组后面也不影响）；进行中同样取最近那条 */
+      var perByStart = periods.filter(function (p) { return p && p.start && isoOf(p.start) <= today; }).slice()
+        .sort(function (a, b) { return isoOf(b.start) < isoOf(a.start) ? -1 : isoOf(b.start) > isoOf(a.start) ? 1 : 0; });
+      var ongoing = perByStart.filter(function (p) { return !p.end || isoOf(p.end) >= today; })[0];
       var periodInfo = '未记录';
       if (ongoing) periodInfo = '经期第 ' + (Util.daysBetween(isoOf(ongoing.start), today) + 1) + ' 天';
-      else if (periods.length) periodInfo = '上次 ' + Util.daysBetween(isoOf(periods[periods.length - 1].start), today) + ' 天前';
+      else if (perByStart.length) periodInfo = '上次 ' + Util.daysBetween(isoOf(perByStart[0].start), today) + ' 天前';
       var ym = today.slice(0, 7);
       var monthSum = ((d.finance && d.finance.records) || [])
         .filter(function (r) { return (r.date || '').slice(0, 7) === ym; })
@@ -393,7 +406,7 @@
         { id: 'diaper', stages: ['baby'], name: '尿布', accent: 'diaper', sum: diaperSum, badge: '', empty: !diaperRaw },
         { id: 'sleep', stages: ['baby'], name: '睡眠', accent: 'sleep', sum: osTile ? ('计时中 · 已 ' + Util.fmtDuration(openElapsedMs(osTile))) : ((lastLongestH != null ? ('昨夜最长连续 ' + lastLongestH.toFixed(1) + ' 小时') : '暂无') + sleepWake), badge: osTile ? '计时中' : '', empty: (!osTile && lastLongestH == null) },
         { id: 'whitenoise', stages: ['baby'], name: '哄睡白噪音', accent: 'sleep', sum: noiseInfo, guide: true, empty: false },
-        { id: 'growth', stages: ['baby'], name: '生长', accent: 'growth', sum: weightRecent ? ('最近 ' + weightRecent.weightKg + ' kg') : '暂无', empty: !weightRecent },
+        { id: 'growth', stages: ['baby'], name: '生长', accent: 'growth', sum: growthSum, empty: !growthByDate.length },
         { id: 'vaccine', stages: ['baby'], name: '疫苗', accent: 'vaccine', sum: vaxInfo, badge: vaxBadge, guide: true, empty: false },
         { id: 'meds', stages: ['baby', 'pregnancy'], name: '吃药/维D', accent: 'meds', sum: medsToday ? ('今日 ' + medsToday + ' 次') : '暂无今日', badge: '', guide: true, empty: !medsToday },
         { id: 'milestone', stages: ['baby'], name: '里程碑', accent: 'milestone', sum: msRecent ? msRecent.title : '暂无', badge: msBadge, empty: !msRecent },

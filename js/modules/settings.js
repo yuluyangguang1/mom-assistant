@@ -40,7 +40,12 @@
         if (ok(f.durationL)) det.push('左 ' + f.durationL + ' 分');
         if (ok(f.durationR)) det.push('右 ' + f.durationR + ' 分');
         if (!det.length && ok(f.durationMin)) det.push(f.durationMin + ' 分');
-      } else if (ok(f.amount)) det.push(f.amount + (f.type === 'solid' ? ' g' : ' ml'));
+      } else if (f.type === 'solid') {
+        /* 第 278 次（审计 #34）：辅食的量按它自己的单位（勺 / 碗 / 克），和辅食页 / 搜索同一个 _amtText；带上名称 */
+        if (f.dish && String(f.dish).trim()) det.push(String(f.dish).trim().slice(0, 16));
+        var sa = Modules.solid && Modules.solid._amtText ? Modules.solid._amtText(f) : (ok(f.amount) ? f.amount + ' 克' : '');
+        if (sa) det.push(sa);
+      } else if (ok(f.amount)) det.push(f.amount + ' ml');
       L.push('上次 ' + hm(f.start) + ' ' + (FT[f.type] || '') + (det.length ? ' ' + det.join(' ') : '') + '（' + ago(f.start) + '）');
       var ml = feeds.reduce(function (a, r) { return a + ((r.type === 'bottle' || r.type === 'formula') && ok(r.amount) ? r.amount : 0); }, 0);
       L.push('近 12 小时 ' + feeds.length + ' 次' + (ml ? '，瓶喂共 ' + ml + ' ml' : ''));
@@ -83,16 +88,27 @@
       L.push(''); L.push('◆ 体温（近 24 小时）');
       L.push('最近 ' + tp[0].value + '°C（' + hm(tp[0].time) + '）' + (tp.length > 1 ? '，共量 ' + tp.length + ' 次' : ''));
     }
-    /* 补剂：今天已打卡 */
-    var today = Util.todayISO();
-    var sup = (d.supplements || []).filter(function (r) { return r && r.name && String(r.time || '').slice(0, 10) === today; });
-    var plans = (d.supplementPlans || []).filter(function (p) { return p && p.name && !p.paused; });
+    /* 补剂：今天已打卡。第 278 次（审计 #34）：只列启用中的计划（active !== false；原来判断不存在的 p.paused，停用的也列成「未打卡」）；
+       每天多次的按实际次数写「维生素D 1/2」（原来吃过一次就算「已吃」）；「今天」按照护日起点（dayKeyOf），和补剂页同一口径 */
+    var DS = Util.dayStartHour ? Util.dayStartHour(d) : 0, dayNow = Util.dayKeyOf(new Date(), DS);
+    var sup = (d.supplements || []).filter(function (r) { return r && r.name && Util.dayKeyOf(r.time, DS) === dayNow; });
+    var plans = (d.supplementPlans || []).filter(function (p) { return p && p.name && p.active !== false; });
     if (sup.length || plans.length) {
-      var doneN = {}; sup.forEach(function (r) { doneN[String(r.name)] = 1; });
-      var todo = plans.filter(function (p) { return !doneN[String(p.name)]; }).map(function (p) { return String(p.name).slice(0, 12); });
+      var usedR = [], doneL = [], todo = [];
+      plans.forEach(function (p) {
+        var per = (typeof p.perDay === 'number' && p.perDay > 0) ? p.perDay : 1;
+        var hit = sup.filter(function (r) { return (r.planId && p.id) ? r.planId === p.id : r.name === p.name; });
+        hit.forEach(function (r) { usedR.push(r); });
+        var nm = String(p.name).slice(0, 12);
+        if (!hit.length) todo.push(nm + (per > 1 ? ' 0/' + per : ''));
+        else doneL.push(nm + (per > 1 ? ' ' + Math.min(hit.length, 99) + '/' + per : ''));
+      });
+      /* 计划外（或已停用计划）今天打过卡的：照实列出 */
+      var extra = {};
+      sup.forEach(function (r) { if (usedR.indexOf(r) < 0) { var k = String(r.name).slice(0, 12); extra[k] = (extra[k] || 0) + 1; } });
+      Object.keys(extra).forEach(function (k) { doneL.push(k + (extra[k] > 1 ? ' ×' + extra[k] : '')); });
       L.push(''); L.push('◆ 补剂（今天）');
-      L.push((Object.keys(doneN).length ? '已吃 ' + Object.keys(doneN).map(function (k) { return k.slice(0, 12); }).join('、') : '还没打卡')
-        + (todo.length ? '；未打卡 ' + todo.join('、') : ''));
+      L.push((doneL.length ? '已吃 ' + doneL.join('、') : '还没打卡') + (todo.length ? '；未打卡 ' + todo.join('、') : ''));
     }
     /* 储奶 */
     var st = (d.milkStash || []).filter(function (x) { return x && !x.usedAt && ok(x.amount) && (x.place === 'fridge' || x.place === 'freezer'); });
@@ -1534,9 +1550,18 @@
       var DIAPER_T = { pee: '尿', poop: '便', both: '尿+便' };
       var CSV_BUILDERS = {
         feedings: function (d) {
-          return toCsv(['开始时间', '类型', '侧别', '时长(分)', '量(ml/g)', '备注'],
+          /* 第 278 次（审计 #33）：量与单位分两列——辅食按勺 / 碗记的量存在 unit + qty 里（amount 为空），原来这一列空着；
+             辅食名称（dish）单独一列 */
+          var SU = { g: '克', spoon: '勺', bowl: '碗' };
+          var posN = function (v) { var n = Number(v); return isFinite(n) && n > 0 ? n : null; };
+          return toCsv(['开始时间', '类型', '侧别', '时长(分)', '量', '单位', '名称', '备注'],
             (d.feedings || []).map(function (r) {
-              return [r.start, FEED_T[r.type] || r.type, SIDE_T[r.side] || '', r.durationMin || '', r.amount || '', r.note]; /* 第 273 次：原来读不存在的 r.duration，时长一列全空 */
+              var q = '', u = '';
+              if (r.type === 'solid') {
+                if (SU[r.unit] && posN(r.qty)) { q = posN(r.qty); u = SU[r.unit]; }
+                else if (posN(r.amount)) { q = posN(r.amount); u = '克'; }
+              } else if (posN(r.amount)) { q = posN(r.amount); u = 'ml'; }
+              return [r.start, FEED_T[r.type] || r.type, SIDE_T[r.side] || '', r.durationMin || '', q, u, r.type === 'solid' && r.dish ? String(r.dish).trim() : '', r.note]; /* 第 273 次：原来读不存在的 r.duration，时长一列全空 */
             }));
         },
         sleeps: function (d) {
