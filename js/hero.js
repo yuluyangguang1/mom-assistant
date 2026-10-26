@@ -209,6 +209,13 @@
       var r = lastOf((d.feedings || []).filter(function (x) { return x && x.type === 'pump'; }), 'start');
       return { status: r ? '上次 ' + Util.fmtAgo(r.start) + (r.amount ? ' · ' + r.amount + ' mL' : '') : '还没有泵奶记录' };
     },
+    /* 第 269 次：辅食 */
+    solid: function (d) {
+      var r = lastOf((d.feedings || []).filter(function (x) { return x && x.type === 'solid'; }), 'start');
+      if (!r) return { status: '还没有辅食记录' };
+      var nm = r.dish && String(r.dish).trim() ? ' · ' + String(r.dish).trim().slice(0, 10) : '';
+      return { status: '上次 ' + Util.fmtAgo(r.start) + nm };
+    },
     whitenoise: function (d) {
       var w = d.whitenoise || {};
       var on = w.playing && (!w.until || w.until > Date.now());

@@ -461,6 +461,11 @@
       tiles.push({ id: 'sun', stages: ['baby'], name: '日晒', accent: 'sun', sum: sunMin ? ('今日 ' + sunMin + ' 分钟') : '暂无今日', badge: '', guide: false, empty: !sunMin });
       tiles.push({ id: 'water', stages: ['baby'], name: '饮水', accent: 'water', sum: waterMl ? ('今日 ' + waterMl + ' ml') : '暂无今日', badge: '', guide: false, empty: !waterMl });
       tiles.push({ id: 'supplement', stages: ['baby'], name: '补剂', accent: 'supplement', sum: supNeed ? ('今日 ' + supDone + '/' + supNeed) : '未设计划', badge: supNeed && supDone < supNeed ? '待打卡' : '', guide: false, empty: !supNeed && !(d.supplements || []).length });
+      /* 第 269 次：辅食独立模块。与第 132 次六个模块同纪律：近 7 天没记过就不占首屏 */
+      var solidAll = (d.feedings || []).filter(function (r) { return r && r.type === 'solid' && r.start && !isNaN(new Date(r.start).getTime()); });
+      var solidToday = solidAll.filter(function (r) { return careKeyOf(r.start) === careDayNow(); }).length;
+      var solidWk = solidAll.filter(function (r) { return Date.now() - new Date(r.start).getTime() < 7 * 864e5; }).length;
+      tiles.push({ id: 'solid', stages: ['baby'], name: '辅食', accent: 'solid', sum: solidToday ? ('今日 ' + solidToday + ' 次') : (solidWk ? ('近 7 天 ' + solidWk + ' 次') : '暂无'), badge: '', guide: false, empty: !solidWk });
 
       /* 磁贴按阶段排序（对标报告 P1）：孕早期 tools 前置 / 育儿期喂养尿布前置，
          其余按固定次序殿后——同样的 14/15 个磁贴，第一眼先看到当前阶段最常用的。
@@ -1981,7 +1986,7 @@
          日晒游泳是季节性），不该挤掉「每日必做」的位置；等真实使用数据出来再调。 */
       'jaundice', 'bath', 'swim', 'sun', 'water', 'supplement'],
     baby: ['feeding', 'diaper', 'sleep', 'meds', 'mood', 'whitenoise', 'growth', 'vaccine', 'milestone', 'temp', 'period', 'finance', 'supplies', 'contraction', 'pregnancy', 'packing',
-      'jaundice', 'bath', 'swim', 'sun', 'water', 'supplement']
+      'jaundice', 'bath', 'swim', 'sun', 'water', 'supplement', 'solid'] /* 第 269 次：辅食独立模块殿后，记过才出现 */
   };
   /* 组件宇宙：两阶段 ORDER 的并集（17 个 id，含跨阶段的 fetal/supplies），
      再并上第 121 次的卡组件 id。布局校验以它为准——布局里只允许出现真的存在的组件 id。 */

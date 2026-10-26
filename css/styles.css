@@ -5145,7 +5145,7 @@ body.sd-open .touch-glow, body.qd-open .touch-glow { display: none; }
 .sk-empty img { width: 200px; height: 200px; object-fit: contain; }
 .sk-empty p { margin: 0; color: var(--muted); font-size: calc(15px * var(--fs-mul, 1)); }
 .sk-empty .sk-empty-ref { max-width: 320px; font-size: calc(12.5px * var(--fs-mul, 1)); line-height: 1.6; }
-.mod-head.has-hero:has(~ .skel-page .sk-empty) .hero-status { display: none; }
+.mod-head.has-hero:has(~ .skel-page .sk-empty) .hero-status, .mod-head.has-hero:has(~ .sd-page .sk-empty) .hero-status { display: none; }
 
 /* 第 254 次：开始记录的按钮只停在 dock 栏上方——内容少时把页面撑满，按钮推到底部，不再停在页面中间 */
 .view:has(> .ft-page), .view:has(> .mod-cta) { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; box-sizing: border-box; }
@@ -5252,3 +5252,98 @@ html:not(.is-booting) .boot { display: none; }
 }
 /* 第 262 次：启动期间画布先铺启动图的深暖棕，WebView 首帧尚未铺满时露出的边也不是白的 */
 html.is-booting { background: #221E1A; }
+
+/* ============================================================
+   第 269 次：辅食独立模块（照用户参考截图：绿色主色，融进深色暖棕主题）
+   ============================================================ */
+[data-accent="solid"] { --tile: #3E7B45; --tile-text: #2F6A35; --tile-weak: #E7F0E5; --tile-on: #FFFFFF; }
+body.dark [data-accent="solid"] { --tile: #9DCF8A; --tile-text: #A9D897; --tile-weak: rgba(157,207,138,.15); --tile-on: #15240F; }
+body.dark [data-accent="solid"] .mc-main, body.dark .ft-sheet[data-accent="solid"] .rs-ok { color: var(--tile-on); }
+.mod-hero[data-hero="solid"] .hero-art { width: 84px; height: 84px; }
+.mod-hero[data-hero="solid"] .hero-art img { width: 76px; height: 76px; }
+.mod-hero[data-hero="solid"] .hero-status { display: none; } /* 参考图页头只有插画 + 标题；「上次」在摘要句里 */
+/* 周切换 */
+.sd-week { display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; margin: 2px 0 12px; }
+.sd-week p { margin: 0; display: flex; flex-direction: column; align-items: center; line-height: 1.3; }
+.sd-week b { font-size: calc(17px * var(--fs-mul, 1)); font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+.sd-week small { font-size: var(--fs-sm, 13px); color: var(--muted); }
+.sd-wb { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 50%; background: transparent; color: var(--tile-text); cursor: pointer; justify-self: center; }
+.sd-wb svg { width: 24px; height: 24px; }
+.sd-wb:disabled { color: var(--muted); opacity: .4; cursor: default; }
+/* 辅食状态四格 */
+.sd-stat { padding: 16px 16px 16px; }
+.sd-sh { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 2px 12px; }
+.sd-sh h2 { margin: 0; font-size: calc(15px * var(--fs-mul, 1)); font-weight: 700; }
+.sd-sh h2 small { margin-left: 10px; font-size: inherit; font-weight: 500; color: var(--muted); }
+.sd-last { white-space: nowrap; }
+.sd-n { color: var(--tile-text); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sd-cells { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sd-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; min-height: 74px; padding: 14px 14px; border-radius: var(--radius-md); background: var(--surface-2); box-sizing: border-box; }
+.sd-cell span { font-size: var(--fs-sm, 13px); color: var(--muted); }
+.sd-cell b { font-size: calc(16px * var(--fs-mul, 1)); font-weight: 800; color: var(--text); overflow-wrap: anywhere; line-height: 1.35; }
+.sd-cell b.is-hi { color: var(--tile-text); }
+.sd-cell b.is-none { color: var(--muted); font-weight: 600; }
+/* 观察期横幅（第 69 / 110 次的观察期，辅食页也显示） */
+.sd-watch { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 12px 14px; border-radius: var(--radius); background: color-mix(in srgb, var(--tile) 10%, transparent); }
+.sd-wn { flex: none; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; box-shadow: inset 0 0 0 3px var(--tile); color: var(--tile-text); font-size: 12px; font-weight: 800; }
+.sd-watch p { margin: 0; font-size: var(--fs-sm, 13px); line-height: 1.55; color: var(--muted); }
+.sd-watch b { color: var(--text); }
+/* 面板：性状 / 类型插画卡 */
+.sd-texs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sd-tex, .sd-cat { position: relative; display: flex; flex-direction: column; min-width: 0; border: 2px solid transparent; background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--border); transition: transform .15s var(--spring, ease), border-color .15s, background-color .15s; }
+.sd-tex { aspect-ratio: 1 / 1; padding: 10px 14px 14px; border-radius: var(--radius-lg); align-items: stretch; }
+.sd-tex img { flex: 1 1 0; min-height: 0; width: 72%; margin: 4px auto 6px; object-fit: contain; }
+.sd-tn { font-size: calc(16px * var(--fs-mul, 1)); font-weight: 700; text-align: left; white-space: nowrap; }
+.sd-cats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.sd-cat { aspect-ratio: 5 / 6; padding: 10px 6px 12px; border-radius: var(--radius); align-items: center; }
+.sd-cat img { flex: 1 1 0; min-height: 0; width: 78%; margin: 0 auto 4px; object-fit: contain; }
+.sd-cat span { font-size: calc(15px * var(--fs-mul, 1)); font-weight: 700; white-space: nowrap; }
+.sd-ck { position: absolute; display: none; align-items: center; justify-content: center; border-radius: 50%; background: var(--tile); color: var(--tile-on, #fff); }
+.sd-tex .sd-ck { right: 12px; bottom: 12px; width: 28px; height: 28px; }
+.sd-cat .sd-ck { right: 8px; top: 8px; width: 22px; height: 22px; }
+.sd-ck .ico { width: 16px; height: 16px; color: inherit; }
+.sd-tex.on, .sd-cat.on { border-color: var(--tile); background: var(--tile-weak); box-shadow: none; }
+.sd-tex.on .sd-tn, .sd-cat.on span { color: var(--tile-text); }
+.sd-tex.on .sd-ck, .sd-cat.on .sd-ck { display: inline-flex; }
+.sd-tex:active, .sd-cat:active { transform: scale(.97); }
+body.dark .sd-tex img, body.dark .sd-cat img { filter: brightness(.94); }
+/* 进食量 / 进食情况分段：未选绿字，选中白底深字（参考图） */
+.sd-seg button { color: var(--tile-text); min-height: 44px; }
+.sd-seg button.on { color: var(--text); box-shadow: 0 2px 8px -3px rgba(0,0,0,.28), inset 0 0 0 1px color-mix(in srgb, var(--tile) 45%, transparent); }
+.sd-amt { display: flex; align-items: center; gap: 10px; margin-top: 12px; min-height: 84px; padding: 10px 14px 10px 18px; border-radius: var(--radius); background: var(--surface-2); box-sizing: border-box; }
+.sd-qv { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; }
+.sd-qv input { width: 42%; min-width: 0; padding: 0; border: none; background: transparent; color: var(--tile-text); font: inherit; font-size: calc(48px * var(--fs-mul, 1)); font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+.sd-qv input::-webkit-outer-spin-button, .sd-qv input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.sd-qv input::placeholder { color: var(--tile-text); opacity: .35; }
+.sd-qv input:focus { outline: none; }
+.sd-qv small { font-size: calc(17px * var(--fs-mul, 1)); font-weight: 600; color: var(--muted); white-space: nowrap; }
+.sd-amt.is-g .sd-qv { justify-content: flex-end; }
+.sd-amt.is-g .sd-qv input { width: 70%; text-align: right; }
+.sd-amt.is-g .sd-step { display: none; }
+.sd-step { flex: none; display: inline-flex; align-items: center; height: 46px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; }
+.sd-step button { width: 54px; height: 100%; border: none; background: transparent; color: var(--text); font: inherit; font-size: 26px; font-weight: 500; line-height: 1; cursor: pointer; }
+.sd-step button:disabled { opacity: .3; cursor: default; }
+.sd-step button:active:not(:disabled) { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.sd-step i { width: 1px; height: 24px; background: var(--border-input, var(--border)); opacity: .6; }
+.sd-conv { margin: 8px 2px 0; font-size: var(--fs-sm, 14px); color: var(--muted); }
+.sd-conv[hidden] { display: none; }
+.ft-sheet[data-accent="solid"] .rs-lbl { margin: 26px 0 10px; }
+.rec-sheet .sd-in { display: block; width: 100%; min-height: 52px; padding: 0 16px; border: none; border-radius: var(--radius); background: var(--surface-2); color: var(--text); font: inherit; font-size: 16px; box-sizing: border-box; }
+.rec-sheet .sd-in:focus { outline: none; box-shadow: inset 0 0 0 1.5px var(--tile); }
+.sd-in::placeholder { color: var(--muted); opacity: .75; }
+.rec-sheet .sd-ta { min-height: 104px; padding: 14px 16px; line-height: 1.5; resize: none; }
+.sd-phl { display: flex; justify-content: space-between; align-items: baseline; }
+.sd-ph-add { width: 100%; min-height: 50px; border: 1px solid var(--border); background: transparent; font-weight: 600; }
+.sd-savebar { position: sticky; bottom: 0; z-index: 2; margin: 14px -18px -20px; padding: 14px 18px calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(180deg, transparent, var(--surface) 34%); }
+.sd-save { margin-top: 0; font-size: calc(17px * var(--fs-mul, 1)); box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--tile) 70%, transparent); }
+.ft-sheet[data-accent="solid"] .rs-del { margin-top: 18px; }
+/* 喂养页观察期卡：去辅食页 */
+.nf-go { display: inline-flex; align-items: center; min-height: 40px; margin-top: 6px; padding: 0; border: none; background: transparent; color: var(--tile-text); font: inherit; font-size: var(--fs-sm, 14px); font-weight: 700; cursor: pointer; }
+@media (max-width: 360px) {
+  .sd-tex { padding: 8px 10px 10px; }
+  .sd-tn { font-size: 14px; }
+  .sd-cat span { font-size: 13px; }
+  .sd-qv input { font-size: 40px; }
+  .sd-step button { width: 46px; }
+}

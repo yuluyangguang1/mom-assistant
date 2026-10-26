@@ -187,6 +187,8 @@
   }
 
   function open(modId, rec, arr) {
+    /* 第 269 次：辅食有自己的记录面板（性状 / 量 / 进食情况 / 类型 / 照片），从哪里点进来都走它 */
+    if (rec && rec.type === 'solid' && global.Modules && Modules.solid && Modules.solid._edit) { Modules.solid._edit(rec); return; }
     var sc = SCHEMA[modId];
     var root = document.getElementById('modalRoot');
     if (!root || !sc) return;

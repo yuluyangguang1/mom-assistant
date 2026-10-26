@@ -363,7 +363,7 @@
          类型取上次类型；侧别默认换边（与上方换边建议一致）；时长/奶量取上次同类型的值。 */
       /* 第 231 次：亲喂、瓶喂拆成独立页（Modules.breast / Modules.bottle），本页面板只记吸奶和辅食 */
       var lastPS = sorted.filter(function (r) { return r.type === 'pump' || r.type === 'solid'; })[0];
-      var defType = (lastPS && lastPS.type) || 'pump';
+      var defType = 'pump'; void lastPS; /* 第 269 次：辅食拆成独立模块，这个面板里点「辅食」直接去辅食页 */
       var defSide = (lastBreast && lastBreast.side === 'left') ? 'right'
         : ((lastBreast && lastBreast.side === 'right') ? 'left' : 'left');
       var lastDurRec = sorted.filter(function (r) { return r.type === 'breast' && r.durationMin; })[0];
@@ -498,13 +498,14 @@
                  文案保持原样（qa 第 69 次块锚定「引入第」）。 */
               var nfPct = (nfDays + 1) / 4;
               var nfC = 2 * Math.PI * 20;
-              html += '<div class="card"><h2>辅食观察期</h2><div class="nf-ring-row">'
+              html += '<div class="card nf-card"><h2>辅食观察期</h2><div class="nf-ring-row">'
                 + '<svg class="nf-ring" viewBox="0 0 48 48" width="44" height="44" aria-hidden="true">'
                 + '<circle cx="24" cy="24" r="20" fill="none" stroke="var(--border)" stroke-width="4"/>'
                 + '<circle cx="24" cy="24" r="20" fill="none" stroke="var(--tile, var(--primary))" stroke-width="4" stroke-linecap="round" stroke-dasharray="' + nfC.toFixed(1) + '" stroke-dashoffset="' + (nfC * (1 - nfPct)).toFixed(1) + '" transform="rotate(-90 24 24)"/>'
                 + '<text x="24" y="28.5" text-anchor="middle" style="font-size:calc(12px * var(--fs-mul, 1))" font-weight="600" fill="currentColor">' + (nfDays + 1) + '/4</text>'
                 + '</svg>'
-                + '<p class="hint"><b>「' + Util.escapeHtml(solidIntro(lastNew)) + '」引入第 ' + (nfDays + 1) + ' 天</b>——观察期内建议不再引入第二种新食材，留意皮疹、呕吐、腹泻；都正常即可继续引入。</p></div></div>';
+                + '<p class="hint"><b>「' + Util.escapeHtml(solidIntro(lastNew)) + '」引入第 ' + (nfDays + 1) + ' 天</b>——观察期内建议不再引入第二种新食材，留意皮疹、呕吐、腹泻；都正常即可继续引入。</p></div>'
+                + (Modules.solid ? '<button type="button" class="nf-go" data-goto="solid">去辅食页看记录 ›</button>' : '') + '</div>';
             }
           }
           var refItems = Knowledge.all('feeding').filter(function (e) {
@@ -572,7 +573,8 @@
 
       html += stashCard(d, sorted);
 
-      var list = d.feedings.filter(function (r) { return r && r.type !== 'pump' && !isNaN(new Date(r.start).getTime()); }) /* 第 256 次：泵奶记录在泵奶页看 */
+      /* 第 256 次：泵奶记录在泵奶页看；第 269 次：辅食记录在辅食页看（模块没加载时仍在这里列出） */
+      var list = d.feedings.filter(function (r) { return r && r.type !== 'pump' && !(r.type === 'solid' && Modules.solid) && !isNaN(new Date(r.start).getTime()); })
         .sort(function (a, b) { return new Date(b.start) - new Date(a.start); }).slice(0, 30);
       var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
       if (list.length) {
@@ -847,6 +849,11 @@
       Array.prototype.forEach.call(view.querySelectorAll('#fType .seg-btn'), function (b) {
         b.addEventListener('click', function () {
           type = b.getAttribute('data-t');
+          if (type === 'solid' && Modules.solid) {
+            if (Modules.feeding._closeSheet) Modules.feeding._closeSheet();
+            global.App.showTab('solid');
+            return;
+          }
           Array.prototype.forEach.call(view.querySelectorAll('#fType .seg-btn'), function (x) { x.classList.remove('active'); });
           b.classList.add('active');
           syncType();

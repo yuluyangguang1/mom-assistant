@@ -117,6 +117,17 @@
         return null;
       }).catch(function () {});
     },
+    /** 第 269 次：尿布、辅食（d.feedings）都能带照片，统一按所有宝宝的这两类记录收集引用再清孤儿；
+        每次打开 App 只跑一次 */
+    gcAll: function () {
+      if (Photos._gcRan || !global.Storage) return Promise.resolve();
+      Photos._gcRan = true;
+      var keep = [], dd = Storage.get() || {};
+      var add = function (arr) { (arr || []).forEach(function (r) { if (r) Photos.clean(r.photos).forEach(function (id) { keep.push(id); }); }); };
+      add(dd.diapers); add(dd.feedings);
+      (dd.babies || []).forEach(function (bb) { if (bb && bb.rec) { add(bb.rec.diapers); add(bb.rec.feedings); } });
+      return Photos.gc(keep);
+    },
     /** 选图或拍照：capture=true 直接开相机；回调收到 File 数组 */
     pick: function (capture, cb) {
       var input = document.createElement('input');

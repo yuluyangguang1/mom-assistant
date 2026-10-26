@@ -460,6 +460,7 @@
         if (!gcDone) {
           gcDone = true;
           setTimeout(function () {
+            if (Photos.gcAll) { Photos.gcAll(); return; } /* 第 269 次：连辅食照片一起算引用 */
             var keep = [], dd = Storage.get();
             var add = function (arr) { (arr || []).forEach(function (r) { if (r) Photos.clean(r.photos).forEach(function (id) { keep.push(id); }); }); };
             add(dd.diapers);

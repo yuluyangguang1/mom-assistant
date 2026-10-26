@@ -25,7 +25,7 @@ from seed_data import seed  # noqa: E402
 
 TABS = ['bath', 'bottle', 'breast', 'calendar', 'contraction', 'diaper', 'feeding', 'fetal', 'finance', 'growth', 'home',
         'jaundice', 'meds', 'milestone', 'mood', 'packing', 'period', 'pregnancy', 'search', 'settings',
-        'sleep', 'sun', 'supplement', 'supplies', 'swim', 'temp', 'vaccine', 'water', 'whitenoise']
+        'sleep', 'solid', 'sun', 'supplement', 'supplies', 'swim', 'temp', 'vaccine', 'water', 'whitenoise']
 
 
 class _Quiet(http.server.SimpleHTTPRequestHandler):
@@ -578,10 +578,49 @@ def test_pump(b):
     p.close()
 
 
+def test_solid(b):
+    """第 269 次：辅食独立模块——参考截图的面板（性状 / 量 / 进食情况 / 名称 / 类型）、本周四格、老记录兼容。"""
+    p, errs = fresh(b)
+    ev = p.evaluate
+    ev("App.showTab('solid')"); p.wait_for_timeout(200)
+    check('辅食：独立页空状态 + 底部记录辅食', ev("App.currentTab()") == 'solid' and ev("!!document.querySelector('.sk-empty') && !!document.querySelector('.mod-cta [data-snew]')"))
+    p.click('[data-snew]'); p.wait_for_timeout(200)
+    check('辅食：面板 6 种性状、6 种类型、克/勺/碗', ev("[document.querySelectorAll('.sd-tex').length, document.querySelectorAll('.sd-cat').length, document.querySelectorAll('[data-unit]').length].join()") == '6,6,3')
+    p.click('[data-tex="puree"]'); p.click('[data-unit="bowl"]'); p.wait_for_timeout(100)
+    check('辅食：碗从 1 起，换算约 230mL', ev("document.querySelector('#sdQty').value") == '1' and '230' in ev("document.querySelector('[data-conv]').textContent"))
+    p.click('[data-unit="spoon"]'); p.click('[data-q="1"]'); p.click('[data-q="1"]'); p.wait_for_timeout(100)
+    check('辅食：勺步进 + 换算', ev("document.querySelector('#sdQty').value") == '3' and '15mL' in ev("document.querySelector('[data-conv]').textContent"))
+    p.click('[data-acc="good"]'); p.fill('#sdName', '<b>南瓜泥</b>'); p.click('[data-cat="veg"]'); p.click('[data-cat="grain"]')
+    p.click('[data-sdsave]'); p.wait_for_timeout(250)
+    r = ev("Storage.get().feedings.filter(x=>x.type==='solid').slice(-1)[0]")
+    check('辅食：保存到 d.feedings（type solid + 新字段）', r and r['texture'] == 'puree' and r['unit'] == 'spoon' and r['qty'] == 3 and r['accept'] == 'good' and r['cats'] == ['veg', 'grain'] and r['dish'] == '<b>南瓜泥</b>', r)
+    check('辅食：名称转义、出现在时间轴', ev("!!document.querySelector('.tl-f-solid') && !document.querySelector('.tl-f-solid b b') && /南瓜泥/.test(document.querySelector('.tl-f-solid').textContent)"))
+    check('辅食：本周四格', ev("[...document.querySelectorAll('.sd-cell b')].map(x=>x.textContent).join('|')") == '3 勺|吃得好 1 次|<b>南瓜泥</b>|泥糊')
+    check('辅食：观察期横幅', ev("!!document.querySelector('.sd-watch')"))
+    ev("""(()=>{const d=Storage.get();d.feedings.push({id:'oldsolid',type:'solid',start:new Date(Date.now()-3600e3).toISOString().slice(0,19),amount:60,dish:null,newFood:'蛋黄',ing:'荤：肉末20g',note:'老记录'});Storage.save();App.rerender()})()""")
+    p.wait_for_timeout(200)
+    t = ev("[...document.querySelectorAll('.tl-f-solid')].map(x=>x.textContent).join('/')")
+    check('辅食：老记录（克数 / 新食材 / 食材 / 备注）照常显示', '60 克' in t and '蛋黄' in t and '肉末20g' in t and '老记录' in t, t)
+    p.click('[data-sopen="oldsolid"]'); p.wait_for_timeout(200)
+    check('辅食：老记录打开编辑面板，克数回显', ev("document.querySelector('#ftsTitle').textContent") == '修改辅食' and ev("document.querySelector('#sdQty').value") == '60')
+    p.click('[data-acc="refuse"]'); p.click('[data-sdsave]'); p.wait_for_timeout(200)
+    o = ev("Storage.get().feedings.find(x=>x.id==='oldsolid')")
+    check('辅食：改老记录保留 newFood / ing', o['accept'] == 'refuse' and o['newFood'] == '蛋黄' and o['ing'] == '荤：肉末20g' and o['amount'] == 60 and o['unit'] == 'g', o)
+    ev("App.showTab('feeding')"); p.wait_for_timeout(200)
+    check('喂养：最近记录不再列辅食', not ev("!!document.querySelector('.tl-f-solid')"))
+    ev("RecordEdit.open('feeding', Storage.get().feedings.find(x=>x.id==='oldsolid'), Storage.get().feedings)"); p.wait_for_timeout(200)
+    check('编辑入口：辅食记录走辅食面板', ev("!!document.querySelector('.ft-sheet[data-accent=solid] .sd-texs')"))
+    ev("document.getElementById('modalRoot').innerHTML=''")
+    ev("App.showTab('alltools')"); p.wait_for_timeout(200)
+    check('全部功能：有辅食入口', ev("/辅食/.test(document.querySelector('#view').textContent)"))
+    check('辅食无报错', not errs, errs)
+    p.close()
+
+
 def main():
     with sync_playwright() as pw:
         b = pw.chromium.launch()
-        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_dash, test_diaper_sheet, test_diaper_stock, test_diaper_photos, test_feeding_sheet, test_pump, test_css_rules, test_layout_and_toast):
+        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_dash, test_diaper_sheet, test_diaper_stock, test_diaper_photos, test_feeding_sheet, test_pump, test_solid, test_css_rules, test_layout_and_toast):
             try:
                 fn(b)
             except Exception as e:  # 一组崩了不影响其他组
