@@ -1200,7 +1200,13 @@ body.dark .set-group .sg-ico { background: rgba(255,255,255,.08); }
 }
 .stat-unit { font-size: calc(13px * var(--fs-mul)); font-weight: 600; font-style: normal; color: var(--muted); margin-left: 3px; }
 .stat-unit:not(:last-child) { margin-right: 6px; } /* 第 273 次：「4分29秒」这种复合读数，中间的单位和后一个数字隔开 */
-.stat-lbl { font-size: calc(13px * var(--fs-mul)); color: var(--muted); }.view-enter .stat-num { animation: statPop .5s var(--spring) both; }.view-enter .stat:nth-child(2) .stat-num { animation-delay: 45ms; }.view-enter .stat:nth-child(3) .stat-num { animation-delay: 90ms; }.view-enter .stat:nth-child(n+4) .stat-num { animation-delay: 130ms; }
+.stat-lbl { font-size: calc(13px * var(--fs-mul)); color: var(--muted); }
+/* 第 274 次（审计 #29）：日期记录「今日概览」三等分时，「3.8 小时」被挤成数字一行、单位一行。
+   数字和单位不折行；格子太窄时数字按格宽缩小（cqi，最大仍是 --fs-display），标签一行放不下就省略号。 */
+.today-overview .stat { container-type: inline-size; min-width: 0; }
+.today-overview .stat-num { white-space: nowrap; font-size: min(var(--fs-display), calc(40cqi / var(--fs-mul, 1))); }
+.today-overview .stat-unit { font-size: min(calc(13px * var(--fs-mul, 1)), 16cqi); }
+.today-overview .stat-lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.view-enter .stat-num { animation: statPop .5s var(--spring) both; }.view-enter .stat:nth-child(2) .stat-num { animation-delay: 45ms; }.view-enter .stat:nth-child(3) .stat-num { animation-delay: 90ms; }.view-enter .stat:nth-child(n+4) .stat-num { animation-delay: 130ms; }
 @keyframes statPop {
   from { opacity: 0; transform: translateY(7px) scale(.86); }
   to { opacity: 1; transform: none; }
@@ -1319,29 +1325,31 @@ body.dark .set-group .sg-ico { background: rgba(255,255,255,.08); }
   [data-accent="supplement"]  { --tile: #5E8C4A; --tile-text: #46702F; --tile-weak: #EDF2E9; --tile-fill: #567F43; }
 
 /* 暗色：同色系调亮，弱色改半透明叠底 */
-body.dark [data-accent="feeding"]     { --tile: #7BC4BC; --tile-text: #7BC4BC; --tile-weak: rgba(123,196,188,.16); }
-body.dark [data-accent="sleep"]       { --tile: #ABADD6; --tile-text: #ABADD6; --tile-weak: rgba(171,173,214,.16); }
-body.dark [data-accent="growth"]      { --tile: #93C9A4; --tile-text: #93C9A4; --tile-weak: rgba(147,201,164,.16); }
-body.dark [data-accent="period"]      { --tile: #DCA2AE; --tile-text: #DCA2AE; --tile-weak: rgba(220,162,174,.16); }
-body.dark [data-accent="pregnancy"]   { --tile: #E4B982; --tile-text: #E4B982; --tile-weak: rgba(228,185,130,.16); }
-body.dark [data-accent="packing"]     { --tile: #C2B5A1; --tile-text: #C2B5A1; --tile-weak: rgba(194,181,161,.16); }
-body.dark [data-accent="contraction"] { --tile: #E69E8A; --tile-text: #E69E8A; --tile-weak: rgba(230,158,138,.16); }
-body.dark [data-accent="finance"]     { --tile: #B0A8DB; --tile-text: #B0A8DB; --tile-weak: rgba(176,168,219,.16); }
-body.dark [data-accent="diaper"]      { --tile: #E2C27E; --tile-text: #E2C27E; --tile-weak: rgba(226,194,126,.16); }
-body.dark [data-accent="vaccine"]     { --tile: #97BEDD; --tile-text: #97BEDD; --tile-weak: rgba(151,190,221,.16); }
-body.dark [data-accent="meds"]        { --tile: #D6A5BA; --tile-text: #D6A5BA; --tile-weak: rgba(214,165,186,.16); }
-body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-text: #9FB9DF; --tile-weak: rgba(159,185,223,.16); }
-body.dark [data-accent="fetal"]       { --tile: #DE9CC4; --tile-text: #DE9CC4; --tile-weak: rgba(222,156,196,.16); }
-body.dark [data-accent="temp"]        { --tile: #7FC4D0; --tile-text: #7FC4D0; --tile-weak: rgba(127,196,208,.16); }
-body.dark [data-accent="mood"]        { --tile: #C4A6D6; --tile-text: #C4A6D6; --tile-weak: rgba(196,166,214,.16); }
-  body.dark [data-accent="supplies"]    { --tile: #8FCDB2; --tile-text: #8FCDB2; --tile-weak: rgba(143,205,178,.16); }
+/* 第 274 次（审计 #28）：深色模块色都是提亮的浅色，--tile-on（压在 --tile 上的字：.ft-split「开始洗澡 | ⊕」、.ft-save、.ft-mini-end、.rs-ok…）
+   一律给同色相的深色（12% 模块色 + 88% 暖黑），实测 6.6–9.6:1；原来只有亲喂 / 瓶喂 / 泵奶 / 辅食 / 睡眠给了，洗澡 / 游泳 / 日晒白字 1.9:1。 */
+body.dark [data-accent="feeding"]     { --tile: #7BC4BC; --tile-text: #7BC4BC; --tile-weak: rgba(123,196,188,.16); --tile-on: #262A26; }
+body.dark [data-accent="sleep"]       { --tile: #ABADD6; --tile-text: #ABADD6; --tile-weak: rgba(171,173,214,.16); --tile-on: #2B2729; }
+body.dark [data-accent="growth"]      { --tile: #93C9A4; --tile-text: #93C9A4; --tile-weak: rgba(147,201,164,.16); --tile-on: #292B23; }
+body.dark [data-accent="period"]      { --tile: #DCA2AE; --tile-text: #DCA2AE; --tile-weak: rgba(220,162,174,.16); --tile-on: #312624; }
+body.dark [data-accent="pregnancy"]   { --tile: #E4B982; --tile-text: #E4B982; --tile-weak: rgba(228,185,130,.16); --tile-on: #32291F; }
+body.dark [data-accent="packing"]     { --tile: #C2B5A1; --tile-text: #C2B5A1; --tile-weak: rgba(194,181,161,.16); --tile-on: #2E2822; }
+body.dark [data-accent="contraction"] { --tile: #E69E8A; --tile-text: #E69E8A; --tile-weak: rgba(230,158,138,.16); --tile-on: #322520; }
+body.dark [data-accent="finance"]     { --tile: #B0A8DB; --tile-text: #B0A8DB; --tile-weak: rgba(176,168,219,.16); --tile-on: #2C2729; }
+body.dark [data-accent="diaper"]      { --tile: #E2C27E; --tile-text: #E2C27E; --tile-weak: rgba(226,194,126,.16); --tile-on: #322A1E; }
+body.dark [data-accent="vaccine"]     { --tile: #97BEDD; --tile-text: #97BEDD; --tile-weak: rgba(151,190,221,.16); --tile-on: #292929; }
+body.dark [data-accent="meds"]        { --tile: #D6A5BA; --tile-text: #D6A5BA; --tile-weak: rgba(214,165,186,.16); --tile-on: #312625; }
+body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-text: #9FB9DF; --tile-weak: rgba(159,185,223,.16); --tile-on: #2A292A; }
+body.dark [data-accent="fetal"]       { --tile: #DE9CC4; --tile-text: #DE9CC4; --tile-weak: rgba(222,156,196,.16); --tile-on: #322526; }
+body.dark [data-accent="temp"]        { --tile: #7FC4D0; --tile-text: #7FC4D0; --tile-weak: rgba(127,196,208,.16); --tile-on: #262A28; }
+body.dark [data-accent="mood"]        { --tile: #C4A6D6; --tile-text: #C4A6D6; --tile-weak: rgba(196,166,214,.16); --tile-on: #2E2629; }
+  body.dark [data-accent="supplies"]    { --tile: #8FCDB2; --tile-text: #8FCDB2; --tile-weak: rgba(143,205,178,.16); --tile-on: #282B24; }
   /* 第 132 次：六个新模块（暗色，同色系调亮） */
-  body.dark [data-accent="jaundice"]    { --tile: #D8BE79; --tile-text: #D8BE79; --tile-weak: rgba(216,190,121,.16); }
-  body.dark [data-accent="bath"]        { --tile: #9CC0D4; --tile-text: #9CC0D4; --tile-weak: rgba(156,192,212,.16); }
-  body.dark [data-accent="swim"]        { --tile: #8CC6E0; --tile-text: #8CC6E0; --tile-weak: rgba(140,198,224,.16); }
-  body.dark [data-accent="sun"]         { --tile: #E8AE7C; --tile-text: #E8AE7C; --tile-weak: rgba(232,174,124,.16); }
-  body.dark [data-accent="water"]       { --tile: #93BCDD; --tile-text: #93BCDD; --tile-weak: rgba(147,188,221,.16); }
-  body.dark [data-accent="supplement"]  { --tile: #A9C98F; --tile-text: #A9C98F; --tile-weak: rgba(169,201,143,.16); }
+  body.dark [data-accent="jaundice"]    { --tile: #D8BE79; --tile-text: #D8BE79; --tile-weak: rgba(216,190,121,.16); --tile-on: #31291D; }
+  body.dark [data-accent="bath"]        { --tile: #9CC0D4; --tile-text: #9CC0D4; --tile-weak: rgba(156,192,212,.16); --tile-on: #2A2A28; }
+  body.dark [data-accent="swim"]        { --tile: #8CC6E0; --tile-text: #8CC6E0; --tile-weak: rgba(140,198,224,.16); --tile-on: #282A2A; }
+  body.dark [data-accent="sun"]         { --tile: #E8AE7C; --tile-text: #E8AE7C; --tile-weak: rgba(232,174,124,.16); --tile-on: #33271E; }
+  body.dark [data-accent="water"]       { --tile: #93BCDD; --tile-text: #93BCDD; --tile-weak: rgba(147,188,221,.16); --tile-on: #292929; }
+  body.dark [data-accent="supplement"]  { --tile: #A9C98F; --tile-text: #A9C98F; --tile-weak: rgba(169,201,143,.16); --tile-on: #2B2B20; }
 
 /* ============================================================
    第 118 次（对标 Cali · opt-in 无障碍）：「高对比模式」 body.hc
@@ -1624,6 +1632,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 .day-list li[data-accent] .ico { color: var(--tile, var(--primary)); }
 .day-list .dl-label { color: var(--muted); flex: none; width: 38px; }
 .day-list .dl-val { flex: 1 1 auto; min-width: 0; color: var(--text); }
+.day-list .dl-note { display: block; margin-top: 2px; font-size: calc(12px * var(--fs-mul)); font-weight: 500; color: var(--muted); white-space: normal; letter-spacing: 0; } /* 第 274 次：跨夜睡眠「接前一天 22:30 入睡，共 1小时40分」 */
 .day-empty { font-size: calc(13px * var(--fs-mul)); color: var(--muted); margin: 0; }
 .day-total { margin-top: 8px; font-size: calc(12.5px * var(--fs-mul)); color: var(--muted); text-align: right; }
 
@@ -3598,7 +3607,7 @@ body.dark.in-home .section-title, body.dark.in-home .hn-hint { color: rgba(255, 
 /* 尿布：今日片数角标 */
 .hero-badge { z-index: 2;
   position: absolute; right: 14px; top: 14px; min-width: 30px; height: 30px; padding: 0 8px; box-sizing: border-box;
-  border-radius: var(--radius-pill); background: var(--primary-fill); color: #fff; font-weight: 800; font-size: 15px;
+  border-radius: var(--radius-pill); background: var(--primary-fill); color: var(--on-primary); font-weight: 800; font-size: 15px; /* 第 274 次（审计 #28）：白字压珊瑚底浅 2.6 / 深 1.96:1 → 主按钮同款深暖字 */
   display: grid; place-items: center; box-shadow: 0 4px 10px rgba(208, 107, 81, .28);
 }
 /* 疫苗：进度环 */
@@ -3784,7 +3793,7 @@ body.ob-open #toastRoot { z-index: 2200; }
    画卡与播放页都是夜色插画，明暗主题下保持一致；播放页挂在 body 上。
    ============================================================ */
 [data-accent="whitenoise"] { --tile: #5D649E; --tile-text: #464C86; --tile-weak: #ECEDF5; --wn-glow: #F4C6A5; }
-body.dark [data-accent="whitenoise"] { --tile: #A9AED8; --tile-text: #C4C8E8; --tile-weak: rgba(169, 174, 216, .14); --wn-glow: #F4C6A5; }
+body.dark [data-accent="whitenoise"] { --tile: #A9AED8; --tile-text: #C4C8E8; --tile-weak: rgba(169, 174, 216, .14); --wn-glow: #F4C6A5; --tile-on: #2B2729; }
 
 .wn-lib {
   margin: 4px -6px 18px; padding: 18px 14px 22px; border-radius: calc(var(--radius-lg) + 4px);

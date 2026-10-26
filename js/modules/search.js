@@ -469,7 +469,7 @@
       if (r.qty != null) qty = r.qty + (r.unit ? r.unit : '');
       rows.push({
         title: txt(r.name) || '用品',
-        sub: [txt(r.cat), qty, r.price != null ? ('¥' + r.price) : '', fmt(r.date)].filter(Boolean).join(' · '),
+        sub: [txt(r.cat), qty, r.price != null ? Util.fmtYuan(r.price) : '', fmt(r.date)].filter(Boolean).join(' · '),
         text: makeText([r.name, r.cat, r.date, r.price, r.qty, r.unit, '消耗品', '补货', '用品']),
         sortKey: ts(r.date)
       });
@@ -595,7 +595,7 @@
     for (var i = 0; i < list.length; i++) {
       var r = list[i];
       if (!r || typeof r !== 'object') continue;
-      var amt = (r.amount != null && isFinite(r.amount)) ? (Number(r.amount).toFixed(2) + ' 元') : '';
+      var amt = (r.amount != null && isFinite(r.amount)) ? Util.fmtYuan(r.amount) : '';
       rows.push({
         title: txt(r.category) || '记账',
         sub: [fmt(r.date), amt, txt(r.note)].filter(Boolean).join(' · '),

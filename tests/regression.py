@@ -631,6 +631,11 @@ def test_r270(b):
     cap = ev("(()=>{const s=document.querySelector('.home-sky');const c=s&&s.querySelector('.sky-cap');return c?[s.style.getPropertyValue('--sky-cap'),getComputedStyle(document.documentElement).getPropertyValue('--status-color').trim(),c.getBoundingClientRect().height]:null})()")
     check('首页：天空顶端接缝色与状态栏同色', bool(cap) and cap[0] and cap[0] == cap[1] and cap[2] >= 56, cap)
     p.wait_for_timeout(2600)
+    # 第 274 次：五组并行时 CPU 吃紧，2.6 秒内偶尔只载入 44–48 张；改为最多再等 6 秒（断言内容不变：都要载入）
+    try:
+        p.wait_for_function("Hero._warmed() >= 50", timeout=6000)
+    except Exception:
+        pass
     check('插画预热：页头 / 尿布 / 声音 / 辅食图都已载入', ev("Hero._warmed()") >= 50, ev("Hero._warmed()"))
     check('插画预热后进页，页头插画同步可画', ev("(()=>{App.showTab('diaper',{noVT:true});const im=document.querySelector('.mod-hero img');return !!im&&im.complete&&im.naturalWidth>0})()"))
     p.click('[data-new]'); p.wait_for_timeout(450)
@@ -1116,18 +1121,185 @@ def test_r273(b):
     p.close()
 
 
+R274_PUNCT = r"""()=>{const m=document.body.textContent.match(/.{0,18}([。！？；，、：]{2,}|。」。|[，、；]」|——。|…。).{0,4}/g);return m?m.slice(0,3):[]}"""
+
+
+def test_r274(b):
+    """第 274 次：审计第三轮 22–29 条 + CSV 防公式注入。"""
+    import csv as _csv
+    import io as _io
+    p, errs = fresh(b)
+    ev = p.evaluate
+    ev(R273_SEED)
+
+    def go(t):
+        ev(f"App.showTab('{t}',{{noVT:true}})"); p.wait_for_timeout(220)
+
+    def st():
+        return ev("({tab:App.currentTab(),ftf:document.querySelectorAll('body>.ftf').length,cls:document.body.classList.contains('ftf-open'),wn:!!document.querySelector('#wnPlayer.open')})")
+    # —— #22 全屏计时层 + 返回 ——
+    bad = []
+    for tab, start, clear in (('sleep', "Modules.sleep._start();Modules.sleep._openFull()", "Storage.get().openSleep=null"),
+                              ('breast', "Modules.breast._start()", "Storage.get().feedingTimer=null"),
+                              ('pump', "Modules.pump._start()", "Storage.get().pumpTimer=null"),
+                              ('feeding', "Modules.breast._start()", "Storage.get().feedingTimer=null")):
+        go('home'); go(tab); ev(start); p.wait_for_timeout(250)
+        s0 = st()
+        ev("history.back()"); p.wait_for_timeout(450)
+        s1 = st()
+        if not (s0['ftf'] == 1 and s1 == {'tab': tab, 'ftf': 0, 'cls': False, 'wn': False}): bad.append([tab, s0, s1])
+        ev(clear + ";Storage.save()"); go('home')
+    check('#22 睡眠 / 亲喂 / 泵奶 / 喂养页里的亲喂全屏开着时返回：只收起全屏层、留在原页，不残留', not bad, bad)
+    go('sleep'); ev("Modules.sleep._start();Modules.sleep._openFull()"); p.wait_for_timeout(200)
+    go('water')
+    s2 = st()
+    check('#22 全屏计时开着时程序化切页：全屏层一起收掉，不挡下一页', s2 == {'tab': 'water', 'ftf': 0, 'cls': False, 'wn': False}, s2)
+    ev("Storage.get().openSleep=null;Storage.save()"); go('home')
+    ev("Modules.whitenoise._open=true"); go('whitenoise'); p.wait_for_timeout(300)
+    w0 = st(); ev("history.back()"); p.wait_for_timeout(500); w1 = st()
+    check('#22 白噪音播放页开着时返回：带着播放页一起离开（dock 返回语义，第 271 次），不残留', w0['wn'] and w1['tab'] == 'home' and not w1['wn'] and not ev("document.documentElement.classList.contains('wp-lock')"), [w0, w1])
+    go('home')
+    # —— #23 跨午夜睡眠同一口径 ——
+    ev("""(()=>{const d=Storage.get();const t0=new Date();t0.setHours(0,0,0,0);const T=t0.getTime();
+      d.sleeps=[{id:'x1',start:__L(T-90*60e3),end:__L(T+10*60e3),pausedMs:0,wakings:0},{id:'x2',start:__L(T+60*60e3),end:__L(T+120*60e3),pausedMs:0,wakings:0}];
+      d.openSleep=null;Storage.save()})()""")
+    late = ev("new Date().getHours()*60+new Date().getMinutes()") < 125
+    go('sleep')
+    sm = ev("document.querySelector('#view .mod-sum').textContent")
+    dash = ev("(document.querySelector('#view .sl-dash .dash-num')||{}).textContent||''")
+    check('#23 睡眠页摘要只算跨夜那一觉落在今天的 10 分钟（共 1 小时 10 分），与「今日睡眠」看板一致', late or ('今天已结束的睡眠共 1 小时 10 分' in sm and dash.replace(' ', '') == '1小时10分'), [sm, dash])
+    ds = ev("[Math.round(Util.daySleep(Storage.get().sleeps,Util.todayISO(),0).min),Math.round(Util.daySleep(Storage.get().sleeps,Util.addDays(Util.todayISO(),-1),0).min)]")
+    check('#23 Util.daySleep：今天 70 分、昨天 90 分（按午夜切开）', late or ds == [70, 90], ds)
+    idx = ev("(()=>{const i=Util.buildDayIndex(Storage.get()),t=Util.todayISO(),y=Util.addDays(t,-1);const f=a=>(a||[]).filter(x=>x.icon=='sleep').map(x=>[x.time,x.val,x.note||'',!!x.cont]);return [f(i[t]),f(i[y])]})()")
+    check('#23 日历两天都列出：昨天 22:30「1小时30分 · 跨夜…共 1小时40分」、今天 00:00「10分 · 接前一天 22:30 入睡」', 
+          ['22:30', '1小时30分', '跨夜 · 次日 00:10 醒，共 1小时40分', False] in idx[1] and ['00:00', '10分', '接前一天 22:30 入睡，共 1小时40分', True] in idx[0], idx)
+    go('calendar')
+    note = ev("[...document.querySelectorAll('#view .day-list .dl-note')].map(e=>e.textContent)")
+    check('#23 日历「今天的记录」里有跨夜那一觉的接续行（说明另起一行小字）', note == ['接前一天 22:30 入睡，共 1小时40分'], note)
+    hm = ev("""(()=>{const h=document.createElement('div');Modules.home.render(h);return 1})()""")
+    hs = ev("""(()=>{const d=Storage.get();d.settings.homeCards=(d.settings.homeCards||[]);return Math.round(Util.daySleep(d.sleeps,Util.dayKeyOf(new Date(),Util.dayStartHour(d)),Util.dayStartHour(d),{live:d.openSleep}).min)})()""")
+    check('#23 首页今日睡眠 / 今日概览与睡眠页同一函数同一口径', late or (hm == 1 and hs == 70), [hm, hs])
+    # —— #24 上周同期截到同一时刻 ——
+    ev("""(()=>{const d=Storage.get();['feedings','sleeps','diapers','waters','meds','temps','moods','fetal','contractions','growth','milestones'].forEach(k=>{if(Array.isArray(d[k]))d[k]=[]});
+      d.vaccines.done={};if(d.finance)d.finance.records=[];if(d.prenatal)d.prenatal.records=[];d.periods=[];
+      const n=new Date();const a=new Date(n);a.setDate(n.getDate()-7);a.setHours(0,1,0,0);const b2=new Date(n);b2.setDate(n.getDate()-7);b2.setHours(23,59,0,0);
+      const c=new Date(n);c.setDate(n.getDate()-6);c.setHours(12,0,0,0);const t=new Date(n.getTime()-60e3);
+      d.diapers=[{id:'r1',time:__L(a),type:'pee'},{id:'r2',time:__L(b2),type:'pee'},{id:'r3',time:__L(c),type:'pee'},{id:'r4',time:__L(t),type:'pee'}];Storage.save()})()""")
+    go('home'); go('calendar')
+    rv = ev("document.querySelector('#view .review-card p').textContent")
+    edge = ev("new Date().getHours()==23&&new Date().getMinutes()>=59") or ev("new Date().getHours()==0&&new Date().getMinutes()<2")
+    check('#24 回顾「上周同期」只算上周一到上周同一天、截到现在这个钟点（4 条里只算 1 条），并写明范围', edge or ('上周同期（上周一' in rv and '到这个钟点）是 1 条' in rv and '本周已记录 ' in rv), rv)
+    # —— #26 记账金额与口径 ——
+    ym = ev("+Util.todayISO().slice(5,7)")
+    ev("""(()=>{const d=Storage.get();const t=Util.todayISO();d.finance.records=[{id:'f1',amount:100,category:'奶粉',note:null,date:'2025-09-30'},{id:'f2',amount:0.1,category:'奶粉',note:null,date:t},{id:'f3',amount:0.2,category:'用品',note:'=HYPERLINK("x")',date:t}];Storage.save()})()""")
+    go('home'); go('finance')
+    hd = ev("(document.querySelector('#view .mod-head')||{}).textContent||''")
+    card = ev("[...document.querySelectorAll('#view .card')].find(c=>/统计/.test(c.querySelector('h2')&&c.querySelector('h2').textContent)).textContent")
+    nums = ev("[...document.querySelectorAll('#view .li-num')].map(e=>e.textContent)")
+    check('#26 页头「本月（N 月）已花 ¥0.30」，两位小数', f'本月（{ym} 月）已花 ¥0.30' in hd, hd)
+    check('#26 统计卡分写本月 / 全部（自最早一笔起），分类注明全部记录，统一 ¥ 两位小数', f'本月（{ym} 月）支出：¥0.30' in card and '全部（2025-09-30 起）支出：¥100.30' in card and '按分类（全部记录）' in card and '奶粉：¥100.10' in card and '元' not in card, card)
+    check('#26 明细金额 ¥0.10 / ¥0.20 / ¥100.00；Util.fmtYuan 坏值回落 ¥0.00', nums == ['¥0.10', '¥0.20', '¥100.00'] and ev("[Util.fmtYuan(0.3),Util.fmtYuan('x'),Util.fmtYuan(12)]") == ['¥0.30', '¥0.00', '¥12.00'], nums)
+    # —— CSV 防公式注入 ——
+    cc = ev("""['=1+1','+1','-2','@x','\\tA','正常',-5,0.2,'a-b'].map(v=>Util.csvCell(v))""")
+    check('CSV：= + - @ / 制表符开头的文字前加 \'，数字与普通文字原样', cc == ["'=1+1", "'+1", "'-2", "'@x", "'\tA", '正常', '-5', '0.2', 'a-b'], cc)
+    ev("__dl=[]"); p.click('#fExp'); p.wait_for_timeout(100)
+    rows = list(_csv.reader(_io.StringIO(ev("(__dl.pop()||['',''])[1]").lstrip('\ufeff'), newline='')))
+    check('CSV：记账导出里以 = 开头的备注带 \' 前缀，解析回来其余不变', any(r[-1] == "'=HYPERLINK(\"x\")" for r in rows) and any(r[:3] == ['2025-09-30', '奶粉', '100'] for r in rows), rows[:4])
+    ev("""(()=>{const d=Storage.get();d.supplies=[{id:'sp1',name:'=cmd|x',cat:'用品',date:Util.todayISO(),price:12,qty:1,unit:'包',availDays:10}];Storage.save()})()""")
+    go('home'); go('supplies'); ev("__dl=[]"); p.click('#spExport'); p.wait_for_timeout(100)
+    sp = ev("(__dl.pop()||['',''])[1]")
+    srows = list(_csv.reader(_io.StringIO(sp.lstrip('\ufeff'), newline='')))
+    check('CSV：消耗品导出改走 Util.toCsv（BOM、CRLF、防公式注入）', sp.startswith('\ufeff') and '\r\n' in sp and len(srows) >= 2 and srows[1][0] == "'=cmd|x", srows[:2])
+    # —— #27 重复标点 ——
+    ev("t=>Storage.importJSON(t)", SEED_V3); p.reload(); p.wait_for_timeout(700); ev(R273_SEED)
+    hits = []
+    for stage in ('baby', 'pregnancy'):
+        if stage == 'pregnancy':
+            ev("(()=>{const s=Storage.get();s.settings.stage='pregnancy';s.settings.dueDate=Util.addDays(Util.todayISO(),60);Storage.save()})()")
+        for t in TABS + ['pump', 'alltools']:
+            try:
+                go(t)
+            except Exception:
+                continue
+            h = ev(R274_PUNCT)
+            if h: hits.append([stage, t, h])
+    check('#27 全站（宝宝 / 孕期两个阶段、全部页面）没有「。。」「，。」这类重复标点', not hits, hits)
+    ev("(()=>{const s=Storage.get();s.settings.stage='baby';Storage.save()})()")
+    # —— #29 今日概览不折行 ——
+    ev("""(()=>{const d=Storage.get();const y=new Date();y.setDate(y.getDate()-1);y.setHours(20,0,0,0);
+      d.sleeps.push({id:'n29',start:__L(y),end:__L(y.getTime()+228*60e3),pausedMs:0,wakings:0});d.diapers.push({id:'d29',time:__L(Date.now()-60e3),type:'pee'});Storage.save()})()""")
+    bad29 = []
+    for scale in ('normal', 'xl'):
+        ev(f"(()=>{{const s=Storage.get();s.settings.fontScale='{scale}';Storage.save()}})()"); p.reload(); p.wait_for_timeout(700)
+        go('calendar')
+        r = ev("""[...document.querySelectorAll('#view .today-overview .stat')].map(s=>{const n=s.querySelector('.stat-num'),u=s.querySelector('.stat-unit'),l=s.querySelector('.stat-lbl');
+          const nr=n.getBoundingClientRect(),ur=u.getBoundingClientRect(),sr=s.getBoundingClientRect(),lh=parseFloat(getComputedStyle(l).lineHeight)||parseFloat(getComputedStyle(l).fontSize)*1.6;
+          return {t:s.textContent,oneLine:ur.top<nr.bottom&&ur.bottom>nr.top,inside:ur.right<=sr.right+0.5,lbl1:l.getBoundingClientRect().height<lh*1.5}})""")
+        if not r or not all(x['oneLine'] and x['inside'] and x['lbl1'] for x in r): bad29.append([scale, r])
+        if scale == 'normal':
+            lb = ev("[...document.querySelectorAll('#view .today-overview .stat-lbl')].map(e=>e.textContent)")
+    ev("(()=>{const s=Storage.get();s.settings.fontScale='normal';Storage.save()})()")
+    check('#29 日历今日概览：数字和单位同一行、不出格，标签一行（标准 / 最大字号）', not bad29, bad29)
+    check('#29 第一格标签写「昨夜最长」', lb and lb[0] == '昨夜最长', lb)
+    # —— #28 深色对比度 ——
+    p.reload(); p.wait_for_timeout(700); ev(R273_SEED)
+    ev("document.body.classList.add('dark')")
+    lows = []
+    for t in ('bath', 'swim', 'sun', 'breast', 'sleep', 'pump'):
+        go(t)
+        r = ev(R273_CR, '#view .ft-split')
+        if not isinstance(r, (int, float)) or r < 4.5: lows.append([t, r])
+    go('diaper')
+    for dark in (True, False):
+        ev(f"document.body.classList.toggle('dark',{str(dark).lower()})"); p.wait_for_timeout(60)
+        r = ev(R273_CR, '#view .hero-badge')
+        if not isinstance(r, (int, float)) or r < 4.5: lows.append(['diaper-badge' + ('深' if dark else '浅'), r])
+    acc = ev("""(()=>{document.body.classList.add('dark');const o=[];['feeding','sleep','growth','period','pregnancy','packing','contraction','finance','diaper','vaccine','meds','milestone','fetal','temp','mood','supplies','jaundice','bath','swim','sun','water','supplement','whitenoise','breast','bottle','pump','solid'].forEach(a=>{
+      const e=document.createElement('button');e.className='ft-save';e.setAttribute('data-accent',a);e.textContent='保存';document.getElementById('view').appendChild(e);const cs=getComputedStyle(e);o.push([a,cs.color,cs.backgroundColor]);e.remove()});return o})()""")
+    def _l(c):
+        v = [float(x) / 255 for x in c[c.index('(') + 1:c.index(')')].split(',')[:3]]
+        v = [x / 12.92 if x <= .03928 else ((x + .055) / 1.055) ** 2.4 for x in v]
+        return .2126 * v[0] + .7152 * v[1] + .0722 * v[2]
+    for a, fg, bg in acc:
+        A, B = _l(fg), _l(bg); r = (max(A, B) + .05) / (min(A, B) + .05)
+        if r < 4.5: lows.append(['ft-save深 ' + a, round(r, 2)])
+    ev("document.body.classList.remove('dark')")
+    check('#28 深色下洗澡 / 游泳 / 日晒「开始」按钮、尿布角标（浅深）、全部 27 个模块色的 --tile-on 按钮文字对比度 ≥4.5:1', not lows, lows)
+    # —— #25 SW 更新自动重载后回到原页 ——
+    go('home'); go('sleep'); ev("Modules.sleep._start();Modules.sleep._openFull()"); p.wait_for_timeout(200)
+    ev("App._saveRestore();location.reload()"); p.wait_for_timeout(1600)
+    r1 = st()
+    hs1 = ev("JSON.stringify(history.state)")
+    ev("history.back()"); p.wait_for_timeout(450); r2 = st()
+    ev("history.back()"); p.wait_for_timeout(450); r3 = st()
+    check('#25 自动重载后回到睡眠页、全屏计时照原样打开；返回先收起全屏、再回首页', r1['tab'] == 'sleep' and r1['ftf'] == 1 and '"id":"sleep"' in hs1 and r2['tab'] == 'sleep' and r2['ftf'] == 0 and r3['tab'] == 'home', [r1, hs1, r2, r3])
+    ev("Storage.get().openSleep=null;Storage.save()")
+    go('settings'); ev("document.querySelectorAll('#view .set-group summary')[1].click()"); p.wait_for_timeout(200)
+    h1 = ev("document.querySelector('#view .page-head h1').textContent")
+    ev("App._saveRestore();location.reload()"); p.wait_for_timeout(1600)
+    r4 = ev("[App.currentTab(),App.inSub(),document.querySelector('#view .page-head h1').textContent]")
+    check('#25 设置二级页里重载：回到同一组', r4 == ['settings', True, h1], [r4, h1])
+    ev("history.back()"); p.wait_for_timeout(300); ev("history.back()"); p.wait_for_timeout(300)
+    go('water'); ev("App._saveRestore();(()=>{const r=JSON.parse(sessionStorage.getItem('yiyaRestore'));r.t-=180000;sessionStorage.setItem('yiyaRestore',JSON.stringify(r))})();location.reload()"); p.wait_for_timeout(1600)
+    check('#25 超过 2 分钟的恢复标记作废，照常落首页', ev("App.currentTab()") == 'home' and ev("sessionStorage.getItem('yiyaRestore')") is None)
+    check('第 274 次无报错', not errs, errs)
+    p.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
 # 第 273 次：第 273 次断言单独一组，四个子进程并行
+# 第 274 次：第 274 次断言单独一组，五个子进程并行
 GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_diaper_photos', 'test_family'),
           ('test_css_rules', 'test_flows', 'test_pump', 'test_diaper_stock', 'test_solid', 'test_diaper_sheet',
            'test_dash', 'test_home_edit', 'test_format'),
           ('test_r270', 'test_r271', 'test_r272'),
-          ('test_r273',))
+          ('test_r273',),
+          ('test_r274',))
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

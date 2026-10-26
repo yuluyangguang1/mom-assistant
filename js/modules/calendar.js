@@ -12,12 +12,15 @@
 
   /* U-26 周 / 月回顾：本地生成、只拿自己的数据自比（U-24），不设达标线、不做红色告警（U-25）。
      统计口径是「你已经记下来的内容」，不是「你该记多少」——漏记不清零、不影响任何累计（U-11）。 */
-  function rangeStats(dayIdx, from, to) {
+  /* cutHM（'HH:MM'）：最后一天只算这个钟点及以前的（没有时刻的条目照算）——第 274 次「上周同期」截到同一时刻用 */
+  function rangeStats(dayIdx, from, to, cutHM) {
     var days = 0, items = 0;
     var cur = new Date(from.getFullYear(), from.getMonth(), from.getDate());
     var end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+    var endIso = Util.fmtDate(end);
     while (cur <= end) {
-      var arr = dayIdx[Util.fmtDate(cur)] || [];
+      var iso = Util.fmtDate(cur);
+      var arr = (dayIdx[iso] || []).filter(function (it) { return !it.cont && !(cutHM && iso === endIso && it.time && it.time > cutHM); }); /* 第 274 次：跨夜睡眠的接续行不重复计条数 */
       if (arr.length) { days++; items += arr.length; }
       cur.setDate(cur.getDate() + 1);
     }
@@ -82,12 +85,17 @@
     var wkStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - backToMon);
     var wkEnd = new Date(wkStart.getFullYear(), wkStart.getMonth(), wkStart.getDate() + 6);
     var pvStart = new Date(wkStart.getFullYear(), wkStart.getMonth(), wkStart.getDate() - 7);
-    var pvEnd = new Date(wkStart.getFullYear(), wkStart.getMonth(), wkStart.getDate() - 1);
+    /* 第 274 次（审计 #24：周一拿上周整整 7 天比，「比上周少了 104 条」）：
+       上周同期 = 上周一 → 上周的同一个星期几，最后一天截到现在这个钟点。 */
+    var pvEnd = new Date(pvStart.getFullYear(), pvStart.getMonth(), pvStart.getDate() + backToMon);
+    var cutHM = pad(now.getHours()) + ':' + pad(now.getMinutes());
+    var DOWZH = '日一二三四五六';
+    var pvLbl = backToMon === 0 ? '上周一' : '上周一到周' + DOWZH.charAt(dow);
     var mStart = new Date(now.getFullYear(), now.getMonth(), 1);
     var mEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
     var wk = rangeStats(dayIdx, wkStart, wkEnd);
-    var pv = rangeStats(dayIdx, pvStart, pvEnd);
+    var pv = rangeStats(dayIdx, pvStart, pvEnd, cutHM);
     var mo = rangeStats(dayIdx, mStart, mEnd);
 
     var html = '<div class="card review-card"><h2>回顾</h2>';
@@ -95,10 +103,10 @@
       html += '<p>本周已记录 <b>' + wk.items + '</b> 条，覆盖 <b>' + wk.days + '</b> 天。';
       if (pv.items) {
         var diff = wk.items - pv.items;
-        html += '上周同期是 ' + pv.items + ' 条'
+        html += '上周同期（' + pvLbl + '，到这个钟点）是 ' + pv.items + ' 条'
           + (diff === 0 ? '，差不多。' : (diff > 0 ? '，比上周多了 ' + diff + ' 条。' : '，比上周少了 ' + (-diff) + ' 条，也完全没关系。'));
       } else {
-        html += '这是本周刚开始的积累。';
+        html += '上周同期（' + pvLbl + '）没有记录，先不比较，这是本周刚开始的积累。';
       }
       html += '</p>';
     } else {
@@ -238,7 +246,8 @@
             /* 第 95 次：行首显示记录时刻（HH:MM），纯日期项（里程碑/疫苗等）不占位 */
             out += '<li data-accent="' + Util.escapeHtml(it.icon || '') + '">'
               + (it.time ? '<span class="dl-time">' + Util.escapeHtml(it.time) + '</span>' : '')
-              + icon(it.icon) + '<span class="dl-label">' + it.label + '</span><span class="dl-val">' + Util.escapeHtml(it.val || '') + '</span></li>';
+              + icon(it.icon) + '<span class="dl-label">' + it.label + '</span><span class="dl-val">' + Util.escapeHtml(it.val || '')
+              + (it.note ? '<small class="dl-note">' + Util.escapeHtml(it.note) + '</small>' : '') + '</span></li>'; /* 第 274 次：跨夜睡眠的说明另起一行小字 */
           });
           out += '</ul><div class="day-total">共 ' + items.length + ' 条</div>';
         } else {

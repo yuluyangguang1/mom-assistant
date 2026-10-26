@@ -171,7 +171,7 @@
       var ym = Util.todayISO().slice(0, 7);
       var recs = (d.finance && d.finance.records) || [];
       var sum = recs.reduce(function (a, r) { return (r && String(r.date || '').slice(0, 7) === ym) ? a + (parseFloat(r.amount) || 0) : a; }, 0);
-      return { status: sum ? '本月已花 ¥' + (Math.round(sum * 100) / 100) : '本月还没有记账' };
+      return { status: sum ? '本月（' + (+ym.slice(5)) + ' 月）已花 ' + Util.fmtYuan(sum) : '本月还没有记账' }; /* 第 274 次（#26）：写明是哪个月，金额两位小数 */
     },
     supplies: function (d) {
       var list = d.supplies || [];

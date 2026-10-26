@@ -31,16 +31,23 @@
       html += '<button class="btn btn-primary btn-save" id="fSave">保存</button></div>';
 
       var recs = d.finance.records.slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
-      var total = recs.reduce(function (s, r) { return s + (parseFloat(r.amount) || 0); }, 0);
+      /* 第 274 次（审计 #26：页头「本月已花 ¥0.3」、统计「总支出 100.30 元」挨着像算错）：
+         统计卡分开写「本月」和「全部（自最早一笔起）」，分类小计标明是全部记录；金额统一 ¥ 两位小数（Util.fmtYuan）。 */
+      var amtOf = function (r) { var v = parseFloat(r.amount); return isFinite(v) ? v : 0; };
+      var ym = Util.todayISO().slice(0, 7);
+      var total = recs.reduce(function (s, r) { return s + amtOf(r); }, 0);
+      var mTotal = recs.reduce(function (s, r) { return String(r.date || '').slice(0, 7) === ym ? s + amtOf(r) : s; }, 0);
+      var first = recs.length ? recs[recs.length - 1].date : '';
       var byCat = {};
-      recs.forEach(function (r) { byCat[r.category] = (byCat[r.category] || 0) + (parseFloat(r.amount) || 0); });
+      recs.forEach(function (r) { byCat[r.category] = (byCat[r.category] || 0) + amtOf(r); });
       html += '<div class="card"><h2>统计</h2>';
-      html += '<p>总支出：<b>' + total.toFixed(2) + ' 元</b></p>';
+      html += '<p>本月（' + (+ym.slice(5)) + ' 月）支出：<b>' + Util.fmtYuan(mTotal) + '</b></p>';
+      html += '<p>全部' + (first ? '（' + Util.escapeHtml(Util.fmtDate(first)) + ' 起）' : '') + '支出：<b>' + Util.fmtYuan(total) + '</b></p>';
       var keys = Object.keys(byCat);
       if (keys.length) {
-        html += '<ul class="kv">';
+        html += '<p class="hint">按分类（全部记录）</p><ul class="kv">';
         keys.sort(function (a, b) { return byCat[b] - byCat[a]; }).forEach(function (k) {
-          html += '<li>' + Util.escapeHtml(k) + '：' + byCat[k].toFixed(2) + ' 元</li>';
+          html += '<li>' + Util.escapeHtml(k) + '：' + Util.fmtYuan(byCat[k]) + '</li>';
         });
         html += '</ul>';
       }
@@ -54,7 +61,7 @@
           html += '<li>' + icon('finance')
             + '<span class="li-main"><b>' + Util.fmtDate(r.date) + '</b>' + Util.escapeHtml(r.category) + '</span>'
             + '<span class="li-sub">' + (r.note ? Util.escapeHtml(r.note) : '') + '</span>'
-            + '<span class="li-num">' + (parseFloat(r.amount) || 0).toFixed(2) + '<i>元</i></span>' /* 第 89 次（审计 B4）：坏金额回落 0，不渲染 NaN */
+            + '<span class="li-num">' + Util.fmtYuan(parseFloat(r.amount) || 0) + '</span>' /* 第 89 次（审计 B4）：坏金额回落 0，不渲染 NaN */
             + '<button class="icon-btn" data-del="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
         });
         html += '</ul><button class="btn-mini" id="fClear">清空</button>';
@@ -78,7 +85,7 @@
           note: view.querySelector('#fNote').value.trim() || null,
           date: view.querySelector('#fDate').value
         });
-        if (Storage.save()) Util.toast('已记录：' + parseFloat(amt).toFixed(2) + ' 元 · ' + cat, 'ok'); /* C1：金额落库必须可见 */
+        if (Storage.save()) Util.toast('已记录：' + Util.fmtYuan(parseFloat(amt)) + ' · ' + cat, 'ok'); /* C1：金额落库必须可见 */
         global.App.rerender();
       });
       var fExp = view.querySelector('#fExp');

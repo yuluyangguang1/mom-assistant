@@ -463,6 +463,32 @@
       return !!(global.CSS && CSS.supports && CSS.supports('-webkit-touch-callout', 'none'));
     } catch (e) { return false; }
   })();
+  /* 第 274 次（审计 #22）：全屏计时层（睡眠 / 亲喂 / 泵奶 .ftf）挂在 body 上，不在 Sheet 的面板栈里。
+     返回时先收起最上面那一层（等同点它自己的「⌄ 收起」）、留在原页，切页时一起收掉，绝不让它留下来盖住下一页。
+     白噪音播放页（#wnPlayer）不在这里：它露出 dock（第 271 次），dock 的返回就是「离开白噪音页」，
+     返回时由 whitenoise.leave() 带着播放页一起走（不残留）。topFullLayer 按 DOM 顺序取最后一个（后开的在上面）。 */
+  function topFullLayer() {
+    var list = document.querySelectorAll('body > .ftf');
+    return list.length ? list[list.length - 1] : null;
+  }
+  function collapseFullLayer(el) {
+    if (!el) return false;
+    var btn = el.querySelector('.ftf-top [data-f="down"], .ftf-top [data-p="down"], .ftf-top [aria-label="收起"]');
+    if (btn) { try { btn.click(); } catch (e) {} }
+    if (el.parentNode && el.classList.contains('ftf')) { /* 兜底：按钮没把它收掉 */
+      el.parentNode.removeChild(el);
+      if (!document.querySelector('body > .ftf')) document.body.classList.remove('ftf-open');
+    }
+    if (global.queueStatusColor) global.queueStatusColor();
+    return true;
+  }
+  function closeAllFullLayers() {
+    ['sleep', 'breast', 'pump'].forEach(function (k) { if (Modules[k] && Modules[k]._closeFull) { try { Modules[k]._closeFull(); } catch (e) {} } });
+    Array.prototype.forEach.call(document.querySelectorAll('body > .ftf'), function (el) { el.parentNode.removeChild(el); });
+    document.body.classList.remove('ftf-open');
+    /* 白噪音播放页只活在白噪音页，离开时由它自己的 leave() 收起（第 271 次） */
+    if (global.queueStatusColor) global.queueStatusColor();
+  }
   function showTab(id, opts) {
     if (!Modules[id]) return;
     var kind = (opts && opts.silent) ? '' : navKind(current, id);
@@ -522,6 +548,7 @@
     /* 第 272 次（审计 #2 / #5）：真正换页时，上一页的面板一起关掉，带「撤销」的提示收起（撤销只对它那一页的记录） */
     if (prevId !== id && !(opts && opts.silent)) {
       if (global.Sheet && Sheet.closeAll) { try { Sheet.closeAll(); } catch (eS) {} }
+      closeAllFullLayers(); /* 第 274 次（#22）：全屏计时 / 播放页不跨页残留 */
       if (Util.toastLeave) Util.toastLeave(id);
     }
     current = id;
@@ -1461,6 +1488,7 @@
 
   global.App = {
     showTab: showTab,
+    _saveRestore: saveRestore, /* 第 274 次：回归测试模拟「SW 更新自动重载」用（写恢复标记，随后 reload） */
     rerender: rerender,
     currentTab: function () { return current; },
     _isTop: function () { return isTopTab(current) && !subExit; }, /* 第 245 次：抽屉边缘拉出只在一级页 */
@@ -1697,6 +1725,48 @@
     });
   }
 
+  /* 第 274 次（审计 #25）：SW 接管后的自动重载会落回首页，回前台时像 App 自己跳回首页。
+     重载前把「在哪一页 / 设置的哪一组 / 哪个全屏计时开着」写进 sessionStorage（只对这一个标签页、2 分钟内有效），
+     启动画好首页后再推进去（保证返回仍有落点、history 层级和手动进入一样）；
+     计时本身存在 Storage 里，不受重载影响，只把全屏层按原样重新打开（计时已结束就不开）。
+     启动时如果还在静默退回旧会话的 history（第 270 次 rewind），等退完再推，免得两边抢 history。 */
+  var RESTORE_KEY = 'yiyaRestore';
+  function saveRestore() {
+    try {
+      var full = null;
+      var f = document.querySelector('body > .ftf');
+      if (f) full = f.classList.contains('ftf-sleep') ? 'sleep' : f.classList.contains('ftf-pump') ? 'pump' : 'breast';
+      var sg = -1;
+      if (current === 'settings' && subExit) {
+        var gs = document.querySelectorAll('#view .set-group');
+        for (var i = 0; i < gs.length; i++) if (gs[i].classList.contains('sg-cur')) sg = i;
+      }
+      global.sessionStorage.setItem(RESTORE_KEY, JSON.stringify({ tab: current, sg: sg, full: full, t: Date.now() }));
+    } catch (e) { /* 隐私模式等：照常落首页 */ }
+  }
+  var restoreWait = null; /* rewind 进行中时把恢复动作挂在这里 */
+  function restoreAfterReload() {
+    var r = null;
+    try { r = JSON.parse(global.sessionStorage.getItem(RESTORE_KEY) || 'null'); global.sessionStorage.removeItem(RESTORE_KEY); } catch (e) { r = null; }
+    if (!r || !r.t || Date.now() - r.t > 120000) return;
+    var run = function () {
+      restoreWait = null;
+      try {
+        var d = Storage.get();
+        if (!d.settings || !d.settings.privacyAccepted) return;
+        if (r.tab && r.tab !== 'home' && Modules[r.tab] && current === 'home') showTab(r.tab, { noVT: true });
+        if (r.tab === 'settings' && r.sg >= 0) {
+          var g = document.querySelectorAll('#view .set-group')[r.sg], sm = g && g.querySelector('summary');
+          if (sm) sm.click();
+        }
+        if (r.full && Modules[r.full] && Modules[r.full]._openFull) {
+          var live = r.full === 'sleep' ? d.openSleep : r.full === 'pump' ? d.pumpTimer : d.feedingTimer;
+          if (live) Modules[r.full]._openFull();
+        }
+      } catch (e2) { /* 恢复失败就停在首页 */ }
+    };
+    if (global.__yiyaRewinding) restoreWait = run; else run();
+  }
   function init() {
     Storage.load();
     /* 第 116 次：独立模式标记必须在【首屏渲染前】写入。
@@ -1800,7 +1870,9 @@
         var pendingReload = false;
         var busy = function () {
           var a = document.activeElement;
-          if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;
+          /* 第 274 次：只认真在打字的框。iOS 触感用的隐藏开关（#__hapSw，checkbox）点一下就留着焦点，
+             原来会被当成「正在输入」，更新一直拖到下次切后台 */
+          if (a && (a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || (a.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|reset|range|hidden|color|file)$/i.test(a.type || '')))) return true;
           var m = document.getElementById('modalRoot');
           return !!(m && m.children.length);
         };
@@ -1808,6 +1880,7 @@
           if (global.__swReloaded) return;
           global.__swReloaded = true;
           try { global.sessionStorage.setItem('swReload', '1'); } catch (eS) { /* */ }
+          saveRestore(); /* 第 274 次（审计 #25）：记下当前页，重载后回到这里 */
           if (global.location && global.location.reload) global.location.reload();
         };
         navigator.serviceWorker.addEventListener('controllerchange', function () {
@@ -1837,6 +1910,7 @@
       global.Modules.whitenoise.resetStaleState();
     }
     showTab('home');
+    restoreAfterReload(); /* 第 274 次（审计 #25）：SW 更新自动重载后回到原来那一页 */
     /* 第 163 次：桌面图标长按快捷菜单（manifest shortcuts）带 ?go=模块id 打开，
        先落首页（保证返回有落点），再推入目标模块；随后把参数从地址栏抹掉，刷新不会再跳一次。
        首次引导未完成时不跳，先走完引导。 */
@@ -2094,8 +2168,9 @@
       var st0 = global.history.state;
       if (st0 && (st0.baoma === 1 || st0.baoma === 'guard')) {
         rewind = 12;
+        global.__yiyaRewinding = true;
         try { global.sessionStorage.setItem('swReload', '1'); } catch (eS) {}
-        try { global.history.back(); } catch (eR) { rewind = 0; }
+        try { global.history.back(); } catch (eR) { rewind = 0; global.__yiyaRewinding = false; }
       }
       global.addEventListener('popstate', function (ev) {
         if (rewind > 0) {
@@ -2104,9 +2179,12 @@
           rewind = 0;
           try { global.sessionStorage.removeItem('swReload'); } catch (eS2) {}
           dropForward();
+          global.__yiyaRewinding = false;
+          /* 第 274 次：等 dropForward 的那次静默 back 落地（下面 ignorePop 归零时）再恢复；兜底 800ms */
+          if (restoreWait) setTimeout(function () { if (restoreWait) restoreWait(); }, 800);
           return;
         }
-        if (ignorePop > 0) { ignorePop--; return; }
+        if (ignorePop > 0) { ignorePop--; if (!ignorePop && restoreWait && !global.__yiyaRewinding) restoreWait(); return; }
         var st = ev && ev.state;
         if (st && st.baoma === 'guard') { ignorePop++; try { global.history.back(); } catch (eB) { ignorePop = 0; } return; }
         /* 旧版本留下的前进记录：在首页、没有上一层时还收到模块记录 = 被「前进」了，静默退回 */
@@ -2115,6 +2193,13 @@
         if ((subExit || current !== 'home') && global.Sheet && Sheet.isOpen && Sheet.isOpen()) {
           Sheet.closeTop();
           try { global.history.pushState({ baoma: 1, id: current }, ''); } catch (eP) {}
+          return;
+        }
+        /* 第 274 次（审计 #22）：全屏计时开着时返回 = 先收起它、留在原页（同面板） */
+        var fl = topFullLayer();
+        if (fl) {
+          collapseFullLayer(fl);
+          if (subExit || current !== 'home') { try { global.history.pushState({ baoma: 1, id: current }, ''); } catch (eP2) {} }
           return;
         }
         if (subExit) { historyDepth = Math.max(0, historyDepth - 1); exitSubNow(); dropForward(); return; }

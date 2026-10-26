@@ -174,6 +174,42 @@
       return (ds > 0 && dt.getHours() < ds) ? this.addDays(iso, -1) : iso;
     },
 
+    /** 第 274 次（审计 #23：跨午夜的睡眠，睡眠页整段算进「今天」、日历只放在前一天）：
+        统一口径——一段睡眠按时间窗切开，各天只算落在自己窗里的那部分；暂停按比例扣掉（与 7 天柱状图同法）。
+        rec: {start, end, pausedMs}；end 为空时算到 nowMs（进行中）。返回分钟（小数）。 */
+    sleepOverlapMin: function (rec, from, to, nowMs) {
+      if (!rec || !rec.start) return 0;
+      var a = new Date(rec.start).getTime(), b = rec.end ? new Date(rec.end).getTime() : (nowMs || Date.now());
+      if (!isFinite(a) || !isFinite(b) || b <= a) return 0;
+      var ov = Math.min(b, to) - Math.max(a, from);
+      if (ov <= 0) return 0;
+      var k = Math.max(0, Math.min(1, 1 - (Number(rec.pausedMs) || 0) / (b - a)));
+      return ov * k / 60000;
+    },
+    /** 某个照护日（dayKey + dayStart）里的睡眠合计：{ min, n, lon }。
+        只算已结束的；opts.live = 进行中的那一觉（{start, pausedMs}）也算到 now。
+        睡眠页摘要、首页「今日睡眠」「今日概览」共用这一份。 */
+    daySleep: function (sleeps, dayKey, dayStart, opts) {
+      var p = String(dayKey).split('-'), ds = dayStart || 0;
+      var from = new Date(+p[0], +p[1] - 1, +p[2], ds, 0, 0, 0).getTime();
+      var to = new Date(+p[0], +p[1] - 1, +p[2] + 1, ds, 0, 0, 0).getTime();
+      var self = this, out = { min: 0, n: 0, lon: 0 };
+      var list = (sleeps || []).filter(function (x) { return x && x.start && x.end; });
+      if (opts && opts.live && opts.live.start) list = list.concat([{ start: opts.live.start, end: null, pausedMs: opts.live.pausedMs || 0 }]);
+      list.forEach(function (x) {
+        var m = self.sleepOverlapMin(x, from, to, opts && opts.now);
+        if (m > 0) { out.min += m; out.n++; if (m > out.lon) out.lon = m; }
+      });
+      return out;
+    },
+
+    /** 第 274 次（审计 #26：页头「¥0.3」、统计「100.30 元」两种写法）：金额统一写成「¥0.30」（两位小数，千分位不加）。坏值回落 ¥0.00 */
+    fmtYuan: function (n) {
+      var v = Number(n);
+      if (!isFinite(v)) v = 0;
+      return (v < 0 ? '-¥' : '¥') + Math.abs(v).toFixed(2);
+    },
+
     /** 毫秒时长 -> 人类可读（x小时y分 / y分） */
     fmtDuration: function (ms) {
       if (ms == null || isNaN(ms) || ms < 0) return '0分';
@@ -201,6 +237,9 @@
     /** 第 273 次（审计 #18）：CSV 按 RFC 4180 转义——含逗号、引号、回车 / 换行的字段整格加引号，引号写成两个 */
     csvCell: function (v) {
       if (v == null) return '';
+      /* 第 274 次：防 CSV 公式注入——用户写的文字以 = + - @（或制表符 / 回车）开头时前面加 '，
+         Excel / WPS 打开不会当公式执行。数字（金额、时长）原样，负数不受影响。 */
+      if (typeof v === 'string' && /^[=+\-@\t\r]/.test(v)) v = "'" + v;
       v = String(v);
       return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
     },
@@ -310,10 +349,33 @@
         var v = r.type === 'breast' ? (bm ? bm + ' 分' : '') : ((r.amount ? r.amount + (r.type === 'solid' ? ' g' : ' ml') : '') + (r.type === 'pump' && r.durationMin ? ' · ' + r.durationMin + ' 分' : ''));
         add(isoOf(r.start), 'feeding', t, v, hmOf(r.start));
       });
+      /* 第 274 次（审计 #23）：跨午夜的睡眠按午夜切开，两天都列出、各写各自那部分（与睡眠页、首页同口径）。
+         接续的那一天写「00:00 睡眠 10分 · 接前一天 22:30，共 1小时40分」，cont 标记让回顾卡不重复计条数。 */
       (d.sleeps || []).forEach(function (r) {
         if (!r.start) return;
-        var v = r.end ? Util.fmtDuration(new Date(r.end) - new Date(r.start) - (r.pausedMs || 0)) : '';
-        add(isoOf(r.start), 'sleep', '睡眠', v, hmOf(r.start));
+        var whole = r.end ? (new Date(r.end) - new Date(r.start) - (r.pausedMs || 0)) : NaN;
+        var v = r.end ? Util.fmtDuration(whole) : '';
+        var a = new Date(r.start).getTime(), b = r.end ? new Date(r.end).getTime() : NaN;
+        var d0 = isoOf(r.start);
+        if (!r.end || !isFinite(a) || !isFinite(b) || b <= a || Util.fmtDate(new Date(b - 1)) === d0) {
+          add(d0, 'sleep', '睡眠', v, hmOf(r.start));
+          return;
+        }
+        var day = d0, guard = 0;
+        while (guard++ < 40) {
+          var p0 = day.split('-');
+          var from = new Date(+p0[0], +p0[1] - 1, +p0[2]).getTime(), to = new Date(+p0[0], +p0[1] - 1, +p0[2] + 1).getTime();
+          if (from >= b) break;
+          var part = Util.fmtDuration(Util.sleepOverlapMin(r, from, to) * 60000);
+          var dt = Util.daysBetween(d0, day), last = Util.fmtDate(new Date(b - 1)) === day;
+          if (day === d0) add(day, 'sleep', '睡眠', part, hmOf(r.start));
+          else add(day, 'sleep', '睡眠', part, '00:00');
+          var it = idx[day][idx[day].length - 1];
+          it.note = day === d0 ? ('跨夜 · 次日 ' + hmOf(r.end) + ' 醒，共 ' + v)
+            : ('接' + (dt === 1 ? '前一天 ' : d0.slice(5).replace('-', '/') + ' ') + hmOf(r.start) + ' 入睡' + (last ? '，共 ' + v : ''));
+          if (day !== d0) it.cont = true;
+          day = Util.addDays(day, 1);
+        }
       });
       (d.growth || []).forEach(function (r) { add(r.date, 'growth', '生长', (r.weightKg ? r.weightKg + ' kg ' : '') + (r.heightCm ? r.heightCm + ' cm' : '')); });
       (d.diapers || []).forEach(function (r) {
@@ -334,7 +396,7 @@
       (d.contractions || []).forEach(function (r) { if (r.start) add(isoOf(r.start), 'contraction', '宫缩', '', hmOf(r.start)); });
       (d.fetal || []).forEach(function (r) { add(isoOf(r.time), 'fetal', '胎动', '', hmOf(r.time)); });
       (d.temps || []).forEach(function (r) { add(isoOf(r.time), 'temp', '体温', r.value != null ? r.value + '°C' : '', hmOf(r.time)); });
-      if (d.finance && d.finance.records) d.finance.records.forEach(function (r) { add(r.date, 'finance', '记账', '¥' + (r.amount || 0)); });
+      if (d.finance && d.finance.records) d.finance.records.forEach(function (r) { add(r.date, 'finance', '记账', Util.fmtYuan(r.amount)); });
       /* 同一天内按时间升序排（无时刻的排后面），明细即是一天的时间线 */
       Object.keys(idx).forEach(function (k) {
         idx[k].sort(function (a, b) { return (a.time || '99').localeCompare(b.time || '99'); });

@@ -259,8 +259,10 @@
       var html = '';
 
       /* 摘要：今天已结束的睡眠 + 最近一段 + 上次（参考图原句） */
-      var todayDone = done.filter(function (x) { return Util.dayKeyOf(x.end, DS) === dayNow; });
-      var todayMin = todayDone.reduce(function (s, x) { return s + Math.max(0, durMs(x)) / 60000; }, 0);
+      /* 第 274 次（审计 #23）：跨午夜的觉按照护日切开，只算落在今天的那部分（Util.daySleep，与日历、首页同口径） */
+      var todayAgg = Util.daySleep(done, dayNow, DS);
+      var todayDone = todayAgg.n ? [1] : [];
+      var todayMin = Math.round(todayAgg.min);
       var last = done.slice().sort(function (a, b) { return tms(b.end) - tms(a.end); })[0];
       var sum = '';
       if (os) {

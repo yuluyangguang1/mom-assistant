@@ -469,8 +469,8 @@
         }
         var hints = [];
         if (ins.breastN) hints.push('另记了亲喂 ' + ins.breastN + ' 次（亲喂没有量，不进上面的统计）');
-        hints.push('只统计你自己记的数，不设目标值——和你自己比就好。');
-        html += '<p class="hint">' + hints.join('；') + '。</p></div>';
+        hints.push('只统计你自己记的数，不设目标值——和你自己比就好');
+        html += '<p class="hint">' + hints.join('；') + '。</p></div>'; /* 第 274 次（审计 #27）：句号只在 join 之后补一次，原来末句自带「。」→「。。」 */
       }
 
       /* 第 69 次（B3）：喂养参考 + 辅食观察期。知识句全部来自 Knowledge 底座

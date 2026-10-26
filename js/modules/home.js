@@ -109,7 +109,7 @@
   }
 
   function isoOf(s) { return (s || '').slice(0, 10); }
-  function fmtMoney(n) { return '¥' + (Math.round(n * 100) / 100); }
+  function fmtMoney(n) { return Util.fmtYuan(n); } /* 第 274 次（#26）：全站金额统一 ¥0.30 */
 
   /* 「昨夜最长连续」= 昨夜（归属到前一夜的那一组）里单段最长连续睡眠的小时数。
      2026-10-12 修正（第 128 次）：原实现取「start 最新的已结束睡眠」——
@@ -1043,8 +1043,10 @@
         W_HTML['w-diaper-today'] = function (cls, bd2) {
           return hw('w-diaper-today', 'diaper', 'diaper', 'diaper', '今日尿布', tDia.length + ' 片', '尿 ' + tPee + ' · 便 ' + tPoo, cls, bd2);
         };
-        var tSl = (d.sleeps || []).filter(function (r) { return r && r.start && r.end && careKeyOf(r.end) === dayNow; });
-        var tSlMin = tSl.reduce(function (s, r) { return s + Math.max(0, Math.round((new Date(r.end) - new Date(r.start)) / 60000)); }, 0);
+        /* 第 274 次（审计 #23）：今日睡眠按照护日切开跨夜的觉、扣暂停（Util.daySleep，与睡眠页摘要同口径） */
+        var tSlAgg = Util.daySleep(d.sleeps, dayNow, careDS());
+        var tSl = { length: tSlAgg.n };
+        var tSlMin = Math.round(tSlAgg.min);
         W_HTML['w-sleep-today'] = function (cls, bd2) {
           var v = tSlMin ? (Math.floor(tSlMin / 60) ? Math.floor(tSlMin / 60) + ' 小时 ' : '') + (tSlMin % 60) + ' 分' : '0 分';
           return hw('w-sleep-today', 'sleep', 'sleep', 'sleep', '今日睡眠', v, tSl.length ? ('醒来 ' + tSl.length + ' 次' + (d.openSleep ? ' · 正在睡' : '')) : (d.openSleep ? '正在睡' : '今天还没睡'), cls, bd2);
@@ -1087,7 +1089,8 @@
         var tfMl = tf.reduce(function (s2, f) { return s2 + feedMl(f); }, 0);
         var td = dias.filter(function (x) { return dayIdx(new Date(x.time).getTime()) === 0; });
         var tdPoop = td.filter(function (x) { return x.type === 'poop' || x.type === 'both'; }).length;
-        var tsMin = sls.reduce(function (s2, x) { return s2 + sleepMin(x, t0, t0 + DAY); }, 0);
+        /* 第 274 次（审计 #23）：今日概览的睡眠也走照护日窗口（Util.daySleep，含正在睡的这一觉，格子下写「睡眠中」） */
+        var tsMin = Util.daySleep(d.sleeps, careKeyOf(sumNow), careDS(), { live: d.openSleep }).min;
         W_HTML['w-today'] = function (cls, bd2) {
           function cell(acc, go, ic, lbl, big, sub) {
             return '<div class="wt-cell" data-accent="' + acc + '"><span class="wt-lbl">' + icon(ic) + lbl + '</span>'
@@ -2281,7 +2284,7 @@
       return f(Math.min.apply(null, vs)) + '–' + f(Math.max.apply(null, vs)) + ' 小时';
     })();
     var stats = [];
-    if (lastLongestH != null) stats.push({ num: lastLongestH.toFixed(1), lbl: '昨夜最长连续', unit: '小时' });
+    if (lastLongestH != null) stats.push({ num: lastLongestH.toFixed(1), lbl: '昨夜最长', unit: '小时' }); /* 第 274 次（审计 #29）：三等分格里「昨夜最长连续」折成两行、末行只剩「续」 */
     stats.push({ num: cnt(Util.babyFeeds(d.feedings), 'start'), lbl: '今日喂养', unit: '次' });
     stats.push({ num: cnt(d.diapers, 'time'), lbl: '今日尿布', unit: '次' });
     /* 第 89 次（审计 B1）：宫缩统计只出现在孕期——与宫缩磁贴（stages:['pregnancy']）

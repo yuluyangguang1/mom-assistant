@@ -456,12 +456,12 @@
             + '<span class="sup-ico">' + icon('supplies') + '</span>'
             + '<span class="sup-main"><b>' + Util.escapeHtml(s.name) + '</b>'
             + '<small>' + Util.escapeHtml(s.cat || '') + ' · ' + Util.fmtDate(s.date) + ' 买 · ' + qty + Util.escapeHtml(unit)
-            + (s.price > 0 ? ' · ' + s.price.toFixed(2) + ' 元' : '') + '</small></span>'
+            + (s.price > 0 ? ' · ' + Util.fmtYuan(s.price) : '') + '</small></span>'
             + '<span class="sup-num ' + st.cls + '">' + numHtml + '</span>'
             + '<div class="sup-bar"><i style="width:' + leftPercent(s) + '%"></i></div>'
             + '<span class="sup-state"><b class="' + st.cls + '">' + st.text + '</b>'
             + (hasPieces(s) ? (rate > 0 ? ' · 每天约 ' + (Math.round(rate * 10) / 10) + pcsUnit(s) + '，够用 ' + left + ' 天' : ' · 换尿布时自动扣减') : '')
-            + (ms > 0 ? ' · 本月该品类 ' + ms.toFixed(2) + ' 元' : '')
+            + (ms > 0 ? ' · 本月该品类 ' + Util.fmtYuan(ms) : '')
             + '</span>'
             + '<span class="sup-acts">'
             + '<button class="icon-btn" data-spbuy="' + s.id + '" title="记录新购">＋购</button>'
@@ -483,7 +483,7 @@
           var max = prices.length ? Math.max.apply(null, prices) : 0;
           html += '<li>' + Util.escapeHtml(s.name)
             + '：买了 ' + s.history.length + ' 次'
-            + (prices.length ? '，' + min.toFixed(2) + '–' + max.toFixed(2) + ' 元' : '')
+            + (prices.length ? '，' + Util.fmtYuan(min) + '–' + Util.fmtYuan(max) : '')
             + '</li>';
         });
         html += '</ul><p class="hint">和你自己历次买的价格比，不跟别人比。</p></div>';
@@ -634,16 +634,12 @@
       var expBtn = view.querySelector('#spExport');
       if (expBtn) {
         expBtn.addEventListener('click', function () {
-          var lines = ['名称,类别,购买日期,单价,数量,单位,可用天数,剩余天数,剩余片数'];
-          list.forEach(function (s) {
-            lines.push([
-              '"' + String(s.name || '').replace(/"/g, '""') + '"',
-              s.cat || '', s.date || '',
-              s.price || 0, parseInt(s.qty, 10) || 1, s.unit || '',
-              s.availDays || 0, supplyLeft(s), hasPieces(s) ? s.pieces : ''
-            ].join(','));
-          });
-          Util.download('消耗品_' + Util.todayISO() + '.csv', lines.join('\n'), 'text/csv');
+          /* 第 274 次：改走 Util.toCsv（RFC 4180 转义、BOM、CRLF、防公式注入），和记账 / 设置页同一份 */
+          var csv = Util.toCsv(['名称', '类别', '购买日期', '单价', '数量', '单位', '可用天数', '剩余天数', '剩余片数'], list.map(function (s) {
+            return [String(s.name || ''), s.cat || '', s.date || '', s.price || 0, parseInt(s.qty, 10) || 1, s.unit || '',
+              s.availDays || 0, supplyLeft(s), hasPieces(s) ? s.pieces : ''];
+          }));
+          Util.download('消耗品_' + Util.todayISO() + '.csv', csv, 'text/csv;charset=utf-8');
           Util.toast('已导出');
         });
       }
