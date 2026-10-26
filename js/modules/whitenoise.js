@@ -207,10 +207,17 @@
        定时模式把「时长 + 开头 3 秒淡入 + 结尾 8 秒淡出」整段烘焙进文件，播完即停，
        「限制使用时长」由音频本身保证，不依赖脚本是否还在跑；不限时则 4 秒片段 loop。
      · 8 kHz / 16 bit 单声道：20 分钟约 19 MB 内存，30 分钟约 29 MB，用完即释放。 */
-  var WAV_SR = 8000;
-  function buildWav(type, volume, minutes) {
+  /* 第 276 次（内存审计：定时 30 分钟整段烘焙 WAV 约 29 MB，生成时 ArrayBuffer + Blob 两份并存峰值约 58 MB）：
+     定时模式也改成「32 秒无缝循环段 loop 播放」（由 4 / 8 秒基础片段整数次重复拼成，首尾相接无缝），约 0.5 MB；
+     到「结束前 8 秒」由定时器把 src 换成一段 8 秒淡出尾巴（loop 关掉），尾巴播完 = ended → 停止并提示，和原来一样。
+     开头 3 秒淡入不再烘焙（loop 段里有淡入会每 32 秒重复一次），和不限时一致直接出声。
+     定时器有三重：setTimeout 精确到点、元素 timeupdate（媒体播放时系统照常派发）、原有每秒一次的兜底检查；
+     暂停清掉、继续按剩余时间重新挂。锁屏 / MediaSession / 第 271 次的播放状态同步（只认元素真实事件）不变。 */
+  var WAV_SR = 8000, SEG_SEC = 32, TAIL_SEC = 8;
+  function buildWav(type, volume, minutes, tailSec) {
     var base = fillNoise(new Float32Array(WAV_SR * loopSec(type)), type, WAV_SR);
-    var total = minutes > 0 ? minutes * 60 * WAV_SR : base.length;
+    /* minutes>0：循环段（SEG_SEC 秒）；tailSec>0：淡出尾巴；都没有：基础片段原样（不限时） */
+    var total = tailSec > 0 ? Math.max(1, Math.round(tailSec * WAV_SR)) : (minutes > 0 ? Math.round(SEG_SEC / loopSec(type)) * base.length : base.length);
     var g = gainOf(volume) * 1.6; /* 与 Web Audio 的听感大致对齐（低采样率高频少，略补一点） */
     var buf = new ArrayBuffer(44 + total * 2);
     var v = new DataView(buf);
@@ -219,7 +226,7 @@
     str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
     v.setUint32(24, WAV_SR, true); v.setUint32(28, WAV_SR * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
     str(36, 'data'); v.setUint32(40, total * 2, true);
-    var fin = minutes > 0 ? 3 * WAV_SR : 0, fout = minutes > 0 ? 8 * WAV_SR : 0;
+    var fin = 0, fout = tailSec > 0 ? total : 0;
     var blen = base.length;
     for (var i = 0, o = 44; i < total; i++, o += 2) {
       var env = 1;
@@ -229,14 +236,47 @@
       if (x > 1) x = 1; else if (x < -1) x = -1;
       v.setInt16(o, Math.round(x * 32767), true);
     }
+    engine.wavBytes = buf.byteLength; /* 第 276 次：回归测试看生成了多大 */
     return new Blob([buf], { type: 'audio/wav' });
   }
   function elemSupported() {
     try { return typeof global.Audio === 'function' && typeof Blob === 'function' && !!(global.URL && URL.createObjectURL); }
     catch (e) { return false; }
   }
+  /* 第 276 次：定时停止。按 wn.until 挂「结束前 TAIL_SEC 秒换尾巴」；暂停 / 停止时撤掉 */
+  function clearStopTimer() { if (engine.stopT) { clearTimeout(engine.stopT); engine.stopT = 0; } }
+  function armStop() {
+    clearStopTimer();
+    if (engine.mode !== 'elem' || !engine.el || engine.tail) return;
+    var wn = (Storage.get() || {}).whitenoise;
+    if (!wn || !wn.playing || !wn.until) return;
+    var ms = wn.until - Date.now() - TAIL_SEC * 1000;
+    engine.stopT = setTimeout(function () { engine.stopT = 0; startTail(); }, Math.max(0, ms));
+  }
+  /* 换成淡出尾巴：同一个 <audio>（已被用户手势解锁过），换 src 后接着 play()。换 src 期间元素会发 pause / emptied，
+     engine.tail 标记让 onpause 不把它当成用户暂停。 */
+  function startTail() {
+    var el = engine.el;
+    if (!el || engine.tail || engine.mode !== 'elem') return;
+    var wn = (Storage.get() || {}).whitenoise;
+    if (!wn || !wn.playing || !wn.until || el.paused) return;
+    var left = (wn.until - Date.now()) / 1000;
+    if (left > TAIL_SEC + 1) { armStop(); return; } /* 定时器提前醒了（被调过时间），重新挂 */
+    var url;
+    try { url = URL.createObjectURL(buildWav(wn.type, wn.volume, 0, Math.max(0.5, Math.min(TAIL_SEC, left)))); } catch (e) { return; }
+    var old = engine.url;
+    engine.tail = true; engine.url = url;
+    try {
+      el.loop = false;
+      el.src = url;
+      var p = el.play();
+      if (p && p['catch']) p['catch'](function () { if (engine.el === el) { stop(); notify(); } });
+    } catch (e) { stop(); notify(); }
+    if (old) { try { URL.revokeObjectURL(old); } catch (e2) {} }
+  }
   function releaseElem() {
     var el = engine.el, url = engine.url;
+    clearStopTimer(); engine.tail = false;
     engine.el = null; engine.url = null;
     if (el) { try { el.onended = null; el.onplaying = null; el.onpause = null; el.pause(); el.removeAttribute('src'); el.load(); } catch (e) {} }
     engine.starting = false;
@@ -268,9 +308,10 @@
     } catch (e) {}
     try {
       url = URL.createObjectURL(buildWav(type, volume, minutes));
+      engine.tail = false;
       el = new global.Audio();
       el.src = url;
-      el.loop = !(minutes > 0);
+      el.loop = true; /* 第 276 次：定时模式也是循环段，到点由 armStop / startTail 收尾 */
       el.setAttribute('playsinline', '');
     } catch (e) { if (url) try { URL.revokeObjectURL(url); } catch (e2) {} return false; }
     engine.el = el; engine.url = url; engine.playing = true; engine.mode = 'elem'; engine.starting = true;
@@ -283,12 +324,14 @@
         var wr = Storage.get().whitenoise;
         if (wr && wr.paused) markResumed(wr);
         engine.paused = false;
+        if (!engine.tail) armStop();
         notify();
         return;
       }
       el._started = true;
       writeState(true, type, volume, prefMin != null ? prefMin : minutes, linkSleep);
       if (minutes > 0) { var w0 = Storage.get().whitenoise; if (w0) { w0.until = Date.now() + minutes * 60000; Storage.save(); } }
+      armStop();
       mediaSession(true);
       notify();
     };
@@ -296,10 +339,19 @@
        不是我们自己调的 pause()，就在这里按「暂停」落库（保留剩余时间），界面一起变成 ▶。 */
     el.onpause = function () {
       if (engine.el !== el || el.ended) return;
+      if (engine.tail && !el.paused) return;
+      if (engine.tail && el.src && engine.url && el.src !== engine.url) return; /* 换尾巴 src 时的那次 pause */
+      clearStopTimer();
       engine.starting = false;
       var wp = Storage.get().whitenoise;
       if (wp && wp.playing) markPaused(wp);
       notify();
+    };
+    /* 第 276 次：播放中元素自己派发的进度事件也检查一次到点（锁屏时定时器可能被推迟） */
+    el.ontimeupdate = function () {
+      if (engine.el !== el || engine.tail || el.paused) return;
+      var wt = Storage.get().whitenoise;
+      if (wt && wt.playing && wt.until && wt.until - Date.now() <= TAIL_SEC * 1000) startTail();
     };
     el.onended = function () {
       if (engine.el !== el) return;
@@ -540,6 +592,7 @@
     if (!wn || !wn.playing) return false;
     markPaused(wn);
     engine.starting = false;
+    clearStopTimer();
     try {
       if (engine.mode === 'elem' && engine.el) engine.el.pause();
       else if (engine.ctx && engine.ctx.suspend) engine.ctx.suspend();
@@ -933,6 +986,9 @@
      本批的核心修复（等 resume）恰恰是运行时行为，静态断言验证不了它。
      前缀下划线与既有 _stop / _audioSupported 一致，属内部接口，不进 UI。 */
   Modules.whitenoise._startForTest = start;
+  /* 第 276 次：回归测试看引擎状态（定时器 / 尾巴 / 循环段）；_tail 直接触发换尾巴 */
+  Modules.whitenoise._eng = function () { return { mode: engine.mode, tail: !!engine.tail, stopT: !!engine.stopT, loop: engine.el ? engine.el.loop : null, bytes: engine.wavBytes || 0 }; };
+  Modules.whitenoise._tail = function () { startTail(); };
   Modules.whitenoise._fill = function (type, sr) { return fillNoise(new Float32Array((sr || WAV_SR) * loopSec(type)), type, sr || WAV_SR); };
   Modules.whitenoise._wav = buildWav;
   Modules.whitenoise._ctxState = function () { return engine.ctx ? engine.ctx.state : null; };

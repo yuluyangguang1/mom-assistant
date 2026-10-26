@@ -14,6 +14,13 @@
  * 抽屉在页面底下，带一点视差从左边滑出来。
  * 推 #app 之前先把它锁成一屏高的 fixed 容器（滚动位置挪进 #app.scrollTop），
  * 否则 #app 带 transform 后里面 fixed 的 dock 会改成相对整页定位、跑到页面最底下。
+ *
+ * 第 276 次（用户同意重做）：浮起的圆角卡片 + 缩放在网页里阴影边缘硬切、圆角难看。
+ * 改成和 iOS 导航推入一样的整屏页：侧拉页宽 100%、无圆角无投影，从左边滑进来盖住屏幕；
+ * 底下的当前页同步向右平移 28% 并轻微变暗（视差）。全程跟手：一级页向右拉打开，
+ * 在侧拉页上向左拉或点左上「返回」关闭，松手按位置 + 速度决定打开还是回弹。
+ * 顶部放搜索框（点了直接进搜索页并弹出键盘）。打开时登记一条 history，系统返回 / popstate 先关它。
+ * 减少动态效果时不平移，直接淡入淡出。
  */
 (function (global) {
   'use strict';
@@ -43,6 +50,7 @@
 
   function esc(s) { return (global.Util && Util.escapeHtml) ? Util.escapeHtml(s) : String(s == null ? '' : s); }
   function ic(k) { return (global.icon && global.icon(k)) || ''; }
+  var BACK = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>';
   var SWAP = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 9.5l4-4 4 4M8 14.5l4 4 4-4"/></svg>';
 
   function babyBlock() {
@@ -95,7 +103,12 @@
       });
       h += '</nav>';
     });
-    panel.innerHTML = '<div class="sd-scroll">' + h + '</div>';
+    /* 第 276 次：整屏页顶部 = 返回 + 搜索框（搜索从 dock 搬出来后的入口之一） */
+    var top = '<div class="sd-top">'
+      + '<button type="button" class="sd-back" data-sd="back" aria-label="返回">' + BACK + '</button>'
+      + '<button type="button" class="sd-search" data-sd="search" aria-label="搜索记录、里程碑、用品"><span class="si-ico">' + ic('search') + '</span><span>搜索记录、里程碑、用品…</span></button>'
+      + '</div>';
+    panel.innerHTML = top + '<div class="sd-scroll"><div class="sd-inner">' + h + '</div></div>';
   }
 
   function build() {
@@ -106,6 +119,7 @@
     root.id = 'sideDrawer'; root.className = 'side-drawer';
     root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', '全部功能');
     root.setAttribute('aria-hidden', 'true');
+    root.setAttribute('tabindex', '-1');
     try { root.inert = true; } catch (e) {}
     panel = document.createElement('div'); panel.className = 'sd-panel';
     root.appendChild(panel);
@@ -116,6 +130,12 @@
       var t = e.target && e.target.closest ? e.target.closest('[data-sd-go],[data-sd]') : null;
       if (!t) return;
       var go = t.getAttribute('data-sd-go'), act = t.getAttribute('data-sd');
+      if (act === 'back') { close(); return; }
+      if (act === 'search') {
+        /* 同一次点击里切页并聚焦输入框，iOS 才会弹出键盘 */
+        navigate(function () { if (App.openSearch) App.openSearch(); else App.showTab('search', { noVT: true }); });
+        return;
+      }
       if (act === 'swap') { if (App._openBabySheet) App._openBabySheet(); return; } /* 面板盖在抽屉上，选完回到抽屉 */
       if (act === 'baby') { navigate(function () { if (App.openSettingsGroup) App.openSettingsGroup('称呼与阶段'); }); return; }
       if (!go) return;
@@ -132,23 +152,34 @@
   }
   document.addEventListener('keydown', function (e) { if (isOpen && e.key === 'Escape') close(); });
 
-  function width() { return root ? (root.getBoundingClientRect().width || 320) : 320; }
+  /* 第 276 次：整屏宽；底下的页跟着推 28%（iOS 导航推入的视差比例） */
+  var PAR = 0.28;
+  var prog = 0, opener = null;
+  function width() { return global.innerWidth || (root ? root.getBoundingClientRect().width : 0) || 390; }
+  function reducedMotion() { try { return !!(global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } }
   function setProgress(p, dragging) {
     /* p: 0 = 收起，1 = 全开；拖动中写内联样式，松手交给 CSS 过渡 */
     p = Math.max(0, Math.min(1, p));
+    prog = p;
     var app = appEl();
     if (dragging) document.body.classList.add('sd-drag'); else document.body.classList.remove('sd-drag');
     if (dragging) {
-      if (app) app.style.transform = 'translateX(' + (p * width()) + 'px)';
-      root.style.transform = 'scale(' + (0.96 + 0.04 * p) + ')';
-      root.style.opacity = String(Math.min(1, p * 1.5));
+      if (reducedMotion()) {
+        /* 减少动态效果：不平移，只按进度淡入 */
+        root.style.transform = 'none'; root.style.opacity = String(p);
+        if (app) app.style.transform = '';
+      } else {
+        root.style.transform = 'translate3d(' + ((p - 1) * 100).toFixed(3) + '%,0,0)';
+        root.style.opacity = '';
+        if (app) app.style.transform = 'translate3d(' + (p * PAR * width()).toFixed(1) + 'px,0,0)';
+      }
       mask.style.opacity = String(p);
     } else {
       if (app) app.style.transform = '';
       root.style.transform = ''; root.style.opacity = ''; mask.style.opacity = '';
     }
-    /* 第 266 次：状态栏跟着抽屉走（拖过一半就换成抽屉底色） */
-    var half = dragging ? p > 0.5 : null;
+    /* 第 266 次：状态栏跟着侧拉页走（盖过一半就换成侧拉页底色）；第 276 次起由 syncStatusColor 按 Drawer.progress() 判定 */
+    var half = dragging ? p >= 0.5 : null;
     if (half) document.body.classList.add('sd-half'); else document.body.classList.remove('sd-half');
     if (global.syncStatusColor) global.syncStatusColor();
   }
@@ -159,39 +190,62 @@
     render();
     lock();
     syncW();
+    var was = isOpen;
     isOpen = true;
+    if (!was) {
+      opener = document.activeElement;
+      /* 键盘开着（例如日期记录页的输入框）先收起，不让它顶着侧拉页 */
+      var ae = document.activeElement;
+      if (ae && ae !== document.body && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) { try { ae.blur(); } catch (e) {} }
+      if (global.App && App._drawerHist) App._drawerHist.open();
+    }
     root.setAttribute('aria-hidden', 'false');
     try { root.inert = false; } catch (e) {}
+    var app = appEl(); if (app) { try { app.inert = true; } catch (e) {} } /* 页面不再能被 Tab / 读屏走到 */
     setProgress(1, false);
     document.body.classList.add('sd-open');
     if (global.syncStatusColor) global.syncStatusColor();
-    if (global.Util && Util.haptic) Util.haptic('light');
+    if (!was) {
+      if (global.Util && Util.haptic) Util.haptic('light');
+      /* 焦点移进侧拉页（对话框本身，不画焦点环）；键盘用户接着 Tab 就是「返回」 */
+      setTimeout(function () { if (isOpen) { try { root.focus({ preventScroll: true }); } catch (e) {} } }, 60);
+    }
   }
-  function close() {
+  /* opts.keepHist：由 navigate() 调用，history 的处理留给切页（它会复用侧拉页那条记录）；
+     opts.fromPop：系统返回已经退掉了那条记录 */
+  function close(opts) {
     if (!root) return;
+    var was = isOpen;
     isOpen = false;
     setProgress(0, false);
     document.body.classList.remove('sd-open');
     if (global.syncStatusColor) global.syncStatusColor();
     root.setAttribute('aria-hidden', 'true');
     try { root.inert = true; } catch (e) {}
+    var app = appEl(); if (app) { try { app.inert = false; } catch (e) {} }
+    if (was && !(opts && (opts.keepHist || opts.fromPop)) && global.App && App._drawerHist) App._drawerHist.closed();
+    if (was && opener && opener.isConnected && !(opts && opts.keepHist)) { try { opener.focus({ preventScroll: true }); } catch (e) {} }
+    if (!(opts && opts.keepHist)) opener = null;
     if (unlockT) clearTimeout(unlockT);
-    unlockT = setTimeout(function () { unlockT = 0; unlock(); }, 420);
+    unlockT = setTimeout(function () { unlockT = 0; unlock(); }, reducedMotion() ? 220 : 440);
   }
-  /* 选了入口：页面一边滑回来一边换成新页（不再叠系统转场），回到顶部 */
+  /* 选了入口：侧拉页一边滑走一边换成新页（不再叠系统转场），回到顶部。
+     进二级页时那次 pushHistory 直接复用侧拉页登记的 history 记录；没用上就退掉它。 */
   function navigate(fn) {
     ly = 0;
     document.documentElement.style.setProperty('--sd-ly', '0px');
-    close();
+    close({ keepHist: true });
+    opener = null;
     try { fn(); } catch (e) {}
+    if (global.App && App._drawerHist) App._drawerHist.closed();
   }
 
-  /* 跟手：一级页左边缘向右拉打开；抽屉开着时向左拉关闭 */
+  /* 跟手：一级页向右拉打开；侧拉页开着时向左拉关闭。松手看位置和速度（≥0.35px/ms 视为甩动）。 */
   function bindDrag() {
-    var sx = 0, sy = 0, st = 0, mode = null, decided = false, lastP = 0;
+    var sx = 0, sy = 0, mode = null, decided = false, lastP = 0, lx = 0, lt = 0, vel = 0;
     function canEdgeOpen() {
       if (!global.App || !App._isTop || !App._isTop()) return false;
-      if (document.body.classList.contains('qd-open') || document.body.classList.contains('ob-open') || document.body.classList.contains('ftf-open') || document.documentElement.classList.contains('wp-lock')) return false; /* 第 271 次：白噪音播放页开着时不拉抽屉 */
+      if (document.body.classList.contains('qd-open') || document.body.classList.contains('ob-open') || document.body.classList.contains('ftf-open') || document.body.classList.contains('ps-pull') || document.documentElement.classList.contains('wp-lock')) return false; /* 第 271 次：白噪音播放页开着时不拉抽屉 */
       var mr = document.getElementById('modalRoot');
       if (mr && mr.children.length) return false;
       return !(App.inSub && App.inSub());
@@ -213,7 +267,7 @@
     document.addEventListener('touchstart', function (e) {
       if (!e.touches || e.touches.length !== 1) return;
       var t = e.touches[0];
-      mode = null; decided = false; panAny = false;
+      mode = null; decided = false; panAny = false; vel = 0;
       if (isOpen) mode = 'close';
       else if (canEdgeOpen()) {
         var tg = e.target;
@@ -221,7 +275,7 @@
         else if (!(tg && tg.closest && tg.closest(NO_PAN)) && !hScrollAncestor(tg)) { mode = 'open'; panAny = true; build(); }
       }
       if (!mode) return;
-      sx = t.clientX; sy = t.clientY; st = Date.now();
+      sx = t.clientX; sy = t.clientY; lx = sx; lt = Date.now();
     }, { passive: true });
     document.addEventListener('touchmove', function (e) {
       if (!mode) return;
@@ -232,7 +286,11 @@
         if (mode === 'open' && (dx < 0 || (panAny && Math.abs(dx) < Math.abs(dy) * 1.4))) { mode = null; return; }
         decided = true;
         if (mode === 'open') { render(); lock(); syncW(); }
+        else { var app0 = appEl(); if (app0) { try { app0.inert = false; } catch (eI) {} } }
       }
+      var now = Date.now(), dtm = Math.max(1, now - lt);
+      vel = vel * 0.4 + ((t.clientX - lx) / dtm) * 0.6; /* px/ms，平滑一下 */
+      lx = t.clientX; lt = now;
       var w = width();
       if (panAny) dx -= 8; /* 起步判定吃掉的那 8px 不算，免得一判定就跳一下 */
       lastP = mode === 'open' ? dx / w : 1 + dx / w;
@@ -243,15 +301,24 @@
       if (!mode) return;
       var m = mode; mode = null;
       if (!decided) return;
-      var fast = (Date.now() - st) < 260;
+      if (Date.now() - lt > 120) vel = 0; /* 停住再松手不算甩 */
       document.body.classList.remove('sd-drag');
-      if (m === 'open') { if (lastP > 0.35 || (fast && lastP > 0.12)) open(); else { setProgress(0, false); close(); } }
-      else { if (lastP < 0.65 || (fast && lastP < 0.9)) close(); else open(); }
+      var FLING = 0.35;
+      if (m === 'open') {
+        if (vel <= -FLING) { setProgress(0, false); close(); }
+        else if (lastP > 0.5 || vel >= FLING) open();
+        else { setProgress(0, false); close(); }
+      } else {
+        if (vel <= -FLING || (lastP < 0.5 && vel < FLING)) close();
+        else open();
+      }
     }
     document.addEventListener('touchend', end, { passive: true });
     document.addEventListener('touchcancel', end, { passive: true });
   }
 
   bindDrag(); /* 边缘拉出要在抽屉第一次建出来之前就能用 */
-  global.Drawer = { open: open, close: close, isOpen: function () { return isOpen; }, _render: render };
+  global.Drawer = { open: open, close: close, isOpen: function () { return isOpen; }, _render: render,
+    /* 第 276 次：0 = 收起，1 = 全开（拖动中是实时进度）；状态栏取色用 */
+    progress: function () { return document.body.classList.contains('sd-lock') ? (document.body.classList.contains('sd-drag') ? prog : (isOpen ? 1 : 0)) : 0; } };
 })(window);

@@ -258,32 +258,115 @@
      启动动画播完后，空闲时把页头插画、尿布类型图、辅食卡图、声音画卡逐张载入并预解码，
      Image 对象一直留在这里 —— 同一文档里再出现同一个地址时直接用内存里已解码的图，
      配合 decoding="sync"，插画与页面同一帧画出来。 */
-  var WARM = [];
-  function warmList() {
-    var ids = Object.keys(HERO), out = ids.map(function (k) { return 'assets/hero/' + k + '.webp'; });
-    ['pee', 'poop_gold', 'both', 'clean', 'poop_ygreen', 'poop_green', 'poop_brown', 'poop_black', 'poop_red', 'poop_pale'].forEach(function (k) { out.push('assets/diaper/' + k + '.webp'); });
-    ['pink', 'white', 'brown', 'shush', 'ocean', 'heart', 'fan', 'rain', 'dryer'].forEach(function (k) { out.push('assets/sounds/' + k + '.webp'); });
-    ['t_liquid', 't_puree', 't_minced', 't_granule', 't_chunk', 't_finger', 'c_grain', 'c_meat', 'c_fish', 'c_veg', 'c_fruit', 'c_other'].forEach(function (k) { out.push('assets/solid/' + k + '.webp'); });
+  /* 第 276 次（内存审计：58 张全部预解码常驻约 56 MB，切到后台也不放，是后台被系统回收的主要原因之一）：
+     改成按需：
+       · 启动后只预热「首页上能点进去的模块」的页头插画（最多 8 张，取首页卡片的 data-go，没有就按阶段给默认）；
+       · 页头插画另有一个最多 12 张的 LRU，手指按到任何入口（data-go / data-tab / 侧拉页行）时立刻预热那一页，
+         按下到松手之间就解码好了（480px webp 解码约几毫秒）；
+       · 尿布类型图 / 辅食卡图 / 声音画卡只在进入（或按到）对应页面时载入，离开就放掉；
+       · 切到后台（visibilitychange → hidden）全部放掉引用，回前台再按当前页重新预热。
+     兜底：进页时插画还没解码好（例如程序化跳转），先让它透明、解码完 0.12 秒淡入，不出现半张图。 */
+  var WARM = {}, horder = [], PAGE = {}, HERO_CAP = 12, CORE_N = 8;
+  var SETS = {
+    diaper: ['pee', 'poop_gold', 'both', 'clean', 'poop_ygreen', 'poop_green', 'poop_brown', 'poop_black', 'poop_red', 'poop_pale'].map(function (k) { return 'assets/diaper/' + k + '.webp'; }),
+    whitenoise: ['pink', 'white', 'brown', 'shush', 'ocean', 'heart', 'fan', 'rain', 'dryer'].map(function (k) { return 'assets/sounds/' + k + '.webp'; }),
+    solid: ['t_liquid', 't_puree', 't_minced', 't_granule', 't_chunk', 't_finger', 'c_grain', 'c_meat', 'c_fish', 'c_veg', 'c_fruit', 'c_other'].map(function (k) { return 'assets/solid/' + k + '.webp'; })
+  };
+  var STAGE_CORE = {
+    baby: ['feeding', 'diaper', 'sleep', 'whitenoise', 'breast', 'bottle', 'pump', 'growth'],
+    pregnancy: ['pregnancy', 'fetal', 'contraction', 'packing', 'mood', 'water', 'supplement', 'whitenoise']
+  };
+  var ready = false; /* 启动预热的时机到了（SW 接管后）才开始，之前按下也照样即时预热 */
+  function load(src) {
+    if (WARM[src] || typeof Image === 'undefined') return;
+    var im = new Image();
+    im.decoding = 'async';
+    im.src = src;
+    WARM[src] = im;
+    if (im.decode) im.decode().catch(function () {});
+  }
+  function unload(src) { if (WARM[src]) delete WARM[src]; }
+  function heroSrc(id) { return HERO[id] ? 'assets/hero/' + id + '.webp' : null; }
+  function warmHero(id) {
+    var src = heroSrc(id); if (!src) return;
+    var i = horder.indexOf(src); if (i >= 0) horder.splice(i, 1);
+    horder.push(src); load(src);
+    var cur = curHero();
+    for (var k = 0; horder.length > HERO_CAP && k < horder.length;) {
+      if (horder[k] === cur) { k++; continue; }
+      unload(horder.splice(k, 1)[0]);
+    }
+  }
+  function curHero() { var c = window.App && App.currentTab ? App.currentTab() : ''; return heroSrc(c); }
+  function addSet(id) { (SETS[id] || []).forEach(function (src) { PAGE[src] = 1; load(src); }); }
+  /* 当前页的图组：进页时只留这一页的，别的页的放掉 */
+  function setPage(id) {
+    var want = {}; (SETS[id] || []).forEach(function (src) { want[src] = 1; });
+    Object.keys(PAGE).forEach(function (src) { if (!want[src]) { unload(src); delete PAGE[src]; } });
+    addSet(id);
+  }
+  function linkedIds(root, max) {
+    var out = [];
+    if (!root || !root.querySelectorAll) return out;
+    Array.prototype.forEach.call(root.querySelectorAll('[data-go]'), function (el) {
+      var g = el.getAttribute('data-go');
+      if (g && HERO[g] && out.indexOf(g) < 0 && out.length < max) out.push(g);
+    });
     return out;
   }
+  function coreIds() {
+    var d = (window.Storage && Storage.get()) || {};
+    var st = (window.App && App.stageOf) ? App.stageOf(d) : 'baby';
+    var ids = (window.App && App.currentTab && App.currentTab() === 'home') ? linkedIds(document.getElementById('view'), CORE_N) : [];
+    (STAGE_CORE[st] || STAGE_CORE.baby).forEach(function (k) { if (ids.length < CORE_N && ids.indexOf(k) < 0) ids.push(k); });
+    return ids;
+  }
   function warm() {
-    if (WARM.length || typeof Image === 'undefined') return;
-    var list = warmList(), i = 0;
+    ready = true;
+    if (document.hidden) return;
+    var cur = (window.App && App.currentTab) ? App.currentTab() : '';
+    if (cur) { warmHero(cur); setPage(cur); }
+    var ids = coreIds(), i = 0;
     var idle = window.requestIdleCallback || function (fn) { return setTimeout(fn, 16); };
     (function next() {
-      if (i >= list.length) return;
-      var batch = list.slice(i, i + 4); i += 4;
-      Promise.all(batch.map(function (src) {
-        var im = new Image();
-        im.decoding = 'async';
-        im.src = src;
-        WARM.push(im);
-        return (im.decode ? im.decode() : Promise.resolve()).catch(function () {});
-      })).then(function () { idle(next); });
+      if (i >= ids.length || document.hidden) return;
+      warmHero(ids[i++]);
+      idle(next);
     })();
   }
+  /* 进页（app.js showTabNow 末尾调）：这一页的插画放进 LRU、换成这一页的图组，空闲时预热这一页能点进去的几页 */
+  function onPage(id) {
+    warmHero(id);
+    setPage(id);
+    var view = document.getElementById('view');
+    var im = view && view.querySelector('.mod-hero img');
+    if (im && !(im.complete && im.naturalWidth)) {
+      im.classList.add('hero-pending');
+      var done = function () { im.classList.remove('hero-pending'); };
+      if (im.decode) im.decode().then(done, done); else { im.addEventListener('load', done); im.addEventListener('error', done); }
+    }
+    if (!ready) return;
+    var idle = window.requestIdleCallback || function (fn) { return setTimeout(fn, 60); };
+    idle(function () { if (!document.hidden) linkedIds(document.getElementById('view'), id === 'home' ? CORE_N : 6).forEach(warmHero); });
+  }
+  /* 手指按到入口：立刻预热要去的那页（插画 + 图组） */
+  function pressWarm(e) {
+    var t = e.target && e.target.closest ? e.target.closest('[data-go],[data-tab],[data-sd-go]') : null;
+    if (!t) return;
+    var id = t.getAttribute('data-go') || t.getAttribute('data-tab') || t.getAttribute('data-sd-go');
+    if (!id) return;
+    warmHero(id); addSet(id);
+  }
+  document.addEventListener('pointerdown', pressWarm, true);
+  document.addEventListener('touchstart', pressWarm, { capture: true, passive: true });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { WARM = {}; horder = []; PAGE = {}; return; } /* 放掉全部引用，解码位图可被回收 */
+    if (ready) setTimeout(function () { if (!document.hidden) warm(); }, 400);
+  });
   window.Hero.warm = warm;
-  window.Hero._warmed = function () { return WARM.length; };
+  window.Hero.onPage = onPage;
+  window.Hero._warmed = function () { return Object.keys(WARM).length; };
+  window.Hero._warmList = function () { return Object.keys(WARM); };
   /* 第 275 次：SW 注册挪到 load 之后，首次打开时它会在半路接管页面；接管前载入的图，接管后同一地址的新 <img>
      不会复用（浏览器的内存图片表按「是否经过 SW」区分），预热就白做了。所以有注册中的 SW 时等它接管再预热（最多 5 秒）。 */
   function afterController(fn) {

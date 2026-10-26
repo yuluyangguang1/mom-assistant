@@ -15,6 +15,44 @@
   'use strict';
   var DB = 'yiya-photos', ST = 'p', ID_RE = /^ph_[a-z0-9]{4,32}$/;
   var dbp = null, urls = {};
+  /* 第 276 次（内存审计 L1：objectURL 只增不减，每看过一张不同的照片就常驻一个 Blob 到冷启动）：
+     urls 改成最多 LRU 张的 LRU（order 记先后，最近用过的在末尾）。超出时从最久没用的开始 revoke，
+     但页面上还有 <img> 正用着的不动（revoke 了它就没法重画）；离开页面 / 删记录 / 切到后台时再收一遍。 */
+  var LRU = 12, order = [];
+  function touch(id) { var i = order.indexOf(id); if (i >= 0) order.splice(i, 1); order.push(id); }
+  function inDom(u) {
+    try {
+      var ims = document.images;
+      for (var i = 0; i < ims.length; i++) if (ims[i].isConnected && (ims[i].getAttribute('src') === u || ims[i].currentSrc === u)) return true;
+    } catch (e) {}
+    return false;
+  }
+  function pinned(id) {
+    if (inDom(urls[id])) return true;
+    try { return !!document.querySelector('img[data-phid="' + id + '"]'); } catch (e) { return false; } /* id 只含 ph_ + 字母数字 */
+  }
+  function drop(id) {
+    var u = urls[id]; if (!u) return;
+    try { URL.revokeObjectURL(u); } catch (e) {}
+    delete urls[id];
+    var i = order.indexOf(id); if (i >= 0) order.splice(i, 1);
+  }
+  /* 收到 max 张以内；keep(id) 为真的（还被记录引用）也只在超额时才收 */
+  function trim(max, keepFn) {
+    var n = order.length;
+    for (var i = 0; i < order.length && n > max;) {
+      var id = order[i];
+      if (pinned(id) || (keepFn && keepFn(id))) { i++; continue; }
+      drop(id); n--;
+    }
+  }
+  function referenced() {
+    var set = {}, dd = (global.Storage && Storage.get && Storage.get()) || {};
+    var add = function (arr) { (arr || []).forEach(function (r) { if (r && r.photos) Photos.clean(r.photos).forEach(function (id) { set[id] = 1; }); }); };
+    add(dd.diapers); add(dd.feedings);
+    (dd.babies || []).forEach(function (bb) { if (bb && bb.rec) { add(bb.rec.diapers); add(bb.rec.feedings); } });
+    return set;
+  }
 
   function open() {
     if (dbp) return dbp;
@@ -83,10 +121,12 @@
     },
     url: function (id) {
       if (!Photos.validId(id)) return Promise.resolve(null);
-      if (urls[id]) return Promise.resolve(urls[id]);
+      if (urls[id]) { touch(id); return Promise.resolve(urls[id]); }
       return tx('readonly', function (s) { return s.get(id); }).then(function (v) {
         if (!v || !v.blob) return null;
-        urls[id] = URL.createObjectURL(v.blob);
+        if (!urls[id]) urls[id] = URL.createObjectURL(v.blob);
+        touch(id);
+        trim(LRU);
         return urls[id];
       }).catch(function () { return null; });
     },
@@ -99,6 +139,16 @@
         });
       });
     },
+    /** 第 276 次：收一遍 objectURL —— 页面上没在用、也没有记录再引用的（删了记录 / 面板里移除了）立刻 revoke，
+        其余按 LRU 收到上限以内。all=true（切到后台）：页面上没在用的全部 revoke，回来再按需重建。 */
+    prune: function (all) {
+      if (!order.length) return;
+      var ref = referenced();
+      order.slice().forEach(function (id) { if (!ref[id] && !pinned(id)) drop(id); });
+      trim(all ? 0 : LRU);
+    },
+    release: function (id) { if (urls[id] && !pinned(id)) drop(id); },
+    _live: function () { return order.length; },
     /** 删掉没被引用、且超过 graceMs 的照片 */
     gc: function (keep, graceMs) {
       graceMs = graceMs == null ? 10 * 60000 : graceMs;
@@ -109,7 +159,7 @@
           var cur = c.result; if (!cur) return;
           var v = cur.value || {};
           if (keep.indexOf(cur.key) < 0 && !(now - (v.t || 0) < graceMs)) {
-            if (urls[cur.key]) { URL.revokeObjectURL(urls[cur.key]); delete urls[cur.key]; }
+            if (urls[cur.key]) drop(cur.key);
             cur.delete();
           }
           cur.continue();
@@ -156,4 +206,6 @@
     }
   };
   global.Photos = Photos;
+  /* 切到后台：页面上没在用的照片地址全部放掉（回前台看到时按需重建，IndexedDB 里的照片不动） */
+  try { document.addEventListener('visibilitychange', function () { if (document.hidden) Photos.prune(true); }); } catch (e) {}
 })(window);

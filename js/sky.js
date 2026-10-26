@@ -357,6 +357,7 @@
   Sky.mount = function (canvas, opts) {
     if (!canvas || !canvas.getContext) return;
     if (canvas.__skyId) cancelAnimationFrame(canvas.__skyId);
+    if (canvas.__skyT) { clearTimeout(canvas.__skyT); canvas.__skyT = 0; }
 
     var ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -772,6 +773,7 @@
     function cleanup() {
       if (ro) ro.disconnect();
       if (canvas.__skyId) cancelAnimationFrame(canvas.__skyId);
+      if (canvas.__skyT) { clearTimeout(canvas.__skyT); canvas.__skyT = 0; }
       canvas.__skyId = null;
     }
 
@@ -805,9 +807,23 @@
       ctx.globalCompositeOperation = 'source-over';
     }
 
+    /* 第 276 次（耗电审计：首页天空每秒画 60 帧）：云漂移每秒不到 1% 屏宽，30fps 肉眼看不出差别——
+       隔帧才画（≥30ms 一画）；天空整块滚出视口（往下翻看卡片）时不画，每 400ms 看一眼回没回来；
+       页面隐藏时浏览器本来就不派发 rAF。 */
+    var lastPaint = 0;
     function frame(time) {
       if (!canvas.isConnected) { cleanup(); return; } // 离开首页 → 自动停止，释放资源
       var t = time || 0;
+      if (lastPaint && t - lastPaint < 30) { canvas.__skyId = requestAnimationFrame(frame); return; }
+      var vr = canvas.getBoundingClientRect();
+      if (vr.bottom < -20 || vr.top > (window.innerHeight || 800) + 20) {
+        lastT = 0;
+        canvas.__skyId = 0;
+        canvas.__skyT = setTimeout(function () { canvas.__skyT = 0; if (canvas.isConnected) canvas.__skyId = requestAnimationFrame(frame); else cleanup(); }, 400);
+        return;
+      }
+      lastPaint = t;
+      window.__skyPaints = (window.__skyPaints || 0) + 1;
       var dt = lastT ? Math.min((t - lastT) / 1000, 0.05) : 0.016;
       lastT = t;
       var now = effNow();

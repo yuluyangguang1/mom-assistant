@@ -137,14 +137,22 @@
     raf = global.requestAnimationFrame(function () { raf = 0; refresh(); });
   }
 
+  /* 第 276 次（内存 / 耗电审计：页面隐藏时仍每帧排 rAF；首页常驻每秒 60 次 refresh）：
+     ① 隐藏时直接停循环（不再空转排 rAF），回到前台由 visibilitychange 重启；
+     ② 场景本来就只每 220ms 重画一次（跟着天空慢慢变），玻璃面只在场景重画后才需要重取——
+        改成每 250ms 一拍（setTimeout 对齐到下一帧），滚动 / 缩放 / 切页仍由 pulse() 当帧刷新。
+        首页 rAF 从每秒约 60 次降到约 4 次，画面上看不出差别（卡片位置变化都走 pulse）。 */
+  var loopT = 0, LOOP_MS = 250;
   function loop() {
-    if (!loopOn || !enabled || !scene) return;
-    if (doc.hidden) { global.requestAnimationFrame(loop); return; }
+    loopT = 0;
+    if (!loopOn || !enabled || !scene) { loopOn = false; return; }
+    if (doc.hidden) { loopOn = false; return; }
     var sky = doc.getElementById('skyCanvas');
-    if (sky && sky.isConnected) { refresh(); global.requestAnimationFrame(loop); }
+    if (sky && sky.isConnected) { refresh(); loopT = setTimeout(function () { global.requestAnimationFrame(loop); }, LOOP_MS); }
     else { loopOn = false; } /* 离开首页：停常驻循环，改由滚动/切页触发 */
   }
   function startLoop() { if (!loopOn) { loopOn = true; global.requestAnimationFrame(loop); } }
+  function stopLoop() { loopOn = false; if (loopT) { clearTimeout(loopT); loopT = 0; } }
 
   function bind() {
     if (bound) return; bound = true;
@@ -152,7 +160,8 @@
     global.addEventListener('scroll', pulse, { passive: true });
     global.addEventListener('resize', pulse, { passive: true });
     doc.addEventListener('visibilitychange', function () {
-      if (!doc.hidden && !loopOn && enabled) {
+      if (doc.hidden) { stopLoop(); return; }
+      if (!loopOn && enabled && !reduced) {
         var sky = doc.getElementById('skyCanvas');
         if (sky && sky.isConnected) startLoop();
       }
@@ -197,5 +206,6 @@
     else Glass.wake();
   };
 
+  Glass._loopOn = function () { return loopOn; };
   global.Glass = Glass;
 })(window);

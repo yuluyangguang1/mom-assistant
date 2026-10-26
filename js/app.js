@@ -13,11 +13,12 @@
   /* 第 236 次：dock 一级页签 = 首页 / 日期记录 / 搜索 / 设置（搜索从首页右上角搬进来，设置从齿轮钮变成正式页签） */
   var TABS = [
     { id: 'home', title: '首页', ico: 'dk-home' },
-    { id: 'calendar', title: '日期记录', ico: 'dk-cal' },
-    { id: 'search', title: '搜索', ico: 'dk-search' }
+    { id: 'calendar', title: '日期记录', ico: 'dk-cal' }
   ];
+  /* 第 276 次（用户同意）：搜索移出 dock（一级、二级都去掉）。入口改成：首页到顶后继续下拉（pull-search.js）、
+     侧拉页顶部搜索框、「全部功能」页搜索框。搜索页路由保留，改算二级页（有返回、侧滑回首页）。 */
   /* 第 245 次：设置移进左侧抽屉（drawer.js），dock 只剩 首页 / 日期记录 / 搜索；设置改成二级页（有返回、能侧滑回来） */
-  function isTopTab(id) { return id === 'home' || id === 'calendar' || id === 'search'; }
+  function isTopTab(id) { return id === 'home' || id === 'calendar'; }
 
   var current = 'home';
 
@@ -144,7 +145,7 @@
     return paintEl(dst, root, r, '::after');
   }
   function overlayStack() {
-    var list = Array.prototype.filter.call(document.querySelectorAll('.wn-player.open, .ftf, .modal-mask, .home-sheet, .qd-mask, .ph-view'), function (el) {
+    var list = Array.prototype.filter.call(document.querySelectorAll('.wn-player.open, .ftf, .modal-mask, .home-sheet, .qd-mask, .ph-view, .side-drawer'), function (el) {
       if (el.classList.contains('sheet-ghost') || el.classList.contains('sheet-leaving') || el.hidden) return false;
       if (!el.getClientRects().length) return false;
       var cs = global.getComputedStyle(el);
@@ -202,9 +203,13 @@
       var b = document.body; if (!b) return;
       var c = '';
       var ovl = overlayStack();
-      /* 第 266 次：抽屉打开（或拖过一半）时，状态栏下面是抽屉，取抽屉底色 */
+      /* 第 266 次：抽屉打开（或拖过一半）时，状态栏下面是抽屉，取抽屉底色。
+         第 276 次：侧拉页改成从左边滑进来的整屏页——盖住视口顶行一半以上就取它的底色
+         （全盖住时它也在 overlayStack 里，按层合成）；不到一半取底下那页的颜色，再叠上压暗遮罩当前的透明度。 */
       var sdEl = document.querySelector('.side-drawer');
-      var sdOn = !!sdEl && (b.classList.contains('sd-drag') ? b.classList.contains('sd-half') : b.classList.contains('sd-open'));
+      var sdP = (global.Drawer && Drawer.progress) ? Drawer.progress() : 0;
+      var sdOn = !!sdEl && b.classList.contains('sd-lock') && sdP >= 0.5;
+      var sdDim = (!sdOn && sdP > 0) ? document.getElementById('sdMask') : null;
       var sky = !sdOn && b.classList.contains('in-home') && document.querySelector('.home-sky');
       var cv = sky && sky.querySelector('.sky-canvas');
       var r = cv && cv.getBoundingClientRect();
@@ -244,6 +249,10 @@
         /* 其他页：顶上是 body 的底色 + 渐变层（环境光染色 rgba(天空色, .11) 叠在暖底渐变上）。
            按层从下往上合成每层的首个色标 = 视口第 0 行的真实颜色（Chromium 对拍误差 ≤1）。 */
         c = bodyEdgeColor(b, false);
+      }
+      if (sdDim) {
+        var mk = parseRgba(global.getComputedStyle(sdDim).backgroundColor);
+        if (mk) { mk[3] *= sdP; c = rgbHex(over(parseRgba(c.replace(/^#(..)(..)(..)$/, function (m0, x, y, z) { return 'rgb(' + parseInt(x, 16) + ',' + parseInt(y, 16) + ',' + parseInt(z, 16) + ')'; })) || [253, 249, 244], mk)); }
       }
       if (ovl.length) {
         var baseC = c;
@@ -643,6 +652,9 @@
     syncHeader(); /* 切页回到顶部，顶栏同步复位为透明；restoreY 时保持已滚动态 */
 
     if (global.Glass) global.Glass.wake(); /* 折射层：重绘场景并刷新各玻璃面 */
+    /* 第 276 次（内存审计 L1）：换页 / 原地重绘（删记录后）收一遍照片 objectURL */
+    if (global.Photos && Photos.prune) { try { Photos.prune(); } catch (eP) {} }
+    if (global.Hero && Hero.onPage) { try { Hero.onPage(id, prevId); } catch (eH) {} }
   }
 
   /* C3（操作便捷性研究·第 32 次）：rerender 是轻操作后的原地刷新，必须保住滚动位置——
@@ -1493,6 +1505,13 @@
     currentTab: function () { return current; },
     _isTop: function () { return isTopTab(current) && !subExit; }, /* 第 245 次：抽屉边缘拉出只在一级页 */
     _openBabySheet: function () { openBabySheet(); },
+    /* 第 276 次：进搜索页并聚焦输入框（首页下拉、侧拉页搜索框共用）。必须在点击 / 松手的同一次事件里同步调用，iOS 才弹键盘 */
+    openSearch: function () {
+      if (current !== 'search') showTab('search', { noVT: true });
+      var inp = document.getElementById('searchInput');
+      if (inp) { try { inp.focus({ preventScroll: true }); } catch (e) { try { inp.focus(); } catch (e2) {} } }
+      return !!inp;
+    },
     _babyAge: function (bd) { return babyAge(bd); }, /* 第 187 次：record-edit.js 按当前模块找记录 */
     enterSub: enterSub,
     inSub: inSub,
@@ -1980,6 +1999,11 @@
       popstate 触发时回到上一层，浏览器的前进/后退也随之可用。 */
   function pushHistory(id) {
     if (!global.history || !global.history.pushState) return;
+    /* 第 276 次：从侧拉页进二级页时，侧拉页打开时登记的那条 history 直接改写成这一页（同步完成，
+       不必先异步 back 再 push —— 那样搜索框点下去就不能在同一次点击里弹出键盘了） */
+    if (drawerEntry) {
+      try { global.history.replaceState({ baoma: 1, id: id }, ''); drawerEntry = false; historyDepth++; return; } catch (eD) { drawerEntry = false; }
+    }
     try {
       global.history.pushState({ baoma: 1, id: id }, '');
       historyDepth++;
@@ -1992,6 +2016,7 @@
      ① 登记一条 history，让侧滑 / 系统返回 / 底栏返回钮都能退回上一层；
      ② 底栏切成二级态（返回 + ＋）；③ 返回时回调模块的 onExit 收起二级内容。 */
   var subExit = null;
+  var drawerEntry = false; /* 第 276 次：侧拉页打开时登记了一条 history（{baoma:'drawer'}），还没退掉 */
   function syncOrb() {
     var orb = document.getElementById('dockOrb'), bar = document.getElementById('tabbar');
     if (!orb || !bar) return;
@@ -2156,7 +2181,20 @@
          拉出那页的系统快照（App 并没有真的进去，松手后又弹回首页）。
          修法：每次返回落地后清掉前进栈——pushState 一个占位（会丢弃所有前进记录），
          再静默 back 回到当前层；前进栈里只剩这个占位，万一被拉到占位上也立刻静默退回。 */
-      var ignorePop = 0;
+      var ignorePop = 0, drawerPopped = false;
+      /* 第 276 次：侧拉页的 history（drawer.js 打开 / 关闭时调用） */
+      global.App._drawerHist = {
+        open: function () {
+          if (drawerEntry || global.__yiyaRewinding || rewind > 0) return;
+          try { global.history.pushState({ baoma: 'drawer' }, ''); drawerEntry = true; } catch (eD) { drawerEntry = false; }
+        },
+        closed: function () {
+          if (!drawerEntry) return;
+          drawerEntry = false; drawerPopped = true; ignorePop++;
+          try { global.history.back(); } catch (eD2) { ignorePop = Math.max(0, ignorePop - 1); drawerPopped = false; }
+        },
+        _entry: function () { return drawerEntry; }
+      };
       var dropForward = function () {
         try {
           global.history.pushState({ baoma: 'guard' }, '');
@@ -2172,7 +2210,7 @@
          万一退回时浏览器要重新载入文档，先写 swReload 让启动动画跳过（第 267 次同一机制）。 */
       var rewind = 0;
       var st0 = global.history.state;
-      if (st0 && (st0.baoma === 1 || st0.baoma === 'guard')) {
+      if (st0 && (st0.baoma === 1 || st0.baoma === 'guard' || st0.baoma === 'drawer')) {
         rewind = 12;
         global.__yiyaRewinding = true;
         try { global.sessionStorage.setItem('swReload', '1'); } catch (eS) {}
@@ -2181,7 +2219,7 @@
       global.addEventListener('popstate', function (ev) {
         if (rewind > 0) {
           var rs = ev && ev.state;
-          if (rs && (rs.baoma === 1 || rs.baoma === 'guard') && --rewind > 0) { try { global.history.back(); return; } catch (eR2) {} }
+          if (rs && (rs.baoma === 1 || rs.baoma === 'guard' || rs.baoma === 'drawer') && --rewind > 0) { try { global.history.back(); return; } catch (eR2) {} }
           rewind = 0;
           try { global.sessionStorage.removeItem('swReload'); } catch (eS2) {}
           dropForward();
@@ -2190,9 +2228,31 @@
           if (restoreWait) setTimeout(function () { if (restoreWait) restoreWait(); }, 800);
           return;
         }
-        if (ignorePop > 0) { ignorePop--; if (!ignorePop && restoreWait && !global.__yiyaRewinding) restoreWait(); return; }
+        if (ignorePop > 0) {
+          ignorePop--;
+          /* 第 276 次：关侧拉页退掉它那条记录后，再清掉前进栈（否则 iOS 能从右缘把侧拉页「前进」拉出来） */
+          if (!ignorePop && drawerPopped) { drawerPopped = false; dropForward(); return; }
+          if (!ignorePop && restoreWait && !global.__yiyaRewinding) restoreWait();
+          return;
+        }
         var st = ev && ev.state;
         if (st && st.baoma === 'guard') { ignorePop++; try { global.history.back(); } catch (eB) { ignorePop = 0; } return; }
+        /* 第 276 次：系统返回 / popstate 时侧拉页开着 → 先关它、留在原页。
+           侧拉页上面还盖着面板（切换宝宝）时先关面板，把侧拉页那条记录补回来。 */
+        if (global.Drawer && Drawer.isOpen()) {
+          if (global.Sheet && Sheet.isOpen && Sheet.isOpen()) {
+            Sheet.closeTop();
+            try { global.history.pushState({ baoma: 'drawer' }, ''); drawerEntry = true; } catch (eP0) { drawerEntry = false; }
+            return;
+          }
+          drawerEntry = false;
+          Drawer.close({ fromPop: true });
+          dropForward();
+          return;
+        }
+        drawerEntry = false;
+        /* 侧拉页已经关了却被「前进」到它那条记录上：静默退回 */
+        if (st && st.baoma === 'drawer') { ignorePop++; try { global.history.back(); } catch (eB0) { ignorePop = 0; } return; }
         /* 旧版本留下的前进记录：在首页、没有上一层时还收到模块记录 = 被「前进」了，静默退回 */
         if (st && st.baoma === 1 && current === 'home' && historyDepth <= 0 && !subExit) { ignorePop++; try { global.history.back(); } catch (eB2) { ignorePop = 0; } return; }
         /* 第 272 次（审计 #2）：面板开着时返回 = 先关面板、留在原页。这次 back 已经退掉一条记录，补推回来，层级不变 */

@@ -231,7 +231,7 @@
           return;
         }
         if ((v = b.getAttribute('data-phview'))) { if (PH) PH.view(v); return; }
-        if ((v = b.getAttribute('data-phrm'))) { st.photos = st.photos.filter(function (x) { return x !== v; }); paintPhotos(); return; }
+        if ((v = b.getAttribute('data-phrm'))) { st.photos = st.photos.filter(function (x) { return x !== v; }); paintPhotos(); if (global.Photos && Photos.release) Photos.release(v); return; }
         if (PH && (b.hasAttribute('data-phadd') || b.hasAttribute('data-phcam'))) {
           if (busy) return;
           PH.pick(b.hasAttribute('data-phcam'), function (files) {

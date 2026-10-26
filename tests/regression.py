@@ -510,13 +510,15 @@ def test_feeding_sheet(b):
     check('液态玻璃 dock：选中水滴盖在当前页签上', lg)
     check('液态玻璃 dock：按距离场生成位移贴图', ev("(()=>{const m=LiquidDock.buildMap(120,60,{amount:12,height:18});return !!(m&&m.url.indexOf('data:image/png')===0)})()"))
     ev("App.showTab('diaper')"); p.wait_for_timeout(400)
-    check('dock 二级页：返回在左、搜索居中、＋在右', ev("(()=>{const b=document.getElementById('tabbar');const xs=['#backBtn','.tab[data-tab=search]','.tab-plus'].map(q=>{const e=b.querySelector(q);return e&&e.offsetParent?e.getBoundingClientRect().x:-1});return xs[0]>=0&&xs[0]<xs[1]&&xs[1]<xs[2]})()"))
+    # 第 276 次：搜索移出 dock，二级页只剩 返回 + ＋
+    check('dock 二级页：返回在左、＋在右，没有搜索', ev("(()=>{const b=document.getElementById('tabbar');const xs=['#backBtn','.tab-plus'].map(q=>{const e=b.querySelector(q);return e&&e.offsetParent?e.getBoundingClientRect().x:-1});return xs[0]>=0&&xs[0]<xs[1]&&![...b.querySelectorAll('.tab[data-tab=search]')].some(e=>e.offsetParent)})()"))
     ev("App.showTab('home')"); p.wait_for_timeout(400)
     check('宝宝切换是 dock 左侧独立圆钮且不贴着 dock', ev("(()=>{const o=document.getElementById('dockOrb'),b=document.getElementById('tabbar');if(!o||o.hidden||!o.contains(document.getElementById('avatarBtn')))return false;const r=o.getBoundingClientRect(),q=b.getBoundingClientRect();return q.left-r.right>=6&&r.left>=8})()"))
     check('dock 一级页不用 transform 位移（iOS 转场快照会重复算 -50%），左缘紧挨圆钮', ev("(()=>{const b=document.getElementById('tabbar'),o=document.getElementById('dockOrb');const t=getComputedStyle(b).transform;const g=b.getBoundingClientRect().left-o.getBoundingClientRect().right;return (t==='none')&&g>=6&&g<=12})()"))
     check('dock 按下缩放左右对称（不再右缘不动、左缘缩进）', ev("(()=>{const b=document.getElementById('tabbar');const r0=b.getBoundingClientRect();b.style.transition='none';b.classList.add('lg-press');const r1=b.getBoundingClientRect();b.classList.remove('lg-press');b.style.transition='';return Math.abs((r1.left-r0.left)-(r0.right-r1.right))<1.5})()"))
-    check('dock 一级页：首页/日期/搜索三个页签（设置在左侧抽屉）', ev("Array.from(document.querySelectorAll('#tabbar .tab[data-tab]')).filter(e=>e.offsetParent).map(e=>e.dataset.tab).slice(0,4).join()") == 'home,calendar,search')
+    check('dock 一级页：首页/日期两个页签（搜索移出 dock，设置在侧拉页）', ev("Array.from(document.querySelectorAll('#tabbar .tab[data-tab]')).filter(e=>e.offsetParent).map(e=>e.dataset.tab).slice(0,4).join()") == 'home,calendar')
     ev("document.getElementById('avatarBtn').click()"); p.wait_for_timeout(500)
+    _poll(p, "document.getElementById('sideDrawer').getBoundingClientRect().left>=-1", 1500)
     check('点宝宝圆钮打开左侧抽屉：头像、宝宝名、设置、全部功能', ev("(()=>{const r=document.getElementById('sideDrawer');if(!r||!document.body.classList.contains('sd-open'))return false;const x=r.getBoundingClientRect();return x.left>=-1&&!!r.querySelector('.sd-ava')&&!!r.querySelector('[data-sd-go=settings]')&&r.querySelectorAll('.sd-color').length>=20})()"))
     ev("document.querySelector('#sideDrawer [data-sd-go=settings]').click()"); p.wait_for_timeout(600)
     check('抽屉进设置：抽屉收起、设置是二级页（有返回）', ev("App.currentTab()=='settings'&&!document.body.classList.contains('sd-open')&&!document.getElementById('backBtn').hidden"))
@@ -529,6 +531,7 @@ def test_feeding_sheet(b):
     check('快捷记录横条 / 小卡可添加', ev("!!document.querySelector('[data-add=quick-h]')&&!!document.querySelector('[data-add=quick-s]')"))
     ev("(()=>{Modules.home._edit=false;Modules.home._sheet=false;App.rerender()})()"); p.wait_for_timeout(300)
     ev("App.showTab('diaper')"); p.wait_for_timeout(400)
+    _poll(p, "!!document.querySelector('#tabbar .lg-thumb')", 1500)  # 第 276 次：并行吃紧时 dock 重建后水滴晚一拍补回
     check('液态玻璃 dock：二级页收起时水滴隐藏', ev("!document.querySelector('#tabbar .lg-thumb').classList.contains('on')"))
     ev("App.showTab('bottle')"); p.wait_for_timeout(400)
     # 第 272 次：换页会关掉上一页的面板（审计 #2），这里重新打开瓶喂面板再保存
@@ -641,11 +644,10 @@ def test_r270(b):
     cap = ev("(()=>{const s=document.querySelector('.home-sky');const c=s&&s.querySelector('.sky-cap');return c?[s.style.getPropertyValue('--sky-cap'),getComputedStyle(document.documentElement).getPropertyValue('--status-color').trim(),c.getBoundingClientRect().height]:null})()")
     check('首页：天空顶端接缝色与状态栏同色', bool(cap) and cap[0] and cap[0] == cap[1] and cap[2] >= 56, cap)
     p.wait_for_timeout(2600)
-    # 第 274 次：五组并行时 CPU 吃紧，2.6 秒内偶尔只载入 44–48 张；改为最多再等 6 秒（断言内容不变：都要载入）
-    # 第 275 次：wait_for_function 一旦要轮询就会在页面里 eval，被本站 CSP（无 unsafe-eval）拦下并记成报错；
-    # 改为 Python 侧轮询，六组并行时最多再等 12 秒
-    _poll(p, "Hero._warmed() >= 50", 12000)
-    check('插画预热：页头 / 尿布 / 声音 / 辅食图都已载入', ev("Hero._warmed()") >= 50, ev("Hero._warmed()"))
+    # 第 276 次：预热改为按需（只预热首页能点进去的页头插画，最多 8 张；图组进页才载），不再 58 张全载
+    _poll(p, "Hero._warmed() >= 6", 12000)
+    wl = ev("Hero._warmList()")
+    check('插画预热：首页能点进去的页头插画已载入，图组不常驻', 6 <= len(wl) <= 12 and all('/hero/' in x for x in wl), wl)
     check('插画预热后进页，页头插画同步可画', ev("(()=>{App.showTab('diaper',{noVT:true});const im=document.querySelector('.mod-hero img');return !!im&&im.complete&&im.naturalWidth>0})()"))
     p.click('[data-new]'); p.wait_for_timeout(450)
     ghost = ev("(async()=>{document.querySelector('#modalRoot .rs-x').click();await Promise.resolve();const g=document.querySelector('.sheet-ghost');return g?[!!g.querySelector('[id]'),g.getAttribute('aria-hidden'),getComputedStyle(g).pointerEvents]:null})()")
@@ -653,7 +655,8 @@ def test_r270(b):
     p.wait_for_timeout(450)
     check('关面板：替身动画后移除', ev("!document.querySelector('.sheet-ghost')"))
     check('打开面板：遮罩不再整体淡入（面板不半透明）', ev("(()=>{const m=document.createElement('div');m.className='modal-mask as-sheet';document.body.appendChild(m);const a=getComputedStyle(m).animationName;m.remove();return a})()") == 'sheetMaskIn')
-    check('抽屉：底色向上下多铺，缩放时不露页面底', ev("(()=>{Drawer.open();const cs=getComputedStyle(document.querySelector('.side-drawer'),'::before');const r=[cs.content,cs.top];Drawer.close();return r})()")[0] == '""')
+    # 第 276 次：侧拉页改整屏推入（不再缩放），原「底色多铺」断言换成整屏 / 无圆角无投影
+    check('侧拉页：整屏宽、无圆角无投影', ev("(()=>{Drawer.open();const r=document.querySelector('.side-drawer'),cs=getComputedStyle(r),a=getComputedStyle(document.getElementById('app'));const o=[r.offsetWidth===innerWidth,cs.borderRadius,cs.boxShadow,a.borderTopLeftRadius,a.boxShadow];Drawer.close();return o})()") == [True, '0px', 'none', '0px', 'none'])
     p.wait_for_timeout(500)
     ev("App.showTab('feeding')"); p.wait_for_timeout(250)
     p.reload(); p.wait_for_timeout(900)
@@ -738,11 +741,15 @@ def test_r271(b):
     check('播放同步：首次播放被拒 → 回到 ▶ 轻点播放', st()[:2] == ['idle', 'play'], st())
     # 离开本页 → 播放页立刻收起
     ev("document.getElementById('backBtn').click()"); p.wait_for_timeout(80)
+    # 第 276 次：七组并行（2 核）时 popstate 偶尔晚于 80ms 才到，轮询最多 1.5 秒（断言不变）
+    _poll(p, "App.currentTab()==='home'", 1500)
     check('白噪音：dock 返回离开本页，播放页立刻收起', ev("[App.currentTab(), !!document.querySelector('.wn-player.open'), document.documentElement.classList.contains('wp-lock')]") == ['home', False, False])
     # —— 全屏计时（泵奶）——
     p.wait_for_timeout(400)
     ev("App.showTab('pump',{noVT:true})"); p.wait_for_timeout(200)
     ev("Storage.get().pumpTimer={start:new Date().toISOString(),L:true,R:true,segs:[]};Storage.save();Modules.pump._openFull()"); p.wait_for_timeout(500)
+    # 第 276 次：并行吃紧时全屏层入场动画还没走完（coversTop 判不到），等它铺满再取色（断言不变）
+    _poll(p, "(()=>{const e=document.querySelector('.ftf');if(!e)return false;const r=e.getBoundingClientRect();return r.top<=0.5&&r.left<=1&&getComputedStyle(e).opacity==='1'})()", 2000)
     ev("syncStatusColor()"); c, r = tc(), row0()
     check('状态栏：泵奶全屏计时取全屏层顶色（深色）', near(c, r) and sum(r) < 150, [c, r])
     ev("document.querySelector('.ftf [data-p=dim]').click()"); p.wait_for_timeout(450); ev("syncStatusColor()")
@@ -751,7 +758,8 @@ def test_r271(b):
     ev("Storage.get().pumpTimer=null;Storage.save();Modules.pump._closeFull?Modules.pump._closeFull():document.querySelector('.ftf').remove();document.body.classList.remove('ftf-open')"); p.wait_for_timeout(200)
     # —— 尿布面板 ——
     ev("App.showTab('diaper',{noVT:true})"); p.wait_for_timeout(300)
-    p.click('[data-new]'); p.wait_for_timeout(600)
+    # 第 276 次：新版 Playwright 点 sticky 的 .mod-cta 前会把页面滚到它的原位（约 700px），顶行变成记录卡，取色断言失真；改 JS 点击
+    ev("document.querySelector('[data-new]').click()"); p.wait_for_timeout(600)
     p.click('.dp-type[data-t="poop"]'); p.wait_for_timeout(500)
     ev("syncStatusColor()"); c, r = tc(), row0()
     check('状态栏：尿布面板打开时取遮罩压暗后的页面色', near(c, r), [c, r])
@@ -1356,7 +1364,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v239', "var CACHE = 'baoma-static-v239';" in sw)
+    check('#275 SW 版本 v240（第 276 次升）', "var CACHE = 'baoma-static-v240';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -1533,9 +1541,169 @@ def test_r275_glass(b):
     ctx.close()
     check('#275 折射层无报错', not errs, errs)
 
+TOUCH_JS = r"""([x0,y0,x1,y1,end,steps,ms])=>new Promise(res=>{const t=document.elementFromPoint(x0,y0)||document.body;
+ const mk=(x,y)=>new Touch({identifier:1,target:t,clientX:x,clientY:y,pageX:x,pageY:y+scrollY});
+ const fire=(ty,x,y)=>{const tt=ty==='touchend'?[]:[mk(x,y)];const e=new TouchEvent(ty,{bubbles:true,cancelable:true,touches:tt,targetTouches:tt,changedTouches:[mk(x,y)]});t.dispatchEvent(e);return e};
+ if(x0!==null&&steps>=0)fire('touchstart',x0,y0);const n=Math.max(1,steps);let i=0;
+ const step=()=>{i++;fire('touchmove',x0+(x1-x0)*i/n,y0+(y1-y0)*i/n);if(i<n)setTimeout(step,ms);else{if(end)setTimeout(()=>{fire('touchend',x1,y1);res(1)},end===2?150:0);else res(1)}};
+ setTimeout(step,ms)})"""
+
+
+def test_r276(b):
+    """第 276 次：整屏侧拉页（跟手 / 速度 / history / 状态栏 / 减少动态）、搜索移出 dock + 首页下拉搜索、内存审计四项。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+    ev = p.evaluate
+    drag = lambda *a: ev(TOUCH_JS, list(a))
+    tc = lambda: ev("document.querySelector('meta[name=theme-color]').content")
+    X = "(()=>{const r=document.getElementById('sideDrawer'),a=document.getElementById('app');return [Math.round(r.getBoundingClientRect().left),Math.round(new DOMMatrix(getComputedStyle(a).transform).m41),+(+getComputedStyle(document.getElementById('sdMask')).opacity).toFixed(2)]})()"
+    # —— A：跟手拖拽 ——
+    drag(6, 420, 6 + 156, 424, False, 8, 16); p.wait_for_timeout(60)
+    x = ev(X)
+    check('#276 侧拉页跟手：拉到 40% 时侧拉页从左边进来、底下页右移约 11%、压暗 0.4', abs(x[0] - (-390 * 0.6 + 8 * 0)) <= 14 and abs(x[1] - 390 * 0.4 * 0.28) <= 8 and 0.3 <= x[2] <= 0.5, x)
+    check('#276 拖到不足一半：状态栏还是底下那页（压暗后）的颜色', tc().lower() not in ('#ffffff', '#121110'), tc())
+    drag(None, 0, 162, 424, 2, 0, 0); p.wait_for_timeout(700)  # 停住再松手
+    check('#276 停住后在 40% 松手：回弹收起', ev("!Drawer.isOpen()&&!document.body.classList.contains('sd-open')"))
+    p.wait_for_timeout(500)
+    drag(6, 420, 6 + 90, 424, True, 3, 12); p.wait_for_timeout(700)
+    check('#276 快速甩一下（只拉 22%）也能打开（速度阈值）', ev("Drawer.isOpen()"), ev(X))
+    x = ev(X)
+    check('#276 打开：侧拉页整屏盖住、底下页右移 28%', x[0] == 0 and abs(x[1] - 109) <= 2, x)
+    check('#276 打开：状态栏取侧拉页底色（侧拉页进了 overlayStack）', tc().lower() == '#ffffff' and 'side-drawer' in ' '.join(ev("__statusOverlay()")), [tc(), ev("__statusOverlay()")])
+    check('#276 打开：登记一条 history、页面 inert', ev("[JSON.stringify(history.state), document.getElementById('app').inert]") == ['{"baoma":"drawer"}', True])
+    drag(300, 400, 80, 404, False, 6, 16); p.wait_for_timeout(50)
+    xm = ev(X)
+    check('#276 在侧拉页上左拉：跟手往左收', -230 <= xm[0] <= -190, xm)
+    drag(None, 0, 80, 404, 2, 0, 0); p.wait_for_timeout(800)
+    check('#276 左拉过半松手：收起，history 退回、页面可点', ev("[Drawer.isOpen(), history.state===null||history.state.baoma!=='drawer', document.getElementById('app').inert]") == [False, True, False])
+    # 返回键 / 系统返回 / Esc
+    ev("Drawer.open()"); p.wait_for_timeout(500)
+    ev("document.querySelector('#sideDrawer .sd-back').click()"); p.wait_for_timeout(600)
+    check('#276 侧拉页左上「返回」关闭', ev("!Drawer.isOpen()&&App.currentTab()=='home'"))
+    ev("Drawer.open()"); p.wait_for_timeout(500)
+    ev("history.back()"); p.wait_for_timeout(600)
+    check('#276 系统返回（popstate）先关侧拉页，留在首页', ev("[Drawer.isOpen(), App.currentTab()]") == [False, 'home'])
+    ev("Drawer.open()"); p.wait_for_timeout(400); ev("App._openBabySheet()"); p.wait_for_timeout(400)
+    ev("history.back()"); p.wait_for_timeout(600)
+    check('#276 侧拉页上盖着切换宝宝面板时返回：先关面板，侧拉页还开着', ev("[Drawer.isOpen(), !!document.querySelector('#modalRoot .modal-mask:not(.sheet-leaving)')]") == [True, False])
+    p.keyboard.press('Escape'); p.wait_for_timeout(600)
+    check('#276 Esc 关闭侧拉页', ev("!Drawer.isOpen()"))
+    hl = ev("history.length")
+    for _ in range(3):
+        ev("Drawer.open()"); p.wait_for_timeout(450); ev("Drawer.close()"); p.wait_for_timeout(450)
+    check('#276 反复开关侧拉页 history 不增长（前进栈清掉）', ev("history.length") <= hl + 1, [hl, ev("history.length")])
+    # 搜索框：进搜索页并聚焦
+    ev("Drawer.open()"); p.wait_for_timeout(450)
+    ev("document.querySelector('#sideDrawer .sd-search').click()"); p.wait_for_timeout(500)
+    check('#276 侧拉页搜索框：进搜索页、输入框聚焦、侧拉页那条 history 改写成搜索页', ev("[App.currentTab(), document.activeElement&&document.activeElement.id, Drawer.isOpen(), history.state&&history.state.id]") == ['search', 'searchInput', False, 'search'])
+    check('#276 搜索页改为二级页：dock 只有 返回 + ＋', ev("(()=>{const b=document.getElementById('tabbar');return [...b.children].filter(e=>e.offsetParent&&e.offsetWidth).map(e=>e.id||e.className.split(' ')[0])})()") == ['backBtn', 'tab'], ev("(()=>{const b=document.getElementById('tabbar');return [...b.children].filter(e=>e.offsetParent&&e.offsetWidth).map(e=>e.id||e.className)})()"))
+    ev("document.getElementById('backBtn').click()"); p.wait_for_timeout(600)
+    check('#276 搜索页返回首页', ev("App.currentTab()") == 'home')
+    # 深色 + 左手竖排
+    ev("(()=>{const s=Storage.get().settings;s.themeMode='dark';s.handMode='left';Storage.save();App.applyTheme();App.buildTabbar()})()"); p.wait_for_timeout(300)
+    ev("Drawer.open()"); p.wait_for_timeout(600)
+    _poll(p, "document.getElementById('sideDrawer').getBoundingClientRect().left===0", 2000)
+    dk = ev("(()=>{const r=document.getElementById('sideDrawer').getBoundingClientRect(),t=document.getElementById('tabbar');const e=document.elementFromPoint(40,700);return [getComputedStyle(document.getElementById('sideDrawer')).backgroundColor, Math.round(r.left), Math.round(r.width), !!e&&!t.contains(e)]})()")
+    check('#276 深色 + 左手竖排：侧拉页深底整屏、盖住竖排 dock', dk[0] == 'rgb(18, 17, 16)' and dk[1] == 0 and dk[2] == 390 and dk[3], dk)
+    check('#276 深色：状态栏取侧拉页深底', tc().lower() == '#121110', tc())
+    ev("Drawer.close()"); p.wait_for_timeout(500)
+    ev("(()=>{const s=Storage.get().settings;s.themeMode='light';s.handMode='normal';Storage.save();App.applyTheme();App.buildTabbar()})()"); p.wait_for_timeout(300)
+    # 键盘：输入框聚焦时打开侧拉页 → 收起键盘
+    ev("(()=>{const i=document.createElement('input');i.id='tmpI';document.getElementById('view').appendChild(i);i.focus()})()")
+    ev("Drawer.open()"); p.wait_for_timeout(400)
+    check('#276 打开侧拉页时收起键盘（输入框失焦）、焦点进侧拉页', ev("[document.activeElement.id!=='tmpI', document.getElementById('sideDrawer').contains(document.activeElement)]") == [True, True])
+    ev("Drawer.close();document.getElementById('tmpI').remove()"); p.wait_for_timeout(500)
+    # —— B：dock 与首页下拉 ——
+    check('#276 dock 一级页：宝宝 + 首页 / 日期 + ＋，选中水滴在首页', ev("(()=>{const b=document.getElementById('tabbar');const tabs=[...b.querySelectorAll('.tab[data-tab]')].filter(e=>e.offsetParent).map(e=>e.dataset.tab);const th=b.querySelector('.lg-thumb'),a=b.querySelector('.tab.active');return [tabs.join(), !!th&&Math.abs(th.getBoundingClientRect().left-a.getBoundingClientRect().left)<2]})()") == ['home,calendar', True])
+    ev("window.scrollTo(0,0)"); p.wait_for_timeout(100)
+    drag(200, 300, 200, 360, False, 6, 16); p.wait_for_timeout(50)
+    ps = ev("(()=>{const b=document.querySelector('.pull-search');return [+getComputedStyle(b).opacity>0, b.classList.contains('is-armed'), Math.round(new DOMMatrix(getComputedStyle(document.getElementById('view')).transform).m42)]})()")
+    check('#276 首页下拉：页面跟手下移、搜索栏浮出，没过阈值不触发', ps[0] and not ps[1] and 15 <= ps[2] < 72, ps)
+    drag(None, 0, 200, 360, True, 0, 0); p.wait_for_timeout(700)
+    check('#276 首页下拉没过阈值松手：弹回、留在首页', ev("[App.currentTab(), getComputedStyle(document.getElementById('view')).transform, +getComputedStyle(document.querySelector('.pull-search')).opacity]") == ['home', 'none', 0])
+    drag(200, 260, 200, 520, False, 10, 16); p.wait_for_timeout(50)
+    check('#276 首页下拉过阈值：搜索栏变「松手搜索」', ev("document.querySelector('.pull-search').classList.contains('is-armed')"))
+    drag(None, 0, 200, 520, True, 0, 0); p.wait_for_timeout(500)
+    check('#276 首页下拉松手：进搜索页并聚焦输入框', ev("[App.currentTab(), document.activeElement&&document.activeElement.id, getComputedStyle(document.getElementById('view')).transform]") == ['search', 'searchInput', 'none'])
+    ev("document.getElementById('backBtn').click()"); p.wait_for_timeout(600)
+    ev("window.scrollTo(0,400)"); p.wait_for_timeout(150)
+    drag(200, 300, 200, 520, True, 8, 16); p.wait_for_timeout(400)
+    check('#276 页面不在顶部时下拉不接管（正常滚动）', ev("[App.currentTab(), document.querySelector('.pull-search')?+getComputedStyle(document.querySelector('.pull-search')).opacity:0]") == ['home', 0])
+    ev("window.scrollTo(0,0)")
+    ev("App.showTab('alltools',{noVT:true})"); p.wait_for_timeout(300)
+    ev("document.querySelector('.home-search[data-go=search]').click()"); p.wait_for_timeout(400)
+    check('#276 「全部功能」页搜索框仍进搜索页', ev("App.currentTab()") == 'search')
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(300)
+    # —— C1：照片 objectURL LRU ——
+    ph = ev("""(async()=>{let rv=0;const R=URL.revokeObjectURL;URL.revokeObjectURL=function(u){rv++;return R.call(URL,u)};
+      const cv=document.createElement('canvas');cv.width=cv.height=8;const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg'));
+      const ids=[];for(let i=0;i<20;i++)ids.push(await Photos.put(blob));
+      for(const id of ids)await Photos.url(id);
+      const live1=Photos._live(), rv1=rv;
+      const im=document.createElement('img');im.src=await Photos.url(ids[0]);document.body.appendChild(im);
+      Photos.prune(true);const live2=Photos._live();im.remove();Photos.prune(true);
+      URL.revokeObjectURL=R;return [live1, rv1, live2, Photos._live()]})()""")
+    check('#276 照片 objectURL：最多留 12 个（LRU），超出的 revoke', ph[0] == 12 and ph[1] == 8, ph)
+    check('#276 照片 objectURL：页面上正用着的不收；切后台 / 删记录后收掉其余', ph[2] == 1 and ph[3] == 0, ph)
+    # —— C2：插画按需预热 ——
+    ev("Hero.warm()"); p.wait_for_timeout(1200)
+    w0 = ev("Hero._warmList()")
+    check('#276 插画：首页只预热页头插画（≤12 张），没有尿布 / 声音 / 辅食图组', 1 <= len(w0) <= 12 and not any(('/diaper/' in x or '/sounds/' in x or '/solid/' in x) for x in w0), w0)
+    ev("App.showTab('diaper',{noVT:true})"); p.wait_for_timeout(300)
+    check('#276 插画：进尿布页才载尿布类型图', sum('/diaper/' in x for x in ev("Hero._warmList()")) == 10)
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(300)
+    check('#276 插画：离开尿布页放掉尿布图组', sum('/diaper/' in x for x in ev("Hero._warmList()")) == 0)
+    ev("document.querySelector('[data-go=whitenoise]').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}))"); p.wait_for_timeout(300)
+    check('#276 插画：手指按到入口就预热那一页（插画 + 声音画卡）', sum('/sounds/' in x for x in ev("Hero._warmList()")) == 9 and 'assets/hero/whitenoise.webp' in ev("Hero._warmList()"))
+    check('#276 插画：按下后进页，页头插画同帧可画（已解码）', ev("(()=>{App.showTab('whitenoise',{noVT:true});const im=document.querySelector('.mod-hero img');return !!im&&im.complete&&im.naturalWidth>0&&!im.classList.contains('hero-pending')})()"))
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(200)
+    HID = "(v)=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>v});Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>v?'hidden':'visible'});document.dispatchEvent(new Event('visibilitychange'))}"
+    ev(HID, True); p.wait_for_timeout(100)
+    check('#276 切到后台：插画引用全部放掉、玻璃常驻循环停掉', ev("[Hero._warmed(), Glass._loopOn()]") == [0, False], ev("[Hero._warmed(), Glass._loopOn()]"))
+    # 只数 glass.js 排的 rAF（无头 Chromium 里假装隐藏时天空的 rAF 仍会派发，真机隐藏时浏览器本来就不派发）
+    raf = ev("(async()=>{let n=0;const R=requestAnimationFrame;window.requestAnimationFrame=function(f){if(/glass\\.js/.test(new Error().stack||''))n++;return R.call(window,f)};await new Promise(r=>setTimeout(r,1000));window.requestAnimationFrame=R;return n})()")
+    ev(HID, False); p.wait_for_timeout(900)
+    check('#276 回到前台：玻璃循环恢复、插画重新预热', ev("[Glass._loopOn(), Hero._warmed()>0]") == [True, True], ev("[Glass._loopOn(), Hero._warmed()]"))
+    # —— C4：首页帧率 ——
+    fr = ev("(async()=>{const s0=window.__skyPaints||0;let n=0;const R=requestAnimationFrame;window.requestAnimationFrame=function(f){n++;return R.call(window,f)};await new Promise(r=>setTimeout(r,2000));window.requestAnimationFrame=R;return [((window.__skyPaints||0)-s0)/2,n/2]})()")
+    check('#276 首页天空约 30fps 绘制（不再 60fps）', 8 <= fr[0] <= 34, fr)
+    check('#276 后台时（hidden）玻璃不再排 rAF（原来每帧一次）', raf == 0, raf)
+    # —— C3：白噪音定时只生成循环段 ——
+    ev(FAKE_AUDIO)
+    ev("App.showTab('whitenoise',{noVT:true})"); p.wait_for_timeout(200)
+    ev("(()=>{const s=Storage.get();s.whitenoise=Object.assign(s.whitenoise||{},{minutes:30,type:'pink',volume:3});Storage.save()})()")
+    p.click('.wn-art[data-type="pink"]'); p.wait_for_timeout(400)
+    if not ev("document.getElementById('wpToggle').getAttribute('data-state')=='starting'"):
+        p.click('#wpToggle'); p.wait_for_timeout(120)
+    ev("__FA[__FA.length-1]._ok()"); p.wait_for_timeout(150)
+    wn = ev("[Storage.get().whitenoise.minutes, Storage.get().whitenoise.until-Date.now(), Modules.whitenoise._eng()]")
+    check('#276 白噪音定时 30 分钟：只生成 32 秒循环段（约 0.5 MB，原整段 29 MB）、loop 播放、挂好定时器', 400000 < wn[2]['bytes'] < 600000 and wn[0] == 30 and wn[1] > 29 * 60000 and wn[2]['loop'] is True and wn[2]['stopT'], wn)
+    ev("__FA[__FA.length-1].pause()"); p.wait_for_timeout(120)
+    check('#276 白噪音：暂停时撤掉定时器、保留剩余时间', ev("[Modules.whitenoise._eng().stopT, Storage.get().whitenoise.leftMs>29*60000]") == [False, True])
+    ev("__FA[__FA.length-1]._ok()"); p.wait_for_timeout(150)
+    check('#276 白噪音：继续播放按剩余时间重新挂定时器', ev("[Modules.whitenoise._eng().stopT, Storage.get().whitenoise.playing]") == [True, True])
+    ev("(()=>{const w=Storage.get().whitenoise;w.until=Date.now()+6000;Storage.save();__FA[__FA.length-1].ontimeupdate()})()"); p.wait_for_timeout(150)
+    tl = ev("[Modules.whitenoise._eng(), Storage.get().whitenoise.playing]")
+    check('#276 白噪音：到点前由进度事件换成淡出尾巴（不循环），状态仍是播放中', tl[0]['bytes'] < 130000 and tl[0]['tail'] and tl[0]['loop'] is False and tl[1], tl)
+    ev("(()=>{const a=__FA[__FA.length-1];a.ended=true;a.onended&&a.onended()})()"); p.wait_for_timeout(200)
+    check('#276 白噪音：尾巴播完停止并提示「已按 30 分钟定时关闭」', ev("[Storage.get().whitenoise.playing, [...document.querySelectorAll('.toast')].some(t=>/30 分钟定时关闭/.test(t.textContent))]") == [False, True])
+    ev("Modules.whitenoise._stop&&Modules.whitenoise._stop()")
+    # —— 减少动态效果 ——
+    p.emulate_media(reduced_motion='reduce')
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(200)
+    ev("Drawer.open()"); p.wait_for_timeout(300)
+    rm = ev("[getComputedStyle(document.getElementById('sideDrawer')).transform, getComputedStyle(document.getElementById('app')).transform, getComputedStyle(document.getElementById('sideDrawer')).opacity]")
+    check('#276 减少动态效果：侧拉页直接淡入，不平移', rm == ['none', 'none', '1'], rm)
+    ev("Drawer.close()"); p.wait_for_timeout(300)
+    check('#276 无报错', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -1543,12 +1711,13 @@ ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_f
 # 第 274 次：第 274 次断言单独一组，五个子进程并行
 # 第 275 次：启动 / dock 折射断言单独一组，六个子进程并行
 GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_diaper_photos', 'test_family'),
-          ('test_css_rules', 'test_flows', 'test_pump', 'test_diaper_stock', 'test_solid', 'test_diaper_sheet',
+          ('test_css_rules', 'test_diaper_stock', 'test_solid', 'test_diaper_sheet',
            'test_dash', 'test_home_edit', 'test_format'),
           ('test_r270', 'test_r271', 'test_r272'),
           ('test_r273',),
           ('test_r274',),
-          ('test_r275_boot', 'test_r275_glass'))
+          ('test_r275_boot', 'test_r275_glass'),
+          ('test_r276', 'test_flows', 'test_pump'))  # 第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 
@@ -1556,13 +1725,16 @@ def run_tests(names):
     out = {}
     with sync_playwright() as pw:
         b = pw.chromium.launch()
+        import time as _t
         for name in names:
             start = len(results)
+            t0 = _t.time()
             try:
                 globals()[name](b)
             except Exception as e:  # 一组崩了不影响其他组
                 check(name + ' 运行', False, repr(e)[:200])
             out[name] = results[start:]
+            print(f'@@TIME {name} {_t.time() - t0:.1f}s', file=sys.stderr)
         b.close()
     return out
 
@@ -1591,6 +1763,8 @@ def main():
     merged = {}
     for g, pr in zip(GROUPS, procs):
         so, se = pr.communicate()
+        if '--times' in sys.argv:
+            print(' '.join(ln[7:] for ln in (se or '').splitlines() if ln.startswith('@@TIME ')))
         line = next((ln for ln in so.splitlines() if ln.startswith('@@RESULTS ')), None)
         if line is None:
             for name in g:
