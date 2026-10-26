@@ -1374,7 +1374,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v245（第 281 次升）', "var CACHE = 'baoma-static-v245';" in sw)
+    check('#275 SW 版本 v246（第 282 次升）', "var CACHE = 'baoma-static-v246';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -2563,13 +2563,11 @@ def test_r281(b):
     uid = ev("[Util.uid(), Date.now()]")
     r6 = boot(J([pl('mvpbi6ehxc73jx', None), pl('mvpbi6h1b737uy', None)]))
     check('#281 没有 createdAt 的老重复（按 id 里的时间戳判断 5 秒内）也合并', r6[0] == ['mvpbi6ehxc73jx'], [r6, uid])
-    # —— 「+ 添加营养品」不压列表 ——
+    # —— 「+ 添加营养品」不压列表（第 282 次起按钮固定在底部：滚到底时最后一张卡片完整露在按钮上面，与按钮至少空 16px） ——
     plans = J([pl('z%d' % i, T0 + i * 60000, name='营养品%d' % i, times=[dict(t='%02d:00' % (8 + i), n=1)]) for i in range(5)])
-    ov = """()=>{const btn=document.querySelector('.sp-page [data-spadd]');const se=document.scrollingElement;const max=se.scrollHeight-innerHeight;const bad=[];
-      for(let y=0;y<=max+100;y+=60){scrollTo(0,y);const b=btn.getBoundingClientRect();
-        for(const c of document.querySelectorAll('.sp-card')){const r=c.getBoundingClientRect();if(r.bottom>b.top+1&&r.top<b.bottom-1)bad.push([y,Math.round(r.bottom),Math.round(b.top)])}}
+    ov = """()=>{const btn=document.querySelector('.sp-page [data-spadd]');const se=document.scrollingElement;
       scrollTo(0,se.scrollHeight);const last=[...document.querySelectorAll('.sp-item')].pop().getBoundingClientRect(),b=btn.getBoundingClientRect();
-      return {bad:bad.slice(0,3),gap:Math.round(b.top-last.bottom)}}"""
+      return {bad:[],gap:Math.round(b.top-last.bottom),pos:getComputedStyle(btn.closest('.mod-cta')).position}}"""
     boot(plans); ev("Sheet.closeAll()"); ev("App.showTab('supplement',{noVT:true})"); p.wait_for_timeout(400)
     res = []
     for dark, w, fs in ((False, 393, 1), (True, 393, 1), (False, 320, 1), (False, 393, 1.33), (True, 320, 1.33)):
@@ -2577,14 +2575,133 @@ def test_r281(b):
         ev("([dk,fs])=>{document.body.classList.toggle('dark',dk);document.body.classList.toggle('fs-xl',fs>1)}", [dark, fs]); p.wait_for_timeout(250)
         res.append(ev(ov))
     ev("document.body.classList.remove('fs-xl')"); p.set_viewport_size({'width': 393, 'height': 852})
-    check('#281 「+ 添加营养品」在列表后正常排、不压任何卡片，与最后一张卡片至少空 16px（浅 / 深、320 宽、1.33 倍字号）', all(not r['bad'] and r['gap'] >= 16 for r in res), res)
+    check('#281/#282 「+ 添加营养品」固定在底部；滚到底时最后一张卡片完整露出、与按钮至少空 16px（浅 / 深、320 宽、1.33 倍字号）', all(r['pos'] == 'fixed' and r['gap'] >= 16 for r in res), res)
     check('#281 pageerror 为 0', not errs, errs)
+    ctx.close()
+
+
+R282_PAGES = ['diaper', 'feeding', 'breast', 'bottle', 'pump', 'solid', 'sleep', 'supplement', 'bath', 'swim', 'sun',
+              'water', 'temp', 'jaundice', 'meds', 'mood']
+R282_FILL = """()=>{const d=Storage.get();const now=Date.now();const P=n=>String(n).padStart(2,'0');
+ const loc=ms=>{const x=new Date(ms);return x.getFullYear()+'-'+P(x.getMonth()+1)+'-'+P(x.getDate())+'T'+P(x.getHours())+':'+P(x.getMinutes())+':00'};
+ const L=(k,f)=>{d[k]=d[k]||[];for(let i=0;i<18;i++)d[k].push(Object.assign({id:k+i,time:loc(now-(i+1)*3.1*3600e3),note:null},f(i)))};
+ L('baths',i=>({minutes:10}));L('swims',i=>({minutes:20}));L('suns',i=>({minutes:15}));L('waters',i=>({ml:30}));
+ L('temps',i=>({value:36.6}));L('jaundices',i=>({value:8}));L('meds',i=>({name:'维生素D'}));L('moods',i=>({level:3,tags:[]}));
+ for(let i=0;i<14;i++){d.feedings.push({id:'pp'+i,type:'pump',start:loc(now-(i+1)*4e6),end:loc(now-(i+1)*4e6+9e5),durationMin:15,durationL:8,durationR:7,amount:120,amountL:60,amountR:60});
+   d.feedings.push({id:'so'+i,type:'solid',start:loc(now-(i+1)*5e6),dish:'米粉',unit:'spoon',qty:3,note:null});}
+ const nm=['叶酸','维生素D3','DHA','钙','铁','锌','益生菌'];d.supplementPlans=nm.map((x,i)=>({id:'sp'+i,name:x,form:'滴剂',perDay:1,active:true,v:2,times:[{t:P(7+i)+':00',n:1}],unit:'滴',freq:'daily',start:'2026-10-01',sortOrder:i,createdAt:now-i*1e6}));
+ for(let i=0;i<10;i++)d.diapers.push({id:'dx'+i,type:'pee',time:loc(now-(i+1)*2e6),note:null});
+ Storage.save()}"""
+# 逐 120px 滚动量按钮位置；滚到底时页面内容（按钮以外）最下沿 ≤ 按钮顶；底衬铺到屏幕底、不透明；祖先没有会改 fixed 参照的属性
+R282_SCAN = """()=>{const c=document.querySelector('#view .mod-cta');if(!c)return {miss:1};const kid=c.firstElementChild||c;const se=document.scrollingElement;const max=se.scrollHeight-innerHeight;
+ const tops=new Set(),bots=new Set();for(let y=0;y<=max+120;y+=120){scrollTo(0,Math.min(y,max));const r=kid.getBoundingClientRect();tops.add(Math.round(r.top));bots.add(Math.round(r.bottom))}
+ scrollTo(0,max);const r=kid.getBoundingClientRect();let last=0;
+ for(const el of document.querySelectorAll('#view .ft-page > *, #view > *, #view .tl-row, #view .card')){if(c.contains(el)||el.contains(c))continue;const q=el.getBoundingClientRect();if(q.height>0)last=Math.max(last,q.bottom)}
+ const cs=getComputedStyle(c),bf=getComputedStyle(c,'::before');const cr=c.getBoundingClientRect();
+ const veilTop=cr.top+parseFloat(bf.top),veilBot=cr.bottom-parseFloat(bf.bottom);const bg=bf.backgroundColor.match(/[\\d.]+/g)||[];
+ let anc=[];for(let a=c.parentElement;a&&a!==document.documentElement;a=a.parentElement){const s=getComputedStyle(a);if(s.transform!=='none'||s.filter!=='none'||/transform|filter/.test(s.willChange)||/paint|layout|strict|content/.test(s.contain))anc.push(a.id||a.className)}
+ const tb=document.getElementById('tabbar').getBoundingClientRect();
+ return {pos:cs.position,tops:[...tops],bots:[...bots],top:Math.round(r.top),bottom:Math.round(r.bottom),last:Math.round(last),veilTop:Math.round(veilTop),veilBot:Math.round(veilBot),vh:innerHeight,
+   alpha:bg.length>3?+bg[3]:1,anc:anc,dockTop:Math.round(tb.top),hasCta:document.body.classList.contains('has-cta'),after:getComputedStyle(document.body,'::after').display}}"""
+
+
+def r282_ok(m, gap=16):
+    return (m and not m.get('miss') and m['pos'] == 'fixed' and len(m['tops']) == 1 and len(m['bots']) == 1 and m['last'] <= m['top'] - gap
+            and m['veilBot'] >= m['vh'] and m['veilTop'] <= m['top'] - 12 and m['alpha'] >= 0.99 and not m['anc'] and m['hasCta'] and m['after'] == 'none')
+
+
+def test_r282(b):
+    """第 282 次（用户硬性要求）：所有模块页底部主记录按钮固定在屏幕底部（dock 上方），滚动 / 回弹 / 进页时都不动；
+    按钮下方到屏幕底是页面底色底衬，不露滚动内容；列表底部留够空白，最后一条完整露出。"""
+    ctx = b.new_context(viewport={'width': 393, 'height': 852}, has_touch=True, device_scale_factor=2)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.evaluate(R282_FILL); p.reload(); p.wait_for_timeout(1000)
+    ev = p.evaluate
+
+    def go(t, wait=450):
+        ev(f"App.showTab('{t}',{{noVT:true}})"); p.wait_for_timeout(wait)
+        # 入场动画（列表行上浮 12px）在并行负载下会拖长，等有限次的动画都跑完再量
+        _poll(p, "!document.getAnimations().some(a=>a.playState==='running'&&a.effect&&a.effect.getComputedTiming().iterations!==Infinity)", 3000)
+
+    def scan_all(tag, pages=R282_PAGES):
+        bad = {}
+        for t in pages:
+            go(t, 350)
+            m = ev(R282_SCAN)
+            if not r282_ok(m):
+                bad[t] = m
+        check('#282 %s：%d 个模块页逐 120px 滚动按钮位置不变、滚到底最后一条在按钮上方 ≥16px、底衬铺到屏幕底且不透明、祖先无 transform' % (tag, len(pages)), not bad, bad)
+
+    scan_all('浅色 393×852')
+    ev("document.body.classList.add('dark')"); scan_all('深色 393×852', ['diaper', 'feeding', 'sleep', 'pump', 'supplement', 'mood', 'temp']); ev("document.body.classList.remove('dark')")
+    p.set_viewport_size({'width': 320, 'height': 640}); ev("document.body.classList.add('fs-xl')")
+    scan_all('320×640 + 1.33 倍字号', ['diaper', 'feeding', 'sleep', 'pump', 'supplement', 'mood', 'bath'])
+    hv = ev("[parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cta-h')), document.querySelector('#view .mod-cta').offsetHeight]")
+    check('#282 --cta-h 跟按钮实际高度（1.33 倍字号）', abs(hv[0] - hv[1]) < 1, hv)
+    ev("document.body.classList.remove('fs-xl')"); p.set_viewport_size({'width': 393, 'height': 852}); p.wait_for_timeout(200)
+    # 原来 sticky 时：滚到底按钮比吸底位置高 20px；情绪页后面有「紧急指引」卡，按钮被带到屏幕中间
+    go('mood'); ev("scrollTo(0,0)"); y0 = ev("document.querySelector('#view .mod-cta > *').getBoundingClientRect().top")
+    ev("scrollTo(0,document.scrollingElement.scrollHeight)"); p.wait_for_timeout(150)
+    y1 = ev("document.querySelector('#view .mod-cta > *').getBoundingClientRect().top")
+    em = ev("(()=>{const a=document.querySelector('.mood-help, .sk-always, #view .ft-page > .card:last-of-type');return a?Math.round(a.getBoundingClientRect().bottom):null})()")
+    check('#282 情绪页：滚到底按钮不被后面的「紧急指引」带上去（位置不变）', y0 == y1, [y0, y1, em])
+    # 进页：按钮只淡入，不位移（每帧 top 都一样）
+    go('home', 300)
+    ent = ev("""new Promise(res=>{App.showTab('diaper',{noVT:true});const a=[];const f=()=>{const c=document.querySelector('#view .mod-cta > *');a.push(Math.round(c.getBoundingClientRect().top));if(a.length<24)requestAnimationFrame(f);else res(a)};f()})""")
+    check('#282 进页入场动画期间按钮位置每帧不变（只淡入）', len(set(ent)) == 1, ent)
+    # 切页转场（Chromium View Transition）期间按钮位置不变
+    go('home', 400)
+    vt = ev("""new Promise(res=>{App.showTab('sleep');const a=[];const f=()=>{const c=document.querySelector('#view .mod-cta > *');if(c)a.push(Math.round(c.getBoundingClientRect().top));if(a.length<20)requestAnimationFrame(f);else res(a)};f()})""")
+    p.wait_for_timeout(500)
+    check('#282 切页转场期间按钮位置不变', len(set(vt)) == 1, vt)
+    # 原地重绘（保存 / 撤销后 rerender 保留滚动位置）后按钮还在原处
+    go('diaper'); ev("scrollTo(0,600)"); r0 = ev("document.querySelector('#view .mod-cta > *').getBoundingClientRect().top")
+    ev("App.rerender()"); p.wait_for_timeout(200)
+    r1 = ev("[document.querySelector('#view .mod-cta > *').getBoundingClientRect().top, Math.round(scrollY)]")
+    check('#282 原地重绘后按钮位置不变、滚动位置保留', r1[0] == r0 and r1[1] == 600, [r0, r1])
+    # 侧滑返回跟手（#view 有 transform）：按钮只跟着横移，纵向不跳
+    go('home', 300); ev("App.showTab('diaper',{noVT:true})"); p.wait_for_timeout(500); ev("scrollTo(0,500)"); p.wait_for_timeout(100)
+    sy0 = ev("(()=>{const r=document.querySelector('#view .mod-cta > *').getBoundingClientRect();return [Math.round(r.top),Math.round(r.left)]})()")
+    if b.browser_type.name == 'chromium':
+        cdp = ctx.new_cdp_session(p)
+        cdp.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [{'x': 8, 'y': 400}]})
+        for i in range(1, 9):  # 56px、慢拖（不到 22% 视口宽、速度 < 0.5px/ms），松手回弹不返回
+            cdp.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': 8 + i * 7, 'y': 401}]}); p.wait_for_timeout(40)
+        p.wait_for_timeout(260)
+        sy1 = ev("(()=>{const r=document.querySelector('#view .mod-cta > *').getBoundingClientRect();return [Math.round(r.top),Math.round(r.left),document.getElementById('view').style.transform]})()")
+        cdp.send('Input.dispatchTouchEvent', {'type': 'touchCancel', 'touchPoints': []}); p.wait_for_timeout(400)
+        sy2 = ev("(()=>{const c=document.querySelector('#view .mod-cta');const r=c.firstElementChild.getBoundingClientRect();return [Math.round(r.top),Math.round(r.left),c.style.top,App.currentTab()]})()")
+        check('#282 侧滑返回跟手时按钮纵向不跳（只随页面横移），松手回弹后复原', 'translate' in sy1[2] and sy1[0] == sy0[0] and sy1[1] > sy0[1] + 30 and sy2[3] == 'diaper' and sy2[0] == sy0[0] and sy2[1] == sy0[1] and sy2[2] == '', [sy0, sy1, sy2])
+    # 正在进行胶囊：按钮停在胶囊上方，列表留白跟着加
+    ev("(()=>{const d=Storage.get();d.ongoing=d.ongoing||{};})()")
+    go('home', 300); p.click('.hn-q[data-recsl="start"]'); p.wait_for_timeout(1300)
+    go('diaper', 600)
+    lv = ev("(()=>{const l=document.getElementById('dockLive');const c=document.querySelector('#view .mod-cta > *');return [document.body.classList.contains('has-live'),!l.hidden,Math.round(l.getBoundingClientRect().top),Math.round(c.getBoundingClientRect().bottom)]})()")
+    m = ev(R282_SCAN)
+    check('#282 有「正在进行」胶囊时：按钮在胶囊上方 ≥8px，滚动不动，最后一条仍完整露出', lv[0] and lv[1] and lv[3] <= lv[2] - 8 and r282_ok(m), [lv, m])
+    ev("(()=>{const d=Storage.get();if(window.Care&&Care.cancel)Care.cancel(d,Storage);d.ongoing=null;d.sleepOngoing=null;Storage.save()})()")
+    # 左手竖排 dock：按钮也固定、贴底、不和竖排胶囊重叠
+    ev("(()=>{const d=Storage.get();d.settings.handMode='left';Storage.save()})()"); p.reload(); p.wait_for_timeout(1000)
+    hm = {}
+    for t in ('diaper', 'sleep', 'supplement'):
+        go(t, 400)
+        m = ev(R282_SCAN)
+        ov = ev("(()=>{const a=document.querySelector('#view .mod-cta > *').getBoundingClientRect(),t=document.getElementById('tabbar').getBoundingClientRect();return a.left<t.right&&a.right>t.left&&a.top<t.bottom&&a.bottom>t.top})()")
+        if not r282_ok(m) or ov:
+            hm[t] = [m, ov]
+    check('#282 左手竖排 dock：按钮固定在底部、不压竖排胶囊、最后一条完整露出', not hm, hm)
+    ev("(()=>{const d=Storage.get();d.settings.handMode='normal';Storage.save()})()"); p.reload(); p.wait_for_timeout(900)
+    # 没有按钮的页不留多余空白
+    go('home', 300)
+    check('#282 首页 / 没有底部按钮的页不挂 has-cta', not ev("document.body.classList.contains('has-cta')"))
+    check('#282 pageerror 为 0', not errs, errs)
     ctx.close()
 
 
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -2603,7 +2720,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r278',),
           ('test_r279',),
           ('test_r280',),
-          ('test_r281',))  # 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r281',),
+          ('test_r282',))  # 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

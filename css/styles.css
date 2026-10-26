@@ -33,6 +33,7 @@
        · glass.js BG.light / qa/contrast_check.js PAGE_BG.light 同步更新。 */
   --bg-grad: linear-gradient(170deg, #FDF9F4 0%, #F6F0E5 55%, #F2EBDF 100%);
   --bg-end: #F2EBDF; /* 第 146 次：底栏渐隐遮罩用的页底色 */
+  --cta-h: calc(56px * var(--fs-mul, 1)); /* 第 282 次：底部主按钮高度（app.js syncCta 按实际高度覆盖） */
   /* 第 105 次（修「顶栏与下方透明渐变之间一条横线」）：顶栏雾纱的基色。
      这不是新颜色，而是把 --bg-grad 的首档色单独提出来，供顶栏雾化渐变起步。
 
@@ -3423,6 +3424,7 @@ body {
      （正午亮板 ~.10、深夜暗板 ~.17），暗色板必须更高透明度才能染上页面；
      暗色模式再乘 --amb-mul（.6）兜底防灰。变量未就绪回落 9% 白（暖奶油）。 */
   --amb-mul: 1;
+  --cta-b: calc(92px + env(safe-area-inset-bottom)); /* 第 282 次：底部主按钮离屏幕底（横排 dock 上方） */
   background:
     linear-gradient(180deg,
       rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul))),
@@ -4381,8 +4383,8 @@ body.dark .dc-dot { box-shadow: 0 0 0 2px rgba(0,0,0,.4); }
 .tl-del { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
 .tl-del:focus-visible { position: static; width: auto; height: 44px; margin: 0 0 0 6px; padding: 0 10px; clip: auto; border-radius: var(--radius-xs); background: var(--surface); }
 
-.mod-cta { position: sticky; z-index: 5; bottom: calc(92px + env(safe-area-inset-bottom)); margin: 18px 0 0; display: flex; justify-content: center; pointer-events: none; }
-body.dock-left .mod-cta, body.dock-right .mod-cta { position: static; }
+/* 第 282 次：页面主记录按钮固定在屏幕底部（dock 上方），不随页面滚动——规则集中在文件末尾「底部主按钮」一节 */
+.mod-cta { display: flex; justify-content: center; pointer-events: none; }
 .mc-main { pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: min(100%, 420px); min-height: 54px; padding: 0 22px;
   border: none; border-radius: var(--radius-pill); background: var(--tile); color: #fff; font: inherit; font-size: calc(17px * var(--fs-mul, 1)); font-weight: 700; cursor: pointer;
   box-shadow: 0 10px 24px -10px color-mix(in srgb, var(--tile, #A6832B) 70%, transparent); transition: transform .15s var(--spring, ease); }
@@ -4873,9 +4875,7 @@ body.dock-left.has-live .view, body.dock-right.has-live .view { padding-bottom: 
 @media (prefers-reduced-transparency: reduce) { .dock-live { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 body.hc .dock-live { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
 @media (prefers-reduced-motion: reduce) { .dock-live, .dl-pulse { animation: none; } }
-/* 页面底部的悬浮主按钮（.mod-cta）在胶囊出现时一起上移，不叠在一起 */
-body.has-live .mod-cta { bottom: calc(154px + env(safe-area-inset-bottom)); }
-body.dock-left.has-live .mod-cta, body.dock-right.has-live .mod-cta { bottom: auto; }
+/* 页面底部主按钮（.mod-cta）在胶囊出现时一起上移：见文件末尾「底部主按钮」一节的 --cta-b */
 /* 第 238 次：① 切页时 dock 不再闪一下——转场里 #view 快照（带纸色底）盖在根快照上，
    dock 属于根快照就被盖住了，转场结束才露出来。给 dock 和计时胶囊独立的转场层，
    画在页面快照之上，且不做任何动画（新状态直接出现）。 */
@@ -5226,10 +5226,8 @@ body.sd-open .touch-glow, body.qd-open .touch-glow { display: none; }
 /* 第 254 次：开始记录的按钮只停在 dock 栏上方——内容少时把页面撑满，按钮推到底部，不再停在页面中间 */
 .view:has(> .ft-page), .view:has(> .mod-cta) { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; box-sizing: border-box; }
 .view:has(> .ft-page) > *, .view:has(> .mod-cta) > * { flex-shrink: 0; }
-.view > .mod-cta { margin-top: auto; }
 .view > .ft-page { flex: 1 0 auto; display: flex; flex-direction: column; }
 .ft-page > * { flex-shrink: 0; }
-.ft-page > .mod-cta { margin-top: auto; }
 body.dock-left .view:has(> .ft-page), body.dock-right .view:has(> .ft-page), body.dock-left .view:has(> .mod-cta), body.dock-right .view:has(> .mod-cta) { min-height: 0; }
 
 /* 第 255 次：喂养底部「切换钮 + 开始 | ⊕」 */
@@ -5833,9 +5831,7 @@ body.dark .spw-wd.on { color: var(--tile-on); }
 .modal-mask.as-sheet > .spr-sheet.is-sheet { height: calc(100vh - env(safe-area-inset-top) - 44px); }
 .spr-sheet .rs-x, .spr-sheet .rs-ok, .spw .rs-x { width: 46px; height: 46px; }
 .spw .rs-switch[aria-checked="false"], .spr .rs-switch[aria-checked="false"] { background: color-mix(in srgb, var(--text) 18%, transparent); }
-/* 第 281 次（真机：底部「+ 添加营养品」压住清单最后一张卡片）：营养品页的按钮不再吸底悬浮，排在清单后面的正常流里；
-   内容少时仍由 .ft-page > .mod-cta 的 margin-top:auto 推到底部，padding-top 保证和最后一张卡片至少空 20px */
-.ft-page.sp-page > .mod-cta, body.has-live .ft-page.sp-page > .mod-cta { position: static; bottom: auto; padding-top: 20px; }
+/* 第 281 次营养品页「+ 添加营养品」改正常流的规则已在第 282 次撤掉：和其他模块一样固定在底部，列表底部留白由 body.has-cta .view 统一给 */
 .sp-foot { margin: 14px 4px 0; font-size: calc(12.5px * var(--fs-mul, 1)); color: var(--muted); line-height: 1.6; }
 @media (max-width: 360px) {
   .sp-card { gap: 10px; padding: 14px 14px 14px 12px; min-height: 96px; }
@@ -5847,3 +5843,56 @@ body.dark .spw-wd.on { color: var(--tile-on); }
 }
 @media (prefers-reduced-motion: reduce) { .spw-forms.shake { animation: none; } }
 @media (max-height: 700px) { .spw-card { width: 100px; height: 100px; padding: 10px; } .spw-hero h3 { margin-top: 10px; } }
+
+/* ============================================================
+   第 282 次：底部主按钮（.mod-cta）——全站一套，固定在屏幕底部、dock 上方
+   用户硬性要求：滚动、iOS 回弹、键盘收起时按钮都不动。原来是 position: sticky，
+   内容滚到底时它回到自己在文档里的位置（比吸底位置高 20px）跟着内容走，后面还有卡片（情绪页紧急指引、
+   页脚医学提示）时整个被带上去；按钮和 dock 之间也透出列表。
+   · 位置：position: fixed，bottom = --cta-b（横排 dock 上方 / 有正在进行胶囊时再上移 / 竖排 dock 时贴底）。
+   · 底衬：::before 从按钮上方 22px 渐入页面底色，一直铺到屏幕底（dock 后面），按钮下方不露滚动内容。
+   · 留白：有按钮的页（body.has-cta，app.js syncCta 维护），#view 底部留白 = --cta-b + 按钮实际高度（--cta-h）+ 20px，
+     最后一条记录能完全滚到按钮上面。
+   · 祖先不能有 transform / filter / will-change / contain（会把 fixed 变成相对它定位）：入场动画改由按钮所在容器的子元素各自做；
+     页面侧滑返回时 app.js 把按钮临时换算成相对 #view 的 top。
+   ============================================================ */
+/* --cta-h 默认值写在 :root、--cta-b 默认值写在 body 主规则里（CSS 不重复选择器） */
+body.has-live { --cta-b: calc(154px + env(safe-area-inset-bottom)); }
+body.dock-left, body.dock-right { --cta-b: calc(16px + env(safe-area-inset-bottom)); }
+body.dock-left.has-live, body.dock-right.has-live { --cta-b: calc(10px + 56px + 14px + env(safe-area-inset-bottom)); }
+#view .mod-cta {
+  position: fixed; z-index: 5; left: 0; right: 0; bottom: var(--cta-b); top: auto;
+  max-width: 640px; margin: 0 auto; padding: 0 16px; box-sizing: border-box;
+}
+body.dock-left #view .mod-cta { padding-left: 92px; }
+body.dock-right #view .mod-cta { padding-right: 92px; }
+#view .mod-cta::before {
+  content: ''; position: absolute; z-index: -1; pointer-events: none;
+  left: calc(50% - 50vw); right: calc(50% - 50vw); top: -22px; bottom: calc(-1 * var(--cta-b) - 2px);
+  /* 与 body 同样的两层背景、同样 fixed 到视口：底衬和它后面的页面逐像素同色（iOS 不支持 fixed 时按底衬自身的盒子铺，色差 ≤ 4 级） */
+  background:
+    linear-gradient(180deg,
+      rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1))),
+      rgba(var(--sky-ambient-bottom, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1)))) fixed,
+    var(--bg-grad) fixed;
+  background-color: var(--bg-end, #F2EBDF);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 22px);
+}
+/* 浏览器里页底那条 body::after 渐隐带（z 9）会盖在按钮上（竖排 dock 时按钮贴底，整颗被压淡）；有底衬就不需要它 */
+body.has-cta::after { display: none; }
+body.has-cta .view { padding-bottom: calc(var(--cta-b) + var(--cta-h) + 20px); }
+body.has-cta.dock-left .view, body.has-cta.dock-right .view { padding-bottom: calc(var(--cta-b) + var(--cta-h) + 20px); }
+/* 入场动画：按钮所在的那个容器自己不动（transform 会让 fixed 改成相对它定位），改由它的子元素各自淡入上浮 */
+.view-enter > :has(.mod-cta) { animation: none; }
+.view-enter > :has(.mod-cta) > * { animation: fadeUp .35s var(--ease) both; }
+.view-enter > :has(.mod-cta) > :nth-child(2) { animation-delay: 35ms; }
+.view-enter > :has(.mod-cta) > :nth-child(3) { animation-delay: 70ms; }
+.view-enter > :has(.mod-cta) > :nth-child(n+4) { animation-delay: 105ms; }
+/* 按钮自己只淡入、不位移：进页那一下也不「动」 */
+#view.view-enter .mod-cta { animation: ctaIn .28s var(--ease) both; }
+@keyframes ctaIn { from { opacity: 0; } to { opacity: 1; } }
+/* 切页转场（Chromium）：按钮单独一层，不跟着 #view 快照算位置 */
+html[data-nav] #view .mod-cta { view-transition-name: page-cta; }
+body.is-night .view-enter > :has(.mod-cta) > * { animation-duration: .01ms !important; }
+@media (prefers-reduced-motion: reduce) { .view-enter > :has(.mod-cta) > * { animation-duration: .01ms !important; } }

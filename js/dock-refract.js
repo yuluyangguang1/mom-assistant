@@ -324,6 +324,19 @@
         if (fh > 0 && fc) fade = { top: vh - fh, h: fh * 0.78, c: fc };
       }
     } catch (eF) { /* */ }
+    /* 第 282 次：页面底部主按钮的底衬（#view .mod-cta::before，fixed、z 5，从按钮上方 22px 渐入页面底色铺到屏幕底），
+       dock 后面实际看到的是底衬，不是滚过去的列表；按同一套解析式渐隐叠上去 */
+    try {
+      var cta = opaque ? null : doc.querySelector('#view .mod-cta');
+      if (cta) {
+        var cb = global.getComputedStyle(cta, '::before'), cc = parseColor(cb.backgroundColor);
+        var crt = cta.getBoundingClientRect();
+        if (cc && cc[3] > 0 && crt.height > 0) {
+          var ft = crt.top + (parseFloat(cb.top) || -22);
+          if (!fade || ft < fade.top) fade = { top: ft, h: 22, c: cc };
+        }
+      }
+    } catch (eC) { /* */ }
     stripMeta = { x: x, y: y, w: w, h: h, opaque: opaque, fade: fade };
     stats.strips++;
   }

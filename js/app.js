@@ -624,6 +624,7 @@
       if (isSub) dockBar.classList.add('is-sub'); else dockBar.classList.remove('is-sub');
     }
     syncOrb(); /* 第 239 次：is-sub 定下来后再量 dock 宽度 */
+    syncCta(); /* 第 282 次：底部主按钮固定在屏幕底部，页面底部按它的实际高度留白 */
     if (id !== 'home') document.body.classList.add('in-module');
     else document.body.classList.remove('in-module');
     if (id === 'home') document.body.classList.add('in-home');
@@ -1521,6 +1522,7 @@
     showTab: showTab,
     _saveRestore: saveRestore, /* 第 274 次：回归测试模拟「SW 更新自动重载」用（写恢复标记，随后 reload） */
     rerender: rerender,
+    _syncCta: function () { syncCta(); },
     currentTab: function () { return current; },
     _isTop: function () { return isTopTab(current) && !subExit; }, /* 第 245 次：抽屉边缘拉出只在一级页 */
     _openBabySheet: function () { openBabySheet(); },
@@ -2042,6 +2044,45 @@
      ② 底栏切成二级态（返回 + ＋）；③ 返回时回调模块的 onExit 收起二级内容。 */
   var subExit = null;
   var drawerEntry = false; /* 第 276 次：侧拉页打开时登记了一条 history（{baoma:'drawer'}），还没退掉 */
+  /* 第 282 次：底部主按钮（#view .mod-cta）是 position: fixed（styles.css 末尾「底部主按钮」一节）。
+     这里维护 body.has-cta（页面底部留白）和 --cta-h（按钮实际高度：字号档位、计时条、喂养双行都会变）。
+     模块自己局部重画按钮（计时开始 / 结束）也要跟上：#view 子树变动后下一帧再查一次。 */
+  var _ctaEl = null, _ctaRO = null, _ctaMO = null, _ctaRaf = 0;
+  function syncCta() {
+    var view = document.getElementById('view');
+    var el = view ? view.querySelector('.mod-cta') : null;
+    if (el) document.body.classList.add('has-cta'); else document.body.classList.remove('has-cta');
+    if (!_ctaMO && view && global.MutationObserver) {
+      _ctaMO = new MutationObserver(function () {
+        if (_ctaRaf) return;
+        _ctaRaf = requestAnimationFrame(function () { _ctaRaf = 0; syncCta(); });
+      });
+      _ctaMO.observe(view, { childList: true, subtree: true });
+    }
+    if (el === _ctaEl) return;
+    if (_ctaRO) { try { _ctaRO.disconnect(); } catch (e) {} _ctaRO = null; }
+    _ctaEl = el;
+    if (!el) return;
+    var put = function () {
+      var h = el.offsetHeight;
+      if (h > 0) document.documentElement.style.setProperty('--cta-h', h + 'px');
+    };
+    put();
+    if (global.ResizeObserver) { _ctaRO = new ResizeObserver(put); _ctaRO.observe(el); }
+  }
+  /* 侧滑返回时 #view 有 transform，里面 fixed 的按钮会改成相对 #view 定位（跳到整页最底下）。
+     拖动前把它换算成相对 #view 的 top，视觉位置不变；清掉跟手样式时还原。 */
+  function freezeCta(on) {
+    var view = document.getElementById('view');
+    var el = view && view.querySelector('.mod-cta');
+    if (!el) return;
+    if (on) {
+      if (el.style.top) return;
+      var vr = view.getBoundingClientRect(), r = el.getBoundingClientRect();
+      el.style.top = (r.top - vr.top) + 'px'; el.style.bottom = 'auto';
+    } else { el.style.top = ''; el.style.bottom = ''; }
+  }
+
   function syncOrb() {
     var orb = document.getElementById('dockOrb'), bar = document.getElementById('tabbar');
     if (!orb || !bar) return;
@@ -2096,6 +2137,7 @@
   function animateSwipe(x, dismissing) {
     var view = document.getElementById('view');
     if (!view) return;
+    freezeCta(true);
     try {
       if (dismissing) {
         view.style.transition = 'transform .22s cubic-bezier(.32,.72,0,1), opacity .22s linear';
@@ -2117,6 +2159,7 @@
       view.style.transform = '';
       view.style.opacity = '';
     } catch (e) { /* 同上 */ }
+    freezeCta(false);
   }
 
   function onSwipeStart(e) {
