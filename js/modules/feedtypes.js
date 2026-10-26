@@ -352,7 +352,7 @@
     var body = whenTiles('e', '结束时间', isoDay(now), hm(now), isoDay(now))
       + '<div class="ft-quick">' + [0, 5, 10, 15].map(function (m) { return '<button type="button" class="ft-q' + (m ? '' : ' is-on') + '" data-back="' + m + '">' + (m ? m + ' 分钟前' : '现在') + '</button>'; }).join('') + '</div>'
       + '<p class="hint ft-hint" data-sum></p>'
-      + '<button type="button" class="btn btn-primary ft-save" data-save>' + icon('check') + '保存</button>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-save>' + icon('check') + '保存</button></div>';
     openSheet('breast', '保存亲喂', body, function (api) {
       var box = api.box, endPick = 0; /* 0 = 现在（精确到秒）；>0 = N 分钟前；-1 = 手动改过 */
       function endMs() {
@@ -417,7 +417,7 @@
           + '<button type="button" class="ft-sb" data-d="1" aria-label="增加">+</button></div>';
       }).join('')
       + '<label class="rs-lbl ft-note">备注<input type="text" id="mNote" maxlength="40" placeholder="可选"></label>'
-      + '<button type="button" class="btn btn-primary ft-save" data-save>' + icon('check') + '保存</button>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-save>' + icon('check') + '保存</button></div>';
     openSheet('breast', '补记亲喂', body, function (api) {
       var box = api.box;
       Array.prototype.forEach.call(box.querySelectorAll('[data-step]'), function (w) {
@@ -581,7 +581,7 @@
   }
   function refLine(ref) {
     if (!ref) return '';
-    return ref.label + '每日' + (ref.mixed ? '喂奶' : '奶类') + '约 ' + ref.lo + '～' + ref.hi + ' mL' + (ref.times ? '，分 ' + ref.times : '')
+    return ref.label + '每日' + (ref.mixed ? '喂奶' : '奶类') + '约 ' + ref.lo + '～' + ref.hi + ' ml' + (ref.times ? '，分 ' + ref.times : '')
       + (ref.mixed ? '（混合 / 人工喂养）' : '（含母乳）');
   }
   /* 快捷奶量：最近 20 条瓶喂里出现最多的 4 个量（按大小排），不足用 60/90/120/150 补 */
@@ -632,14 +632,14 @@
       + '<div class="ft-seg" role="radiogroup" aria-label="奶的种类">'
       + '<button type="button" role="radio" data-src="bm" aria-checked="' + (src === 'bm') + '" class="' + (src === 'bm' ? 'is-on' : '') + '">母乳</button>'
       + '<button type="button" role="radio" data-src="fm" aria-checked="' + (src === 'fm') + '" class="' + (src === 'fm' ? 'is-on' : '') + '">配方奶</button></div>'
-      + '<p class="ft-amtk"><b>奶量</b> 1–' + BMAX + ' mL</p>'
-      + '<div class="ft-amt"><label class="ft-amtbox"><input type="number" inputmode="numeric" min="1" max="' + BMAX + '" id="bAmt" value="' + amt + '" aria-label="奶量（毫升）"><small>mL</small></label>'
+      + '<p class="ft-amtk"><b>奶量</b> 1–' + BMAX + ' ml</p>'
+      + '<div class="ft-amt"><label class="ft-amtbox"><input type="number" inputmode="numeric" min="1" max="' + BMAX + '" id="bAmt" value="' + amt + '" aria-label="奶量（毫升）"><small>ml</small></label>'
       + '<div class="ft-btl" data-btl>' + bottleSVG(amt) + '</div></div>'
-      + '<p class="rs-lbl">常用奶量</p><div class="ft-quick ft-sugg">' + sugg.map(function (v) { return '<button type="button" class="ft-q' + (v === amt ? ' is-on' : '') + '" data-amt="' + v + '">' + v + 'mL</button>'; }).join('') + '</div>'
-      + (ref ? '<p class="ft-ref">' + esc(refLine(ref)) + '。今天已瓶喂 <b>' + todayMl + ' mL</b>。每顿多一点少一点都正常，看全天总量就好。<small>出处：国家卫生健康委《婴幼儿营养喂养评估服务指南（试行）》，2025 年 2 月</small></p>' : '')
+      + '<p class="rs-lbl">常用奶量</p><div class="ft-quick ft-sugg">' + sugg.map(function (v) { return '<button type="button" class="ft-q' + (v === amt ? ' is-on' : '') + '" data-amt="' + v + '">' + v + ' ml</button>'; }).join('') + '</div>'
+      + (ref ? '<p class="ft-ref">' + esc(refLine(ref)) + '。今天已瓶喂 <b>' + todayMl + ' ml</b>。每顿多一点少一点都正常，看全天总量就好。<small>出处：国家卫生健康委《婴幼儿营养喂养评估服务指南（试行）》，2025 年 2 月</small></p>' : '')
       + '<label class="rs-lbl ft-note">备注<input type="text" id="bNote" maxlength="40" placeholder="可选"></label>'
-      + '<div class="ft-two"><button type="button" class="btn ft-go" data-go>' + SV.play + '开始喂奶</button>'
-      + '<button type="button" class="btn btn-primary ft-save" data-save>' + icon('check') + '保存</button></div>';
+      + '<div class="rs-savebar"><div class="ft-two"><button type="button" class="btn ft-go" data-go>' + SV.play + '开始喂奶</button>'
+      + '<button type="button" class="btn btn-primary ft-save" data-save>' + icon('check') + '保存</button></div></div>';
     openSheet('bottle', '瓶喂', body, function (api) {
       var box = api.box, endOn = false;
       var inp = box.querySelector('#bAmt');
@@ -664,7 +664,7 @@
         endOn = !endOn; sw.setAttribute('aria-checked', endOn ? 'true' : 'false'); sw.classList.toggle('is-on', endOn);
         box.querySelector('[data-endbox]').hidden = !endOn;
       });
-      /* 在奶瓶上拖动调奶量（5 mL 一档） */
+      /* 在奶瓶上拖动调奶量（5 ml 一档） */
       var btl = box.querySelector('[data-btl]');
       btl.setAttribute('data-nodrag', '');
       function fromY(cy) {
@@ -681,7 +681,7 @@
 
       function readAmt() {
         var v = parseInt(inp.value, 10);
-        if (!isFinite(v) || v < 1 || v > BMAX) { Util.toast('奶量请填 1–' + BMAX + ' mL', 'warn'); return null; }
+        if (!isFinite(v) || v < 1 || v > BMAX) { Util.toast('奶量请填 1–' + BMAX + ' ml', 'warn'); return null; }
         return v;
       }
       function save() {
@@ -703,7 +703,7 @@
         if (en) rec.end = loc(en);
         dd.feedings.push(rec);
         if (Storage.save()) {
-          Util.toast('已记录瓶喂 ' + v + ' mL', 'ok', { label: '撤销', onClick: function () {
+          Util.toast('已记录瓶喂 ' + v + ' ml', 'ok', { label: '撤销', onClick: function () {
             var x = Storage.get();
             for (var i = x.feedings.length - 1; i >= 0; i--) { if (x.feedings[i].id === rec.id) { x.feedings.splice(i, 1); break; } }
             Storage.save(); global.App.rerender();
@@ -739,7 +739,7 @@
       var last = list[0];
       var html = '';
       var sum = todayL.length
-        ? '今天瓶喂了 <b>' + todayL.length + '</b> 次，共 <b>' + todayMl + ' mL</b>。'
+        ? '今天瓶喂了 <b>' + todayL.length + '</b> 次，共 <b>' + todayMl + ' ml</b>。'
         : '今天还没有<b>瓶喂</b>记录。';
       if (last) sum += '上次：<b>' + esc(Util.fmtAgo(last.start).replace(/\s/g, '')) + '</b>';
       html += '<div class="mod-sum ft-sum"><span class="ms-k">摘要</span><p>' + sum + '</p></div>';
@@ -758,18 +758,18 @@
           }), dayNow, '近 7 天瓶喂奶量');
         }
         var refB = nhcRef(d);
-        amtHtml += '<p class="hint">' + (nd ? '有记录的 ' + nd + ' 天，日均瓶喂 <b>' + Math.round((bm + fm) / nd) + ' mL</b>。' : '')
+        amtHtml += '<p class="hint">' + (nd ? '有记录的 ' + nd + ' 天，日均瓶喂 <b>' + Math.round((bm + fm) / nd) + ' ml</b>。' : '')
           + (refB ? '参考：' + esc(refLine(refB)) + '。亲喂的量没法算进来，混合喂养时只看这个数会偏低。' : '只统计你自己记的数。') + '</p>'
           + (refB ? '<p class="ms-ref">出处：国家卫生健康委《婴幼儿营养喂养评估服务指南（试行）》（国卫办妇幼函〔2024〕452 号）</p>' : '');
-        var srcHtml = '<h2>母乳与配方奶</h2><p class="hint">近 7 天瓶喂母乳 <b>' + bm + ' mL</b>，配方奶 <b>' + fm + ' mL</b>。</p>';
+        var srcHtml = '<h2>母乳与配方奶</h2><p class="hint">近 7 天瓶喂母乳 <b>' + bm + ' ml</b>，配方奶 <b>' + fm + ' ml</b>。</p>';
         html += insightChips([{ ico: icon('bottle'), t: '近 7 天奶量', html: amtHtml }, { ico: icon('formula'), t: '母乳与配方', html: srcHtml }]);
       }
 
       html += timeline(list, DS, '最近瓶喂记录', function (r) {
         var parts = [];
-        var a = bottleAmt(r); if (a) parts.push(a + 'mL');
+        var a = bottleAmt(r); if (a) parts.push(a + ' ml');
         parts.push(bottleSrc(r) === 'fm' ? '配方奶' : '母乳');
-        var lo = Number(r.leftover); if (lo > 0 && isFinite(lo)) parts.push('剩 ' + lo + 'mL');
+        var lo = Number(r.leftover); if (lo > 0 && isFinite(lo)) parts.push('剩 ' + lo + ' ml');
         if (r.note) parts.push(r.note);
         return { title: '奶瓶喂养', sub: parts.join(' · ') };
       }, function () { return icon('bottle'); }, 'tl-f-bottle');
@@ -779,7 +779,7 @@
       if (bt) {
         html += '<div class="mod-cta ft-cta"><div class="ft-mini" data-accent="bottle">'
           + '<span class="ft-mini-open">' + icon('bottle') + '<b data-bt-cur>' + Util.fmtClock(Date.now() - ms(bt.start)).replace(/^0(\d:)/, '$1') + '</b></span>'
-          + '<span class="ft-mini-side">' + (bt.amount ? bt.amount + 'mL ' : '') + (bt.src === 'fm' ? '配方奶' : '母乳') + '</span>'
+          + '<span class="ft-mini-side">' + (bt.amount ? bt.amount + ' ml ' : '') + (bt.src === 'fm' ? '配方奶' : '母乳') + '</span>'
           + '<button type="button" class="ft-mini-b" data-bt="cancel" aria-label="放弃">' + icon('close') + '</button>'
           + '<button type="button" class="ft-mini-end" data-bt="end">结束</button></div></div>';
       } else {
@@ -811,7 +811,7 @@
               durationMin: Math.max(1, Math.round((en - st) / 60000)), durationL: null, durationR: null, side: null,
               note: null, newFood: null, dish: null, ing: null, steps: null });
             dd.bottleTimer = null;
-            if (Storage.save()) Util.toast('已记录瓶喂' + (v ? ' ' + v + ' mL' : '') + '，用时 ' + fmtMin((en - st) / 60000), 'ok');
+            if (Storage.save()) Util.toast('已记录瓶喂' + (v ? ' ' + v + ' ml' : '') + '，用时 ' + fmtMin((en - st) / 60000), 'ok');
             global.App.rerender();
           });
         });

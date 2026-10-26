@@ -118,7 +118,7 @@
     paintFull();
     if (!fullTick) fullTick = setInterval(tick, 500);
   }
-  function mlTxt(v) { return v ? v + ' mL' : '-- mL'; }
+  function mlTxt(v) { return v ? v + ' ml' : '-- ml'; }
   function paintFull() {
     var t = Storage.get().pumpTimer;
     if (!t || !fullEl) { closeFull(); return; }
@@ -214,9 +214,9 @@
     var body = '<div class="ft-seg pa-seg" role="tablist" aria-label="哪一侧">'
       + '<button type="button" role="tab" data-ps="L">左侧</button><button type="button" role="tab" data-ps="R">右侧</button></div>'
       + '<div class="pa-btl" data-pbtl></div>'
-      + '<p class="pa-val"><b data-pval>0</b><small>mL</small></p>'
+      + '<p class="pa-val"><b data-pval>0</b><small>ml</small></p>'
       + '<p class="hint pa-sum" data-psum></p>'
-      + '<button type="button" class="btn btn-primary ft-save" data-psave>' + icon('check') + (finish ? '保存这次泵奶' : '好了') + '</button>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-psave>' + icon('check') + (finish ? '保存这次泵奶' : '好了') + '</button></div>';
     FT().openSheet('pump', finish ? '结束泵奶' : '奶量', body, function (api) {
       var box = api.box;
       function paint() {
@@ -226,7 +226,7 @@
         box.querySelector('[data-pbtl]').innerHTML = bottle(v[cur]);
         box.querySelector('[data-pval]').textContent = v[cur];
         var s = state(Storage.get().pumpTimer || t, Date.now());
-        box.querySelector('[data-psum]').textContent = '左 ' + v.L + ' mL（' + fmtSec(s.L / 1000) + '）· 右 ' + v.R + ' mL（' + fmtSec(s.R / 1000) + '）· 共 ' + (v.L + v.R) + ' mL';
+        box.querySelector('[data-psum]').textContent = '左 ' + v.L + ' ml（' + fmtSec(s.L / 1000) + '）· 右 ' + v.R + ' ml（' + fmtSec(s.R / 1000) + '）· 共 ' + (v.L + v.R) + ' ml';
       }
       Array.prototype.forEach.call(box.querySelectorAll('[data-ps]'), function (b) {
         b.addEventListener('click', function () { cur = b.getAttribute('data-ps'); paint(); });
@@ -252,7 +252,7 @@
           side: (sL && sR) ? 'both' : (sL ? 'left' : (sR ? 'right' : null)), note: null
         });
         dd.pumpTimer = null;
-        if (Storage.save()) Util.toast('已记录泵奶' + ((v.L + v.R) ? ' ' + (v.L + v.R) + ' mL' : ''), 'ok');
+        if (Storage.save()) Util.toast('已记录泵奶' + ((v.L + v.R) ? ' ' + (v.L + v.R) + ' ml' : ''), 'ok');
         api.close(); closeFull(); if (global.App) App.rerender();
       }
       box.querySelector('[data-psave]').addEventListener('click', done);
@@ -273,10 +273,10 @@
     var F = FT(), now = Date.now();
     var last = pumps(Storage.get())[0];
     var body = F.whenTiles('s', '开始时间', F.isoDay(now), F.hm(now), F.isoDay(now))
-      + '<p class="rs-lbl">左侧</p>' + stepper('LM', '时长', '分钟', 120, 1) + stepper('LA', '奶量', 'mL', PMAX, 5)
-      + '<p class="rs-lbl">右侧</p>' + stepper('RM', '时长', '分钟', 120, 1) + stepper('RA', '奶量', 'mL', PMAX, 5)
+      + '<p class="rs-lbl">左侧</p>' + stepper('LM', '时长', '分钟', 120, 1) + stepper('LA', '奶量', 'ml', PMAX, 5)
+      + '<p class="rs-lbl">右侧</p>' + stepper('RM', '时长', '分钟', 120, 1) + stepper('RA', '奶量', 'ml', PMAX, 5)
       + '<label class="rs-lbl ft-note">备注<input type="text" id="pmNote" maxlength="40" placeholder="可选"></label>'
-      + '<button type="button" class="btn btn-primary ft-save" data-pmsave>' + icon('check') + '保存</button>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-pmsave>' + icon('check') + '保存</button></div>';
     F.openSheet('pump', '补记泵奶', body, function (api) {
       var box = api.box;
       if (last) {
@@ -316,10 +316,10 @@
   /* ---------- 页面 ---------- */
   function subOf(r) {
     var a = amts(r), s = secs(r), parts = [];
-    if (a.T) parts.push(a.legacy ? a.T + 'mL' : '共 ' + a.T + 'mL');
+    if (a.T) parts.push(a.legacy ? a.T + ' ml' : '共 ' + a.T + ' ml');
     var side = function (lbl, sec, ml) {
       if (!sec && !ml) return null;
-      return lbl + ' ' + [sec ? Math.max(1, Math.round(sec / 60)) + '分' : null, ml ? ml + 'mL' : null].filter(Boolean).join(' ');
+      return lbl + ' ' + [sec ? Math.max(1, Math.round(sec / 60)) + '分' : null, ml ? ml + ' ml' : null].filter(Boolean).join(' ');
     };
     var l = side('左', s.L, a.L), rr = side('右', s.R, a.R);
     if (l) parts.push(l); if (rr) parts.push(rr);
@@ -346,7 +346,7 @@
       todayL.forEach(function (r) { var a = amts(r); tA.L += a.L; tA.R += a.R; tA.T += a.T; });
       var html = '';
       var sum = todayL.length
-        ? '今天泵了 <b>' + todayL.length + '</b> 次，共 <b>' + tA.T + ' mL</b>' + ((tA.L || tA.R) ? '（左 ' + tA.L + ' · 右 ' + tA.R + '）' : '') + '。'
+        ? '今天泵了 <b>' + todayL.length + '</b> 次，共 <b>' + tA.T + ' ml</b>' + ((tA.L || tA.R) ? '（左 ' + tA.L + ' · 右 ' + tA.R + '）' : '') + '。'
         : '今天还没有<b>泵奶</b>记录。';
       if (list[0]) sum += '上次：<b>' + esc(Util.fmtAgo(list[0].start).replace(/\s/g, '')) + '</b>';
       html += '<div class="mod-sum ft-sum"><span class="ms-k">摘要</span><p>' + sum + '</p></div>';
@@ -363,8 +363,8 @@
             return { key: k, v: v, txt: v ? String(v) : '' };
           }), dayNow, '近 7 天泵奶量');
         }
-        amtHtml += '<p class="hint">近 7 天泵了 <b>' + wk.length + '</b> 次，共 <b>' + wT + ' mL</b>。</p>';
-        var lrHtml = '<h2>左右对比</h2><p class="hint">近 7 天左侧 <b>' + wL + ' mL</b>、' + fmtSec(sL) + '；右侧 <b>' + wR + ' mL</b>、' + fmtSec(sR) + '。</p>'
+        amtHtml += '<p class="hint">近 7 天泵了 <b>' + wk.length + '</b> 次，共 <b>' + wT + ' ml</b>。</p>';
+        var lrHtml = '<h2>左右对比</h2><p class="hint">近 7 天左侧 <b>' + wL + ' ml</b>、' + fmtSec(sL) + '；右侧 <b>' + wR + ' ml</b>、' + fmtSec(sR) + '。</p>'
           + '<p class="hint">两侧量差一些很常见，只统计你自己记的数。</p>';
         html += F.insightChips([{ ico: icon('pump'), t: '近 7 天', html: amtHtml }, { ico: icon('pump'), t: '左右对比', html: lrHtml }]);
         html += F.timeline(list, DS, '最近泵奶记录', subOf, function () { return icon('pump'); }, 'tl-f-pump');

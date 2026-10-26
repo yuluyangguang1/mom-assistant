@@ -210,10 +210,25 @@
       var p2 = function (x) { return (x < 10 ? '0' : '') + x; };
       if (ms < 6 * 3600000) return Math.floor(ms / 3600000) + ' 小时前';
       var dayDiff = Math.round((new Date(n.getFullYear(), n.getMonth(), n.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
-      if (dayDiff === 0) return '今天 ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
+      /* 第 272 次（审计 #9：亲喂页头「上次 今天 04:30」、瓶喂页头「上次 59 分钟前」同组两种写法）：
+         今天之内一律「N 小时前」，跨过午夜 6 小时以上才写「昨天 HH:MM」 */
+      if (dayDiff === 0) return Math.floor(ms / 3600000) + ' 小时前';
       if (dayDiff === 1) return '昨天 ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
       if (dayDiff < 30) return dayDiff + ' 天前';
       return (d.getFullYear() !== n.getFullYear() ? d.getFullYear() + '年' : '') + (d.getMonth() + 1) + '月' + d.getDate() + '日';
+    },
+
+    /** 第 272 次：某一刻的日期 + 时刻，今天 / 昨天用相对写法：「今天 10:40」「昨天 21:05」「10月3日 08:00」，跨年带年 */
+    fmtDayHM: function (when) {
+      var t = (when instanceof Date) ? when.getTime() : new Date(when).getTime();
+      if (!isFinite(t)) return '';
+      var d = new Date(t), n = new Date();
+      var p2 = function (x) { return (x < 10 ? '0' : '') + x; };
+      var hmTxt = p2(d.getHours()) + ':' + p2(d.getMinutes());
+      var dayDiff = Math.round((new Date(n.getFullYear(), n.getMonth(), n.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+      if (dayDiff === 0) return '今天 ' + hmTxt;
+      if (dayDiff === 1) return '昨天 ' + hmTxt;
+      return (d.getFullYear() !== n.getFullYear() ? d.getFullYear() + '年' : '') + (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + hmTxt;
     },
 
     /** 第 139 次：秒表读数 mm:ss（≥1 小时为 h:mm:ss）。
@@ -1068,8 +1083,12 @@
     }
     el._toastMsg = message;
     el._toastHasAction = !!(action && action.label);
+    /* 第 272 次（审计 #5）：记下是在哪一页弹的，换页时 Util.toastLeave 收起别页的「撤销」 */
+    try { el._toastRoute = (global.App && App.currentTab) ? App.currentTab() : ''; } catch (eR) { el._toastRoute = ''; }
+    el._toastAt = Date.now();
     el._toastDismiss = dismiss;
     root.appendChild(el);
+    Util.placeToasts();
     requestAnimationFrame(function () { el.classList.add('show'); });
     var hideTimer = setTimeout(dismiss, action && action.label ? 5200 : 2800);
     function dismiss() {
@@ -1080,6 +1099,48 @@
          移除延时同步 280→160ms，杜绝出场动画还没走完就被摘除。 */
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 160);
     }
+  };
+
+  /* 第 272 次（审计 #5）：换到 routeId 页时，收起在别页弹出的「撤销」提示——
+     不然 A 页的「已删除…　撤销」浮在 B 页面板上，点了撤销恢复的是 A 页的记录。
+     刚弹出（<400ms，即同一次操作里先记录再跳页）的不收，改记到新页。 */
+  Util.toastLeave = function (routeId) {
+    var root = document.getElementById('toastRoot'); if (!root) return;
+    Array.prototype.forEach.call(root.children, function (n) {
+      if (n.classList.contains('leaving') || !n._toastHasAction || n._toastRoute === routeId) return;
+      if (Date.now() - (n._toastAt || 0) < 400) { n._toastRoute = routeId; return; }
+      if (n._toastDismiss) n._toastDismiss();
+    });
+    Util.placeToasts();
+  };
+  /* 第 272 次（审计 #6：保存成功的提示正好压在底部「+ 记录饮水」主按钮、编辑面板「保存修改」上）：
+     提示条放在底部这些东西的上面：面板吸底保存条（.rs-savebar / .modal-actions）、页面悬浮主按钮（.mod-cta）、
+     dock 与「正在进行」胶囊。只算水平方向压到屏幕中线附近、且在屏幕下半截的；没有就回到 CSS 默认位置。
+     面板推入动画期间 getBoundingClientRect 还在屏外，面板里的保存条按「贴在视口底」用 offsetHeight 估。 */
+  Util.placeToasts = function () {
+    var root = document.getElementById('toastRoot'); if (!root) return;
+    try {
+      var vh = global.innerHeight || 0, vw = global.innerWidth || 0, cx0 = vw / 2 - 110, cx1 = vw / 2 + 110;
+      var top = vh;
+      var vis = function (e) { if (!e || !e.getClientRects().length) return false; var cs = global.getComputedStyle(e); return cs.visibility !== 'hidden' && cs.display !== 'none'; };
+      var sheets = Array.prototype.filter.call(document.querySelectorAll('#modalRoot > .modal-mask, #view .modal-mask:not([hidden])'), function (m) { return !m.classList.contains('sheet-ghost') && !m.classList.contains('sheet-leaving') && vis(m); });
+      if (sheets.length) {
+        var bar = sheets[sheets.length - 1].querySelector('.rs-savebar, .modal-actions');
+        var vvp = global.visualViewport, vbot = vvp ? Math.min(vh, vvp.offsetTop + vvp.height) : vh; /* 键盘弹起时保存条停在键盘上方 */
+        if (bar && vis(bar)) top = Math.min(top, vbot - bar.offsetHeight + 6);
+      } else {
+        Array.prototype.forEach.call(document.querySelectorAll('.mod-cta > *, #tabbar, #dockOrb, #dockLive, .dock-live'), function (e) {
+          if (!vis(e) || e.hidden) return;
+          var r = e.getBoundingClientRect();
+          if (!r.height || r.top < vh * 0.5 || r.top > vh || r.right < cx0 || r.left > cx1) return;
+          top = Math.min(top, r.top);
+        });
+      }
+      root.style.bottom = '';
+      var def = parseFloat(global.getComputedStyle(root).bottom) || 0;
+      var need = Math.ceil(vh - top + 10);
+      if (top < vh && need > def) root.style.bottom = need + 'px';
+    } catch (e) { root.style.bottom = ''; }
   };
 
   /* -----------------------------------------------------------
@@ -1103,12 +1164,14 @@
     sm.textContent = msg;
     first.insertAdjacentElement('afterend', sm);
     try { first.focus(); } catch (e) {}
-    inputs.forEach(function (e) {
-      e.addEventListener('input', function clr() {
-        var anyFilled = inputs.some(function (x) { return (x.value || '').trim() !== ''; });
-        if (anyFilled) Util.markInvalid(inputs, null);
-      });
-    });
+    /* 第 272 次：input 之外也认 change（日期 / 下拉 / 程序赋值后派发的 change），清除后摘掉监听，不越挂越多 */
+    function clr() {
+      var anyFilled = inputs.some(function (x) { return (x.value || '').trim() !== ''; });
+      if (!anyFilled) return;
+      inputs.forEach(function (x) { x.removeEventListener('input', clr); x.removeEventListener('change', clr); });
+      Util.markInvalid(inputs, null);
+    }
+    inputs.forEach(function (e) { e.addEventListener('input', clr); e.addEventListener('change', clr); });
   };
 
   /* -----------------------------------------------------------

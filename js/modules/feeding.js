@@ -423,7 +423,7 @@
         var totalAmt = feedToday.reduce(function (s, r) { return s + ((r.type === 'bottle' || r.type === 'formula') ? (r.amount || 0) : 0); }, 0);
         if (latestFed) {
           var gg = Util.fmtGap(Date.now() - new Date(latestFed.start).getTime());
-          var lastTxt = tName(latestFed.type) + (latestFed.amount && latestFed.type !== 'breast' ? ' ' + latestFed.amount + 'ml' : '')
+          var lastTxt = tName(latestFed.type) + (latestFed.amount && latestFed.type !== 'breast' ? ' ' + latestFed.amount + ' ml' : '')
             + (latestFed.type === 'breast' && latestFed.durationMin ? ' ' + latestFed.durationMin + ' 分钟' : '');
           html += '<div class="dash-big"><span class="dash-num">' + Util.escapeHtml(String(gg.num)) + '<i>' + Util.escapeHtml(gg.unit) + '</i></span>'
             + '<span class="dash-lbl">距上次喂奶' + (lastTxt ? ' · ' + Util.escapeHtml(lastTxt) : '') + '</span></div>';
@@ -569,7 +569,7 @@
           + '<p class="hint">写一句话就行，保存后会自动按句号拆成步骤。</p>'
           + '</div>';
         fh += '<p class="hint" id="solidHint" style="display:none">辅食的种类与克数不成线性，暂不提供滑杆——请在备注里写明（如「南瓜泥 60g」）。</p>';
-      fh += '<button class="btn btn-primary btn-save rs-save" id="fSave">保存</button>';
+      fh += '<div class="rs-savebar"><button class="btn btn-primary btn-save rs-save" id="fSave">保存</button></div>'; /* 第 272 次：保存吸底 */
 
       html += stashCard(d, sorted);
 

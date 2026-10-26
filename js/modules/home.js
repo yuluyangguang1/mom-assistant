@@ -581,7 +581,7 @@
           + '</div>'
           + '<div class="rec-stepper">'
           + '<button class="rec-step" data-recstep="bottle:-10" type="button"' + dis + ' aria-label="减少 10 毫升">−10</button>'
-          + '<b class="rec-num">' + st.amount + '<i>mL</i></b>'
+          + '<b class="rec-num">' + st.amount + '<i>ml</i></b>'
           + '<button class="rec-step" data-recstep="bottle:10" type="button"' + dis + ' aria-label="增加 10 毫升">+10</button>'
           + '</div>'
           + '<div class="rec-keys"><button class="btn" data-recf="bottle" type="button"' + dis + '>记录瓶喂</button></div>'
@@ -620,7 +620,7 @@
           + '</div>'
           + '<div class="rec-stepper">'
           + '<button class="rec-step" data-recstep="pump.ml:-10" type="button"' + dis + ' aria-label="奶量减少 10 毫升">−10</button>'
-          + '<b class="rec-num">' + st.ml + '<i>mL</i></b>'
+          + '<b class="rec-num">' + st.ml + '<i>ml</i></b>'
           + '<button class="rec-step" data-recstep="pump.ml:10" type="button"' + dis + ' aria-label="奶量增加 10 毫升">+10</button>'
           + '</div>'
           + '<div class="rec-keys"><button class="btn" data-recf="pump" type="button"' + dis + '>记录吸奶</button></div>'
@@ -989,7 +989,7 @@
           var amt = (lf.type === 'bottle' || lf.type === 'formula' || lf.type === 'pump')
             ? (lf.amountFm || lf.amount) : null;
           if (amt) {
-            feedVal += ' · ' + amt + 'mL';
+            feedVal += ' · ' + amt + ' ml';
           } else if (lf.type === 'breast') {
             /* 第 210 次：小组件里只放总时长，左右分开写会被截断 */
             var bt = lf.durationMin || ((lf.durationL || 0) + (lf.durationR || 0));
@@ -1002,7 +1002,7 @@
         var slVal = '—', slGap = '';
         if (lsl) {
           var slMin = Math.max(0, Math.round((new Date(lsl.end) - new Date(lsl.start) - (lsl.pausedMs || 0)) / 60000));
-          slVal = slMin >= 60 ? (Math.floor(slMin / 60) + ' 小时' + (slMin % 60 ? ' ' + (slMin % 60) + ' 分' : '')) : (slMin + ' 分钟');
+          slVal = slMin >= 60 ? (Math.floor(slMin / 60) + ' 小时' + (slMin % 60 ? ' ' + (slMin % 60) + ' 分' : '')) : (slMin ? slMin + ' 分钟' : '不到 1 分钟'); /* 第 272 次：老数据里的 0 分钟不写「0 分钟」 */
           slGap = '醒来 ' + gapShort(Math.max(0, nowMs2 - new Date(lsl.end).getTime()));
         }
         if (d.openSleep && d.openSleep.start) { slVal = '睡眠中'; slGap = '进行中'; }
@@ -1035,7 +1035,7 @@
         var tMl = tFeeds.reduce(function (s, r) { return s + (r.type === 'breast' ? 0 : (Number(r.amountFm || r.amount) || 0)); }, 0);
         W_HTML['w-feed-today'] = function (cls, bd2) {
           return hw('w-feed-today', 'feeding', 'feeding', 'feeding', '今日喂奶', tFeeds.length ? (tFeeds.length + ' 次') : '0 次',
-            tFeeds.length ? ([tMl ? ('共 ' + tMl + ' mL') : '', tMin ? ('亲喂 ' + tMin + ' 分钟') : ''].filter(Boolean).join(' · ') || '今天') : '今天还没喂', cls, bd2);
+            tFeeds.length ? ([tMl ? ('共 ' + tMl + ' ml') : '', tMin ? ('亲喂 ' + tMin + ' 分钟') : ''].filter(Boolean).join(' · ') || '今天') : '今天还没喂', cls, bd2);
         };
         var tDia = (d.diapers || []).filter(function (r) { return r && r.time && careKeyOf(r.time) === dayNow; });
         var tPee = tDia.filter(function (r) { return r.type === 'pee' || r.type === 'both'; }).length;
@@ -1096,7 +1096,7 @@
           return '<div class="card canvas-card wd-card wd-today' + cls + '" data-cid="w-today" data-go="calendar" role="button" tabindex="0" aria-label="今日概览">'
             + '<div class="wd-head"><h2>今日概览</h2><span class="wd-meta">' + (sumNow.getMonth() + 1) + ' 月 ' + sumNow.getDate() + ' 日</span></div>'
             + '<div class="wt-row">'
-            + cell('feeding', 'feeding', 'feeding', '喂奶', tf.length + '<small> 次</small>', tfMl ? tfMl + ' mL' : '—')
+            + cell('feeding', 'feeding', 'feeding', '喂奶', tf.length + '<small> 次</small>', tfMl ? tfMl + ' ml' : '—')
             + cell('diaper', 'diaper', 'diaper', '尿布', td.length + '<small> 次</small>', tdPoop ? '便 ' + tdPoop + ' 次' : '—')
             + cell('sleep', 'sleep', 'sleep', '睡眠', tsMin >= 60 ? (Math.floor(tsMin / 60) + '<small> 时</small>' + (Math.round(tsMin % 60) ? ' ' + Math.round(tsMin % 60) + '<small> 分</small>' : '')) : Math.round(tsMin) + '<small> 分</small>', d.openSleep && d.openSleep.start ? '睡眠中' : (tsMin ? '已睡' : '—'))
             + '</div>' + (bd2 || '') + '</div>';
@@ -1128,7 +1128,7 @@
           sv.push(sls.reduce(function (s2, x) { return s2 + sleepMin(x, a, a + DAY); }, 0));
         }
         W_HTML['w-week-feed'] = bars('w-week-feed', 'feeding', 'feeding', '近 7 天奶量', fv,
-          function (v) { return Math.round(v); }, function (v) { return Math.round(v) + ' mL'; });
+          function (v) { return Math.round(v); }, function (v) { return Math.round(v) + ' ml'; });
         W_HTML['w-week-sleep'] = bars('w-week-sleep', 'sleep', 'sleep', '近 7 天睡眠', sv,
           function (v) { var h = v / 60; return (Math.abs(h - Math.round(h)) < 0.05 ? Math.round(h) : h.toFixed(1)) + 'h'; }, function (v) { return hm(v); });
         /* 成长天数：第 N 天 + 下一个里程碑（满月 / 百天 / 满 N 个月 / 周岁）进度 */
@@ -2063,7 +2063,7 @@
   /* 距上次卡的数据源定义：list=数据键，key=时间字段，detail=明细行（取最新一条渲染）。
      时间口径统一走 lastAny + gapText + dayLabel（与磁贴摘要同源，只描述中性事实不催促）。 */
   var LAST_DEFS = {
-    'last-feeding': { list: 'feedings', key: 'start', detail: function (r) { return (r && r.amount != null) ? (r.amount + ' mL') : ''; } },
+    'last-feeding': { list: 'feedings', key: 'start', detail: function (r) { return (r && r.amount != null) ? (r.amount + ' ml') : ''; } },
     'last-diaper': { list: 'diapers', key: 'time', detail: function () { return ''; } },
     'last-sleep': { list: 'sleeps', key: 'start', detail: function () { return ''; } },
     'last-growth': { list: 'growth', key: 'date', detail: function (r) { return (r && r.weightKg != null) ? (r.weightKg + ' kg') : ((r && r.heightCm != null) ? (r.heightCm + ' cm') : ''); } },

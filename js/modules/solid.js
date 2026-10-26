@@ -36,7 +36,7 @@
     { v: 'veg', t: '蔬菜' }, { v: 'fruit', t: '水果' }, { v: 'other', t: '其他' }
   ];
   var ACC = [{ v: 'good', t: '吃得好' }, { v: 'ok', t: '一般' }, { v: 'refuse', t: '不太接受' }];
-  /* 换算只做提示（参考图口径：1 勺约 5mL，1 碗约 230mL） */
+  /* 换算只做提示（参考图口径：1 勺约 5ml，1 碗约 230ml） */
   var UNITS = {
     g: { t: '克', ml: 0, max: 500, step: 1 },
     spoon: { t: '勺', ml: 5, max: 40, step: 1 },
@@ -63,7 +63,7 @@
   function amtText(r) {
     var x = qtyOf(r); if (!x) return '';
     var U = UNITS[x.u];
-    return fmtQ(x.q) + ' ' + U.t + (U.ml ? '（约 ' + Math.round(x.q * U.ml) + 'mL）' : '');
+    return fmtQ(x.q) + ' ' + U.t + (U.ml ? '（约 ' + Math.round(x.q * U.ml) + ' ml）' : '');
   }
   function solids(d) {
     return (d.feedings || []).filter(function (r) { return r && r.type === 'solid' && isFinite(ms(r.start)); })
@@ -153,7 +153,7 @@
       + '<textarea class="sd-in sd-ta" id="sdNote" maxlength="200" rows="3" placeholder="可选">' + esc(editing ? (rec.note || '') : '') + '</textarea>'
       + (PH ? '<div data-phbox></div>' : '')
       + (editing ? '<button type="button" class="btn rs-del" data-sdel>删除这条记录</button>' : '')
-      + '<div class="sd-savebar"><button type="button" class="btn ft-save sd-save" data-sdsave>' + icon('check') + '保存</button></div>';
+      + '<div class="rs-savebar sd-savebar"><button type="button" class="btn ft-save sd-save" data-sdsave>' + icon('check') + '保存</button></div>';
 
     F.openSheet('solid', editing ? '修改辅食' : '辅食', body, function (api) {
       var box = api.box, qIn = box.querySelector('#sdQty');
@@ -170,7 +170,7 @@
         qIn.max = U.max; qIn.step = U.step;
         qIn.setAttribute('inputmode', st.unit === 'bowl' ? 'decimal' : 'numeric');
         var cv = box.querySelector('[data-conv]');
-        cv.textContent = U.ml ? '约 ' + Math.round((q || 1) * U.ml) + 'mL' : '';
+        cv.textContent = U.ml ? '约 ' + Math.round((q || 1) * U.ml) + ' ml' : '';
         cv.hidden = !U.ml;
         var minus = box.querySelector('[data-q="-1"]'); if (minus) minus.disabled = q <= U.step;
       }

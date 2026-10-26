@@ -102,8 +102,9 @@
     });
     if (cfg.sheetHint) body += '<p class="rs-hint sk-hint">' + esc(cfg.sheetHint) + '</p>';
     body += '<label class="rs-note"><span class="rs-lbl">备注</span><input type="text" id="skNote" maxlength="40" placeholder="' + esc(cfg.notePh || '可选') + '" value="' + esc((editing && rec.note) || '') + '"></label>'
-      + '<button type="button" class="btn btn-primary rs-save" data-ok>' + (editing ? '保存修改' : '保存') + '</button>'
-      + (editing ? '<button type="button" class="btn rs-del" data-delrec>删除这条记录</button>' : '');
+      /* 第 272 次：保存吸在面板底部（.rs-savebar，全站记录面板同一写法）；编辑时删除放在保存条前面，跟着内容走 */
+      + (editing ? '<button type="button" class="btn rs-del" data-delrec>删除这条记录</button>' : '')
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" data-ok>' + (editing ? '保存修改' : '保存') + '</button></div>';
 
     FT.openSheet(cfg.accent, (editing ? '修改' : '记录') + cfg.noun, body, function (api) {
       var box = api.box;
@@ -115,7 +116,8 @@
         var k;
         if ((k = b.getAttribute('data-q'))) {
           var inp = box.querySelector('#sk_' + k);
-          if (inp) inp.value = b.getAttribute('data-v');
+          /* 第 272 次（审计 #4）：快选赋值后派发 input，校验红字 / aria-invalid 跟着清掉 */
+          if (inp) { inp.value = b.getAttribute('data-v'); try { inp.dispatchEvent(new Event('input', { bubbles: true })); } catch (eEv) { Util.markInvalid(inp, null); } }
           Array.prototype.forEach.call(box.querySelectorAll('[data-q="' + k + '"]'), function (x) { x.classList.toggle('active', x === b); });
           return;
         }

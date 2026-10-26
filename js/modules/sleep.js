@@ -69,10 +69,27 @@
     var paused = (os2.pausedMs || 0) + (os2.pauseStart ? Math.max(0, endMs - os2.pauseStart) : 0);
     var totalMs = endMs - startMs - paused;
     var wk = os2.wakes != null ? Math.max(0, os2.wakes | 0) : null;
-    d.sleeps.push({ id: os2.id, start: os2.start, end: loc(endMs), pausedMs: paused, note: null, wakings: wk,
-      longestMin: wk == null ? null : Math.max(0, Math.round(totalMs / 60000 / (wk + 1))) });
+    /* 第 272 次（审计 #1：误触「睡了」→「醒了」存下一条 0 分钟睡眠、没有撤销）：
+       不到 1 分钟的不存，只结束计时，toast 给「撤销」把计时原样放回去；
+       正常结束的也给「撤销」：删掉这条记录、恢复成还在睡（与其他记录的保存一致）。 */
+    var keep = JSON.parse(JSON.stringify(os2));
+    var undoOpen = function (recId) {
+      var dd = Storage.get(); if (!dd) return;
+      if (recId) dd.sleeps = (dd.sleeps || []).filter(function (x) { return !x || x.id !== recId; });
+      if (!dd.openSleep) dd.openSleep = keep;
+      Storage.save();
+      if (global.App && App.rerender) App.rerender();
+    };
+    if (totalMs < 60000) {
+      d.openSleep = null;
+      if (Storage.save()) Util.toast('睡了不到 1 分钟，没有记录', 'info', { label: '撤销', onClick: function () { undoOpen(null); } });
+      return true;
+    }
+    var rec = { id: os2.id, start: os2.start, end: loc(endMs), pausedMs: paused, note: null, wakings: wk,
+      longestMin: wk == null ? null : Math.max(0, Math.round(totalMs / 60000 / (wk + 1))) };
+    d.sleeps.push(rec);
     d.openSleep = null;
-    if (Storage.save()) Util.toast('已记录：睡眠 ' + Util.fmtDuration(Math.max(0, totalMs)) + (wk ? '，中途醒来 ' + wk + ' 次' : ''), 'ok'); /* C1：计时类带时长 */
+    if (Storage.save()) Util.toast('已记录：睡眠 ' + Util.fmtDuration(Math.max(0, totalMs)) + (wk ? '，中途醒来 ' + wk + ' 次' : ''), 'ok', { label: '撤销', onClick: function () { undoOpen(rec.id); } }); /* C1：计时类带时长 */
     return true;
   }
   function togglePause() {
@@ -204,7 +221,7 @@
       + '<button type="button" class="ft-sb" data-d="1" aria-label="增加">+</button></div>'
       + '<label class="rs-lbl ft-note">备注<input type="text" id="slNote" maxlength="40" placeholder="可选"></label>'
       + '<p class="hint">忘了记也没关系，漏记不会清零，回来补上就行。</p>'
-      + '<button type="button" class="btn btn-primary ft-save" data-save>' + icon('check') + '保存</button>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-save>' + icon('check') + '保存</button></div>';
     ui.openSheet('sleep', '补记睡眠', body, function (api) {
       var box = api.box, inp = box.querySelector('#slWk');
       Array.prototype.forEach.call(box.querySelectorAll('[data-d]'), function (b) {
@@ -254,7 +271,7 @@
       else if (!os) sum += '今天还没有<b>睡眠</b>记录。';
       if (last) {
         var le = new Date(tms(last.end));
-        sum += '最近一段睡了 <b>' + esc(fmtMin(durMs(last) / 60000)) + '</b>，结束于 <b>' + le.getFullYear() + '年' + (le.getMonth() + 1) + '月' + le.getDate() + '日 ' + hm(le) + '</b>。'
+        sum += '最近一段睡了 <b>' + esc(fmtMin(durMs(last) / 60000)) + '</b>，结束于 <b>' + esc(Util.fmtDayHM(le)) + '</b>。' /* 第 272 次：今天 / 昨天用相对写法，不再写满年月日 */
           + '<span class="ms-ago">上次：' + esc(Util.fmtAgo(last.end).replace(/\s/g, '')) + '</span>';
       }
       html += '<div class="mod-sum ft-sum"><span class="ms-k">摘要</span><p>' + sum + '</p></div>';

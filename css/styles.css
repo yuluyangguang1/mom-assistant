@@ -3183,6 +3183,10 @@ body.dark .ob-card.active { border-color: var(--primary); }
   will-change: transform;
 }
 @keyframes sheetIn { from { transform: translate3d(0, 100%, 0); } to { transform: none; } }
+/* 第 272 次：键盘弹起时（sheet.js 量出 --kb）遮罩底边抬到键盘上沿，面板连同吸底保存条停在键盘上方 */
+.modal-mask.as-sheet.kb-up { bottom: var(--kb, 0px); }
+.modal-mask.as-sheet.kb-up > .is-sheet { max-height: calc(100vh - var(--kb, 0px) - env(safe-area-inset-top) - 44px); padding-bottom: 18px; }
+.modal-mask.as-sheet.kb-up > .is-sheet .rs-savebar { bottom: -18px; margin-bottom: -18px; padding-bottom: 12px; }
 /* 第 270 次：关面板的替身（sheet.js ghostOut）沿原路滑下、遮罩淡掉 */
 .modal-mask.as-sheet.sheet-ghost { pointer-events: none; animation: sheetMaskOut .26s var(--ease) forwards; }
 .modal-mask.as-sheet.sheet-ghost > .is-sheet { animation: sheetOut .28s cubic-bezier(.4, 0, .2, 1) forwards; }
@@ -4407,6 +4411,9 @@ body.dock-left .mod-cta, body.dock-right .mod-cta { position: static; }
 .rs-tile { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--surface-2); font-size: var(--fs-xs, 12px); color: var(--muted); }
 .rs-tile input { width: 100%; min-height: 32px; padding: 0; border: none; background: transparent; color: var(--text); font: inherit; font-size: calc(18px * var(--fs-mul, 1)); font-weight: 700; font-variant-numeric: tabular-nums; }
 .rs-lbl { display: block; margin: 16px 0 8px; font-size: var(--fs-xs, 12px); color: var(--muted); font-weight: 600; }
+/* 第 272 次（审计 #10：尿布面板「量」「屁屁情况」紧贴上一块）：.modal p { margin: 0 0 12px }（0,1,1）压过了 .rs-lbl，
+   面板里所有 <p class="rs-lbl"> 上外边距都是 0。提一级优先级，回到 .rs-lbl 本来的 16 / 8。 */
+.modal p.rs-lbl { margin-top: 16px; margin-bottom: 8px; }
 .rs-lbl b { color: var(--text); }
 .dp-types { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .dp-types.shake { animation: rsShake .36s ease; }
@@ -4434,10 +4441,15 @@ body.dock-left .mod-cta, body.dock-right .mod-cta { position: static; }
 .rs-note input { width: 100%; min-height: 46px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); font: inherit; box-sizing: border-box; }
 .rs-save { width: 100%; min-height: 52px; margin-top: 20px; background: var(--tile); border-color: var(--tile); }
 /* 第 271 次（用户：尿布的「保存」要拉到最下面才看得到）：尿布面板的保存吸在面板底部，
-   内容多（便便颜色 + 照片 + 用品）时不用滚到底也能点；滚到底时它落回内容末尾。和辅食（.sd-savebar）同一做法。 */
+   内容多（便便颜色 + 照片 + 用品）时不用滚到底也能点；滚到底时它落回内容末尾。
+   第 272 次（用户确认吸底是对的，全站统一）：.rs-savebar 是所有记录面板的公共保存条——
+   尿布、辅食（.sd-savebar 只留作别名）、喂养表单、亲喂保存 / 补记、瓶喂、泵奶结束 / 补记、补记睡眠、
+   通用记录骨架（洗澡 / 游泳 / 日晒 / 用药 / 体温 / 黄疸 / 情绪 / 喝水）。编辑态的「删除这条记录」放在它前面。
+   结构：<div class="rs-savebar"><button class="… rs-save | ft-save">保存</button></div>，放在 .rs-body 的最后。 */
 .rs-savebar { position: sticky; bottom: -20px; z-index: 2; margin: 14px -18px -20px; padding: 14px 18px calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(180deg, transparent, var(--surface) 34%); }
 .modal-mask.as-sheet > .is-sheet .rs-savebar { bottom: calc(-18px - env(safe-area-inset-bottom)); margin: 14px -20px calc(-18px - env(safe-area-inset-bottom)); padding: 14px 20px calc(14px + env(safe-area-inset-bottom)); }
-.rs-savebar .rs-save { margin-top: 0; box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--tile) 70%, transparent); }
+.rs-savebar .rs-save, .rs-savebar .ft-save, .fd-mask .rs-savebar .rs-save { margin-top: 0; box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--tile) 70%, transparent); }
+.rs-savebar .ft-two { position: static; margin-top: 0; padding: 0; background: none; }
 .rs-del + .rs-savebar { margin-top: 6px; }
 .rs-del { width: 100%; min-height: 46px; margin-top: 10px; background: transparent; border: none; color: var(--danger, #C0392B); }
 .rs-done { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 260px; animation: rsPop .35s var(--spring, ease) both; }
@@ -5180,7 +5192,7 @@ body.sd-open .touch-glow, body.qd-open .touch-glow { display: none; }
 .skel-page .ft-mini-open { cursor: default; }
 .rs-seg.sk-n2 { grid-template-columns: repeat(2, 1fr); } .rs-seg.sk-n4 { grid-template-columns: repeat(4, 1fr); } .rs-seg.sk-n5 { grid-template-columns: repeat(5, 1fr); }
 .rs-seg.sk-seg button { min-width: 0; padding-left: 4px; padding-right: 4px; }
-.sk-quick + .rs-lbl, .sk-seg + .rs-lbl { margin-top: 18px; }
+.sk-quick + .rs-lbl, .sk-seg + .rs-lbl, .modal .sk-quick + p.rs-lbl, .modal .sk-seg + p.rs-lbl { margin-top: 18px; }
 /* 第 252 次：体温高值行 */
 .tl-warn .tl-dot { background: var(--danger, #D9534F); }
 .tl-warn .tl-txt b { color: var(--danger, #D9534F); }
@@ -5381,7 +5393,6 @@ body.dark .sd-tex img, body.dark .sd-cat img { filter: brightness(.94); }
 .rec-sheet .sd-ta { min-height: 104px; padding: 14px 16px; line-height: 1.5; resize: none; }
 .sd-phl { display: flex; justify-content: space-between; align-items: baseline; }
 .sd-ph-add { width: 100%; min-height: 50px; border: 1px solid var(--border); background: transparent; font-weight: 600; }
-.sd-savebar { position: sticky; bottom: 0; z-index: 2; margin: 14px -18px -20px; padding: 14px 18px calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(180deg, transparent, var(--surface) 34%); }
 .sd-save { margin-top: 0; font-size: calc(17px * var(--fs-mul, 1)); box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--tile) 70%, transparent); }
 .ft-sheet[data-accent="solid"] .rs-del { margin-top: 18px; }
 /* 喂养页观察期卡：去辅食页 */

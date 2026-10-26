@@ -152,6 +152,8 @@ def test_flows(b):
     check('快记在首屏', p.evaluate("document.querySelector('.hn-quick').getBoundingClientRect().bottom<innerHeight-70"))
     n0 = p.evaluate('Storage.get().diapers.length'); p.click('.hn-q[data-hnq="pee"]'); p.wait_for_timeout(200)
     check('快记「尿了」+1', p.evaluate('Storage.get().diapers.length') - n0 == 1)
+    # 第 272 次：不到 1 分钟的睡眠不存（审计 #1），这里把入睡时间挪到 5 分钟前
+    p.evaluate("(()=>{const d=Storage.get(),t=new Date(Date.now()-300000),z=n=>String(n).padStart(2,'0');d.openSleep.start=t.getFullYear()+'-'+z(t.getMonth()+1)+'-'+z(t.getDate())+'T'+z(t.getHours())+':'+z(t.getMinutes())+':'+z(t.getSeconds());Storage.save()})()")
     s0 = p.evaluate('Storage.get().sleeps.length'); p.click('#dockLive [data-act="sleep-end"]'); p.wait_for_timeout(200)
     check('首页结束睡眠', p.evaluate('Storage.get().sleeps.length') - s0 == 1 and not p.evaluate('Storage.get().openSleep'))
     p.evaluate("App.showTab('vaccine')"); p.wait_for_timeout(400)
@@ -519,6 +521,10 @@ def test_feeding_sheet(b):
     ev("App.showTab('diaper')"); p.wait_for_timeout(400)
     check('液态玻璃 dock：二级页收起时水滴隐藏', ev("!document.querySelector('#tabbar .lg-thumb').classList.contains('on')"))
     ev("App.showTab('bottle')"); p.wait_for_timeout(400)
+    # 第 272 次：换页会关掉上一页的面板（审计 #2），这里重新打开瓶喂面板再保存
+    check('换页后上一页的面板已关掉', ev("!document.querySelector('#modalRoot .modal-mask')"))
+    p.click('[data-new]'); p.wait_for_timeout(300)
+    p.click('[data-src="fm"]'); ev("(()=>{const i=document.querySelector('#bAmt');i.value=150;i.dispatchEvent(new Event('input'))})()"); p.wait_for_timeout(100)
     n2 = ev("Storage.get().feedings.length")
     p.click('[data-save]'); p.wait_for_timeout(400)
     lb = ev("Storage.get().feedings.slice(-1)[0]")
@@ -587,9 +593,9 @@ def test_solid(b):
     p.click('[data-snew]'); p.wait_for_timeout(200)
     check('辅食：面板 6 种性状、6 种类型、克/勺/碗', ev("[document.querySelectorAll('.sd-tex').length, document.querySelectorAll('.sd-cat').length, document.querySelectorAll('[data-unit]').length].join()") == '6,6,3')
     p.click('[data-tex="puree"]'); p.click('[data-unit="bowl"]'); p.wait_for_timeout(100)
-    check('辅食：碗从 1 起，换算约 230mL', ev("document.querySelector('#sdQty').value") == '1' and '230' in ev("document.querySelector('[data-conv]').textContent"))
+    check('辅食：碗从 1 起，换算约 230 ml', ev("document.querySelector('#sdQty').value") == '1' and '230' in ev("document.querySelector('[data-conv]').textContent"))
     p.click('[data-unit="spoon"]'); p.click('[data-q="1"]'); p.click('[data-q="1"]'); p.wait_for_timeout(100)
-    check('辅食：勺步进 + 换算', ev("document.querySelector('#sdQty').value") == '3' and '15mL' in ev("document.querySelector('[data-conv]').textContent"))
+    check('辅食：勺步进 + 换算', ev("document.querySelector('#sdQty').value") == '3' and '15 ml' in ev("document.querySelector('[data-conv]').textContent"))
     p.click('[data-acc="good"]'); p.fill('#sdName', '<b>南瓜泥</b>'); p.click('[data-cat="veg"]'); p.click('[data-cat="grain"]')
     p.click('[data-sdsave]'); p.wait_for_timeout(250)
     r = ev("Storage.get().feedings.filter(x=>x.type==='solid').slice(-1)[0]")
@@ -750,14 +756,165 @@ def test_r271(b):
     p.close()
 
 
+R272_SEED = r"""(()=>{const d=Storage.get(),z=n=>String(n).padStart(2,'0');const L=t=>{t=new Date(t);return t.getFullYear()+'-'+z(t.getMonth()+1)+'-'+z(t.getDate())+'T'+z(t.getHours())+':'+z(t.getMinutes())+':'+z(t.getSeconds())};
+  window.__L=L; d.waters=[{id:'w1',time:L(Date.now()-3600e3),ml:30,note:null},{id:'w2',time:L(Date.now()-7200e3),ml:60,note:null}];
+  d.temps=[{id:'t1',time:L(Date.now()-3600e3),value:36.6,site:'ear',note:null}];
+  d.feedings.push({id:'fb1',type:'bottle',start:L(Date.now()-3600e3),amount:120,src:'bm'});Storage.save()})()"""
+
+
+def test_r272(b):
+    """第 272 次：审计第一轮 12 条 + 全站记录面板保存吸底。"""
+    p, errs = fresh(b)
+    ev = p.evaluate
+    ev(R272_SEED)
+    def go(t):
+        ev(f"App.showTab('{t}',{{noVT:true}})"); p.wait_for_timeout(250)
+    # —— #1 误触睡了→醒了 ——
+    go('home')
+    ev("(()=>{const d=Storage.get();d.openSleep={id:'os1',start:__L(Date.now()-20000),pausedMs:0,pauseStart:null};Storage.save();App.rerender()})()"); p.wait_for_timeout(200)
+    n0 = ev("Storage.get().sleeps.length")
+    p.click('#dockLive [data-act="sleep-end"]'); p.wait_for_timeout(250)
+    t1 = ev("[...document.querySelectorAll('#toastRoot .toast:not(.leaving)')].map(t=>t.textContent).join('|')")
+    check('#1 睡了不到 1 分钟不存、计时结束', ev("Storage.get().sleeps.length") == n0 and not ev("Storage.get().openSleep"), t1)
+    check('#1 不到 1 分钟的提示带撤销', '不到 1 分钟' in t1 and '撤销' in t1, t1)
+    ev("document.querySelector('#toastRoot .toast-action').click()"); p.wait_for_timeout(250)
+    check('#1 撤销后恢复成还在睡（原入睡时间）', ev("(Storage.get().openSleep||{}).id") == 'os1')
+    ev("(()=>{const d=Storage.get();d.openSleep.start=__L(Date.now()-600000);Storage.save()})()")
+    p.click('#dockLive [data-act="sleep-end"]'); p.wait_for_timeout(250)
+    check('#1 正常结束（10 分钟）照常记录且带撤销', ev("Storage.get().sleeps.length") == n0 + 1 and '撤销' in ev("document.getElementById('toastRoot').textContent"))
+    ev("[...document.querySelectorAll('#toastRoot .toast-action')].pop().click()"); p.wait_for_timeout(250)
+    check('#1 正常结束后撤销：删掉记录、恢复计时', ev("Storage.get().sleeps.length") == n0 and ev("(Storage.get().openSleep||{}).id") == 'os1')
+    ev("(()=>{const d=Storage.get();d.openSleep=null;d.sleeps.push({id:'z0',start:__L(Date.now()-60000),end:__L(Date.now()-50000),pausedMs:0});Storage.save();App.rerender()})()"); p.wait_for_timeout(200)
+    hw = ev("(document.querySelector('[data-cid=w-sleep]')||{}).textContent||''")
+    check('#1 首页「上次睡眠」不写「0 分钟」', '0 分钟' not in hw.replace('10 分钟', '') and ('不到 1 分钟' in hw or not hw), hw)
+    ev("(()=>{const d=Storage.get();d.sleeps=d.sleeps.filter(x=>x.id!=='z0');Storage.save()})()")
+    # —— #2 面板开着时返回 ——
+    go('diaper'); p.click('[data-new]'); p.wait_for_timeout(500)
+    ev("history.back()"); p.wait_for_timeout(500)
+    st = ev("[App.currentTab(), !!document.querySelector('#modalRoot .modal-mask:not(.sheet-ghost)'), document.body.classList.contains('sheet-open')]")
+    check('#2 面板开着时返回：先关面板、留在原页', st == ['diaper', False, False], st)
+    ev("history.back()"); p.wait_for_timeout(500)
+    check('#2 再返回一次才回首页', ev("App.currentTab()") == 'home')
+    go('water'); p.click('[data-new]'); p.wait_for_timeout(400)
+    go('temp')
+    check('#2 换页时上一页面板一起关掉', ev("!document.querySelector('#modalRoot .modal-mask:not(.sheet-ghost)') && !document.body.classList.contains('sheet-open')"))
+    # —— #3 画布还透明时状态栏不是黑的 ——
+    go('home'); p.wait_for_timeout(300)
+    c3 = ev("""(()=>{const cv=document.querySelector('.sky-canvas');Sky.stop(cv);cv.getContext('2d').clearRect(0,0,cv.width,cv.height);
+      document.documentElement.style.setProperty('--status-color','#010203');syncStatusColor();
+      return [document.querySelector('meta[name=theme-color]').content, document.querySelector('.home-sky').style.getPropertyValue('--sky-cap')]})()""")
+    check('#3 天空画布还没画时状态栏 / 天空顶取兜底天空色而不是黑', c3[0] == c3[1] and int(c3[0][1:3], 16) > 120 and int(c3[0][5:7], 16) > 180, c3)
+    # —— #12 不再直接回读天空画布 ——
+    ev("""(()=>{window.__gid=[];const o=CanvasRenderingContext2D.prototype.getImageData;CanvasRenderingContext2D.prototype.getImageData=function(){window.__gid.push(this.canvas.className||'(无类名)');return o.apply(this,arguments)}})()""")
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(1700)
+    ev("syncStatusColor();window.__r0=window.__skyReads||0;scrollTo(0,40);"); p.wait_for_timeout(200); ev("scrollTo(0,0)"); p.wait_for_timeout(200)
+    gid = ev("window.__gid")
+    check('#12 天空画布本身从不 getImageData（拷到 1 行小画布上读）', 'sky-canvas' not in gid and ev("(window.__skyReads||0)") > 0, gid[:6])
+    # —— #4 快选清掉校验红字 ——
+    for mod, fld in (('water', 'ml'), ('temp', 'value')):
+        go(mod); p.click('[data-new]'); p.wait_for_timeout(400)
+        p.click('#modalRoot .rs-savebar .rs-save'); p.wait_for_timeout(150)
+        bad = ev(f"[document.querySelector('#sk_{fld}').getAttribute('aria-invalid'), !!document.querySelector('#modalRoot .field-error')]")
+        ev("document.querySelector('#modalRoot [data-q]').click()"); p.wait_for_timeout(150)
+        ok = ev(f"[document.querySelector('#sk_{fld}').value, document.querySelector('#sk_{fld}').getAttribute('aria-invalid'), !!document.querySelector('#modalRoot .field-error'), document.querySelector('#sk_{fld}').classList.contains('is-invalid')]")
+        check(f'#4 {mod}：先报错，点快选后红字 / aria-invalid / .is-invalid 都清掉', bad == ['true', True] and ok[0] != '' and ok[1:] == [None, False, False], [bad, ok])
+        ev("Sheet.closeAll()"); p.wait_for_timeout(100)
+    # —— #5 撤销提示不跨页 ——
+    go('water'); ev("document.querySelector('[data-del]').click()"); p.wait_for_timeout(500)
+    check('#5 删除后有撤销提示', '撤销' in ev("document.getElementById('toastRoot').textContent"))
+    go('temp'); p.wait_for_timeout(200)
+    check('#5 换页后别页的「撤销」收起', ev("[...document.querySelectorAll('#toastRoot .toast:not(.leaving)')].filter(t=>t.querySelector('.toast-action')).length") == 0)
+    ev("Util.toast('刚弹的','ok',{label:'撤销',onClick:function(){}});App.showTab('water',{noVT:true})"); p.wait_for_timeout(100)
+    check('#5 同一次操作里刚弹出的提示（<400ms）不收', '刚弹的' in ev("document.getElementById('toastRoot').textContent"))
+    ev("document.querySelectorAll('#toastRoot .toast').forEach(t=>t._toastDismiss&&t._toastDismiss())"); p.wait_for_timeout(250)
+    # —— #6 提示在主按钮 / 保存条之上 ——
+    go('water'); p.click('[data-new]'); p.wait_for_timeout(400)
+    ev("document.querySelectorAll('#modalRoot [data-q]')[1].click()"); p.click('#modalRoot .rs-savebar .rs-save'); p.wait_for_timeout(450)
+    ov = ev("(()=>{const t=document.querySelector('#toastRoot .toast:not(.leaving)'),m=document.querySelector('.mod-cta > *');const a=t.getBoundingClientRect(),q=m.getBoundingClientRect();return [Math.round(a.bottom),Math.round(q.top)]})()")
+    check('#6 保存后的提示在「+ 记录」主按钮上面', ov[0] <= ov[1], ov)
+    p.click('[data-open]'); p.wait_for_timeout(600)
+    ov2 = ev("(()=>{const t=document.querySelector('#toastRoot .toast:not(.leaving)'),s=[...document.querySelectorAll('#modalRoot .rs-save')].pop();const a=t.getBoundingClientRect(),q=s.getBoundingClientRect();return [Math.round(a.bottom),Math.round(q.top)]})()")
+    check('#6 随后打开编辑面板，提示在「保存修改」上面', ov2[0] <= ov2[1], ov2)
+    ev("Sheet.closeAll();document.querySelectorAll('#toastRoot .toast').forEach(t=>t._toastDismiss&&t._toastDismiss())"); p.wait_for_timeout(250)
+    # —— #7 睡眠摘要 ——
+    ev("(()=>{const d=Storage.get();d.sleeps.push({id:'s272',start:__L(Date.now()-5400e3),end:__L(Date.now()-1800e3),pausedMs:0,wakings:0});Storage.save()})()")
+    go('sleep')
+    sm = ev("document.querySelector('.mod-sum p').textContent")
+    check('#7 睡眠摘要：今天的结束时间写「今天 HH:MM」，不写年月日', '结束于 今天 ' in sm and '年' not in sm, sm)
+    check('#7 fmtDayHM：昨天 / 跨年', ev("Util.fmtDayHM(new Date(Date.now()-86400e3)).indexOf('昨天 ')===0 && /^2020年3月1日 08:05$/.test(Util.fmtDayHM(new Date(2020,2,1,8,5)))"))
+    # —— #8 全站 ml ——
+    bad8 = []
+    for t in ('home', 'water', 'feeding', 'bottle', 'breast', 'pump', 'solid'):
+        go(t)
+        if ev("/\\dmL|\\d mL|>mL</.test(document.getElementById('view').innerHTML) || /mL/.test(document.querySelector('.mod-head')?document.querySelector('.mod-head').textContent:'')"): bad8.append(t)
+    go('bottle'); ev("Modules.bottle._new(false)"); p.wait_for_timeout(300)
+    if 'mL' in ev("document.getElementById('modalRoot').textContent"): bad8.append('bottle-sheet')
+    ev("Sheet.closeAll()")
+    check('#8 页面与瓶喂面板都写小写 ml', not bad8, bad8)
+    # —— #9 「上次」写法 ——
+    fa = ev("[Util.fmtAgo(new Date(Date.now()-59*60000)), Util.fmtAgo(new Date(Date.now()-2*3600e3))]")
+    check('#9 fmtAgo：今天之内一律「N 分钟前 / N 小时前」', fa[0] == '59 分钟前' and fa[1] == '2 小时前', fa)
+    f7 = ev("new Date().getHours()>=8 ? Util.fmtAgo(new Date(Date.now()-7*3600e3)) : '7 小时前'")
+    check('#9 今天 7 小时前也写「7 小时前」（原来跳成「今天 HH:MM」）', f7 == '7 小时前', f7)
+    hb = []
+    for t in ('breast', 'bottle'):
+        go(t); hb.append(ev("document.querySelector('.mod-head').textContent"))
+    import re as _re
+    check('#9 亲喂与瓶喂页头「上次」同一写法', all(_re.search(r'上次 (刚刚|\d+ 分钟前|\d+ 小时前|昨天 \d\d:\d\d|\d+ 天前|\d+月\d+日)', x) for x in hb), hb)
+    # —— #10 尿布面板小标题间距 ——
+    go('diaper'); p.click('[data-new]'); p.wait_for_timeout(500)
+    gaps = ev("[...document.querySelectorAll('#modalRoot p.rs-lbl')].map(l=>{const pr=l.previousElementSibling;return pr?Math.round(l.getBoundingClientRect().top-pr.getBoundingClientRect().bottom):99})")
+    check('#10 尿布面板「类型 / 量 / 屁屁情况」上方都有 ≥12px 间距', gaps and min(gaps) >= 12, gaps)
+    ev("Sheet.closeAll()"); p.wait_for_timeout(100)
+    # —— #11 键盘：备注框滚到保存条上面 ——
+    go('water'); p.click('[data-new]'); p.wait_for_timeout(500)
+    p.focus('#skNote'); p.set_viewport_size({'width': 390, 'height': 480}); p.wait_for_timeout(700)
+    kb = ev("(()=>{const r=document.querySelector('#skNote').getBoundingClientRect(),s=[...document.querySelectorAll('#modalRoot .rs-save')].pop().getBoundingClientRect();return [Math.round(r.top),Math.round(r.bottom),Math.round(s.top),innerHeight]})()")
+    check('#11 视口变矮（键盘）时备注框整块露出、在保存按钮上面', kb[0] >= 0 and kb[1] <= kb[2] - 6, kb)
+    p.set_viewport_size({'width': 390, 'height': 844}); ev("Sheet.closeAll()"); p.wait_for_timeout(200)
+    # —— 全站记录面板保存吸底 ——
+    sheets = {
+        '喝水': "App.showTab('water',{noVT:true});document.querySelector('[data-new]').click()",
+        '体温（编辑）': "App.showTab('temp',{noVT:true});document.querySelector('[data-open]').click()",
+        '洗澡': "App.showTab('bath',{noVT:true});document.querySelector('[data-new]').click()",
+        '亲喂补记': "App.showTab('breast',{noVT:true});Modules.breast._manual()",
+        '瓶喂': "App.showTab('bottle',{noVT:true});Modules.bottle._new(false)",
+        '睡眠补记': "App.showTab('sleep',{noVT:true});document.querySelector('.ft-split-add').click()",
+        '泵奶补记': "App.showTab('pump',{noVT:true});document.querySelector('.ft-split-add').click()",
+        '喂养表单': "App.showTab('feeding',{noVT:true});(()=>{const m=document.querySelector('[data-fd-mask]');m.hidden=false;Sheet.attach(m)})()",
+        '辅食': "App.showTab('solid',{noVT:true});document.querySelector('[data-new], .mc-main').click()",
+        '亲喂结束保存': "App.showTab('breast',{noVT:true});Modules.breast._start();setTimeout(()=>document.querySelector('.ftf [data-f=stop]').click(),150)",
+        '泵奶结束保存': "App.showTab('pump',{noVT:true});Storage.get().pumpTimer={start:new Date().toISOString(),L:true,R:true,segs:[]};Storage.save();Modules.pump._openFull();setTimeout(()=>document.querySelector('.ftf [data-p=stop]').click(),150)",
+        '尿布': "App.showTab('diaper',{noVT:true});document.querySelector('[data-new]').click()",
+    }
+    bad = []
+    for k, js in sheets.items():
+        ev(js); p.wait_for_timeout(650)
+        r = ev("""(()=>{const m=[...document.querySelectorAll('#modalRoot > .modal-mask:not(.sheet-ghost), #view .modal-mask:not([hidden])')].pop(); if(!m) return 'nosheet';
+          const pn=m.querySelector('.is-sheet'); const bar=pn&&pn.querySelector('.rs-savebar'); if(!bar) return 'nobar';
+          const sv=bar.querySelector('button.btn-primary, .ft-save, .rs-save'); const a=sv.getBoundingClientRect(), q=pn.getBoundingClientRect();
+          const del=pn.querySelector('.rs-del'); const last=bar.parentElement.lastElementChild===bar;
+          return [getComputedStyle(bar).position, Math.round(q.bottom-a.bottom), last, del?del.nextElementSibling===bar:null]})()""")
+        ok = isinstance(r, list) and r[0] == 'sticky' and 0 <= r[1] <= 40 and r[2] and r[3] in (None, True)
+        ev("(()=>{const pn=[...document.querySelectorAll('#modalRoot .is-sheet, #view .modal-mask:not([hidden]) .is-sheet')].pop(); if(pn) pn.scrollTop=1e5})()"); p.wait_for_timeout(120)
+        end = ev("(()=>{const pn=[...document.querySelectorAll('#modalRoot .is-sheet, #view .modal-mask:not([hidden]) .is-sheet')].pop();if(!pn)return false;const bar=pn.querySelector('.rs-savebar');const pv=bar.previousElementSibling;return !pv||bar.getBoundingClientRect().top>=pv.getBoundingClientRect().bottom-1})()")
+        if not ok or not end: bad.append([k, r, end])
+        ev("Sheet.closeAll();document.querySelectorAll('#view .modal-mask').forEach(m=>m.hidden=true);(()=>{const d=Storage.get();d.feedingTimer=null;d.pumpTimer=null;Storage.save();document.querySelectorAll('.ftf').forEach(e=>e.remove());document.body.classList.remove('ftf-open')})()"); p.wait_for_timeout(120)
+    check('保存吸底：喝水 / 体温编辑 / 洗澡 / 亲喂补记 / 亲喂结束 / 瓶喂 / 睡眠补记 / 泵奶补记 / 泵奶结束 / 喂养表单 / 辅食 / 尿布都吸在面板底，滚到底落回内容后，删除在保存条前', not bad, bad)
+    check('第 272 次无报错', not errs, errs)
+    p.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
-GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_diaper_photos', 'test_family', 'test_r271'),
+# 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
+GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_diaper_photos', 'test_family'),
           ('test_css_rules', 'test_flows', 'test_pump', 'test_diaper_stock', 'test_solid', 'test_diaper_sheet',
-           'test_dash', 'test_home_edit', 'test_format', 'test_r270'))
+           'test_dash', 'test_home_edit', 'test_format'),
+          ('test_r270', 'test_r271', 'test_r272'))
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

@@ -95,7 +95,7 @@
       var x0 = Math.max(0, (Math.max(0, -r.left) - offX) / sc), x1 = Math.min(iw, (Math.min(r.width, (global.innerWidth || r.width) - r.left) - offX) / sc);
       var cv = stImgs._cv || (stImgs._cv = document.createElement('canvas'));
       cv.width = 32; cv.height = 1;
-      var g = cv.getContext('2d');
+      var g = stImgs._g || (stImgs._g = (function () { try { return cv.getContext('2d', { willReadFrequently: true }); } catch (eW) { return cv.getContext('2d'); } })());
       g.clearRect(0, 0, 32, 1);
       g.drawImage(im, x0, y, Math.max(1, x1 - x0), Math.max(1, Math.min(ih - y, 3 / sc)), 0, 0, 32, 1);
       var px = g.getImageData(0, 0, 32, 1).data, rgb = [0, 0, 0];
@@ -173,6 +173,30 @@
   }
   global.__statusOverlay = function () { var l = overlayStack(); return l.map(function (e) { return e.className; }); };
 
+  /* 天空画布第 y 行拷到常驻 1 行小画布再读（见 syncStatusColor 第 272 次说明） */
+  var skyRowCv = null, skyRowCtx = null;
+  function skyRow(cv, y) {
+    if (!skyRowCv) {
+      skyRowCv = document.createElement('canvas');
+      try { skyRowCtx = skyRowCv.getContext('2d', { willReadFrequently: true }); } catch (eW) { skyRowCtx = null; }
+      if (!skyRowCtx) skyRowCtx = skyRowCv.getContext('2d');
+    }
+    if (skyRowCv.width !== cv.width) skyRowCv.width = cv.width;
+    if (skyRowCv.height !== 1) skyRowCv.height = 1;
+    skyRowCtx.clearRect(0, 0, skyRowCv.width, 1);
+    skyRowCtx.drawImage(cv, 0, y, cv.width, 1, 0, 0, cv.width, 1);
+    global.__skyReads = (global.__skyReads || 0) + 1;
+    return skyRowCtx.getImageData(0, 0, skyRowCv.width, 1).data;
+  }
+  /* .home-sky 的兜底渐变首个色标（画布还透明时露出来的就是它） */
+  function skyFallback(sky) {
+    var cs = global.getComputedStyle(sky);
+    var all = (cs.backgroundImage || '').match(/rgba?\([^)]*\)/g);
+    var c0 = all && parseRgba(all[0]);
+    if (c0 && c0[3] > 0) return c0;
+    return document.body.classList.contains('dark') ? [41, 43, 65, 1] : [167, 189, 236, 1];
+  }
+
   function syncStatusColor() {
     try {
       var b = document.body; if (!b) return;
@@ -187,10 +211,21 @@
       if (cv && r.height && r.top <= 0 && r.bottom > 80 && cv.width && cv.height) {
         /* 直接读天空画布上「视口第 0 行」那一整行像素取平均（Chromium 对拍：与截图误差 ≤1） */
         var y = Math.max(0, Math.min(cv.height - 1, Math.round(-r.top / r.height * cv.height)));
-        var px = cv.getContext('2d').getImageData(0, y, cv.width, 1).data;
+        /* 第 272 次（审计 #12：首页每 1.5 秒对天空画布 getImageData，Chromium 报 willReadFrequently 警告，老 iPhone 白耗电）：
+           不再直接回读正在动画的天空画布（给它加 willReadFrequently 会让整块天空退回 CPU 绘制），
+           而是把那一行拷到一张常驻的 1 行小画布（willReadFrequently）上再读；首页进来前 8 秒照旧 1.5 秒一取（天空渐入），
+           之后定时器只每 6 秒取一次（滚动 / 切页 / 换主题仍立即取）。 */
+        var pxRow = skyRow(cv, y);
+        /* 第 272 次（审计 #3：冷启动 1.5–2.6 秒状态栏和天空顶是纯黑）：画布还没画（或刚画、像素透明）时
+           getImageData 是全 0，原来均值不看 alpha 就成了 #000。现在按 alpha 把画布像素叠在 .home-sky 自己的
+           兜底渐变首色（浅 #A7BDEC / 深 #292B41）上：全透明 = 兜底色，画好后 = 画布色。 */
+        var fb = skyFallback(sky);
         var rgb = [0, 0, 0], n = 0;
-        for (var i = 0; i < px.length; i += 4) { rgb[0] += px[i]; rgb[1] += px[i + 1]; rgb[2] += px[i + 2]; n++; }
-        rgb = rgb.map(function (v) { return v / n; });
+        for (var i = 0; i < pxRow.length; i += 4) {
+          var al = pxRow[i + 3] / 255;
+          rgb[0] += pxRow[i] * al + fb[0] * (1 - al); rgb[1] += pxRow[i + 1] * al + fb[1] * (1 - al); rgb[2] += pxRow[i + 2] * al + fb[2] * (1 - al); n++;
+        }
+        rgb = n ? rgb.map(function (v) { return v / n; }) : fb.slice(0, 3);
         if (b.classList.contains('dark')) {
           var a = 0.40 * (global.__skyDim == null ? 1 : global.__skyDim), k = [34, 30, 26];
           rgb = rgb.map(function (v, j) { return v * (1 - a) + k[j] * a; });
@@ -226,8 +261,13 @@
   }
   global.syncStatusColor = syncStatusColor;
   /* 天空画布是活的（渐入、随时刻换色），首页时每 1.5s 再取一次；写入有缓存，没变不动 DOM */
+  var homeSince = 0, skyTick = 0;
   setInterval(function () {
-    if (document.hidden || !document.body || !document.body.classList.contains('in-home')) return;
+    if (document.hidden || !document.body || !document.body.classList.contains('in-home')) { homeSince = 0; return; }
+    var now = Date.now();
+    if (!homeSince) homeSince = now;
+    /* 第 272 次：进首页前 8 秒每 1.5 秒取一次（天空渐入、画布刚画好），之后每 6 秒一次 */
+    if (now - homeSince > 8000 && (++skyTick % 4)) return;
     syncStatusColor();
   }, 1500);
   var statusRaf = 0;
@@ -478,6 +518,11 @@
     /* 第 271 次：离开某页时给它一个收尾的机会（白噪音播放页挂在 body 上，要跟着收起） */
     if (prevId && prevId !== id && Modules[prevId] && typeof Modules[prevId].leave === 'function') {
       try { Modules[prevId].leave(id); } catch (e) { /* 收尾异常不影响切页 */ }
+    }
+    /* 第 272 次（审计 #2 / #5）：真正换页时，上一页的面板一起关掉，带「撤销」的提示收起（撤销只对它那一页的记录） */
+    if (prevId !== id && !(opts && opts.silent)) {
+      if (global.Sheet && Sheet.closeAll) { try { Sheet.closeAll(); } catch (eS) {} }
+      if (Util.toastLeave) Util.toastLeave(id);
     }
     current = id;
     buildTabbar();
@@ -1944,6 +1989,7 @@
 
   function onSwipeStart(e) {
     if (historyDepth <= 0) return;                /* 没有上一层，不响应 */
+    if (global.Sheet && Sheet.isOpen && Sheet.isOpen()) return; /* 第 272 次：面板开着时左缘拖动交给面板（下拉关闭），不拖底下的页 */
     if (swipeActive) return;
     var t = e.touches && e.touches[0];
     if (!t) return;
@@ -2063,6 +2109,12 @@
         if (st && st.baoma === 'guard') { ignorePop++; try { global.history.back(); } catch (eB) { ignorePop = 0; } return; }
         /* 旧版本留下的前进记录：在首页、没有上一层时还收到模块记录 = 被「前进」了，静默退回 */
         if (st && st.baoma === 1 && current === 'home' && historyDepth <= 0 && !subExit) { ignorePop++; try { global.history.back(); } catch (eB2) { ignorePop = 0; } return; }
+        /* 第 272 次（审计 #2）：面板开着时返回 = 先关面板、留在原页。这次 back 已经退掉一条记录，补推回来，层级不变 */
+        if ((subExit || current !== 'home') && global.Sheet && Sheet.isOpen && Sheet.isOpen()) {
+          Sheet.closeTop();
+          try { global.history.pushState({ baoma: 1, id: current }, ''); } catch (eP) {}
+          return;
+        }
         if (subExit) { historyDepth = Math.max(0, historyDepth - 1); exitSubNow(); dropForward(); return; }
         if (current !== 'home') { historyDepth = Math.max(0, historyDepth - 1); showTab('home'); dropForward(); }
       });

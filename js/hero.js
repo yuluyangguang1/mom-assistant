@@ -47,7 +47,7 @@
       var r = lastOf(d.feedings, 'start');
       if (!r) return { status: '还没有喂养记录，点底部 + 记第一笔' };
       var gap = Date.now() - new Date(r.start).getTime();
-      var amt = r.amount != null ? ' · ' + r.amount + ' mL' : '';
+      var amt = r.amount != null ? ' · ' + r.amount + ' ml' : '';
       return { status: '上次 ' + Util.fmtAgo(r.start) + amt, state: gap > 3 * 3600000 ? 'nudge' : '' };
     },
     sleep: function (d) {
@@ -68,7 +68,7 @@
     bottle: function (d) {
       if (d.bottleTimer && d.bottleTimer.start) return { status: '正在瓶喂', state: 'live' };
       var r = lastOf((d.feedings || []).filter(function (x) { return x && (x.type === 'bottle' || x.type === 'formula'); }), 'start');
-      return { status: r ? '上次 ' + Util.fmtAgo(r.start) + (r.amount ? ' · ' + r.amount + ' mL' : '') : '还没有瓶喂记录' };
+      return { status: r ? '上次 ' + Util.fmtAgo(r.start) + (r.amount ? ' · ' + r.amount + ' ml' : '') : '还没有瓶喂记录' };
     },
     diaper: function (d) {
       var n = todayCount(d.diapers, 'time');
@@ -121,7 +121,7 @@
     },
     water: function (d) {
       var ml = todaySum(d.waters, 'time', 'ml');
-      return ml ? { status: '今天喝了 ' + ml + ' mL' } : timed(d.waters, '还没有饮水记录');
+      return ml ? { status: '今天喝了 ' + ml + ' ml' } : timed(d.waters, '还没有饮水记录');
     },
     jaundice: function (d) {
       var r = lastOf(d.jaundices, 'time');
@@ -207,7 +207,7 @@
       var t = d.pumpTimer;
       if (t && t.start) return { status: (t.paused || !(t.L || t.R)) ? '泵奶已暂停' : '正在泵奶', state: 'live' };
       var r = lastOf((d.feedings || []).filter(function (x) { return x && x.type === 'pump'; }), 'start');
-      return { status: r ? '上次 ' + Util.fmtAgo(r.start) + (r.amount ? ' · ' + r.amount + ' mL' : '') : '还没有泵奶记录' };
+      return { status: r ? '上次 ' + Util.fmtAgo(r.start) + (r.amount ? ' · ' + r.amount + ' ml' : '') : '还没有泵奶记录' };
     },
     /* 第 269 次：辅食 */
     solid: function (d) {
