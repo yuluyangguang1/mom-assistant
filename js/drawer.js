@@ -21,6 +21,16 @@
  * 在侧拉页上向左拉或点左上「返回」关闭，松手按位置 + 速度决定打开还是回弹。
  * 顶部放搜索框（点了直接进搜索页并弹出键盘）。打开时登记一条 history，系统返回 / popstate 先关它。
  * 减少动态效果时不平移，直接淡入淡出。
+ *
+ * 第 279 次（真机录屏：侧拉页上开着「宝宝资料」面板时划走侧拉页 → 面板跟着侧拉页被拖成一张圆角卡片、
+ * 底下露出一张「侧拉页残留一条 + 首页右移压暗」的半开画面；再关侧拉页后面板孤零零留在首页上）：
+ *   ① 那张跟着走的圆角卡片和底下的半开画面都是 iOS 系统返回手势的快照（WebKit 在 pushState 那一刻给当前画面拍照，
+ *      拖开侧拉页时是松手才登记 history，拍下的正是拖到一半的样子）。改成拖拽一判定就先登记 history、再动画面，
+ *      快照永远是没推开的首页；盖在侧拉页上的面板登记自己那条（App._pushOverlay），系统返回只退一层，
+ *      不再「关面板再补推侧拉页记录」（补推时拍的是面板还在的画面）。
+ *   ② 侧拉页上盖着面板 / 照片大图时，侧拉页自己的左拉不接管（面板下拉照旧）。
+ *   ③ 侧拉页以任何方式关闭（左拉、返回、点底页、Esc、切页）都连同盖在它上面的面板、大图一起关，history 一次退干净。
+ *   ④ 拖拽兜底：touchcancel / 系统返回 / 切后台 / 1.2 秒没有新的 touchmove（系统手势吞掉了 touchend）都按当前位置落到全开或全关。
  */
 (function (global) {
   'use strict';
@@ -28,6 +38,35 @@
   var root = null, panel = null, mask = null;
   var isOpen = false, locked = false, ly = 0, unlockT = 0;
   function appEl() { return document.getElementById('app'); }
+  /* 第 279 次：盖在侧拉页上面的层（面板 / 确认框 / 照片大图） */
+  function modalMasks() {
+    var mr = document.getElementById('modalRoot'); if (!mr) return [];
+    return Array.prototype.filter.call(mr.children, function (m) { return !m.classList.contains('sheet-leaving') && !m.classList.contains('sheet-ghost'); });
+  }
+  function overlayOpen() { return modalMasks().length > 0 || !!document.querySelector('body > .ph-view'); }
+  var ovRel = null; /* 盖在侧拉页上的面板登记的那条 history 的 release */
+  function closeChildren() {
+    ovRel = null;
+    Array.prototype.forEach.call(document.querySelectorAll('body > .ph-view'), function (v) {
+      try { if (v._phClose) v._phClose(true); } catch (e) {}
+      if (v.parentNode) v.parentNode.removeChild(v);
+    });
+    var n = 0;
+    while (n++ < 6 && modalMasks().length) {
+      if (global.Sheet && Sheet.closeTop && Sheet.closeTop()) continue;
+      var mr = document.getElementById('modalRoot'); if (mr) mr.innerHTML = ''; break;
+    }
+  }
+  function watchOverlays() {
+    var mr = document.getElementById('modalRoot');
+    if (!mr || typeof MutationObserver === 'undefined') return;
+    new MutationObserver(function () {
+      var has = modalMasks().length > 0;
+      if (isOpen && has && !ovRel && global.App && App._pushOverlay) {
+        ovRel = App._pushOverlay(function () { ovRel = null; closeChildren(); });
+      } else if (!has && ovRel) { var r = ovRel; ovRel = null; r(); }
+    }).observe(mr, { childList: true });
+  }
   function lock() {
     if (unlockT) { clearTimeout(unlockT); unlockT = 0; }
     if (locked) return;
@@ -125,6 +164,7 @@
     root.appendChild(panel);
     (appEl() || document.body).appendChild(mask);
     document.body.appendChild(root);
+    watchOverlays();
     mask.addEventListener('click', function () { close(); });
     root.addEventListener('click', function (e) {
       var t = e.target && e.target.closest ? e.target.closest('[data-sd-go],[data-sd]') : null;
@@ -215,6 +255,7 @@
      opts.fromPop：系统返回已经退掉了那条记录 */
   function close(opts) {
     if (!root) return;
+    if (opts && opts.keepHist && isOpen) { ly = 0; document.documentElement.style.setProperty('--sd-ly', '0px'); } /* 切页：新页从顶部开始 */
     var was = isOpen;
     isOpen = false;
     setProgress(0, false);
@@ -223,7 +264,10 @@
     root.setAttribute('aria-hidden', 'true');
     try { root.inert = true; } catch (e) {}
     var app = appEl(); if (app) { try { app.inert = false; } catch (e) {} }
-    if (was && !(opts && (opts.keepHist || opts.fromPop)) && global.App && App._drawerHist) App._drawerHist.closed();
+    /* 第 279 次：拖开途中就登记了 history（was 还是 false），所以只要不是切页 / 系统返回，有记录就退；
+       closed() 连同盖在上面的面板记录一次退干净，再关掉这些层 */
+    if (!(opts && (opts.keepHist || opts.fromPop)) && global.App && App._drawerHist) App._drawerHist.closed();
+    closeChildren();
     if (was && opener && opener.isConnected && !(opts && opts.keepHist)) { try { opener.focus({ preventScroll: true }); } catch (e) {} }
     if (!(opts && opts.keepHist)) opener = null;
     if (unlockT) clearTimeout(unlockT);
@@ -248,6 +292,7 @@
       if (document.body.classList.contains('qd-open') || document.body.classList.contains('ob-open') || document.body.classList.contains('ftf-open') || document.body.classList.contains('ps-pull') || document.documentElement.classList.contains('wp-lock')) return false; /* 第 271 次：白噪音播放页开着时不拉抽屉 */
       var mr = document.getElementById('modalRoot');
       if (mr && mr.children.length) return false;
+      if (overlayOpen()) return false;
       return !(App.inSub && App.inSub());
     }
     /* 第 246 次（真机录屏）：iPhone Safari 里从屏幕最左边缘右滑会被浏览器拿去做「后退」，
@@ -264,11 +309,22 @@
       return false;
     }
     var panAny = false;
+    /* 第 279 次：上一次拖拽没收到 touchend / touchcancel（被系统手势吞掉）就又来了新的一次触摸——
+       先把上一次按当前位置落定，否则 mode 被清掉后内联位移、sd-drag 永远留着，停在半开（真机录屏里的那一条） */
+    function settleStray() {
+      if (mode && decided) { vel = 0; end(); return; }
+      mode = null;
+      if (document.body.classList.contains('sd-drag')) {
+        document.body.classList.remove('sd-drag');
+        if (prog >= 0.5) open(); else { setProgress(0, false); close(); }
+      }
+    }
     document.addEventListener('touchstart', function (e) {
+      settleStray();
       if (!e.touches || e.touches.length !== 1) return;
       var t = e.touches[0];
       mode = null; decided = false; panAny = false; vel = 0;
-      if (isOpen) mode = 'close';
+      if (isOpen) { if (!overlayOpen()) mode = 'close'; } /* 第 279 次：上面盖着面板 / 大图时不拖侧拉页 */
       else if (canEdgeOpen()) {
         var tg = e.target;
         if (t.clientX <= 24) { mode = 'open'; build(); }
@@ -285,7 +341,11 @@
         if (Math.abs(dy) > Math.abs(dx) || (mode === 'close' && dx > 0)) { mode = null; return; }
         if (mode === 'open' && (dx < 0 || (panAny && Math.abs(dx) < Math.abs(dy) * 1.4))) { mode = null; return; }
         decided = true;
-        if (mode === 'open') { render(); lock(); syncW(); }
+        if (mode === 'open') {
+          /* 第 279 次：先登记 history 再动画面——WebKit 在 pushState 时给当前画面拍系统返回用的快照 */
+          if (global.App && App._drawerHist) App._drawerHist.open();
+          render(); lock(); syncW();
+        }
         else { var app0 = appEl(); if (app0) { try { app0.inert = false; } catch (eI) {} } }
       }
       var now = Date.now(), dtm = Math.max(1, now - lt);
@@ -295,9 +355,15 @@
       if (panAny) dx -= 8; /* 起步判定吃掉的那 8px 不算，免得一判定就跳一下 */
       lastP = mode === 'open' ? dx / w : 1 + dx / w;
       setProgress(lastP, true);
+      arm();
       if (e.cancelable) e.preventDefault();
     }, { passive: false });
+    /* 第 279 次：系统手势（返回 / 控制中心 / 切 App）可能把 touchend、touchcancel 都吞掉，
+       1.2 秒没有新的 touchmove 就按当前位置落定，绝不停在半开 */
+    var dogT = 0;
+    function arm() { if (dogT) clearTimeout(dogT); dogT = setTimeout(function () { dogT = 0; settleStray(); }, 1200); }
     function end() {
+      if (dogT) { clearTimeout(dogT); dogT = 0; }
       if (!mode) return;
       var m = mode; mode = null;
       if (!decided) return;
@@ -314,11 +380,17 @@
       }
     }
     document.addEventListener('touchend', end, { passive: true });
-    document.addEventListener('touchcancel', end, { passive: true });
+    document.addEventListener('touchcancel', function () { vel = 0; end(); }, { passive: true }); /* 第 279 次：被打断不算甩，只看位置 */
+    settle = settleStray;
+    global.addEventListener('popstate', function () { settle(); }, true);
+    global.addEventListener('blur', function () { settle(); });
+    global.addEventListener('pagehide', function () { settle(); });
+    document.addEventListener('visibilitychange', function () { if (document.hidden) settle(); });
   }
+  var settle = function () {};
 
   bindDrag(); /* 边缘拉出要在抽屉第一次建出来之前就能用 */
-  global.Drawer = { open: open, close: close, isOpen: function () { return isOpen; }, _render: render,
+  global.Drawer = { open: open, close: close, isOpen: function () { return isOpen; }, _render: render, _settle: function () { settle(); },
     /* 第 276 次：0 = 收起，1 = 全开（拖动中是实时进度）；状态栏取色用 */
     progress: function () { return document.body.classList.contains('sd-lock') ? (document.body.classList.contains('sd-drag') ? prog : (isOpen ? 1 : 0)) : 0; } };
 })(window);

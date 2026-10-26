@@ -1374,7 +1374,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v242（第 278 次升）', "var CACHE = 'baoma-static-v242';" in sw)
+    check('#275 SW 版本 v243（第 279 次升）', "var CACHE = 'baoma-static-v243';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -2109,9 +2109,155 @@ def test_r278(b):
     check('第 278 次无报错', not errs, errs)
     ctx.close()
 
+# 第 279 次：TOUCH_JS 的扩展版——end 可取 'cancel'（touchcancel）/ 'none'（不松手）；WebKit 没有 Touch 构造器时退回普通 Event
+TOUCH2_JS = r"""([x0,y0,x1,y1,end,steps,ms])=>new Promise(res=>{const t=document.elementFromPoint(x0,y0)||document.body;
+ const mk=(x,y)=>{try{return new Touch({identifier:1,target:t,clientX:x,clientY:y,pageX:x,pageY:y+scrollY})}catch(_){return {identifier:1,target:t,clientX:x,clientY:y,pageX:x,pageY:y+scrollY}}};
+ const fire=(ty,x,y)=>{const tt=(ty==='touchend'||ty==='touchcancel')?[]:[mk(x,y)];let e;try{e=new TouchEvent(ty,{bubbles:true,cancelable:true,touches:tt,targetTouches:tt,changedTouches:[mk(x,y)]})}catch(_){e=new Event(ty,{bubbles:true,cancelable:true});Object.defineProperty(e,'touches',{value:tt});Object.defineProperty(e,'changedTouches',{value:[mk(x,y)]})}t.dispatchEvent(e);return e};
+ if(!window.__t2nostart)fire('touchstart',x0,y0);window.__t2nostart=false;const n=Math.max(1,steps);let i=0;
+ const step=()=>{i++;fire('touchmove',x0+(x1-x0)*i/n,y0+(y1-y0)*i/n);if(i<n)setTimeout(step,ms);else{if(end==='cancel')setTimeout(()=>{fire('touchcancel',x1,y1);res(1)},0);else if(end==='none')res(1);else setTimeout(()=>{fire('touchend',x1,y1);res(1)},end===2?150:0)}};
+ setTimeout(step,ms)})"""
+SD_ST = """(()=>{const r=document.getElementById('sideDrawer'),a=document.getElementById('app'),m=document.getElementById('sdMask');
+ const mk=[...document.querySelectorAll('#modalRoot > .modal-mask')].filter(x=>!x.classList.contains('sheet-leaving')).length;
+ return {open:Drawer.isOpen(),cls:['sd-open','sd-lock','sd-drag'].filter(c=>document.body.classList.contains(c)).join(','),
+  left:r?Math.round(r.getBoundingClientRect().left):null,appX:Math.round(new DOMMatrix(getComputedStyle(a).transform).m41),
+  inl:(r?r.style.transform:'')+'|'+a.style.transform,mask:m?(+getComputedStyle(m).opacity).toFixed(2)+'/'+getComputedStyle(m).visibility:'',sheets:mk,
+  st:JSON.stringify(history.state),tab:App.currentTab(),rad:r?getComputedStyle(r).borderRadius+'/'+getComputedStyle(r).boxShadow:'',
+  inert:a.inert,ph:document.querySelectorAll('body > .ph-view').length}})()"""
+
+
+def test_r279(b):
+    """第 279 次（真机录屏）：侧拉页 + 盖在上面的「宝宝资料」面板——拖拽不接管、一起关、history 不残留、拖拽必定落定、
+    系统返回快照取未推开的首页；其他叠层组合（搜索 / 设置页面板 / 照片大图 / 咿呀岛）。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(1000)
+    ev = p.evaluate
+    drag = lambda *a: ev(TOUCH2_JS, list(a))
+    st = lambda: ev(SD_ST)
+    clean = lambda s: s['cls'] == '' and s['appX'] == 0 and s['inl'] == '|' and s['mask'].startswith('0.00/') and not s['inert'] and s['sheets'] == 0
+
+    def swap():
+        ev("Drawer.open()"); p.wait_for_timeout(550)
+        ev("document.querySelector('#sideDrawer [data-sd=swap]').click()"); p.wait_for_timeout(450)
+    # —— A：面板盖在侧拉页上 ——
+    swap()
+    s = st()
+    check('#279 侧拉页上的切换宝宝面板登记自己的 history（ov），不再靠「关面板再补推侧拉页记录」', s['open'] and s['sheets'] == 1 and s['st'] == '{"baoma":"ov"}', s)
+    drag(330, 200, 60, 204, False, 8, 16); p.wait_for_timeout(40)
+    s = st()
+    check('#279 面板开着时在侧拉页上左拉：侧拉页不跟手（不进入拖拽态）', s['left'] == 0 and 'sd-drag' not in s['cls'], s)
+    drag(60, 204, 59, 204, True, 1, 0); p.wait_for_timeout(700)
+    s = st()
+    check('#279 松手后侧拉页、面板都还开着——不会只关侧拉页、留下孤立面板', s['open'] and s['sheets'] == 1 and s['left'] == 0 and s['appX'] == 109, s)
+    ev("Drawer.close()"); p.wait_for_timeout(900)
+    s = st()
+    check('#279 侧拉页关闭时盖在上面的面板一起关，history 一次退回第一条（go(-2)）', not s['open'] and clean(s) and s['st'] == 'null', s)
+    swap()
+    p.keyboard.press('Escape'); p.wait_for_timeout(500)
+    s = st()
+    check('#279 Esc 第一次只关面板（history 退到侧拉页那条）', s['open'] and s['sheets'] == 0 and s['st'] == '{"baoma":"drawer"}', s)
+    p.keyboard.press('Escape'); p.wait_for_timeout(800)
+    s = st()
+    check('#279 Esc 第二次关侧拉页，首页复位', not s['open'] and clean(s) and s['st'] == 'null', s)
+    swap()
+    ev("document.querySelector('#modalRoot .modal-mask').click()"); p.wait_for_timeout(600)
+    s = st()
+    check('#279 点面板外的遮罩只关面板，侧拉页留着、history 站在侧拉页那条', s['open'] and s['sheets'] == 0 and s['st'] == '{"baoma":"drawer"}', s)
+    ev("Drawer.close()"); p.wait_for_timeout(800)
+    swap()
+    ev("history.back()"); p.wait_for_timeout(700)
+    s1 = st()
+    ev("history.back()"); p.wait_for_timeout(900)
+    s2 = st()
+    check('#279 系统返回两次：先关面板（侧拉页留着），再关侧拉页、首页复位', s1['open'] and s1['sheets'] == 0 and s1['st'] == '{"baoma":"drawer"}' and not s2['open'] and clean(s2) and s2['st'] == 'null', [s1, s2])
+    swap()
+    ev("document.querySelector('#modalRoot #sheetAdd').click()"); p.wait_for_timeout(600)
+    s = st()
+    check('#279 面板里换成宝宝资料表单：还算同一层（一条 ov），侧拉页仍开着', s['open'] and s['sheets'] == 1 and s['st'] == '{"baoma":"ov"}', s)
+    ev("Drawer.close()"); p.wait_for_timeout(900)
+    check('#279 关侧拉页：表单一起关、history 退干净', clean(st()) and st()['st'] == 'null', st())
+    # 面板里「宝宝设置」切到设置页：侧拉页连同面板收起（同步切页 = iOS 上 showTab 不走 View Transition）
+    for sync in (False, True):
+        tag = '（iOS 同步切页）' if sync else '（转场切页）'
+        if sync:
+            ev("document.startViewTransition=undefined")
+        swap()
+        ev("document.querySelector('#sheetManage').click()"); p.wait_for_timeout(1500)
+        s = st()
+        check('#279 面板里「宝宝设置」进设置页：侧拉页、面板一起收起，history 不留侧拉页 / 面板记录' + tag,
+              s['tab'] == 'settings' and not s['open'] and clean(s) and all(k not in s['st'] for k in ('"drawer"', '"ov"', '"guard"')), s)
+        ev("history.back()"); p.wait_for_timeout(700); ev("history.back()"); p.wait_for_timeout(900)
+        s = st()
+        check('#279 接着返回两次回到首页、history 回到第一条' + tag, s['tab'] == 'home' and not s['open'] and s['st'] == 'null' and clean(s), s)
+        if sync:
+            ev("delete document.startViewTransition")
+        if ev("App.currentTab()") != 'home':
+            ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(500)
+    # —— B：拖拽必定落定 ——
+    drag(6, 420, 6 + 150, 424, 'cancel', 8, 16); p.wait_for_timeout(900)
+    s = st()
+    check('#279 拉开途中 touchcancel：按位置落到全关（38%），无内联位移、history 退干净', not s['open'] and clean(s) and s['st'] == 'null', s)
+    drag(6, 420, 6 + 260, 424, 'cancel', 8, 16); p.wait_for_timeout(900)
+    s = st()
+    check('#279 拉过半时 touchcancel：落到全开', s['open'] and s['left'] == 0 and 'sd-drag' not in s['cls'] and s['inl'] == '|' and s['st'] == '{"baoma":"drawer"}', s)
+    ev("Drawer.close()"); p.wait_for_timeout(800)
+    drag(6, 420, 6 + 200, 424, 'none', 8, 16); p.wait_for_timeout(30)
+    s = st()
+    check('#279 拉开一判定就先登记 history（WebKit 在 pushState 时拍系统返回快照，拍到的是没推开的首页）', s['st'] == '{"baoma":"drawer"}' and 'sd-drag' in s['cls'], s)
+    p.wait_for_timeout(1500)
+    s = st()
+    check('#279 手指停在半路、touchend 被系统手势吞掉：1.2 秒后兜底落定（不停在半开）', 'sd-drag' not in s['cls'] and s['inl'] == '|' and (s['open'] and abs(s['left']) <= 2 or clean(s)), s)
+    ev("Drawer.isOpen()&&Drawer.close()"); p.wait_for_timeout(800)
+    drag(6, 420, 6 + 120, 424, 'none', 8, 16); p.wait_for_timeout(30)
+    drag(200, 300, 201, 300, True, 1, 0); p.wait_for_timeout(900)
+    s = st()
+    check('#279 上一次拖拽没收到 touchend 就来了新的触摸：先按位置落定（29% → 全关），不留 sd-drag / 内联位移（真机「停在半开」）', clean(s) and not s['open'] and s['st'] == 'null', s)
+    drag(6, 420, 6 + 200, 424, 'none', 8, 16); p.wait_for_timeout(30)
+    ev("history.back()"); p.wait_for_timeout(900)
+    s = st()
+    check('#279 拖拽中途来了系统返回（popstate）：拖拽立即落定并按返回关掉侧拉页', 'sd-drag' not in s['cls'] and not s['open'] and clean(s) and s['st'] == 'null', s)
+    ev("Drawer.isOpen()&&Drawer.close()"); p.wait_for_timeout(900)
+    s = st()
+    check('#279 全部关闭后首页完全复位（无位移、无压暗、无锁、页面可点、history 回到第一条）', clean(s) and s['st'] == 'null', s)
+    drag(6, 420, 6 + 150, 424, 'none', 8, 16); p.wait_for_timeout(40)
+    s = st()
+    check('#279 拖动中侧拉页、底下页都无圆角无投影', s['rad'] == '0px/none' and ev("(()=>{const a=getComputedStyle(document.getElementById('app'));return a.borderTopLeftRadius+'/'+a.boxShadow+'/'+a.clipPath})()") == '0px/none/none', s)
+    drag(156, 424, 120, 424, True, 2, 16); p.wait_for_timeout(900)
+    # 侧拉页开着时左拉关闭：history 退干净
+    ev("Drawer.open()"); p.wait_for_timeout(550)
+    drag(300, 400, 40, 404, True, 6, 16); p.wait_for_timeout(900)
+    s = st()
+    check('#279 侧拉页上左拉关闭：首页复位、history 回到第一条', not s['open'] and clean(s) and s['st'] == 'null', s)
+    # —— C：其他叠层组合 ——
+    ev("Drawer.open()"); p.wait_for_timeout(550)
+    ev("document.querySelector('#sideDrawer .sd-search').click()"); p.wait_for_timeout(700)
+    s = st()
+    check('#279 侧拉页 → 搜索：侧拉页收起、底页复位，history 只剩搜索页一条', s['tab'] == 'search' and not s['open'] and clean(s) and s['st'] == '{"baoma":1,"id":"search"}', s)
+    ev("history.back()"); p.wait_for_timeout(800)
+    s = st()
+    check('#279 搜索页返回：回首页、侧拉页不再冒出来', s['tab'] == 'home' and not s['open'] and s['st'] == 'null' and clean(s), s)
+    ev("Drawer.open()"); p.wait_for_timeout(550)
+    ev("document.querySelector('#sideDrawer [data-sd-go=growth]').click()"); p.wait_for_timeout(700)
+    ev("Modules.growth&&document.querySelector('#view [data-add], #view .fab, #view .btn-primary')&&document.querySelector('#view [data-add], #view .fab, #view .btn-primary').click()"); p.wait_for_timeout(600)
+    s1 = st()
+    ev("history.back()"); p.wait_for_timeout(700)
+    s2 = st()
+    check('#279 侧拉页 → 功能页 → 页内面板：返回先关面板、留在功能页，侧拉页不出现', s1['tab'] == 'growth' and not s1['open'] and (s1['sheets'] == 0 or (s2['sheets'] == 0 and s2['tab'] == 'growth')) and not s2['open'] and s2['cls'] == '', [s1, s2])
+    if ev("App.currentTab()") != 'home':
+        ev("history.back()"); p.wait_for_timeout(800)
+    # 咿呀岛：侧拉页开着 / 拖动中提示出现在屏幕顶部居中，不跟着底页右移
+    ev("Drawer.open()"); p.wait_for_timeout(550)
+    ev("Util.toast('测试提示','ok')"); p.wait_for_timeout(500)
+    tr = ev("(()=>{const t=document.querySelector('#toastRoot .toast, #toastRoot > *');if(!t)return null;const r=t.getBoundingClientRect();return [Math.round(r.left+r.width/2),Math.round(r.top),getComputedStyle(document.getElementById('toastRoot')).zIndex]})()")
+    check('#279 侧拉页开着时的提示岛：屏幕顶部居中（不随底页右移）、盖在侧拉页上', tr is not None and abs(tr[0] - 195) <= 3 and tr[1] < 140, tr)
+    ev("Drawer.close()"); p.wait_for_timeout(800)
+    check('#279 pageerror 为 0', not errs, errs)
+    ctx.close()
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -2127,7 +2273,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r275_boot', 'test_r275_glass'),
           ('test_r276', 'test_flows', 'test_pump'),
           ('test_r277',),
-          ('test_r278',))  # 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r278',),
+          ('test_r279',))  # 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

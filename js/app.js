@@ -546,6 +546,10 @@
        返回=从左收回（模块页回首页），底栏页签互切与平级跳转纯上浮。
        只动 transform+opacity；reduced-motion 下全局禁动画自动降级。 */
     var prevId = current;
+    /* 第 279 次：侧拉页开着时被别的入口切页（例如侧拉页上「宝宝资料」面板里的「宝宝设置」）：侧拉页连同面板一起收起，
+       它登记的 history 在切页完成后一次退掉（进二级页时由 pushHistory 改写复用）。侧拉页自己的入口走 Drawer.navigate，那时已经关了 */
+    var drNav = !(opts && opts.silent) && global.Drawer && Drawer.isOpen && Drawer.isOpen();
+    if (drNav) { try { Drawer.close({ keepHist: true }); } catch (eDN) {} }
     /* 第 182 次：页内二级（设置分组）只在原地重绘（silent）时保留；真正切页就作废，
        那条 history 记录仍在 historyDepth 里，之后返回会按普通规则回首页。 */
     if (!(opts && opts.silent) && subExit) subExit = null;
@@ -564,6 +568,7 @@
     if (!(opts && opts.silent) && !isTopLevel && wasTopLevel) {
       pushHistory(id);
     }
+    if (drNav && global.App._drawerHist) global.App._drawerHist.closed(); /* 第 279 次：没被 pushHistory 复用就退掉 */
     /* 第 271 次：离开某页时给它一个收尾的机会（白噪音播放页挂在 body 上，要跟着收起） */
     if (prevId && prevId !== id && Modules[prevId] && typeof Modules[prevId].leave === 'function') {
       try { Modules[prevId].leave(id); } catch (e) { /* 收尾异常不影响切页 */ }
@@ -2015,13 +2020,19 @@
     if (!global.history || !global.history.pushState) return;
     /* 第 276 次：从侧拉页进二级页时，侧拉页打开时登记的那条 history 直接改写成这一页（同步完成，
        不必先异步 back 再 push —— 那样搜索框点下去就不能在同一次点击里弹出键盘了） */
-    if (drawerEntry) {
-      try { global.history.replaceState({ baoma: 1, id: id }, ''); drawerEntry = false; historyDepth++; return; } catch (eD) { drawerEntry = false; }
-    }
-    try {
-      global.history.pushState({ baoma: 1, id: id }, '');
-      historyDepth++;
-    } catch (e) { /* 极端内核禁pushState：侧滑降级为「只回到首页」 */ }
+    /* 第 279 次：还有静默退回没落地时（例如刚关掉侧拉页上的面板、它那条记录正在退），push / replace 排到它落地之后再做，
+       否则会改写 / 压在马上要被退掉的那条上。
+       侧拉页上还压着面板记录（iOS 上 showTab 同步执行，面板那条还没来得及退）时，改写的是最上面那条，
+       侧拉页那条留在下面成了旧记录——popstate 退到它时按「离开这一页」处理再静默跳过（见下面 baoma==='drawer' 分支） */
+    var reuse = drawerEntry; drawerEntry = false;
+    historyDepth++;
+    var op = function () {
+      try {
+        if (reuse) { if (global.App && App._ovDrop) App._ovDrop(); global.history.replaceState({ baoma: 1, id: id }, ''); }
+        else global.history.pushState({ baoma: 1, id: id }, '');
+      } catch (e) { /* 极端内核禁pushState：侧滑降级为「只回到首页」 */ }
+    };
+    if (global.App && App._histIdle) App._histIdle(op); else op();
   }
 
   /** 退出当前模块：把 historyDepth 减到 0，并回退一条 history。
@@ -2203,10 +2214,13 @@
           if (drawerEntry || global.__yiyaRewinding || rewind > 0) return;
           try { global.history.pushState({ baoma: 'drawer' }, ''); drawerEntry = true; } catch (eD) { drawerEntry = false; }
         },
+        /* 第 279 次：侧拉页上面还压着面板 / 大图登记的记录时，一次 go(-(n+1)) 全部退掉（连发几次 back 会互相打架），再关这些层 */
         closed: function () {
           if (!drawerEntry) return;
+          var above = ovEntries.splice(0);
           drawerEntry = false; drawerPopped = true; ignorePop++;
-          try { global.history.back(); } catch (eD2) { ignorePop = Math.max(0, ignorePop - 1); drawerPopped = false; }
+          try { if (above.length) global.history.go(-(above.length + 1)); else global.history.back(); } catch (eD2) { ignorePop = Math.max(0, ignorePop - 1); drawerPopped = false; }
+          above.reverse().forEach(function (en) { try { en.close(); } catch (eC) {} });
         },
         _entry: function () { return drawerEntry; }
       };
@@ -2225,6 +2239,19 @@
         };
       };
       global.App._ovDepth = function () { return ovEntries.length; };
+      global.App._ovDrop = function () { return ovEntries.splice(0).length; };
+      /* 第 279 次：等静默退回（ignorePop / 启动回卷）全部落地再执行 fn；兜底 700ms */
+      var idleQ = [], idleT = 0;
+      var flushIdle = function () {
+        if (idleT) { clearTimeout(idleT); idleT = 0; }
+        var q = idleQ.splice(0); q.forEach(function (f) { try { f(); } catch (eQ) {} });
+      };
+      global.App._histIdle = function (fn) {
+        if (ignorePop > 0 || rewind > 0) {
+          idleQ.push(fn);
+          if (!idleT) idleT = setTimeout(function () { idleT = 0; flushIdle(); }, 700);
+        } else fn();
+      };
       var dropForward = function () {
         try {
           global.history.pushState({ baoma: 'guard' }, '');
@@ -2264,6 +2291,7 @@
           if (!ignorePop && drawerPopped) { drawerPopped = false; dropForward(); return; }
           if (!ignorePop && ovPopped) { ovPopped = false; dropForward(); return; }
           if (!ignorePop && restoreWait && !global.__yiyaRewinding) restoreWait();
+          if (!ignorePop) flushIdle();
           return;
         }
         var st = ev && ev.state;
@@ -2286,7 +2314,16 @@
         }
         drawerEntry = false;
         /* 侧拉页已经关了却被「前进」到它那条记录上：静默退回 */
-        if (st && st.baoma === 'drawer') { ignorePop++; try { global.history.back(); } catch (eB0) { ignorePop = 0; } return; }
+        if (st && st.baoma === 'drawer') {
+          /* 第 279 次：从侧拉页上的面板直接进了某一页，侧拉页那条旧记录压在这一页下面：先按返回离开这一页，再静默跳过它 */
+          if (subExit || current !== 'home') {
+            historyDepth = Math.max(0, historyDepth - 1);
+            if (subExit) exitSubNow();
+            if (current !== 'home') showTab('home');
+            drawerPopped = true;
+          }
+          ignorePop++; try { global.history.back(); } catch (eB0) { ignorePop = 0; drawerPopped = false; } return;
+        }
         /* 旧版本留下的前进记录：在首页、没有上一层时还收到模块记录 = 被「前进」了，静默退回 */
         if (st && st.baoma === 1 && current === 'home' && historyDepth <= 0 && !subExit) { ignorePop++; try { global.history.back(); } catch (eB2) { ignorePop = 0; } return; }
         /* 第 272 次（审计 #2）：面板开着时返回 = 先关面板、留在原页。这次 back 已经退掉一条记录，补推回来，层级不变 */
