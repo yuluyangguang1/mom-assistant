@@ -170,6 +170,8 @@
         { transform: 'translate(' + r.x + 'px,' + r.y + 'px) scale(1.06,.94)', offset: 0.78 },
         { transform: 'translate(' + r.x + 'px,' + r.y + 'px)' }
       ], { duration: 460, easing: 'cubic-bezier(.3,.7,.3,1)' });
+      /* 第 277 次：水滴是一块折射透镜，滑动拉伸期间逐帧重画（dock-refract.js 跟着 getAnimations 一直画到动画结束） */
+      if (global.DockRefract && DockRefract.kick) DockRefract.kick(480);
     }
     lastRect = r;
   }
@@ -181,11 +183,15 @@
     if (!t || !bar.contains(t)) return;
     bar.classList.add('lg-press');
     if (thumb && t.classList.contains('active')) thumb.classList.add('lg-grow');
+    /* 第 277 次：按下时玻璃轻微放大（CSS scale 1.02），边缘折射同步增强（dock-refract.js 逐帧缓动） */
+    if (global.DockRefract && DockRefract.press) DockRefract.press('dock', true);
   }
   function onUp() {
     if (!bar) return;
+    var was = bar.classList.contains('lg-press');
     bar.classList.remove('lg-press');
     if (thumb) thumb.classList.remove('lg-grow');
+    if (was && global.DockRefract && DockRefract.press) DockRefract.press('dock', false);
   }
 
   function refresh() { place(true); updateRefraction(); }

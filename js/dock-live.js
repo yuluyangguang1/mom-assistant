@@ -9,13 +9,26 @@
  *     其余是「›」进页面结束（结束要填量/确认的，不在胶囊里一键做掉）
  *   - 同时有几项在跑时，最左显示「1/3」，点它轮换
  *   - 已经在那个页面里，就不再重复显示那一项
+ *
+ * 第 277 次：胶囊接进 dock 的同一套折射（DockRefract.surface('live')）：直接画在 dock 那块 WebGL 画布里
+ *   （画布扩到 dock ∪ 胶囊的外接矩形，两块玻璃同一个距离场），不另起上下文、不拷贝。
+ *   折射开着时胶囊自身不再整块 backdrop-filter（否则会把折射边再糊一遍），改由内圈 .dl-glass 负责中间的实时模糊。
+ *   - 出现：从 dock 顶边中间冒出一滴小胶囊（56×26），上升、先长高再拉宽，内容后半程淡入；
+ *     DOM 用 clip-path（圆角 inset）+ translateY 给出当前形状，同一形状逐帧交给 DockRefract.shape，
+ *     前 30%~80% 两块玻璃的距离场 smooth-min 融合（颈部变细后断开）。
+ *   - 消失：克隆一个替身（inert、aria-hidden、不可点）倒放这段动画缩回 dock，原胶囊立刻 hidden（状态与读屏不等动画）。
+ *   - 改尺寸（换一项 / 文字变长变短）：宽度从旧值过渡到新值（FLIP），折射形状跟着逐帧插值。
+ *   - 按下：胶囊轻微放大（scale 1.02）、边缘折射增强（DockRefract.press）。
+ *   减少动态效果 / 左右手竖排：不做形变，只淡入。
  */
 (function (global) {
   'use strict';
   var doc = global.document;
   if (!doc) return;
   var DL = {};
-  var el = null, idx = 0, tick = 0;
+  var el = null, idx = 0, tick = 0, morph = null, ghost = null, SLOW = 1;
+  var reduced = false;
+  try { reduced = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* */ }
 
   function ms(s) { return new Date(s).getTime(); }
   function clock(t) {
@@ -131,6 +144,11 @@
     el.id = 'dockLive'; el.className = 'dock-live';
     el.setAttribute('role', 'region'); el.setAttribute('aria-label', '正在进行');
     doc.body.appendChild(el);
+    /* 按下：轻微放大 + 边缘折射增强；松开回弹 */
+    el.addEventListener('pointerdown', function () { if (reduced) return; el.classList.add('lg-press'); if (global.DockRefract) DockRefract.press('live', true); }, { passive: true });
+    var up = function () { el.classList.remove('lg-press'); if (global.DockRefract) DockRefract.press('live', false); };
+    global.addEventListener('pointerup', up, { passive: true });
+    global.addEventListener('pointercancel', up, { passive: true });
     return el;
   }
 
@@ -138,16 +156,20 @@
     var runs = visibleRuns();
     var box = ensure();
     if (!runs.length) {
+      if (!box.hidden && box.innerHTML) leave(box);
       box.hidden = true; box.innerHTML = ''; box._run = null; box._keys = '';
       doc.body.classList.remove('has-live');
       return;
     }
     if (idx >= runs.length) idx = 0;
     var r = runs[idx];
+    var appearing = box.hidden || !box.innerHTML;
+    var oldW = appearing ? 0 : box.getBoundingClientRect().width;
     box.hidden = false;
     doc.body.classList.add('has-live');
     box.setAttribute('data-accent', r.go);
-    box.className = 'dock-live' + (r.state === 'paused' ? ' is-paused' : '');
+    var keep = ['dl-morph', 'dl-resizing', 'lg-on', 'lg-press', 'dl-fade'].filter(function (c) { return box.classList.contains(c); });
+    box.className = 'dock-live' + (r.state === 'paused' ? ' is-paused' : '') + (keep.length ? ' ' + keep.join(' ') : '');
     var art = '';
     if (r.k === 'whitenoise') {
       var wn = Storage.get().whitenoise || {};
@@ -155,7 +177,8 @@
       var artUrl = global.Modules && Modules.whitenoise && Modules.whitenoise._art ? Modules.whitenoise._art(String(wn.type || 'white').replace(/[^a-z]/g, '')) : '';
       art = '<span class="dl-art" style="background-image:url(' + esc(artUrl) + ')"></span>';
     }
-    var h = (runs.length > 1 ? '<button type="button" class="dl-cycle" aria-label="下一项（共 ' + runs.length + ' 项进行中）"><b>' + (idx + 1) + '</b>/' + runs.length + '</button>' : '')
+    /* 第 277 次：.dl-glass 是折射开着时的「内圈毛玻璃」——外圈一圈由 dock 的 WebGL 画布画折射边（.lg-band），中间仍是实时模糊 */
+    var h = '<i class="dl-glass" aria-hidden="true"></i>' + (runs.length > 1 ? '<button type="button" class="dl-cycle" aria-label="下一项（共 ' + runs.length + ' 项进行中）"><b>' + (idx + 1) + '</b>/' + runs.length + '</button>' : '')
       + '<button type="button" class="dl-main" aria-label="' + esc(r.label) + '，打开">'
       + '<span class="dl-ico">' + (art || ic(r.ico)) + '<i class="dl-pulse" aria-hidden="true"></i></span>'
       + '<span class="dl-txt"><span class="dl-lbl">' + esc(r.label) + '</span><b class="dl-val" role="timer" aria-live="off">' + esc(r.val()) + '</b></span></button>';
@@ -178,6 +201,10 @@
     if (go) go.addEventListener('click', function () { open(r); });
     box._run = r;
     box._keys = runs.map(function (x) { return x.k + (x.state || ''); }).join(',');
+    /* 第 277 次：玻璃面重新挂上（innerHTML 换掉了画布）+ 出现 / 改尺寸动画 */
+    glass(box);
+    if (appearing) appear(box);
+    else if (!morph) resize(box, oldW);
     if (!tick) tick = setInterval(function () {
       if (!el) return;
       var ks = visibleRuns().map(function (x) { return x.k + (x.state || ''); }).join(',');
@@ -186,6 +213,122 @@
       var v = el.querySelector('.dl-val'); if (v) v.textContent = el._run.val();
     }, 1000);
   };
+
+  /* ---------- 第 277 次：玻璃与形变 ---------- */
+  function sideMode() { var c = doc.body.classList; return c.contains('dock-left') || c.contains('dock-right'); }
+  function glass(box) {
+    var DR = global.DockRefract;
+    if (!DR || !DR.isOn || !box || box.hidden) return false;
+    return DR.surface('live', box);
+  }
+  DL.syncGlass = function () { if (el && !el.hidden && el.innerHTML) glass(el); };
+  function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+  function easeOutCubic(x) { return 1 - Math.pow(1 - x, 3); }
+  function easeOutBack(x) { var c = 1.4; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); }
+  function smooth(a, b, x) { var t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); }
+  /* 进度 p（0→1）时胶囊的形状：从 dock 顶边中间的一滴（56×26）长成最终的胶囊 */
+  function frameAt(p, R1, D) {
+    var hP = easeOutBack(clamp01(p / 0.55)), wP = easeOutCubic(clamp01((p - 0.12) / 0.78)), yP = easeOutBack(clamp01(p / 0.8));
+    var w = 56 + (R1.width - 56) * wP, h = 26 + (R1.height - 26) * Math.min(hP, 1.06);
+    h = Math.min(h, R1.height); w = Math.min(w, R1.width);
+    var cy0 = D.top + 4, cy1 = R1.top + R1.height / 2, cy = cy0 + (cy1 - cy0) * yP;
+    /* 从 dock 的中线冒出来（dock 和胶囊不一定同中线：一级页左边还有宝宝圆钮），再横移到胶囊自己的位置 */
+    var cx0 = D.left + D.width / 2, cx1 = R1.left + R1.width / 2, cx = cx0 + (cx1 - cx0) * easeOutCubic(clamp01(p / 0.7));
+    return { w: w, h: h, tx: cx - cx1, ty: cy - cy1, iv: (R1.height - h) / 2, ih: (R1.width - w) / 2, k: 14 * (1 - smooth(0.25, 0.65, p)), fade: clamp01((p - 0.45) / 0.4) };
+  }
+  function applyFrame(node, f, R1, id) {
+    node.style.transform = 'translateX(-50%) translate(' + f.tx.toFixed(2) + 'px,' + f.ty.toFixed(2) + 'px)';
+    var rr = Math.min(f.w, f.h) / 2;
+    node.style.clipPath = node.style.webkitClipPath = 'inset(' + f.iv.toFixed(2) + 'px ' + f.ih.toFixed(2) + 'px round ' + rr.toFixed(2) + 'px)';
+    node.style.setProperty('--dl-fade', f.fade.toFixed(3));
+    /* 内圈毛玻璃跟着当前形状走（外圈留给 WebGL 折射边） */
+    var gi = Math.min(9, f.h * 0.3);
+    node.style.setProperty('--dl-gv', (f.iv + gi).toFixed(2) + 'px'); node.style.setProperty('--dl-gh', (f.ih + gi).toFixed(2) + 'px');
+    var DR = global.DockRefract;
+    if (DR && DR.shape) DR.shape(id, { x: R1.left + f.tx + f.ih, y: R1.top + f.ty + f.iv, w: f.w, h: f.h }, f.k);
+  }
+  function clearFrame(node) {
+    node.style.transform = ''; node.style.clipPath = ''; node.style.webkitClipPath = ''; node.style.removeProperty('--dl-fade');
+    node.style.removeProperty('--dl-gv'); node.style.removeProperty('--dl-gh');
+  }
+  function appear(box) {
+    if (ghost) { endGhost(); }
+    var bar = doc.getElementById('tabbar');
+    box.classList.remove('dl-shown');
+    if (reduced || sideMode() || !bar || !box.animate) { box.classList.add('dl-fade'); setTimeout(function () { box.classList.remove('dl-fade'); }, 400); return; }
+    if (morph) cancelAnimationFrame(morph.raf);
+    /* dl-shown：形变走完后摘掉 dl-morph 时不让 CSS 入场动画 dl-in 再播一遍（会从透明再弹一次，折射边也会因「看不见」被关掉） */
+    box.classList.add('dl-morph', 'dl-shown');
+    var R1 = box.getBoundingClientRect(), D = bar.getBoundingClientRect();
+    if (R1.width < 20 || D.width < 20) { box.classList.remove('dl-morph'); return; }
+    var t0 = 0, dur = 620 * SLOW;
+    morph = { raf: 0 };
+    var step = function (t) {
+      if (!t0) t0 = t;
+      var p = clamp01((t - t0) / dur);
+      applyFrame(box, frameAt(p, R1, D), R1, 'live');
+      if (p < 1 && box.isConnected && !box.hidden) { morph.raf = requestAnimationFrame(step); return; }
+      clearFrame(box); box.classList.remove('dl-morph'); morph = null;
+      if (global.DockRefract && DockRefract.shape) { DockRefract.shape('live', null, 0); if (DockRefract.kick) DockRefract.kick(160); }
+    };
+    applyFrame(box, frameAt(0, R1, D), R1, 'live');
+    morph.raf = requestAnimationFrame(step);
+  }
+  /* 消失：替身倒放缩回 dock；原胶囊已经 hidden */
+  function leave(box) {
+    var bar = doc.getElementById('tabbar');
+    if (morph) { cancelAnimationFrame(morph.raf); morph = null; clearFrame(box); box.classList.remove('dl-morph'); }
+    box.classList.remove('dl-shown');
+    if (reduced || sideMode() || !bar || !box.animate) { if (global.DockRefract && DockRefract.unsurface) DockRefract.unsurface('live'); return; }
+    var R1 = box.getBoundingClientRect(), D = bar.getBoundingClientRect();
+    if (R1.width < 20) { if (global.DockRefract) DockRefract.unsurface('live'); return; }
+    if (ghost) endGhost();
+    var g = box.cloneNode(true);
+    g.removeAttribute('id'); g.setAttribute('aria-hidden', 'true'); g.setAttribute('inert', '');
+    g.classList.add('dl-ghost', 'dl-morph'); g.classList.remove('lg-press');
+    Array.prototype.forEach.call(g.querySelectorAll('[id]'), function (n) { n.removeAttribute('id'); });
+    doc.body.appendChild(g);
+    var hasGlass = global.DockRefract && DockRefract.isOn && DockRefract.isOn() && DockRefract.surface('live', g);
+    var t0 = 0, dur = 380 * SLOW;
+    ghost = { el: g, raf: 0 };
+    var step = function (t) {
+      if (!ghost || ghost.el !== g) return;
+      if (!t0) t0 = t;
+      var q = clamp01((t - t0) / dur), p = 1 - easeOutCubic(q) * 0.999;
+      var f = frameAt(p, R1, D); f.fade = clamp01((p - 0.55) / 0.3);
+      applyFrame(g, f, R1, 'live');
+      if (q < 1) { ghost.raf = requestAnimationFrame(step); return; }
+      endGhost();
+    };
+    ghost.raf = requestAnimationFrame(step);
+    void hasGlass;
+  }
+  function endGhost() {
+    if (!ghost) return;
+    cancelAnimationFrame(ghost.raf);
+    var g = ghost.el; ghost = null;
+    if (g.parentNode) g.parentNode.removeChild(g);
+    var DR = global.DockRefract;
+    if (DR && DR.unsurface) {
+      if (el && !el.hidden && el.innerHTML) { DR.shape && DR.shape('live', null, 0); glass(el); }
+      else DR.unsurface('live');
+    }
+  }
+  /* 改尺寸：宽度从旧值过渡到新值，折射形状逐帧跟着 */
+  function resize(box, oldW) {
+    if (reduced || sideMode() || !oldW) return;
+    var newW = box.getBoundingClientRect().width;
+    if (Math.abs(newW - oldW) < 2) return;
+    box.classList.add('dl-resizing');
+    box.style.width = oldW + 'px';
+    void box.offsetWidth;
+    box.style.width = newW + 'px';
+    if (global.DockRefract && DockRefract.kick) DockRefract.kick(420);
+    clearTimeout(box._rzT);
+    box._rzT = setTimeout(function () { box.style.width = ''; box.classList.remove('dl-resizing'); }, 380);
+  }
+  DL._slow = function (k) { SLOW = k || 1; };   /* 调试 / 截图：放慢形变 */
+  DL._morphing = function () { return { morph: !!morph, ghost: !!ghost }; };
 
   global.DockLive = DL;
 })(window);

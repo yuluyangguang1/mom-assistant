@@ -1130,106 +1130,248 @@
    * 轻提示 toast：替代原生 alert，自动消失；可带一个操作按钮（如“撤销”）。
    * type: 'ok' | 'error' | 'warn' | 'info'（默认 info）
    * action: { label, onClick } 可选；存在时停留更久且按钮可点
+   *
+   * 第 277 次「咿呀岛」：原来贴在底部的提示条会压住保存条 / 主按钮 / 播放键（用户反馈挡操作），改成：
+   *   · 位置：从状态栏下方（--sat-pad）滑入的灵动岛式胶囊，先是顶上中间一颗小药丸再展开；
+   *     会压到顶部可点的东西（侧拉页返回 / 搜索框、全屏计时的收起 / 删除、面板顶栏 ✕ ✓）时整体下移让开（Util.placeToasts）。
+   *   · 材质：液态玻璃——有 dock 折射时接进同一套 WebGL（DockRefract.surface('toast')），否则模糊 + 高光描边。
+   *   · 品牌：左侧一个小咿呀（assets/yiya.webp），按记录类型换配色和小动作：喂养点头「咕嘟」、尿布左右扭、
+   *     睡眠歪头飘「z」、其他轻跳；成功时轻弹一下 + 一圈光晕；警告 / 出错不跳、轻摇。减少动态效果时只淡入。
+   *   · 同屏只有一颗：新提示原地替换（宽度过渡、内容交叉淡入）；同文案合并成「×2」；
+   *     带「撤销」的提示被普通提示顶掉时先垫在下面，普通提示走完再回来（剩余时间续上），撤销入口不丢。
+   *   · 可上滑关闭（拖动时暂停计时）；「撤销」照常可点；role=status + aria-live=polite，替换内容时读屏会读新内容。
    */
-  Util.toast = function (message, type, action) {
-    type = type || 'info';
+  var TST = { el: null, cur: null, base: null, timer: 0, t0: 0, leaving: false };
+  var TOAST_ROUTE_KIND = { feeding: 'feed', breast: 'feed', bottle: 'feed', pump: 'feed', solid: 'feed', supplement: 'feed', formula: 'feed',
+    diaper: 'diaper', sleep: 'sleep', whitenoise: 'sleep' };
+  var TOAST_KIND_ACCENT = { feed: 'feeding', diaper: 'diaper', sleep: 'sleep' };
+  var TOAST_KIND_ICON = { feed: 'feeding', diaper: 'diaper', sleep: 'sleep', ok: 'check', info: 'heart', warn: 'alert' };
+  Util.toastKind = function (msg, type, route) {
+    if (type === 'error' || type === 'warn') return 'warn';
+    if (TOAST_ROUTE_KIND[route]) return TOAST_ROUTE_KIND[route];
+    msg = String(msg || '');
+    if (/尿布|尿尿|便便|嘘嘘|拉了|尿了/.test(msg)) return 'diaper';
+    if (/睡|醒|哄睡|噪音|声音/.test(msg)) return 'sleep';
+    if (/喂|奶|泵|辅食/.test(msg)) return 'feed';
+    return type === 'ok' ? 'ok' : 'info';
+  };
+  var YIYA_SRC = 'assets/yiya.webp';
+  function toastRoot() {
     var root = document.getElementById('toastRoot');
-    if (!root) {
-      root = document.createElement('div');
-      root.id = 'toastRoot';
-      document.body.appendChild(root);
-    }
-    var ic = { ok: 'check', error: 'bell', warn: 'bell', info: 'bell' }[type] || 'bell';
-    var el = document.createElement('div');
-    el.className = 'toast toast-' + type;
-    el.setAttribute('role', 'status');
-    /* 第 244 次：图标装进圆形色块（与 dock 上的计时胶囊同一套玻璃语言） */
-    el.innerHTML = '<i class="toast-badge" aria-hidden="true">' + ((window.icon && icon(ic)) ? icon(ic) : '') + '</i><span class="toast-msg">' + Util.escapeHtml(message) + '</span>';
-    if (action && action.label) {
+    if (!root) { root = document.createElement('div'); root.id = 'toastRoot'; document.body.appendChild(root); }
+    return root;
+  }
+  function toastReduced() { try { return global.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
+  function toastFill(el, e) {
+    var ico = TOAST_KIND_ICON[e.kind] || 'check';
+    var ic = (window.icon && icon(ico)) ? icon(ico) : '';
+    var accent = TOAST_KIND_ACCENT[e.kind] || (TOAST_ROUTE_KIND[e.route] ? e.route : '');
+    el.className = 'toast toast-' + e.type + ' toast-island' + (el._glassOn ? ' lg-on' : '');
+    el.setAttribute('data-kind', e.kind);
+    if (accent) el.setAttribute('data-accent', accent); else el.removeAttribute('data-accent');
+    var canvas = el.querySelector(':scope > canvas.lg-gl2');
+    el.innerHTML = '<span class="toast-yiya" aria-hidden="true"><img src="' + YIYA_SRC + '" alt="" decoding="async" draggable="false">'
+      + '<i class="ty-badge">' + ic + '</i><i class="ty-fx"></i></span>'
+      + '<span class="toast-msg">' + Util.escapeHtml(e.msg) + '</span>'
+      + '<b class="toast-count"' + (e.count > 1 ? '' : ' hidden') + '>' + (e.count > 1 ? '×' + e.count : '') + '</b>';
+    if (canvas) el.insertBefore(canvas, el.firstChild);
+    if (e.action) {
       var act = document.createElement('button');
       act.type = 'button';
       act.className = 'toast-action';
-      act.textContent = action.label;
-      el.appendChild(act);
-      var acted = false;
-      act.addEventListener('click', function () {
-        if (acted) return; acted = true;
-        if (typeof action.onClick === 'function') action.onClick();
-        dismiss();
+      act.textContent = e.action.label;
+      act.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        if (e.acted) return; e.acted = true;
+        if (TST.base === e) TST.base = null;
+        if (typeof e.action.onClick === 'function') e.action.onClick();
+        toastDismissAll();
       });
+      el.appendChild(act);
     }
-    /* 第 148 次（P2 · 提示堆叠）：连点快记/批量操作时 toast 会一条条往上摞，
-       最多摞到 5、6 条盖住半屏。规则：① 同文案只留最新一条；② 同屏最多 2 条，
-       超出时优先挤掉最旧的「无操作」提示，带「撤销」的尽量保留（撤销是唯一补救入口）。 */
-    var live = Array.prototype.filter.call(root.children, function (n) { return !n.classList.contains('leaving'); });
-    live.forEach(function (n) { if (n._toastMsg === message && n._toastDismiss) n._toastDismiss(); });
-    live = live.filter(function (n) { return !n.classList.contains('leaving'); });
-    while (live.length >= 2) {
-      var victim = live.filter(function (n) { return !n._toastHasAction; })[0] || live[0];
-      if (victim._toastDismiss) victim._toastDismiss(); else if (victim.parentNode) victim.parentNode.removeChild(victim);
-      live.splice(live.indexOf(victim), 1);
+    el._toastMsg = e.msg;
+    el._toastHasAction = !!e.action;
+    el._toastRoute = e.route;
+    el._toastAt = e.at;
+    el._toastEntry = e;
+  }
+  function toastArm(ms) {
+    clearTimeout(TST.timer);
+    TST.t0 = Date.now(); TST.left = ms;
+    TST.timer = setTimeout(toastExpire, ms);
+  }
+  function toastPause() { if (!TST.timer) return; clearTimeout(TST.timer); TST.timer = 0; TST.left = Math.max(600, TST.left - (Date.now() - TST.t0)); }
+  function toastResume() { if (TST.timer || !TST.cur || TST.leaving) return; toastArm(TST.left || 1200); }
+  function toastExpire() {
+    TST.timer = 0;
+    /* 垫在下面的「撤销」提示回来，剩余时间续上 */
+    if (TST.base && TST.base !== TST.cur && !TST.base.acted && TST.base.left > 400) { var b = TST.base; TST.base = null; toastShow(b, b.left); return; }
+    toastDismissAll();
+  }
+  function toastGlass(el) {
+    var DR = global.DockRefract;
+    el._glassOn = !!(DR && DR.isOn && DR.isOn() && DR.surface && DR.surface('toast', el));
+    if (el._glassOn && DR.kick) DR.kick(700);
+  }
+  Util.toastGlass = function () { if (TST.el && TST.el.isConnected && !TST.leaving) toastGlass(TST.el); };
+  function toastShow(e, ms) {
+    var root = toastRoot();
+    var el = TST.el;
+    var swap = !!(el && el.isConnected && !TST.leaving);
+    if (!swap) {
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+      el = TST.el = document.createElement('div');
+      el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); el.setAttribute('aria-atomic', 'true');
+      el._toastDismiss = function () { toastDismissAll(); };
+      toastSwipe(el);
+      TST.leaving = false;
     }
-    el._toastMsg = message;
-    el._toastHasAction = !!(action && action.label);
-    /* 第 272 次（审计 #5）：记下是在哪一页弹的，换页时 Util.toastLeave 收起别页的「撤销」 */
-    try { el._toastRoute = (global.App && App.currentTab) ? App.currentTab() : ''; } catch (eR) { el._toastRoute = ''; }
-    el._toastAt = Date.now();
-    el._toastDismiss = dismiss;
-    root.appendChild(el);
+    var oldW = swap ? el.getBoundingClientRect().width : 0;
+    TST.cur = e;
+    toastFill(el, e);
+    if (!swap) { root.appendChild(el); toastGlass(el); if (el._glassOn) el.classList.add('lg-on'); }
     Util.placeToasts();
-    requestAnimationFrame(function () { el.classList.add('show'); });
-    var hideTimer = setTimeout(dismiss, action && action.label ? 5200 : 2800);
-    function dismiss() {
-      clearTimeout(hideTimer);
-      el.classList.add('leaving');
-      el.classList.remove('show');
-      /* 第 81 次（Appllama 动效纪律）：退场 140ms（:not(.show) 快速淡出），
-         移除延时同步 280→160ms，杜绝出场动画还没走完就被摘除。 */
-      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 160);
+    if (!swap) {
+      requestAnimationFrame(function () { if (TST.el === el && !TST.leaving) el.classList.add('show'); });
+    } else {
+      /* swap 留着不摘：摘掉会让「首次出现」的内容淡入动画再播一遍（内容会闪没）；下次替换时子节点是新的，动画自然重播 */
+      el.classList.add('show', 'swap');
+      var newW = el.getBoundingClientRect().width;
+      if (oldW && Math.abs(newW - oldW) > 2 && !toastReduced() && el.animate) {
+        el.style.width = oldW + 'px'; void el.offsetWidth;
+        el.classList.add('resizing'); el.style.width = newW + 'px';
+        clearTimeout(el._rzT); el._rzT = setTimeout(function () { el.style.width = ''; el.classList.remove('resizing'); }, 360);
+      }
+      if (global.DockRefract && DockRefract.kick) DockRefract.kick(520);
     }
+    toastArm(ms || e.dur);
+  }
+  function toastDismissAll(up) {
+    var el = TST.el;
+    clearTimeout(TST.timer); TST.timer = 0;
+    TST.cur = null; TST.base = null;
+    if (!el) return;
+    TST.leaving = true;
+    el.classList.add('leaving'); if (up) el.classList.add('leaving-up');
+    el.classList.remove('show');
+    if (global.DockRefract && DockRefract.kick) DockRefract.kick(300);
+    /* 第 81 次动效纪律：退场比入场快（.24s），移除稍后 */
+    setTimeout(function () {
+      if (el.parentNode) el.parentNode.removeChild(el);
+      if (TST.el === el) {
+        TST.el = null; TST.leaving = false;
+        if (global.DockRefract && DockRefract.unsurface) DockRefract.unsurface('toast');
+      }
+    }, 260);
+  }
+  /* 上滑关闭：跟手（往下拉有阻尼），松手按距离 / 速度决定；拖动时暂停计时；按在「撤销」上不接管 */
+  function toastSwipe(el) {
+    var y0 = 0, t0 = 0, dy = 0, id = null, lastY = 0, lastT = 0, v = 0;
+    el.addEventListener('pointerdown', function (ev) {
+      if (ev.target.closest && ev.target.closest('.toast-action')) return;
+      id = ev.pointerId; y0 = lastY = ev.clientY; t0 = lastT = ev.timeStamp || Date.now(); dy = 0; v = 0;
+      try { el.setPointerCapture(id); } catch (e) { /* */ }
+      el.classList.add('dragging'); toastPause();
+    });
+    el.addEventListener('pointermove', function (ev) {
+      if (id !== ev.pointerId) return;
+      var raw = ev.clientY - y0;
+      dy = raw < 0 ? raw : raw * 0.25;
+      var t = ev.timeStamp || Date.now();
+      if (t > lastT) { v = (ev.clientY - lastY) / (t - lastT); lastY = ev.clientY; lastT = t; }
+      el.style.translate = '0 ' + dy.toFixed(1) + 'px';
+      if (global.DockRefract && DockRefract.kick) DockRefract.kick(120);
+    });
+    var end = function (ev) {
+      if (id !== ev.pointerId) return;
+      id = null; el.classList.remove('dragging');
+      if (dy < -22 || v < -0.35) { toastDismissAll(true); return; }
+      el.style.translate = '';
+      if (global.DockRefract && DockRefract.kick) DockRefract.kick(360);
+      toastResume();
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  }
+  Util.toast = function (message, type, action) {
+    type = type || 'info';
+    var route = '';
+    try { route = (global.App && App.currentTab) ? App.currentTab() : ''; } catch (eR) { route = ''; }
+    var e = { msg: String(message == null ? '' : message), type: type, action: action && action.label ? action : null, route: route, at: Date.now(), count: 1 };
+    e.kind = Util.toastKind(e.msg, type, route);
+    e.dur = e.action ? 5200 : 2800;
+    var cur = TST.cur;
+    if (cur && TST.el && !TST.el.isConnected) { TST.el = null; TST.cur = cur = null; TST.base = null; clearTimeout(TST.timer); TST.timer = 0; }
+    if (cur && TST.el && !TST.leaving) {
+      /* 同一句：合并成「×N」，计时重来，轻弹一下 */
+      if (cur.msg === e.msg && !cur.action === !e.action) {
+        cur.count++; cur.at = e.at; if (e.action) cur.action = e.action;
+        cur.route = route || cur.route;
+        toastShow(cur, cur.dur);
+        return;
+      }
+      if (cur.action && !e.action && !cur.acted) { toastPause(); cur.left = TST.left; TST.base = cur; }
+      else if (e.action) TST.base = null;
+    } else TST.base = null;
+    toastShow(e, e.dur);
   };
 
   /* 第 272 次（审计 #5）：换到 routeId 页时，收起在别页弹出的「撤销」提示——
      不然 A 页的「已删除…　撤销」浮在 B 页面板上，点了撤销恢复的是 A 页的记录。
-     刚弹出（<400ms，即同一次操作里先记录再跳页）的不收，改记到新页。 */
+     刚弹出（<400ms，即同一次操作里先记录再跳页）的不收，改记到新页。第 277 次：垫在下面的撤销同样处理。 */
   Util.toastLeave = function (routeId) {
-    var root = document.getElementById('toastRoot'); if (!root) return;
-    Array.prototype.forEach.call(root.children, function (n) {
-      if (n.classList.contains('leaving') || !n._toastHasAction || n._toastRoute === routeId) return;
-      if (Date.now() - (n._toastAt || 0) < 400) { n._toastRoute = routeId; return; }
-      if (n._toastDismiss) n._toastDismiss();
-    });
+    var now = Date.now();
+    var b = TST.base;
+    if (b && b.route !== routeId) { if (now - b.at < 400) b.route = routeId; else TST.base = null; }
+    var c = TST.cur;
+    if (c && c.action && c.route !== routeId && !TST.leaving) {
+      if (now - c.at < 400) { c.route = routeId; if (TST.el) TST.el._toastRoute = routeId; }
+      else toastDismissAll();
+    }
     Util.placeToasts();
   };
-  /* 第 272 次（审计 #6：保存成功的提示正好压在底部「+ 记录饮水」主按钮、编辑面板「保存修改」上）：
-     提示条放在底部这些东西的上面：面板吸底保存条（.rs-savebar / .modal-actions）、页面悬浮主按钮（.mod-cta）、
-     dock 与「正在进行」胶囊。只算水平方向压到屏幕中线附近、且在屏幕下半截的；没有就回到 CSS 默认位置。
-     面板推入动画期间 getBoundingClientRect 还在屏外，面板里的保存条按「贴在视口底」用 offsetHeight 估。 */
+  /* 第 277 次：提示岛在顶部。默认停在状态栏下方；会压住顶部可点的东西（侧拉页的返回 / 搜索框、全屏计时的收起 / 删除、
+     面板顶满时的 ✕ ✓、播放页的收起）就整体下移到它们下面 8px。只看最上面那一层真能点到的（elementsFromPoint 核对）。 */
+  var TOAST_HIT = 'button, a[href], input, textarea, select, [role="button"], summary';
   Util.placeToasts = function () {
     var root = document.getElementById('toastRoot'); if (!root) return;
     try {
-      var vh = global.innerHeight || 0, vw = global.innerWidth || 0, cx0 = vw / 2 - 110, cx1 = vw / 2 + 110;
-      var top = vh;
-      var vis = function (e) { if (!e || !e.getClientRects().length) return false; var cs = global.getComputedStyle(e); return cs.visibility !== 'hidden' && cs.display !== 'none'; };
-      var sheets = Array.prototype.filter.call(document.querySelectorAll('#modalRoot > .modal-mask, #view .modal-mask:not([hidden])'), function (m) { return !m.classList.contains('sheet-ghost') && !m.classList.contains('sheet-leaving') && vis(m); });
-      if (sheets.length) {
-        var bar = sheets[sheets.length - 1].querySelector('.rs-savebar, .modal-actions');
-        var vvp = global.visualViewport, vbot = vvp ? Math.min(vh, vvp.offsetTop + vvp.height) : vh; /* 键盘弹起时保存条停在键盘上方 */
-        if (bar && vis(bar)) top = Math.min(top, vbot - bar.offsetHeight + 6);
-      } else {
-        Array.prototype.forEach.call(document.querySelectorAll('.mod-cta > *, #tabbar, #dockOrb, #dockLive, .dock-live'), function (e) {
-          if (!vis(e) || e.hidden) return;
-          var r = e.getBoundingClientRect();
-          if (!r.height || r.top < vh * 0.5 || r.top > vh || r.right < cx0 || r.left > cx1) return;
-          top = Math.min(top, r.top);
-        });
+      root.style.top = '';
+      var el = TST.el;
+      if (!el || !el.isConnected) return;
+      var vw = global.innerWidth || 0;
+      var def = parseFloat(global.getComputedStyle(root).top) || 0;
+      var w = el.offsetWidth, h = el.offsetHeight || 48;
+      var x0 = (vw - w) / 2 - 6, x1 = (vw + w) / 2 + 6;
+      var top = def;
+      var cands = Array.prototype.filter.call(document.querySelectorAll(TOAST_HIT), function (n) {
+        if (root.contains(n)) return false;
+        var r = n.getBoundingClientRect();
+        /* 只让开小控件（返回 / 收起 / ✕ ✓ / 搜索框，高 ≤ 60）；页头插画这种大块可点区域被提示岛压住一角没关系 */
+        if (!r.width || !r.height || r.height > 60 || r.top > def + h + 140 || r.bottom < def - 2 || r.right < x0 || r.left > x1) return false;
+        var cs = global.getComputedStyle(n);
+        if (cs.visibility === 'hidden' || parseFloat(cs.opacity) < 0.1) return false;
+        var pts = document.elementsFromPoint ? document.elementsFromPoint(r.left + r.width / 2, r.top + Math.min(r.height / 2, 20)) : [];
+        for (var i = 0; i < pts.length; i++) {
+          if (root.contains(pts[i])) continue;
+          return pts[i] === n || n.contains(pts[i]) || pts[i].contains(n);
+        }
+        return false;
+      }).map(function (n) { return n.getBoundingClientRect(); });
+      for (var k = 0; k < 3; k++) {
+        var hit = cands.filter(function (r) { return r.top < top + h + 4 && r.bottom > top - 2; });
+        if (!hit.length) break;
+        top = Math.max.apply(null, hit.map(function (r) { return r.bottom + 8; }));
       }
-      root.style.bottom = '';
-      var def = parseFloat(global.getComputedStyle(root).bottom) || 0;
-      var need = Math.ceil(vh - top + 10);
-      if (top < vh && need > def) root.style.bottom = need + 'px';
-    } catch (e) { root.style.bottom = ''; }
+      if (top > def + 0.5) root.style.top = Math.round(top) + 'px';
+    } catch (e) { root.style.top = ''; }
   };
+  /* 小咿呀提前解码，第一次弹提示时头像同帧出现 */
+  try {
+    var yiyaWarm = function () { var im = new Image(); im.decoding = 'async'; im.src = YIYA_SRC; if (im.decode) im.decode().catch(function () {}); Util._yiya = im; };
+    if (global.requestIdleCallback) global.addEventListener('load', function () { requestIdleCallback(yiyaWarm, { timeout: 3000 }); });
+    else global.addEventListener('load', function () { setTimeout(yiyaWarm, 1200); });
+  } catch (eY) { /* */ }
 
   /* -----------------------------------------------------------
    * 行内校验：精准定位错误字段（替代模糊 toast 提示）。

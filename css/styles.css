@@ -921,11 +921,14 @@ body.dark .tabbar {
 
 
 /* 轻提示 toast（实色奶油浮层） */
+/* 第 277 次：提示条移到顶部「咿呀岛」——状态栏下方居中（原来贴底：bottom 84px，会压住保存条 / 主按钮 / 播放键）。
+   会压到顶部小控件时 Util.placeToasts 改写 top 下移让开 */
 #toastRoot {
   position: fixed; left: 50%; transform: translateX(-50%);
-  bottom: calc(84px + env(safe-area-inset-bottom));
-  z-index: 1200; display: flex; flex-direction: column-reverse; align-items: center;
-  gap: 8px; pointer-events: none; width: max-content; max-width: calc(100vw - 32px);
+  top: calc(var(--sat-pad) + 2px); bottom: auto;
+  z-index: 1200; display: flex; flex-direction: column; align-items: center;
+  gap: 8px; pointer-events: none; width: max-content; max-width: min(420px, calc(100vw - 24px));
+  transition: top .3s var(--ease);
 }
 .toast {
   display: inline-flex; align-items: center; gap: 8px;
@@ -2028,7 +2031,7 @@ body.dock-left #quickDock .qd-actions { align-items: flex-start; }
 /* 第 101 次修复：toast 避让——toast 居中且默认可宽达全屏减 32px，
    dock 模式下左右两侧被竖排胶囊占据，长提示（如「已切左手模式…」）
    会盖住胶囊按钮约 2.5s。收窄 max-width 留出两侧胶囊区，不再重叠。 */
-body.dock-left #toastRoot, body.dock-right #toastRoot { max-width: calc(100vw - 148px); }
+/* 第 277 次：提示条在顶部，竖排胶囊在侧下方，不再收窄（原来收窄后「已记录亲喂 12 分钟」会折成两行） */
 /* 第 101 次审查修复：横屏矮屏（vh≈390）下动作列若仍从胶囊上方纵向展开
    （bottom≈268px + 列高≈230px），前几项会溢出画面顶部。改从胶囊朝屏幕
    中心一侧水平展开、bottom 与胶囊对齐，两行 wrap 后高约 100px，稳在画面内。 */
@@ -4747,7 +4750,7 @@ body .tabbar.lg::after {
 /* 高光描边：左上亮、中段淡、右下次亮 */
 body .tabbar.lg::before {
   padding: 1px;
-  background: linear-gradient(135deg, var(--lg-rim-a) 0%, rgba(255, 255, 255, .18) 28%, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, .14) 72%, var(--lg-rim-b) 100%);
+  background: linear-gradient(var(--lg-ang, 135deg), var(--lg-rim-a) 0%, rgba(255, 255, 255, .18) 28%, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, .14) 72%, var(--lg-rim-b) 100%);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
@@ -4758,7 +4761,7 @@ body .tabbar.lg::after {
     inset 0 0 12px 0 rgba(255, 255, 255, .16);
 }
 body .tabbar.lg > * { position: relative; z-index: 1; }
-body .tabbar.lg.lg-press { scale: .975; }
+body .tabbar.lg.lg-press { scale: 1.02; } /* 第 277 次：按下时玻璃轻微放大（原 .975 下沉），配合边缘折射增强 */
 /* 第 243 次：真正的「点 dock 往左缩」根因——CSS 的 scale 属性先于 transform 生效，
    缩放原点是盒子中心，但盒子又被 translateX(-50%) 挪走半宽，结果右缘不动、左缘缩进 ~6px。
    把缩放原点放到盒子左缘中点（translate 之后它正好落在 dock 中心），按下就两边对称收。
@@ -4767,8 +4770,8 @@ body:not(.dock-left):not(.dock-right) .tabbar.lg { transform-origin: 0 50%; }
 
 body.dark .tabbar.lg {
   --lg-tint: color-mix(in srgb, var(--surface) 46%, transparent);
-  --lg-rim-a: rgba(255, 255, 255, .42);
-  --lg-rim-b: rgba(255, 255, 255, .20);
+  --lg-rim-a: rgba(255, 255, 255, .52); /* 第 277 次：深色光边加亮（.42 / .20 → .52 / .26） */
+  --lg-rim-b: rgba(255, 255, 255, .26);
   --lg-edge: rgba(255, 255, 255, .16);
   --lg-shade: rgba(0, 0, 0, .25);
   box-shadow: 0 1px 1px rgba(0, 0, 0, .2), 0 10px 28px -10px rgba(0, 0, 0, .6), 0 22px 44px -26px rgba(0, 0, 0, .5);
@@ -4850,7 +4853,9 @@ body .tabbar .tab.active .ico { color: var(--primary); }
   box-shadow: inset 0 1.5px 1.5px -.5px rgba(255, 255, 255, .6), inset 0 0 0 .5px rgba(255, 255, 255, .45),
     0 8px 24px -10px rgba(90, 74, 62, .35);
   animation: dl-in .38s cubic-bezier(.34, 1.56, .64, 1);
-  transition: opacity .2s var(--ease), visibility .2s;
+  /* 第 277 次：按下放大（scale）、形变结束后外阴影淡入；缩放原点同 dock（第 243 次），左右对称 */
+  transform-origin: 0 50%; isolation: isolate;
+  transition: opacity .2s var(--ease), visibility .2s, scale .32s cubic-bezier(.34, 1.56, .64, 1), box-shadow .25s var(--ease);
 }
 .dock-live[hidden] { display: none; }
 @keyframes dl-in { from { opacity: 0; transform: translateX(-50%) translateY(10px) scale(.94); } to { opacity: 1; transform: translateX(-50%); } }
@@ -5058,8 +5063,7 @@ body.dark .toast {
 .toast:has(.toast-action) .toast-msg { padding-right: 0; }
 body .toast-action { margin-left: 2px; background: var(--text); color: var(--surface); min-height: 40px; padding: 8px 16px; }
 body.dark .toast-action { background: rgba(255, 255, 255, .9); color: #2a2622; }
-/* 计时胶囊在 dock 上方时，提示条再往上让一层，不压住它 */
-body:has(.dock-live:not([hidden])) #toastRoot { bottom: calc(10px + 62px + 10px + 56px + 10px + env(safe-area-inset-bottom)); }
+/* 第 277 次：提示条移到顶部（咿呀岛），不再需要给底部的计时胶囊让位 */
 
 /* 第 244 次：哄睡声音卡与其他小组件同款浅色卡；播放中把副文案点亮 */
 .hw-wn2.is-on .hl2-gap { color: var(--tile-text); font-weight: 700; }
@@ -5495,3 +5499,189 @@ body.hc .pull-search { background: var(--surface); -webkit-backdrop-filter: none
 /* 第 276 次：页头插画还没解码好时先透明，解码完淡入（hero.js 兜底，正常从入口点进来时已预热、不会出现） */
 .mod-hero img.hero-pending { opacity: 0; }
 .mod-hero img { transition: opacity .12s linear; }
+
+/* ============================================================
+   第 277 次 A：液态玻璃深化——正在进行胶囊接进 dock 的同一套折射（js/dock-refract.js 的 live 玻璃面）
+   · 胶囊的折射边画在 dock 那块 WebGL 画布里（画布扩到胶囊）；胶囊外圈不再整块模糊（.lg-band），中间交给内圈 .dl-glass。
+   · 出现 / 消失由 dock-live.js 逐帧给 clip-path + translateY（.dl-morph 期间关掉 CSS 入场动画和外阴影，内容按 --dl-fade 淡入）。
+   · 按下轻微放大（scale 1.02，原点同 dock 的第 243 次处理，左右对称）。
+   · 高光描边跟着光线方向转（--lg-ang，由 dock-refract.js 写；没有时 135°）。
+   ============================================================ */
+.dock-live > :not(.dl-glass) { position: relative; z-index: 1; }
+.dock-live::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2; padding: 1px;
+  background: linear-gradient(var(--lg-ang, 135deg), rgba(255, 255, 255, .85) 0%, rgba(255, 255, 255, .14) 30%, rgba(255, 255, 255, 0) 52%, rgba(255, 255, 255, .12) 74%, rgba(255, 255, 255, .5) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+body.dark .dock-live::before { background: linear-gradient(var(--lg-ang, 135deg), rgba(255, 255, 255, .46) 0%, rgba(255, 255, 255, .08) 30%, rgba(255, 255, 255, 0) 52%, rgba(255, 255, 255, .06) 74%, rgba(255, 255, 255, .26) 100%); }
+.dock-live.lg-press { scale: 1.02; }
+.toast > canvas.lg-gl2 {
+  position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; pointer-events: none; z-index: 0 !important;
+  opacity: 0; transition: opacity .18s var(--ease);
+}
+.toast > canvas.lg-gl2.on { opacity: 1; }
+/* 折射边由 dock 的画布画在胶囊外圈（.lg-band）：胶囊自身不再整块模糊（会把折射边再糊一遍），中间交给内圈 .dl-glass。
+   画布没在画（换页、滚出快照段、上下文丢失）时摘掉 .lg-band，回到原来的整块毛玻璃。 */
+.dock-live > .dl-glass { display: none; }
+html.lg-gl .dock-live.lg-band { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.lg-gl .dock-live.lg-band > .dl-glass {
+  display: block; position: absolute; inset: var(--dl-gv, 9px) var(--dl-gh, 9px); border-radius: var(--radius-pill); pointer-events: none; z-index: 0 !important;
+  background: color-mix(in srgb, var(--surface) 32%, transparent);
+  -webkit-backdrop-filter: blur(7px) saturate(190%) brightness(1.04); backdrop-filter: blur(7px) saturate(190%) brightness(1.04);
+}
+html.lg-gl body.dark .dock-live.lg-band > .dl-glass { background: color-mix(in srgb, var(--surface) 42%, transparent); }
+.dock-live.dl-morph { animation: none; box-shadow: none; transition: none; }
+.dock-live.dl-shown { animation: none; }   /* 形变出现过的不再补播 dl-in */
+.dock-live.dl-morph > :not(.dl-glass) { opacity: var(--dl-fade, 1); }
+.dock-live.dl-ghost { pointer-events: none; z-index: 11; }
+.dock-live.dl-resizing { overflow: hidden; transition: width .34s cubic-bezier(.34, 1.25, .64, 1), opacity .2s var(--ease); }
+.dock-live.dl-fade { animation: dl-fade .3s var(--ease); }
+@keyframes dl-fade { from { opacity: 0; } }
+/* 水滴指示器变成透镜后（.lg-lens：WebGL 在它下面画放大 + 边缘折射），自身底色调淡，透出透镜 */
+body .tabbar.lg.lg-lens .lg-thumb { background: linear-gradient(180deg, rgba(255, 255, 255, .34), rgba(255, 255, 255, .14)); }
+body.dark .tabbar.lg.lg-lens .lg-thumb { background: linear-gradient(180deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .05)); }
+/* 深色模式的光边：CSS 描边在 body.dark .tabbar.lg 里加亮；WebGL 开着时着色器里还有一道随光线方向变化的细光边（uRim） */
+@media (prefers-reduced-motion: reduce) {
+  .dock-live.lg-press { scale: 1; }
+  .dock-live { transition: opacity .2s var(--ease), visibility .2s; }
+}
+body.hc .dock-live::before { display: none; }
+body.hc .toast > canvas.lg-gl2 { display: none; }
+@media (prefers-reduced-transparency: reduce) {
+  .toast > canvas.lg-gl2 { display: none; }
+  html.lg-gl .dock-live.lg-band { background: var(--surface); }
+  html.lg-gl .dock-live.lg-band > .dl-glass { display: none; }
+}
+
+/* ============================================================
+   第 277 次 B：保存提示条重做——顶部「咿呀岛」（js/util.js Util.toast）
+   · 位置：状态栏下方（--sat-pad）居中，先是一颗小药丸再弹开；遇到顶部可点的东西由 Util.placeToasts 下移让开。
+   · 材质：液态玻璃（同 dock：模糊 + 饱和 + 双向高光描边；有 WebGL 折射时多一圈边缘折射）。
+   · 左侧小咿呀：36px 圆头像 + 模块色光圈 + 右下角类型小徽章；按 data-kind 换小动作。
+   · 同屏只有一颗，替换时宽度过渡、内容交叉淡入；「×2」合并；可上滑关闭。
+   ============================================================ */
+body .toast.toast-island {
+  position: relative; isolation: isolate;
+  display: inline-flex; align-items: center; gap: 10px;
+  min-height: 48px; padding: 6px 8px 6px 6px; box-sizing: border-box; max-width: 100%;
+  border: 0; border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(190%) brightness(1.04);
+  backdrop-filter: blur(18px) saturate(190%) brightness(1.04);
+  box-shadow: 0 1px 1px rgba(90, 74, 62, .06), 0 12px 30px -12px rgba(90, 74, 62, .45), 0 2px 10px -4px rgba(90, 74, 62, .18);
+  color: var(--text); font-size: calc(14px * var(--fs-mul)); font-weight: 600; line-height: 1.35;
+  pointer-events: auto; touch-action: none; -webkit-user-select: none; user-select: none; cursor: default;
+  opacity: 0; transform: translateY(-12px) scale(.34, .62); transform-origin: 50% 0;
+  transition: translate .32s cubic-bezier(.34, 1.4, .64, 1);
+}
+body .toast.toast-island::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2; padding: 1px;
+  background: linear-gradient(var(--lg-ang, 135deg), rgba(255, 255, 255, .95) 0%, rgba(255, 255, 255, .18) 30%, rgba(255, 255, 255, 0) 52%, rgba(255, 255, 255, .14) 74%, rgba(255, 255, 255, .55) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+body .toast.toast-island::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2;
+  box-shadow: inset 0 1.5px 1.5px -.5px rgba(255, 255, 255, .6), inset 0 -1px 2px rgba(120, 96, 76, .08), inset 0 0 12px rgba(255, 255, 255, .14);
+}
+body.dark .toast.toast-island {
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .2), 0 12px 30px -12px rgba(0, 0, 0, .75), 0 2px 10px -4px rgba(0, 0, 0, .4);
+}
+body.dark .toast.toast-island::before { background: linear-gradient(var(--lg-ang, 135deg), rgba(255, 255, 255, .5) 0%, rgba(255, 255, 255, .08) 30%, rgba(255, 255, 255, 0) 52%, rgba(255, 255, 255, .06) 74%, rgba(255, 255, 255, .28) 100%); }
+body.dark .toast.toast-island::after { box-shadow: inset 0 1px 1px rgba(255, 255, 255, .14), inset 0 -1px 2px rgba(0, 0, 0, .25); }
+html.lg-gl body .toast.toast-island.lg-on {
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(190%) brightness(1.04); backdrop-filter: blur(10px) saturate(190%) brightness(1.04);
+}
+html.lg-gl body.dark .toast.toast-island.lg-on { background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.toast.toast-island > :not(canvas) { position: relative; z-index: 1; }
+.toast.toast-island.show { opacity: 1; transform: none; animation: island-in .56s cubic-bezier(.3, 1.32, .5, 1) both; }
+@keyframes island-in {
+  0% { opacity: 0; transform: translateY(-12px) scale(.34, .62); }
+  28% { opacity: 1; }
+  100% { opacity: 1; transform: none; }
+}
+.toast.toast-island.show:not(.swap) > :not(canvas) { animation: island-content .3s .14s var(--ease) both; }
+@keyframes island-content { from { opacity: 0; transform: scale(.9); } }
+.toast.toast-island.show.swap > .toast-msg, .toast.toast-island.show.swap > .toast-action, .toast.toast-island.show.swap > .toast-count { animation: island-swap .26s var(--ease) both; }
+@keyframes island-swap { from { opacity: 0; transform: translateY(4px); } }
+.toast.toast-island.resizing { overflow: hidden; transition: width .3s cubic-bezier(.34, 1.25, .64, 1), translate .32s cubic-bezier(.34, 1.4, .64, 1); }
+.toast.toast-island.dragging { transition: none; }
+.toast.toast-island.leaving { animation: island-out .24s var(--ease) both; }
+@keyframes island-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-10px) scale(.5, .72); } }
+.toast.toast-island.leaving-up { animation: island-up .24s var(--ease) both; }
+@keyframes island-up { from { opacity: 1; } to { opacity: 0; transform: translateY(-46px) scale(.9); } }
+.toast-island .toast-msg { padding: 0 2px; min-width: 0; overflow-wrap: anywhere; }
+.toast-island:not(:has(.toast-action)) .toast-msg { padding-right: 8px; }
+.toast-island .toast-count { flex: none; font-size: calc(12px * var(--fs-mul)); font-weight: 800; color: var(--tile-text, var(--primary-text)); font-variant-numeric: tabular-nums; margin-left: -4px; padding-right: 6px; }
+.toast-island .toast-count[hidden] { display: none; }
+body .toast-island .toast-action { margin-left: 0; min-height: 36px; padding: 7px 15px; }
+
+/* 小咿呀 */
+.toast-yiya {
+  --ty-c: var(--tile, var(--primary));
+  position: relative; flex: none; width: 36px; height: 36px; border-radius: 50%;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ty-c) 60%, var(--surface)), 0 2px 6px -2px rgba(90, 74, 62, .35);
+  background: #FCD98A;
+}
+.toast-yiya img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; -webkit-user-drag: none; }
+.toast-yiya .ty-badge {
+  position: absolute; right: -4px; bottom: -3px; width: 17px; height: 17px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--tile-fill, var(--ty-c)); color: #FFF; box-shadow: 0 0 0 2px var(--surface-solid, var(--surface));
+}
+body.dark .toast-yiya .ty-badge { color: var(--tile-on, #2A2116); }
+.toast-yiya .ty-badge .ico { width: 11px; height: 11px; margin: 0; stroke-width: 2.4; }
+.toast-yiya .ty-fx { position: absolute; inset: -6px; border-radius: 50%; pointer-events: none; }
+.toast-island[data-kind="ok"] .toast-yiya, .toast-island[data-kind="info"] .toast-yiya { --ty-c: var(--primary); }
+.toast-island[data-kind="ok"] .ty-badge { background: var(--ok); }
+.toast-island[data-kind="warn"] .toast-yiya { --ty-c: var(--warn-text); }
+.toast-island[data-kind="warn"] .ty-badge { background: var(--warn-text); }
+body.dark .toast-island[data-kind="ok"] .ty-badge, body.dark .toast-island[data-kind="warn"] .ty-badge { color: #2A2116; }
+.toast-island.toast-error .toast-yiya { --ty-c: var(--danger); }
+.toast-island.toast-error .ty-badge { background: var(--danger); }
+/* 成功时：轻弹 + 一圈光晕；各类型的小动作 */
+.toast-island.show .toast-yiya img { animation: ty-pop .5s .08s cubic-bezier(.34, 1.56, .64, 1) both; }
+.toast-island.show .ty-badge { animation: ty-badge .42s .3s cubic-bezier(.34, 1.56, .64, 1) both; }
+.toast-island.show:not([data-kind="warn"]) .ty-fx { animation: ty-ring .7s .16s var(--ease) both; }
+.toast-island.show[data-kind="feed"] .toast-yiya img { animation: ty-pop .5s .08s cubic-bezier(.34, 1.56, .64, 1) both, ty-sip .9s .6s ease-in-out 1 both; }
+.toast-island.show[data-kind="diaper"] .toast-yiya img { animation: ty-pop .5s .08s cubic-bezier(.34, 1.56, .64, 1) both, ty-wiggle .7s .58s ease-in-out 1 both; }
+.toast-island.show[data-kind="sleep"] .toast-yiya img { animation: ty-pop .5s .08s cubic-bezier(.34, 1.56, .64, 1) both, ty-doze 1.6s .6s ease-in-out 1 both; }
+.toast-island.show[data-kind="ok"] .toast-yiya img, .toast-island.show[data-kind="info"] .toast-yiya img { animation: ty-pop .5s .08s cubic-bezier(.34, 1.56, .64, 1) both, ty-hop .5s .62s ease-out 1 both; }
+.toast-island.show[data-kind="warn"] .toast-yiya img { animation: ty-shake .46s .12s ease-in-out 1 both; }
+.toast-island[data-kind="sleep"] .ty-fx::before, .toast-island[data-kind="sleep"] .ty-fx::after {
+  content: 'z'; position: absolute; right: -2px; top: -4px; font-size: 10px; font-weight: 800; font-style: normal; color: var(--ty-c); opacity: 0;
+}
+.toast-island[data-kind="sleep"] .ty-fx::after { font-size: 8px; right: 5px; top: -1px; }
+.toast-island.show[data-kind="sleep"] .ty-fx::before { animation: ty-z 1.5s .7s ease-out 1 both; }
+.toast-island.show[data-kind="sleep"] .ty-fx::after { animation: ty-z 1.5s 1s ease-out 1 both; }
+.toast-island.show[data-kind="sleep"] .ty-fx { animation: none; }
+@keyframes ty-pop { 0% { transform: scale(.4) rotate(-14deg); } 60% { transform: scale(1.12) rotate(4deg); } 100% { transform: none; } }
+@keyframes ty-badge { from { transform: scale(0); } }
+@keyframes ty-ring { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ty-c) 50%, transparent); } 100% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--ty-c) 0%, transparent); } }
+@keyframes ty-sip { 0%, 100% { transform: none; } 25% { transform: translateY(2px) rotate(-5deg); } 50% { transform: none; } 75% { transform: translateY(2px) rotate(-5deg); } }
+@keyframes ty-wiggle { 0%, 100% { transform: none; } 20% { transform: rotate(-9deg); } 45% { transform: rotate(8deg); } 70% { transform: rotate(-5deg); } }
+@keyframes ty-doze { 0% { transform: none; } 40%, 70% { transform: rotate(12deg) translateY(1px); } 100% { transform: rotate(6deg); } }
+@keyframes ty-hop { 0%, 100% { transform: none; } 40% { transform: translateY(-4px); } 70% { transform: translateY(1px); } }
+@keyframes ty-shake { 0%, 100% { transform: none; } 20% { transform: translateX(-3px) rotate(-4deg); } 45% { transform: translateX(3px) rotate(3deg); } 70% { transform: translateX(-2px); } }
+@keyframes ty-z { 0% { opacity: 0; transform: translate(0, 4px) scale(.6); } 25% { opacity: 1; } 100% { opacity: 0; transform: translate(6px, -12px) scale(1.1); } }
+/* 减少动态效果：只淡入，不弹、不动 */
+@media (prefers-reduced-motion: reduce) {
+  body .toast.toast-island { transform: none; transition: opacity .2s linear; }
+  /* 全局「* { animation: none !important }」之上，只留透明度淡入淡出（不是位移 / 缩放，不算动态） */
+  .toast.toast-island.show { animation: island-fade .22s linear both !important; }
+  .toast.toast-island.leaving, .toast.toast-island.leaving-up { animation: island-fade-out .16s linear both !important; }
+  .dock-live.dl-fade { animation: dl-fade .3s linear !important; }
+  .toast.toast-island.show > :not(canvas), .toast.toast-island.show.swap > * { animation: none; }
+  .toast-island.show .toast-yiya img, .toast-island.show .ty-badge, .toast-island.show .ty-fx, .toast-island.show .ty-fx::before, .toast-island.show .ty-fx::after { animation: none !important; }
+  #toastRoot { transition: none; }
+}
+@keyframes island-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes island-fade-out { to { opacity: 0; } }
+body.hc .toast.toast-island, body.hc .toast.toast-island.lg-on { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 0 0 2px var(--text); }
+body.hc .toast.toast-island::before { display: none; }
+@media (prefers-reduced-transparency: reduce) {
+  body .toast.toast-island, html.lg-gl body .toast.toast-island.lg-on { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
