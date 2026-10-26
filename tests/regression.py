@@ -1375,7 +1375,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v247（第 283 次升）', "var CACHE = 'baoma-static-v247';" in sw)
+    check('#275 SW 版本 v248（第 284 次升）', "var CACHE = 'baoma-static-v248';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -1977,18 +1977,19 @@ def test_r278(b):
     a7 = ev(PH_ST)
     check('#30 大图关掉后再返回：这次才关面板，仍在辅食页', a7['sheet'] == 0 and a7['tab'] == 'solid', a7)
     ev("Storage.get().feedings=Storage.get().feedings.filter(r=>r.id!=='sol278');Storage.save()")
-    # —— #31 生长只量体重：身长 / 头围不复制上次值 ——
+    # —— #31 生长只量体重：身长 / 头围不复制上次值（第 284 次起在全屏记录面板里：没动过的项是「未填」，保存时留空） ——
     go('growth')
     n0 = ev("Storage.get().growth.length")
-    pre = ev("[...document.querySelectorAll('#gMetrics [data-mk] b')].map(b=>b.textContent)")
-    ev("document.querySelector('#gSave').click()"); p.wait_for_timeout(300)
+    ev("document.querySelector('[data-gnew]').click()"); p.wait_for_timeout(500)
+    pre = ev("[...document.querySelectorAll('[data-gmv]')].map(b=>b.textContent)")
+    ev("document.querySelector('#grSave').click()"); p.wait_for_timeout(300)
     blocked = ev("Storage.get().growth.length") == n0
-    ev("document.querySelector('#gMetrics [data-mk=weight]').click()")
-    for _ in range(4): ev("document.querySelector('#gRulerPlus').click()")
-    chips = ev("[...document.querySelectorAll('#gMetrics [data-mk] b')].map(b=>b.textContent)")
-    ev("document.querySelector('#gSave').click()"); p.wait_for_timeout(500)
+    ev("document.querySelector('[data-gm=weight]').click()")
+    for _ in range(4): ev("document.querySelector('#grCtl').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}))")
+    chips = ev("[...document.querySelectorAll('[data-gmv]')].map(b=>b.textContent)")
+    ev("document.querySelector('#grSave').click()"); p.wait_for_timeout(500)
     g = ev("Storage.get().growth.slice(-1)[0]")
-    check('#31 生长：预填的上次值标「上次」，一项都没调时不让保存', all(x.startswith('上次') for x in pre if x != '--') and blocked and chips[0].endswith('kg') and chips[1].startswith('上次'), [pre, chips, blocked])
+    check('#31 生长：三项都标「未填」（上次的值只是刻度起点），一项都没量时不让保存', pre == ['未填', '未填', '未填'] and blocked and chips[1].endswith('kg') and chips[0] == '未填' and chips[2] == '未填', [pre, chips, blocked])
     check('#31 生长：只调了体重就保存 → 新记录只有体重，身长 / 头围为空（不再复制上次的值）', g['weightKg'] is not None and g['heightCm'] is None and g['headCm'] is None and ev("Storage.get().growth.length") == n0 + 1, g)
     ev("__x=0") if False else None
     ev(CSV_CAP); go('settings')
@@ -2050,15 +2051,15 @@ def test_r278(b):
     c3 = pull(250, 600)
     check('#35 对照：正常首页顶部下拉仍进搜索页', c3[2] == 'search', c3)
     go('home')
-    # —— #38 生长编辑范围与滑杆一致、没动的字段不校验 ——
+    # —— #38 生长编辑：没动的字段不校验（老数据里范围外的值原样留着）、改动的项按录入范围拦（第 284 次起在生长页自己的面板里改） ——
     ev("(()=>{const d=Storage.get();d.growth.push({id:'gE',date:Util.addDays(Util.todayISO(),-1),weightKg:7.2,heightCm:25,headCm:62.5});Storage.save()})()")
     go('growth')
-    ev("document.querySelector('[data-del=gE]').closest('li').querySelector('.li-main').click()"); p.wait_for_timeout(500)
-    ev("(()=>{const e=document.querySelector('#reF_date');e.value=Util.addDays(Util.todayISO(),-2);e.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('[data-re-ok]').click()})()"); p.wait_for_timeout(500)
+    ev("document.querySelector('[data-gopen=gE]').click()"); p.wait_for_timeout(500)
+    ev("(()=>{const e=document.querySelector('#grDate');e.value=Util.addDays(Util.todayISO(),-2);e.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#grSave').click()})()"); p.wait_for_timeout(500)
     ge = ev("Storage.get().growth.find(r=>r.id==='gE')")
-    check('#38 生长编辑：头围 62.5 / 身长 25 的记录只改日期也能保存（范围同录入滑杆 20–70 / 20–160）', ge['date'] == ev("Util.addDays(Util.todayISO(),-2)") and ge['headCm'] == 62.5 and ge['heightCm'] == 25, ge)
-    ev("document.querySelector('[data-del=gE]').closest('li').querySelector('.li-main').click()"); p.wait_for_timeout(500)
-    ev("(()=>{const e=document.querySelector('#reF_headCm');e.value='75';document.querySelector('[data-re-ok]').click()})()"); p.wait_for_timeout(300)
+    check('#38 生长编辑：头围 62.5 / 身长 25 的老记录只改日期也能保存（没动的项不按 30–160 / 20–70 校验）', ge['date'] == ev("Util.addDays(Util.todayISO(),-2)") and ge['headCm'] == 62.5 and ge['heightCm'] == 25, ge)
+    ev("document.querySelector('[data-gopen=gE]').click()"); p.wait_for_timeout(500)
+    ev("document.querySelector('[data-gm=head]').click()"); p.fill('#grNum', '75'); ev("document.querySelector('#grSave').click()"); p.wait_for_timeout(300)
     check('#38 生长编辑：改成超出范围的值仍拦下（请填 20–70）', '20–70' in ev("(document.querySelector('#modalRoot .field-error')||{}).textContent||''") and ev("Storage.get().growth.find(r=>r.id==='gE').headCm") == 62.5)
     ev("Sheet.closeAll()"); p.wait_for_timeout(300)
     # —— #39 辅食日期不早于出生、量 ≤0 标红 ——
@@ -2761,9 +2762,213 @@ def test_r283(b):
     ctx.close()
 
 
+GROWTH_BAN = ['偏矮', '偏胖', '偏瘦', '偏高', '偏低', '偏轻', '偏重', '发育迟缓', '生长迟缓', '矮小', '肥胖', '超重', '消瘦', '低体重', '营养不良', '异常', '不达标', '达标', '落后', '危险', '中下', '中上']
+
+
+def test_r284(b):
+    """第 284 次：生长照参考截图重做——空状态 / 全屏记录面板（刻度尺 + 表盘，只存填写字段、范围校验）/ 头围开关 / 生长趋势（筛选、
+    百分位参考带与标准对照，措辞中性）/ 喂养与体重 / 旧数据兼容 / XSS / 底部固定按钮。"""
+    ctx = b.new_context(viewport={'width': 393, 'height': 852}, has_touch=True, device_scale_factor=2)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+    ev = p.evaluate
+
+    def go(t, wait=400):
+        ev(f"App.showTab('{t}',{{noVT:true}})"); p.wait_for_timeout(wait)
+        _poll(p, "!document.getAnimations().some(a=>a.playState==='running'&&a.effect&&a.effect.getComputedTiming().iterations!==Infinity)", 3000)
+
+    def opensheet(sel='[data-gnew]'):
+        ev("Modules.growth._open && 0"); p.wait_for_timeout(460)
+        ev(f"document.querySelector('{sel}').click()"); p.wait_for_timeout(450)
+
+    def text_all():
+        return ev("(document.querySelector('#view').innerText||'')+' '+((document.querySelector('#modalRoot')||{}).innerText||'')")
+
+    # 1. 空状态
+    ev("(()=>{const d=Storage.get();d.growth=[];Storage.save()})()")
+    go('home', 200); go('growth')
+    e0 = ev("({empty:!!document.querySelector('.gr-page .sk-empty'),txt:(document.querySelector('.sk-empty p')||{}).textContent,form:!!document.querySelector('#view input:not(.hap-sw), #view select'),cta:(document.querySelector('#view .mod-cta [data-gnew]')||{}).textContent,pos:getComputedStyle(document.querySelector('#view .mod-cta')).position,status:getComputedStyle(document.querySelector('.mod-head .hero-status')||document.body).display,gear:!!document.querySelector('[data-gset]')})")
+    check('#284 生长空状态：插画 +「点按底部 + 开始记录」，页面上不填表；底部固定「+ 记录生长」；右上角有生长设置', e0['empty'] and e0['txt'] == '点按底部 + 开始记录' and not e0['form'] and e0['cta'] == '记录生长' and e0['pos'] == 'fixed' and e0['status'] == 'none' and e0['gear'], e0)
+    # 2. 记录面板结构
+    opensheet()
+    sh = ev("""(()=>{const q=s=>document.querySelector(s);const o={t:q('#ftsTitle').textContent,date:q('#grDate').value,time:q('#grTime').value,segs:[...document.querySelectorAll('[data-gm]')].map(b=>b.getAttribute('data-gm')+':'+b.textContent),
+      act:(q('[data-gm][aria-selected=true]')||{}).dataset.gm,save:!!q('.rs-savebar #grSave'),ok:!!q('.rs-head [data-ok]'),range:{},ctl:{}};
+      for(const k of ['height','weight','head']){q('[data-gm='+k+']').click();o.range[k]=q('[data-grange]').textContent;o.ctl[k]=q('#grCtl svg').getAttribute('class')+'|'+q('#grCtl').getAttribute('role')}
+      q('[data-gm=weight]').click();o.full=Math.round(q('.gr-sheet').getBoundingClientRect().height);return o})()""")
+    check('#284 记录面板：标题「记录生长」、✕ / ✓、日期默认今天 + 时间、身高 / 体重 / 头围三段都「未填」、默认体重、吸底保存', sh['t'] == '记录生长' and sh['ok'] and sh['date'] == ev("Util.todayISO()") and len(sh['time']) == 5 and sh['segs'] == ['height:身高未填', 'weight:体重未填', 'head:头围未填'] and sh['act'] == 'weight' and sh['save'] and sh['full'] > 700, sh)
+    check('#284 范围提示 身高 30–160cm / 体重 1–40kg / 头围 20–70cm；身高、头围是横向刻度尺，体重是半圆表盘（role=slider）', sh['range'] == {'height': '30–160cm', 'weight': '1–40kg', 'head': '20–70cm'} and sh['ctl'] == {'height': 'gr-ruler|slider', 'weight': 'gr-dial|slider', 'head': 'gr-ruler|slider'}, sh)
+    # 3. 一项都没量：不让存
+    n0 = ev("Storage.get().growth.length"); ev("document.querySelector('#grSave').click()"); p.wait_for_timeout(250)
+    check('#284 一项都没填时不让保存', ev("Storage.get().growth.length") == n0 and ev("!!document.querySelector('.gr-sheet')"))
+    # 4. 表盘真拖动（鼠标 → pointer 事件）只填体重；身高输入；头围不动
+    w0 = ev("Number(document.querySelector('#grNum').value)")
+    bx = p.locator('#grCtl').bounding_box(); cx = bx['x'] + bx['width'] / 2
+    p.mouse.move(cx + 80, bx['y'] + 60); p.mouse.down()
+    for i in range(1, 9): p.mouse.move(cx + 80 - i * 14, bx['y'] + 60 - i * 3); p.wait_for_timeout(30)
+    p.wait_for_timeout(200); p.mouse.up(); p.wait_for_timeout(1200)
+    dw = ev("[Number(document.querySelector('#grNum').value), document.querySelector('[data-gmv=weight]').textContent, document.querySelector('#grNum').classList.contains('is-empty')]")
+    ev("document.querySelector('[data-gm=height]').click()")
+    k0 = ev("Number(document.querySelector('#grNum').value)")
+    ev("document.querySelector('#grCtl').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}))")
+    k1 = ev("[Number(document.querySelector('#grNum').value), document.querySelector('[data-gmv=height]').textContent]")
+    check('#284 拖表盘改体重（值变了、这一段从「未填」变成数值）；刻度尺方向键 +0.1', dw[0] != w0 and dw[1].endswith('kg') and not dw[2] and abs(k1[0] - k0 - 0.1) < 1e-6 and k1[1].endswith('cm'), [w0, dw, k0, k1])
+    p.fill('#grNum', '66.5')
+    ev("document.querySelector('#grSave').click()"); p.wait_for_timeout(450)
+    r = ev("Storage.get().growth.slice(-1)[0]")
+    check('#284 只保存填过的项：体重（拖过）+ 身高 66.5，头围没动 → null；记下测量时刻 at', r and r['heightCm'] == 66.5 and r['weightKg'] == round(dw[0], 2) and r['headCm'] is None and r['date'] == ev("Util.todayISO()") and len(r.get('at') or '') == 5, r)
+    # 5. 范围校验（输入框：范围外标红、不保存；刻度最小 / 最大夹住）
+    opensheet()
+    ev("document.querySelector('[data-gm=height]').click()"); p.fill('#grNum', '200'); ev("document.querySelector('#grSave').click()"); p.wait_for_timeout(250)
+    e1 = ev("(document.querySelector('#modalRoot .field-error')||{}).textContent||''")
+    ev("document.querySelector('[data-gm=weight]').click()"); p.fill('#grNum', '0.5'); ev("document.querySelector('#grSave').click()"); p.wait_for_timeout(250)
+    e2 = ev("(document.querySelector('#modalRoot .field-error')||{}).textContent||''")
+    p.fill('#grNum', '45'); ev("document.querySelector('.rs-head [data-ok]').click()"); p.wait_for_timeout(250)
+    e3 = ev("(document.querySelector('#modalRoot .field-error')||{}).textContent||''")
+    p.fill('#grNum', '3')
+    for _ in range(30): ev("document.querySelector('#grCtl').dispatchEvent(new KeyboardEvent('keydown',{key:'PageDown',bubbles:true}))")
+    lo = ev("Number(document.querySelector('#grNum').value)")
+    check('#284 范围校验：身高 200 / 体重 0.5 / 45 都拦下并提示范围（顶栏 ✓ 也拦），不新增；刻度最低夹在 1 kg', '30–160' in e1 and '1–40' in e2 and '1–40' in e3 and ev("Storage.get().growth.length") == n0 + 1 and lo == 1, [e1, e2, e3, lo])
+    ev("Sheet.closeAll()"); p.wait_for_timeout(300)
+    # 6. 首页：摘要 / 洞察 / 时间轴 / … 菜单
+    ev("""(()=>{const d=Storage.get();d.growth.push({id:'g1',date:'2026-05-20',weightKg:3.3,heightCm:50,headCm:34},{id:'g2',date:'2026-06-20',weightKg:4.4,heightCm:54.5,headCm:37},{id:'g3',date:'2026-07-20',weightKg:5.5,heightCm:58,headCm:39},{id:'g4',date:'2026-08-20',weightKg:6.3,heightCm:61,headCm:40.5},{id:'g5',date:'2026-09-20',weightKg:6.9,heightCm:63.5,headCm:41.5});Storage.save()})()""")
+    go('home', 200); go('growth')
+    pg = ev("({sum:document.querySelector('.mod-sum p').textContent,chips:[...document.querySelectorAll('[data-gsub]')].map(b=>b.textContent),rows:document.querySelectorAll('.gr-tl .tl-row').length,sub:document.querySelectorAll('.gr-tl .tl-txt small')[1].textContent})")
+    check('#284 首页：摘要「最近一次体重为 … kg。上次：刚刚」、洞察两个胶囊（生长趋势 / 喂养与体重）、时间轴卡片写 身高 · 体重 · 头围', pg['sum'].startswith('最近一次体重为') and ('上次：刚刚' in pg['sum'] or '分钟前' in pg['sum']) and pg['chips'] == ['生长趋势', '喂养与体重'] and pg['rows'] == 6 and pg['sub'] == '身高 63.5 cm · 体重 6.9 kg · 头围 41.5 cm', pg)
+    ev("document.querySelector('[data-gopen=g5] [data-gmore]').dispatchEvent(new MouseEvent('click',{bubbles:true}))"); p.wait_for_timeout(250)
+    mi = ev("[...document.querySelectorAll('.gr-menu [data-mi]')].map(b=>b.textContent)")
+    ev("document.querySelectorAll('.gr-menu [data-mi]')[0].click()"); p.wait_for_timeout(500)
+    ed = ev("({t:(document.querySelector('#ftsTitle')||{}).textContent,segs:[...document.querySelectorAll('[data-gmv]')].map(b=>b.textContent),del:!!document.querySelector('[data-gdel]')})")
+    ev("document.querySelector('[data-gdel]').click()"); p.wait_for_timeout(300)
+    gone = ev("!Storage.get().growth.some(r=>r.id==='g5')")
+    ev("[...document.querySelectorAll('#toastRoot .toast-action')].pop().click()"); p.wait_for_timeout(300)
+    check('#284 时间轴 … 菜单：编辑 / 删除；编辑面板带原值（63.5 cm / 6.90 kg / 41.5 cm），删除带撤销', mi == ['编辑', '删除'] and ed['t'] == '修改生长记录' and ed['segs'] == ['63.5 cm', '6.90 kg', '41.5 cm'] and ed['del'] and gone and ev("Storage.get().growth.some(r=>r.id==='g5')"), [mi, ed, gone])
+    # 7. 头围开关 + 顺序不变
+    go('growth')
+    def layout():
+        return ev("[...document.querySelectorAll('#view > *, .gr-page > *')].filter(e=>e.offsetParent!==null||getComputedStyle(e).position==='fixed').map(e=>e.className.split(' ')[0]+'@'+Math.round(e.getBoundingClientRect().top))")
+    L0 = layout()
+    ev("document.querySelector('[data-gset]').click()"); p.wait_for_timeout(450)
+    st0 = ev("({t:document.querySelector('#ftsTitle').textContent,on:document.querySelector('#grHeadSw').checked,txt:document.querySelector('.gr-sw').textContent})")
+    ev("document.querySelector('#grHeadSw').click()"); p.wait_for_timeout(250); ev("document.querySelector('.rs-head [data-ok]').click()"); p.wait_for_timeout(400)
+    L1 = layout()
+    nh = ev("({set:Storage.get().settings.growthHead,head:/头围/.test(document.querySelector('.gr-tl').textContent),kept:Storage.get().growth.find(r=>r.id==='g5').headCm})")
+    check('#284 生长设置：「记录头围」开关（默认开），关掉后首页卡片不显示头围、老记录里的头围数据保留', st0['t'] == '生长设置' and st0['on'] and '记录头围' in st0['txt'] and nh['set'] is False and not nh['head'] and nh['kept'] == 41.5, [st0, nh])
+    check('#284 关掉头围后首页各段顺序和位置都不变（参考截图里会乱）', [x.split('@')[0] for x in L0] == [x.split('@')[0] for x in L1] and L0[:4] == L1[:4], [L0, L1])
+    opensheet()
+    s2 = ev("[...document.querySelectorAll('[data-gm]')].map(b=>b.dataset.gm)")
+    ev("document.querySelector('[data-gm=height]').click()"); p.fill('#grNum', '67'); ev("document.querySelector('#grSave').click()"); p.wait_for_timeout(450)
+    r2 = ev("Storage.get().growth.slice(-1)[0]")
+    ev("Modules.growth._enter('trend')"); p.wait_for_timeout(500)
+    tr0 = ev("({mets:[...document.querySelectorAll('[data-gmet]')].map(b=>b.dataset.gmet),rows:[...document.querySelectorAll('[data-grow]')].map(e=>e.dataset.grow)})")
+    check('#284 头围关掉：记录面板只剩身高 / 体重两段、新记录 headCm 为 null；趋势页只有两张指标卡、标准对照没有头围行', s2 == ['height', 'weight'] and r2['headCm'] is None and r2['heightCm'] == 67 and tr0['mets'] == ['height', 'weight'] and tr0['rows'] == ['height', 'weight'], [s2, r2, tr0])
+    ev("history.back()"); p.wait_for_timeout(600)
+    ev("(()=>{const d=Storage.get();d.settings.growthHead=true;d.growth=d.growth.filter(r=>r.heightCm!==67);Storage.save()})()")
+    # 8. 生长趋势：标题 / 筛选 / 返回
+    go('growth'); ev("scrollTo(0,300)"); ev("document.querySelector('[data-gsub=trend]').click()"); p.wait_for_timeout(600)
+    t1 = ev("({h:(document.querySelector('.mod-head-sub h1')||{}).textContent,pills:[...document.querySelectorAll('.gr-pill')].map(b=>b.textContent),sub:document.querySelector('.gr-tcard .gr-th p').textContent,pts:document.querySelectorAll('.gr-tcard .gc-pt').length,band:!!document.querySelector('.gc-band'),p50:!!document.querySelector('.gc-p50'),y:scrollY,tab:App.currentTab()})")
+    check('#284 生长趋势页：标题「生长趋势」，筛选 中国标准 / 女宝（读档案）/ 6 月；默认身高；曲线有实测点 + P3–P97 参考带 + P50 虚线', t1['h'] == '生长趋势' and t1['pills'] == ['中国标准', '女宝', '6 月'] and '近 6 月 · cm · 中国标准' in t1['sub'] and t1['pts'] == 6 and t1['band'] and t1['p50'] and t1['y'] == 0, t1)
+    ev("document.querySelector('[data-gf=std]').click()"); p.wait_for_timeout(200)
+    mm = ev("[...document.querySelectorAll('.gr-menu [data-mi]')].map(b=>b.textContent+':'+b.getAttribute('aria-checked'))")
+    ev("document.querySelectorAll('.gr-menu [data-mi]')[1].click()"); p.wait_for_timeout(400)
+    ev("document.querySelector('[data-gf=range]').click()"); p.wait_for_timeout(200); ev("document.querySelectorAll('.gr-menu [data-mi]')[0].click()"); p.wait_for_timeout(400)
+    t2 = ev("({std:Storage.get().settings.growthStd,rg:Storage.get().settings.growthRange,pills:[...document.querySelectorAll('.gr-pill')].map(b=>b.textContent),pts:document.querySelectorAll('.gr-tcard .gc-pt').length,cap:document.querySelector('.gr-tcard').textContent})")
+    ev("document.querySelector('[data-gf=range]').click()"); p.wait_for_timeout(200); ev("document.querySelectorAll('.gr-menu [data-mi]')[3].click()"); p.wait_for_timeout(400)
+    ev("document.querySelector('[data-gmet=weight]').click()"); p.wait_for_timeout(300)
+    t3 = ev("({pts:document.querySelectorAll('.gr-tcard .gc-pt').length,on:document.querySelector('[data-gmet][aria-selected=true]').dataset.gmet,h2:document.querySelector('.gr-tcard h2').textContent})")
+    check('#284 趋势筛选：标准菜单（中国 ✓ / WHO）切到 WHO；时间范围 30 天只画近 30 天的点（1 个）；全部 6 个；指标卡切到体重', mm == ['中国标准:true', 'WHO 标准:false'] and t2['std'] == 'who' and t2['rg'] == '30d' and t2['pills'][0] == 'WHO 标准' and t2['pills'][2] == '30 天' and t2['pts'] == 1 and t3 == {'pts': 6, 'on': 'weight', 'h2': '体重趋势'}, [mm, t2, t3])
+    ev("history.back()"); p.wait_for_timeout(700)
+    bk = ev("({tab:App.currentTab(),hero:!!document.querySelector('.mod-head.has-hero'),sub:Modules.growth._sub,y:Math.round(scrollY)})")
+    check('#284 趋势页系统返回：回到生长首页（页头插画回来、滚动位置复原）', bk['tab'] == 'growth' and bk['hero'] and bk['sub'] is None and bk['y'] == 300, bk)
+    # 9. 百分位计算对 WHO 官方表 / 国标表
+    ref = ev("""(()=>{const R=Modules.growth._ref;const f=(o)=>o?[o.p3,o.lo,o.p50,o.hi,o.p97].map(x=>Math.round(x*10)/10):null;
+      return {bw12:f(R('who','boy','weight',12)),gh24:f(R('who','girl','height',24)),gc6:f(R('who','girl','head',6)),bh6:f(R('who','boy','height',6)),gw60:f(R('who','girl','weight',60)),
+        cn:f(R('cn','girl','height',23)),cnb0:f(R('cn','boy','weight',0)),cnh37:R('cn','girl','head',37),w61:R('who','boy','weight',61),neg:R('who','boy','weight',-1),nosex:R('who',null,'weight',3),
+        mid:Math.round(R('who','boy','weight',12.5).p50*1000)/1000,lo:Modules.growth._band(7.5,R('who','boy','weight',12)),hi:Modules.growth._band(12,R('who','boy','weight',12)),in:Modules.growth._band(9.6,R('who','boy','weight',12))}})()""")
+    check('#284 百分位计算对上 WHO 官方百分位表（男 12 月体重 7.8/8.6/9.6/10.8/11.8、女 24 月身高、女 6 月头围、男 6 月身长、女 60 月体重）', ref['bw12'] == [7.8, 8.6, 9.6, 10.8, 11.8] and ref['gh24'] == [79.6, 82.4, 85.7, 89.1, 91.8] and ref['gc6'] == [39.7, 40.8, 42.2, 43.5, 44.6] and ref['bh6'] == [63.6, 65.4, 67.6, 69.8, 71.6] and ref['gw60'] == [14.0, 15.7, 18.2, 21.3, 24.4], ref)
+    check('#284 国标 WS/T 423—2022（女 1 岁 11 月身高 81.1/84.7/86.8/88.8/92.5，男 0 月体重 P3 2.8）；超出 0–5 岁 / 国标头围超 3 岁 / 生日前 / 没性别 都不给参考值；月龄间线性插值；三档措辞', ref['cn'] == [81.1, 84.7, 86.8, 88.8, 92.5] and ref['cnb0'][0] == 2.8 and ref['cnh37'] is None and ref['w61'] is None and ref['neg'] is None and ref['nosex'] is None and 9.648 < ref['mid'] < 9.86 and ref['lo'] == '低于参考范围' and ref['hi'] == '高于参考范围' and ref['in'] == '参考范围内', ref)
+    # 10. 标准对照卡 + 免责小字
+    go('growth'); ev("Modules.growth._enter('trend')"); p.wait_for_timeout(500)
+    cmp_ = ev("({rows:[...document.querySelectorAll('.gr-row')].map(e=>e.querySelector('.gr-rh small').textContent+'|'+(e.querySelector('[data-gst]')||{}).textContent),bars:document.querySelectorAll('.gr-bar .gb-p50').length,src:(document.querySelector('.gr-cmp .gr-src')||{}).textContent})")
+    check('#284 标准对照：每项 P50 参考值 + P3–P97 区间条 + 实测点 +「参考范围内 / 高于 / 低于参考范围」；底部免责小字', len(cmp_['rows']) == 3 and all(x.startswith('P50 ') and x.split('|')[1] in ('参考范围内', '高于参考范围', '低于参考范围') for x in cmp_['rows']) and cmp_['bars'] == 3 and cmp_['src'] == '参考值来自 WHO 儿童生长标准 / 国家卫健委 WS/T 423-2022，仅供参考，有疑问请咨询儿科医生', cmp_)
+    # 底部内容不被 dock 盖住
+    ev("scrollTo(0,document.scrollingElement.scrollHeight)"); p.wait_for_timeout(200)
+    bt = ev("(()=>{const l=[...document.querySelectorAll('.gr-page > *')].pop().getBoundingClientRect();const t=document.getElementById('tabbar').getBoundingClientRect();return [Math.round(l.bottom),Math.round(t.top)]})()")
+    check('#284 趋势页滚到底：最后一张卡完整露在 dock 上方', bt[0] <= bt[1] - 8, bt)
+    # 没有生日 / 性别：提示去填档案，不画参考带
+    ev("(()=>{const d=Storage.get();d.settings.baby.sex=null;Storage.save();App.rerender()})()"); p.wait_for_timeout(400)
+    nb = ev("({note:(document.querySelector('.gr-note')||{}).textContent||'',btn:!!document.querySelector('[data-gprof]'),band:!!document.querySelector('.gc-band'),cmp:!!document.querySelector('.gr-cmp'),src:!!document.querySelector('.gr-src')})")
+    ev("document.querySelector('[data-gprof]').click()"); p.wait_for_timeout(400)
+    form = ev("!!document.querySelector('#modalRoot #nbSex')")
+    ev("document.querySelector('[data-nb-cancel]').click()"); p.wait_for_timeout(200)
+    ev("(()=>{const d=Storage.get();d.settings.baby.sex='girl';Storage.save()})()")
+    check('#284 没设性别：提示「设置宝宝的性别后，才能对照参考范围」+「去填写宝宝资料」（打开宝宝资料面板），不画参考带、不出对照卡，仍有来源小字', '性别' in nb['note'] and nb['btn'] and not nb['band'] and not nb['cmp'] and nb['src'] and form, [nb, form])
+    ev("history.back()"); p.wait_for_timeout(600)
+    # 11. 喂养与体重
+    go('growth'); ev("Modules.growth._enter('feed')"); p.wait_for_timeout(500)
+    ev("document.querySelector('[data-gf=frange]').click()"); p.wait_for_timeout(200); ev("document.querySelectorAll('.gr-menu [data-mi]')[3].click()"); p.wait_for_timeout(400)
+    fd = ev("({h:(document.querySelector('.mod-head-sub h1')||{}).textContent,bars:document.querySelectorAll('.gc-bar').length,pts:document.querySelectorAll('.gc-pt').length,kv:[...document.querySelectorAll('.gr-fstat .kv li')].map(l=>l.textContent)})")
+    check('#284 喂养与体重：同一张图上有喂奶量柱 + 体重点；列出记录天数 / 平均次数 / 瓶喂量 / 亲喂时长 / 体重变化（3.3 → 7.2 kg 为正）', fd['h'] == '喂养与体重' and fd['bars'] > 0 and fd['pts'] == 6 and any(x.startswith('有喂养记录的天数7 天') for x in fd['kv']) and any('3.3 → ' in x for x in fd['kv']) and any(x.startswith('5/20 到') and '+' in x for x in fd['kv']), fd)
+    # 12. 无判定词（首页 / 面板 / 趋势 / 喂养 / 设置，WHO 与国标、高于 / 低于都看一遍）
+    txts = [text_all()]
+    ev("history.back()"); p.wait_for_timeout(500)
+    ev("(()=>{const d=Storage.get();d.growth=d.growth.filter(r=>r.date!==Util.todayISO());d.growth.push({id:'gx',date:Util.addDays(Util.todayISO(),-1),weightKg:20,heightCm:45,headCm:60});Storage.save()})()")
+    go('growth'); txts.append(text_all())
+    ev("document.querySelector('[data-gset]').click()"); p.wait_for_timeout(400); txts.append(text_all()); ev("Sheet.closeAll()"); p.wait_for_timeout(300)
+    opensheet(); txts.append(text_all()); ev("Sheet.closeAll()"); p.wait_for_timeout(300)
+    stt = []
+    for std in ('cn', 'who'):
+        ev(f"(()=>{{const d=Storage.get();d.settings.growthStd='{std}';Storage.save()}})()")
+        go('growth'); ev("Modules.growth._enter('trend')"); p.wait_for_timeout(450)
+        for mk in ('height', 'weight', 'head'):
+            ev(f"document.querySelector('[data-gmet={mk}]').click()"); p.wait_for_timeout(200); txts.append(text_all())
+        stt.append(ev("[...document.querySelectorAll('[data-gst]')].map(e=>e.dataset.gst).join()"))
+        ev("history.back()"); p.wait_for_timeout(500)
+    bad = sorted({w for t in txts for w in GROWTH_BAN if w in t})
+    check('#284 生长各页没有判定词（偏矮 / 偏胖 / 发育迟缓 / 超重 / 异常 / 达标…），高于 / 低于参考范围时也只写中性三档', not bad and all(x == 'low,high,high' for x in stt), [bad, stt])
+    ev("(()=>{const d=Storage.get();d.growth=d.growth.filter(r=>r.id!=='gx');Storage.save()})()")
+    # 13. 旧数据兼容
+    ev("""(()=>{const d=Storage.get();d.growth.push({id:'old1',date:'2026-09-01',weight:'6.6',height:62,head:41},{id:'old2',date:'2026-08-01',weightKg:'6.1',heightCm:null,headCm:''},{id:'old3',date:'bad',weightKg:5});Storage.save()})()""")
+    go('growth')
+    od = ev("({t:[...document.querySelectorAll('.gr-tl .tl-txt small')].map(e=>e.textContent),n:document.querySelectorAll('.gr-tl .tl-row').length,nan:/NaN|null|undefined/.test(document.querySelector('#view').textContent)})")
+    check('#284 旧数据兼容：老字段 weight / height / head、字符串数值、空值都能读；坏日期的记录不显示也不报错；不出 NaN / null', '身高 62 cm · 体重 6.6 kg · 头围 41 cm' in od['t'] and '体重 6.1 kg' in od['t'] and od['n'] == 7 and not od['nan'], od)
+    opensheet('[data-gopen=old1]')
+    ev("document.querySelector('[data-gm=weight]').click()"); p.fill('#grNum', '6.7'); ev("document.querySelector('#grSave').click()"); p.wait_for_timeout(400)
+    o1 = ev("Storage.get().growth.find(r=>r.id==='old1')")
+    check('#284 修改老记录：改了体重 → 写成 weightKg，老字段名清掉，没动的身高 / 头围原值迁到新字段', o1['weightKg'] == 6.7 and o1['heightCm'] == 62 and o1['headCm'] == 41 and 'weight' not in o1 and 'height' not in o1 and 'head' not in o1, o1)
+    ev("Storage.get().growth=Storage.get().growth.filter(r=>!/^old/.test(r.id));Storage.save()")
+    # 14. XSS
+    ev("""(()=>{const d=Storage.get();d.growth.push({id:'x"><img id=pwnG1 src=x>',date:'2026-10-01',at:'<img id=pwnG2 src=x>',weightKg:'<img id=pwnG3 src=x>',heightCm:70,headCm:43});d.settings.growthStd='"><img id=pwnG4 src=x>';d.settings.growthRange='<img id=pwnG5>';Storage.save()})()""")
+    go('growth'); ev("Modules.growth._enter('trend')"); p.wait_for_timeout(450)
+    xs = ev("[!!document.querySelector('[id^=pwnG]'),document.querySelector('.gr-pill').textContent,document.querySelectorAll('.gr-pill')[2].textContent]")
+    ev("history.back()"); p.wait_for_timeout(500)
+    xs2 = ev("!!document.querySelector('[id^=pwnG]')")
+    check('#284 XSS：测量时刻 / 数值 / id / 设置里的 HTML 都不渲染（坏的标准 / 范围设置回落中国标准 / 6 月）', not xs[0] and not xs2 and xs[1] == '中国标准' and xs[2] == '6 月', [xs, xs2])
+    ev("(()=>{const d=Storage.get();d.growth=d.growth.filter(r=>r.heightCm!==70);delete d.settings.growthStd;delete d.settings.growthRange;Storage.save()})()")
+    # 15. 底部「+ 记录生长」走第 282 次固定实现
+    ev("(()=>{const d=Storage.get();for(let i=0;i<14;i++)d.growth.push({id:'z'+i,date:Util.addDays(Util.todayISO(),-30*i-40),weightKg:5+i*0.2,heightCm:60+i,headCm:40});Storage.save()})()")
+    go('home', 200); go('growth')
+    m = ev(R282_SCAN)
+    check('#284 生长页底部「+ 记录生长」固定在底部（滚动不动、最后一条完整露出、底衬铺到屏幕底）', r282_ok(m), m)
+    ev("document.body.classList.add('dark')"); m2 = ev(R282_SCAN); ev("document.body.classList.remove('dark')")
+    check('#284 深色同样', r282_ok(m2), m2)
+    # 首页磁贴 / 日期记录 / 交接班 / CSV 照常
+    ev("(()=>{const d=Storage.get();d.growth.push({id:'gT0',date:Util.todayISO(),at:'00:05',weightKg:7.1,heightCm:null,headCm:null},{id:'gT',date:Util.todayISO(),at:'00:20',weightKg:7.4,heightCm:null,headCm:null});d.growth.reverse();Storage.save()})()")
+    di = ev("JSON.stringify((Util.buildDayIndex(Storage.get())||{})[Util.todayISO()]||'')")
+    go('home', 400); ev("Modules.home._edit=true;Modules.home._sheet=true;App.rerender()"); p.wait_for_timeout(600)
+    hsh = ev("document.querySelector('#homeSheet').innerText.replace(/\\s+/g,' ')")
+    ev("Modules.home._edit=false;Modules.home._sheet=false;App.rerender()"); p.wait_for_timeout(300)
+    ev(CSV_CAP); go('settings')
+    ev("(()=>{const s=document.querySelector('#sCsvModule');s.value='growth';document.querySelector('#sCsv').click()})()"); p.wait_for_timeout(400)
+    gl = ev("(window.__csv.slice(-1)[0]||'').split(/\\r?\\n/).filter(l=>l.startsWith(Util.todayISO())).join('|')")
+    check('#284 首页生长磁贴（最近 7.4 kg）、日期记录（今天有这条生长）、CSV（今天这一行 体重 7.4、身高 / 头围空）照常', '最近 7.4 kg' in hsh and '7.4 kg' in di and any(x.endswith(',7.4,,') for x in (gl or '').split('|')), [hsh[hsh.find('生长') - 20:hsh.find('生长') + 60], di[:200], gl])
+    check('#284 pageerror 为 0', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -2783,7 +2988,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r279',),
           ('test_r280',),
           ('test_r281',),
-          ('test_r282', 'test_r283'))  # 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r282', 'test_r283'),
+          ('test_r284',))  # 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

@@ -690,7 +690,6 @@ body.dark .sup-num.sup-ok, body.dark .sup-state .sup-ok { color: #8FCDB2; }
 .list li .li-num i { font-style: normal; font-weight: 400; font-size: calc(12px * var(--fs-mul)); color: var(--muted); margin-left: 1px; }
 .list li .li-sub + .li-num { margin-left: 0; }
 /* 第 76 次（D 线）：多行详情变体——growth/sleep 等右栏内容长的行允许换行 */
-.list li .li-sub.li-sub-wrap { white-space: normal; }
 /* 第 82 次（软药丸回归·用户反馈「裸行难看」）：第 79 次前的描边药丸被否
    （框中框），第 79 次的裸行+分隔线也被否（图标悬浮、散乱）。落点取中间态——
    卡片内行用「软药丸」：弱色底、无描边、无投影、无分隔线、sm 圆角，
@@ -3655,13 +3654,7 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
   grid-column: 1 / -1;
   flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 12px;
 }
-/* ② 生长「测量项」药丸：名称与数值挤一行时窄屏逐字折行（体/重）。改为上下两层：
-   小号名称在上，数值加粗在下，三枚等宽且不折行。 */
-#gMetrics .seg-btn { flex-direction: column; gap: 1px; padding: 8px 6px; border-radius: var(--radius-md); line-height: 1.25; font-size: calc(12px * var(--fs-mul)); color: var(--muted); }
-#gMetrics .seg-btn b { white-space: nowrap; font-size: calc(15px * var(--fs-mul)); color: var(--text); font-variant-numeric: tabular-nums; }
-#gMetrics .seg-btn b.g-untouched { color: var(--muted); font-weight: 600; font-size: var(--fs-sm); }
-.g-only-hint { margin: 6px 0 0; }
-#gMetrics .seg-btn.active, #gMetrics .seg-btn.active b { color: var(--primary-text); }
+/* ② 第 284 次：生长「测量项」药丸随老录入表单一起删掉（新面板见文件末尾「生长照参考截图重做」） */
 /* ③ 尺滑杆：被指针压住的那枚刻度数字淡出（配合 util.js rulerPaint 的 is-covered） */
 .ruler-ticks .rt.is-covered em { opacity: 0; transition: opacity .18s ease; }
 /* ④ 表单节奏：一组药丸/选项之后紧跟下一个字段标题时，留出段落间距，
@@ -5916,3 +5909,156 @@ body.is-night .view-enter > :has(.mod-cta) > * { animation-duration: .01ms !impo
 .fin-day { justify-content: center; font-size: var(--fs-xs, 12px); }
 .fin-num { flex-shrink: 0; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); }
 
+
+/* ============================================================
+   第 284 次：生长照参考截图重做（js/modules/growth.js）
+   首页（齿轮 / 摘要 / 洞察 / 时间轴）· 全屏记录面板（三段 + 大数字 + 刻度尺 / 半圆表盘）
+   · 生长趋势 / 喂养与体重二级页（筛选胶囊 + 曲线 + 标准对照）· 生长设置半屏 · 小菜单
+   ============================================================ */
+#view:has(> .gr-page > .gr-gear) { position: relative; }
+.gr-gear { position: absolute; z-index: 2; top: 10px; right: 16px; width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%; background: var(--surface); color: var(--muted); box-shadow: 0 6px 16px -12px rgba(51,48,43,.4); cursor: pointer; }
+.gr-gear .ico { width: 22px; height: 22px; }
+body.dark .gr-gear { background: rgba(255,255,255,.08); color: var(--text); box-shadow: none; }
+.gr-ins .ft-chip .ico { width: 20px; height: 20px; }
+.gr-tl .tl-time { display: flex; flex-direction: column; gap: 1px; }
+.gr-more { display: inline-flex; align-items: center; justify-content: center; align-self: stretch; min-width: 32px; margin: -10px -6px -10px 0; }
+.mod-head.mod-head-sub { justify-content: center; margin: 2px 0 var(--space-md); }
+.mod-head.mod-head-sub h1 { font-size: calc(19px * var(--fs-mul, 1)); font-weight: 800; }
+.mod-head.has-hero:has(~ .gr-page .sk-empty) .hero-status { display: none; }
+
+/* —— 记录面板（全屏） —— */
+.modal.rec-sheet.gr-sheet { display: flex; flex-direction: column; }
+.modal-mask.as-sheet > .gr-sheet.is-sheet { height: calc(100vh - env(safe-area-inset-top) - 44px); max-height: calc(100vh - env(safe-area-inset-top) - 44px); padding-bottom: 0; }
+.modal-mask.as-sheet.kb-up > .gr-sheet.is-sheet { height: auto; }
+.gr-sheet .rs-body { flex: 1 0 auto; display: flex; flex-direction: column; }
+.gr-sheet .rs-savebar { margin-top: auto; }
+.modal-mask.as-sheet > .gr-sheet.is-sheet .rs-savebar { bottom: 0; margin-top: auto; margin-bottom: 0; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+.modal-mask.as-sheet.kb-up > .gr-sheet.is-sheet .rs-savebar { padding-bottom: 12px; }
+.gr-sheet .rs-ok { background: var(--tile-fill, var(--tile)); color: #fff; }
+body.dark .gr-sheet .rs-ok { background: var(--tile); color: var(--tile-on); }
+.gr-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 16px 0 14px; padding: 4px; border-radius: var(--radius-pill); background: var(--tile-weak); }
+.gr-seg.n2 { grid-template-columns: repeat(2, 1fr); }
+.gr-seg button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 58px; padding: 6px 4px; border: none; border-radius: var(--radius-pill);
+  background: transparent; color: var(--tile-text); font: inherit; cursor: pointer; transition: background-color .2s var(--ease), box-shadow .2s var(--ease); }
+.gr-seg button b { font-size: var(--fs-sm, 14px); font-weight: 700; }
+.gr-seg button small { font-size: var(--fs-sm, 13px); font-weight: 600; font-variant-numeric: tabular-nums; }
+.gr-seg button.is-on { background: var(--surface-solid); color: var(--text); box-shadow: 0 4px 14px -8px rgba(51,48,43,.45); }
+body.dark .gr-seg button.is-on { background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.gr-big { border-radius: var(--radius-md); background: var(--surface-2); padding: 14px 12px 10px; }
+.gr-numwrap { display: flex; flex-direction: column; align-items: center; gap: 0; margin: 0; }
+input.gr-num { display: block; width: 100%; max-width: 260px; border: none; background: transparent; text-align: center; padding: 0; margin: 0 auto; box-shadow: none;
+  font: inherit; font-size: calc(60px * var(--fs-mul, 1)); font-weight: 800; line-height: 1.1; color: var(--tile-text); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+input.gr-num:focus { outline: none; box-shadow: none; border: none; }
+input.gr-num:focus-visible { outline: 2px solid var(--tile); outline-offset: 4px; border-radius: var(--radius-xs); }
+input.gr-num.is-empty { color: var(--muted); opacity: .62; }
+input.gr-num.is-invalid { color: var(--danger); background: transparent; border: none; }
+.gr-numwrap .field-error { text-align: center; }
+.gr-unit { font-size: var(--fs-body, 15px); font-weight: 700; color: var(--text); }
+.gr-range { margin: 8px 0 6px; text-align: center; font-size: var(--fs-sm, 13px); color: var(--muted); }
+.gr-ctl { position: relative; margin: 6px 0 0; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; outline: none; }
+.gr-ctl:focus-visible { box-shadow: 0 0 0 2px var(--tile); border-radius: var(--radius-md); }
+.gr-ctl.is-ruler { height: 112px; border-radius: var(--radius-lg); background: var(--surface-2); overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent); }
+.gr-ctl svg { display: block; }
+.gr-ctl .gt { stroke: var(--muted); stroke-width: 1.5; opacity: .55; stroke-linecap: round; }
+.gr-ctl .gt-big { stroke: var(--muted); stroke-width: 2.2; opacity: .85; stroke-linecap: round; }
+.gr-ctl text { fill: var(--muted); font-size: calc(14px * var(--fs-mul, 1)); font-weight: 600; font-variant-numeric: tabular-nums; }
+.gr-ctl .gt-needle { stroke: var(--tile); stroke-width: 3.5; stroke-linecap: round; }
+.gr-ctl .gt-dot { fill: var(--tile); }
+.gr-ctl .gd-band { fill: none; stroke: var(--surface-2); }
+.gr-clr-row { margin: 8px 0 0; text-align: center; }
+.gr-clear[hidden] { display: none; }
+.gr-save { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.gr-save .ico { width: 20px; height: 20px; }
+
+/* —— 生长设置 —— */
+.gr-set-lead { margin: 4px 0 10px; color: var(--muted); font-size: var(--fs-sm, 14px); }
+.gr-sw { padding: 10px 0; border-top: 1px solid var(--border); }
+.gr-sw label { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; }
+.gr-sw label b { font-weight: 700; }
+.gr-sw label small { color: var(--muted); font-size: var(--fs-xs, 12px); line-height: 1.45; }
+.gr-sw input[type="checkbox"]:checked { background-color: var(--tile-fill, var(--tile)); border-color: var(--tile-fill, var(--tile)); }
+.gr-gest { margin-top: 6px; }
+.gr-gest[hidden] { display: none; }
+.gr-gest .gr-gest-k { color: var(--muted); font-size: var(--fs-sm, 14px); white-space: nowrap; }
+
+/* —— 小菜单 —— */
+.gr-menu-mask { position: fixed; inset: 0; z-index: 60; }
+.gr-menu { position: fixed; min-width: 176px; padding: 6px; border-radius: var(--radius-lg); background: color-mix(in srgb, var(--surface-solid) 86%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4); box-shadow: 0 18px 40px -16px rgba(40,32,24,.45), inset 0 0 0 1px var(--border);
+  animation: grMenu .18s var(--spring) both; transform-origin: top right; }
+@keyframes grMenu { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
+.gr-menu button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 14px 0 8px; border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text); font: inherit; font-size: var(--fs-body, 15px); text-align: left; cursor: pointer; }
+.gr-menu button:hover, .gr-menu button:focus-visible { background: var(--tile-weak); outline: none; }
+.gr-menu button.is-danger { color: var(--danger, #C24A3A); }
+.gm-ck { display: inline-flex; width: 20px; justify-content: center; color: var(--text); }
+.gm-ck .ico { width: 18px; height: 18px; color: var(--tile-text); }
+
+/* —— 二级页：筛选胶囊 / 趋势卡 / 标准对照 —— */
+.gr-filt { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.gr-filt-k { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: var(--fs-sm, 13px); }
+.gr-pill { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 10px; white-space: nowrap; border: none; border-radius: var(--radius-pill); background: var(--surface);
+  color: var(--text); font: inherit; font-size: calc(13px * var(--fs-mul, 1)); font-weight: 600; cursor: pointer; box-shadow: 0 6px 16px -12px rgba(51,48,43,.35); }
+.gr-pill svg { width: 16px; height: 16px; flex: none; color: var(--tile-text); }
+.gr-pill svg:last-child:not(:first-child) { width: 12px; height: 12px; color: var(--muted); }
+body.dark .gr-pill { background: rgba(255,255,255,.08); box-shadow: none; }
+.gr-note { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; padding: 12px 14px; border-radius: var(--radius); background: color-mix(in srgb, var(--tile) 9%, transparent); }
+.gr-note p { flex: 1 1 180px; margin: 0; font-size: var(--fs-sm, 14px); color: var(--text); }
+.gr-th { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.gr-th h2 { margin: 0 0 2px; }
+.gr-th p { margin: 0; color: var(--muted); font-size: var(--fs-xs, 12px); }
+.gr-tv { display: flex; flex-direction: column; align-items: flex-end; flex: none; }
+.gr-tv b { font-size: calc(26px * var(--fs-mul, 1)); font-weight: 800; color: var(--tile-text); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.gr-tv b small { font-size: .62em; margin-left: 2px; }
+.gr-tv span { color: var(--muted); font-size: var(--fs-xs, 12px); }
+.gr-mets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.gr-mets.n2 { grid-template-columns: repeat(2, 1fr); }
+.gr-mets button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.gr-mets button b { font-size: var(--fs-sm, 13px); font-weight: 700; }
+.gr-mets button span { font-size: var(--fs-sm, 14px); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); overflow-wrap: anywhere; }
+.gr-mets button small { font-size: var(--fs-xs, 12px); color: var(--muted); }
+.gr-mets button.is-on { border-color: var(--tile); background: var(--tile-weak); }
+.gr-mets button.is-on b { color: var(--tile-text); }
+.gr-mets button.is-on span { color: var(--text); }
+.gr-chbox { border-radius: var(--radius-sm); background: var(--surface-2); padding: 6px 4px 0; }
+.gr-ch { display: block; height: auto; overflow: visible; }
+.gr-ch text { font-size: calc(10px * var(--fs-mul, 1)); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.gc-grid { stroke: var(--border); stroke-width: 1; }
+.gc-band { fill: color-mix(in srgb, var(--tile) 16%, transparent); }
+.gc-band2 { fill: color-mix(in srgb, var(--tile) 18%, transparent); }
+.gc-p50 { fill: none; stroke: var(--tile); stroke-width: 1.6; stroke-dasharray: 5 4; opacity: .9; }
+.gc-line { fill: none; stroke: var(--tile-text); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.gc-pt { fill: var(--tile-text); stroke: var(--surface-2); stroke-width: 1.5; }
+.gc-pt.is-last { fill: var(--tile); stroke-width: 2.5; }
+.gc-bar { fill: color-mix(in srgb, var(--tile) 34%, transparent); }
+.gr-cap { margin: 10px 2px 0; font-size: var(--fs-sm, 13px); color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+.gr-legend { margin: 6px 2px 0; font-size: var(--fs-xs, 12px); color: var(--muted); line-height: 1.6; }
+.gr-legend i { display: inline-block; vertical-align: middle; margin-right: 4px; }
+.gr-lg-pt { width: 8px; height: 8px; border-radius: 50%; background: var(--tile-text); }
+.gr-lg-p50 { width: 14px; height: 0; border-top: 2px dashed var(--tile); }
+.gr-lg-band { width: 14px; height: 8px; border-radius: 2px; background: color-mix(in srgb, var(--tile) 30%, transparent); }
+.gr-lg-bar { width: 6px; height: 10px; border-radius: 1.5px; background: color-mix(in srgb, var(--tile) 40%, transparent); }
+.gr-cmp-d { color: var(--muted); font-size: var(--fs-sm, 13px); font-variant-numeric: tabular-nums; }
+.gr-row { padding: 12px 0; border-top: 1px solid var(--border); }
+.gr-row:first-of-type { border-top: none; padding-top: 2px; }
+.gr-rh { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.gr-rh > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gr-rh b { font-weight: 700; }
+.gr-rh small { color: var(--muted); font-size: var(--fs-sm, 13px); overflow-wrap: anywhere; }
+.gr-rv { align-items: flex-end; text-align: right; flex: none; }
+.gr-rv b { color: var(--tile-text); font-variant-numeric: tabular-nums; }
+.gr-rv.is-high small, .gr-rv.is-low small { color: var(--warn-text); }
+.gr-bar { position: relative; height: 12px; margin: 12px 6px 6px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--tile) 26%, transparent); }
+.gb-p50 { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--muted); border-radius: 1px; }
+.gb-pt { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--tile); box-shadow: 0 0 0 2px var(--surface-solid); }
+.gb-pt.is-high, .gb-pt.is-low { background: #D08A2E; }
+.gr-bl { display: flex; justify-content: space-between; gap: 6px; font-size: var(--fs-xs, 12px); color: var(--muted); font-variant-numeric: tabular-nums; }
+.gr-src { margin: 12px 0 0; font-size: var(--fs-xs, 12px); line-height: 1.55; color: var(--muted); }
+.gr-src-solo { margin: 4px 4px 8px; }
+.gr-fstat .kv li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.gr-fstat .kv li span { color: var(--muted); min-width: 0; }
+.gr-fstat .kv li b { text-align: right; font-variant-numeric: tabular-nums; }
+.gr-ago, .gr-it { white-space: nowrap; }

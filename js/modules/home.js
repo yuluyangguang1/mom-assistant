@@ -262,7 +262,8 @@
       var lastLongestH = lastNightLongestH(d);
       /* 第 278 次（审计 #37）：取最近一条「有体重」的记录；都没有体重时退到最近的身长 / 头围，不再出现「最近 null kg」 */
       var growthByDate = (d.growth || []).filter(function (r) { return r && r.date; }).slice()
-        .sort(function (a, b) { return new Date(b.date) - new Date(a.date); });
+        /* 第 284 次：同一天记了几次时按测量时刻（at）排，最近一次在前 */
+        .sort(function (a, b) { var x = String(b.date) + (b.at || ''), y = String(a.date) + (a.at || ''); return x < y ? -1 : x > y ? 1 : 0; });
       var weightRecent = growthByDate.filter(function (r) { return r.weightKg != null && r.weightKg !== ''; })[0];
       var growthSum = '暂无';
       if (weightRecent) growthSum = '最近 ' + weightRecent.weightKg + ' kg';

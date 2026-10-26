@@ -77,7 +77,9 @@
     },
     growth: function (d) {
       var m = ageMonths(d);
-      var r = lastOf(d.growth, 'date');
+      /* 第 284 次：同一天记了几次时按测量时刻（at）取最近一次 */
+      var r = (d.growth || []).filter(function (x) { return x && /^\d{4}-\d{2}-\d{2}$/.test(x.date || '') && x.date <= Util.todayISO(); })
+        .sort(function (a, b) { var x = b.date + (b.at || ''), y = a.date + (a.at || ''); return x < y ? -1 : x > y ? 1 : 0; })[0] || null;
       var scale = m == null ? 0.86 : 0.78 + Math.min(m, 36) / 36 * 0.22;
       var parts = [];
       if (m != null) parts.push(m + ' 个月');

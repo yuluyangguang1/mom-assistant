@@ -98,7 +98,7 @@
     var name = (Storage.babyLabel && b) ? Storage.babyLabel(b) : ((d.settings.baby && (d.settings.baby.nickname || d.settings.baby.name)) || '宝宝');
     var bd = (b && b.birthDate) || (d.settings.baby && d.settings.baby.birthDate) || null;
     var age = (global.App && App._babyAge) ? App._babyAge(bd) : '';
-    var gr = (d.growth || []).slice().sort(function (x, y) { return String(y.date || '').localeCompare(String(x.date || '')); });
+    var gr = (d.growth || []).slice().sort(function (x, y) { return (String(y.date || '') + (y.at || '')).localeCompare(String(x.date || '') + (x.at || '')); }); /* 第 284 次：同一天按测量时刻 */
     var h = null, w = null;
     gr.forEach(function (r) { if (h == null && r.heightCm != null) h = r.heightCm; if (w == null && r.weightKg != null) w = r.weightKg; });
     var meta = [age, h != null ? h + 'cm' : '', w != null ? w + 'kg' : ''].filter(Boolean).map(function (x) { return '<span>' + esc(x) + '</span>'; }).join('');

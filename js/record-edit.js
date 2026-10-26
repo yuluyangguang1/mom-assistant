@@ -127,9 +127,9 @@
       arr: 'growth', title: '编辑测量记录',
       fields: [
         { k: 'date', l: '日期', t: 'date' },
-        { k: 'weightKg', l: '体重（kg）', t: 'num', min: 0.5, max: 40, step: 0.01 },
-        /* 第 278 次（审计 #38）：和生长页录入滑杆（growth.js METS）同一套范围 */
-        { k: 'heightCm', l: '身长（cm）', t: 'num', min: 20, max: 160, step: 0.1 },
+        /* 第 278 次（审计 #38）：和生长页录入范围同一套；第 284 次跟着生长页改成 体重 1–40 / 身高 30–160 / 头围 20–70 */
+        { k: 'weightKg', l: '体重（kg）', t: 'num', min: 1, max: 40, step: 0.01 },
+        { k: 'heightCm', l: '身高（cm）', t: 'num', min: 30, max: 160, step: 0.1 },
         { k: 'headCm', l: '头围（cm）', t: 'num', min: 20, max: 70, step: 0.1 }
       ],
       fix: function (r) {

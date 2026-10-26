@@ -603,7 +603,12 @@
       head.className = 'mod-head';
       head.setAttribute('data-accent', id);
       /* 第 183 次：有状态插画的模块，页头换成「大物件 + 标题 + 当前状态」（hero.js） */
-      if (global.Hero && Hero.has(id) && !subExit) {
+      /* 第 284 次：模块自己的页内二级页（生长趋势等）给出自己的标题，不带模块图标 */
+      var subT = (subExit && typeof Modules[id].subTitle === 'function') ? Modules[id].subTitle() : null;
+      if (subT) {
+        head.className = 'mod-head mod-head-sub';
+        head.innerHTML = '<h1>' + Util.escapeHtml(subT) + '</h1>';
+      } else if (global.Hero && Hero.has(id) && !subExit) {
         head.className = 'mod-head has-hero';
         head.innerHTML = Hero.html(id, Modules[id].title);
       } else
