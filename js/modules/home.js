@@ -401,7 +401,7 @@
         { id: 'mood', stages: ['baby', 'pregnancy'], name: '妈妈情绪', accent: 'mood', sum: moodSum, guide: !moodDad, empty: !moodToday }, /* 第 244 次：爸爸身份不当引导项 */
         { id: 'pregnancy', stages: ['pregnancy'], name: '孕期', accent: 'pregnancy', sum: wk !== null ? (wk >= 40 && dueLeft(d) < 0 ? '已过预产期 ' + (-dueLeft(d)) + ' 天' : '第 ' + wk + ' 周') : '未设置' /* 第 193 次 */, badge: '', guide: true, empty: wk === null },
         { id: 'packing', stages: ['pregnancy'], name: '待产包', accent: 'packing', sum: pk.length ? ('已备 ' + pkPct + '%') : '未开始', badge: '', guide: true, empty: !pk.length },
-        { id: 'contraction', stages: ['pregnancy'], name: '宫缩', accent: 'contraction', sum: ocTile ? ('计时中 · 已 ' + Util.fmtDuration(openElapsedMs(ocTile))) : (contraToday ? ('今日 ' + contraToday + ' 次') : '暂无今日'), badge: ocTile ? '计时中' : '', guide: true, empty: (!ocTile && !contraToday) }
+        { id: 'contraction', stages: ['pregnancy'], name: '宫缩', accent: 'contraction', sum: ocTile ? ('计时中 · 已 ' + Util.fmtSecDur(openElapsedMs(ocTile))) : (contraToday ? ('今日 ' + contraToday + ' 次') : '暂无今日'), badge: ocTile ? '计时中' : '', guide: true, empty: (!ocTile && !contraToday) }
       ];
       if (wk !== null) {
         tiles.push({ id: 'fetal', stages: ['pregnancy'], name: '胎动', accent: 'fetal', sum: fetalToday ? ('今日 ' + fetalToday + ' 次') : '暂无今日', badge: '', empty: !fetalToday });

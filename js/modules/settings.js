@@ -1514,24 +1514,16 @@
       });
 
       /* ---- CSV 导出（Excel/WPS 可读，带 BOM） ---- */
-      function csvCell(v) {
-        if (v == null) return '';
-        v = String(v);
-        return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
-      }
-      function toCsv(header, rows) {
-        var lines = [header.map(csvCell).join(',')];
-        rows.forEach(function (r) { lines.push(r.map(csvCell).join(',')); });
-        return '﻿' + lines.join('\r\n');
-      }
-      var FEED_T = { breast: '母乳', bottle: '奶瓶', solid: '辅食' };
+      /* 第 273 次：转义（含回车）、BOM、CRLF 统一走 Util.toCsv，和记账页同一份 */
+      function toCsv(header, rows) { return Util.toCsv(header, rows); }
+      var FEED_T = { breast: '母乳', bottle: '奶瓶', formula: '配方奶', pump: '泵奶', solid: '辅食' };
       var SIDE_T = { left: '左', right: '右', both: '双侧' };
       var DIAPER_T = { pee: '尿', poop: '便', both: '尿+便' };
       var CSV_BUILDERS = {
         feedings: function (d) {
           return toCsv(['开始时间', '类型', '侧别', '时长(分)', '量(ml/g)', '备注'],
             (d.feedings || []).map(function (r) {
-              return [r.start, FEED_T[r.type] || r.type, SIDE_T[r.side] || '', r.duration || '', r.amount || '', r.note];
+              return [r.start, FEED_T[r.type] || r.type, SIDE_T[r.side] || '', r.durationMin || '', r.amount || '', r.note]; /* 第 273 次：原来读不存在的 r.duration，时长一列全空 */
             }));
         },
         sleeps: function (d) {

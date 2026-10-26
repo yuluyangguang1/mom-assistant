@@ -186,6 +186,32 @@
       return m + '分';
     },
 
+    /** 第 273 次（审计 #13：宫缩 50 秒显示「0分」）：精确到秒的时长。
+        「50秒」「1分05秒」「12分」（整分不写 00 秒）；满 1 小时回到 fmtDuration 的「x小时y分」。
+        给宫缩这类以秒计的短时长用；分钟口径的记录仍用 fmtDuration。 */
+    fmtSecDur: function (ms) {
+      if (ms == null || isNaN(ms) || ms < 0) ms = 0;
+      var sec = Math.round(ms / 1000);
+      if (sec < 60) return sec + '秒';
+      if (sec >= 3600) return this.fmtDuration(sec * 1000);
+      var m = Math.floor(sec / 60), s = sec % 60;
+      return m + '分' + (s ? (s < 10 ? '0' : '') + s + '秒' : '');
+    },
+
+    /** 第 273 次（审计 #18）：CSV 按 RFC 4180 转义——含逗号、引号、回车 / 换行的字段整格加引号，引号写成两个 */
+    csvCell: function (v) {
+      if (v == null) return '';
+      v = String(v);
+      return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    },
+    /** 表头 + 行 → CSV 文本：CRLF 换行，开头带 BOM（Excel 直接认 UTF-8 中文） */
+    toCsv: function (header, rows) {
+      var cell = this.csvCell;
+      var lines = [header.map(cell).join(',')];
+      (rows || []).forEach(function (r) { lines.push(r.map(cell).join(',')); });
+      return '\uFEFF' + lines.join('\r\n') + '\r\n';
+    },
+
     /* ============ 第 146 次（P1 · 统一格式化层）============
        审计发现同一个「距上次」在各页各算各的：喂养页「260 小时」、胎动页「4000 分钟前」、
        首页「距今 11 天」。统一收口到这两个函数，档位一致：

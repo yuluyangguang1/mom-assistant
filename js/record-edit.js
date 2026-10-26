@@ -33,15 +33,22 @@
         { k: 'dish', l: '菜名', t: 'text', max: 40, show: function (r) { return r.type === 'solid'; } },
         NOTE
       ],
-      fix: function (r) {
+      fix: function (r, orig) {
         if (r.type === 'breast' || r.type === 'pump') {
           var L = r.durationL || 0, R = r.durationR || 0;
+          /* 第 273 次（审计 #15：泵奶只改备注，时长 15 → 30）：左右分钟没动就不重算 durationMin——
+             计时记录的 durationMin 是按秒折算的（泵奶还算上了单侧轮流的总时长），用分钟重拼会变 */
+          var sameDur = orig && (orig.durationL || 0) === L && (orig.durationR || 0) === R;
           /* 第 231 次：计时得来的秒数（secL/secR）在分钟被改过后作废，以分钟为准 */
           if (r.secL != null && Math.round(r.secL / 60) !== L) delete r.secL;
           if (r.secR != null && Math.round(r.secR / 60) !== R) delete r.secR;
-          r.durationMin = (L + R) || (r.secL || r.secR ? 1 : null);
+          /* 口径与新建一致：亲喂 = 左 + 右；泵奶是两侧同时泵，= max(左, 右)（pump.js 计时 / 补记都这么存） */
+          if (!sameDur) {
+            if (r.type === 'pump') r.durationMin = Math.max(L, R) || null;
+            else r.durationMin = (L + R) || (r.secL || r.secR ? 1 : null);
+          }
           if (r.type === 'breast' && !L && !R && (r.secL || r.secR)) return null;
-          r.side = (L && R) ? 'both' : (L ? 'left' : (R ? 'right' : null));
+          if (!sameDur) r.side = (L && R) ? 'both' : (L ? 'left' : (R ? 'right' : null)); /* 第 273 次：没改时长时侧别也不动（泵奶只填奶量的记录侧别来自奶量） */
           if (r.type === 'breast' && !L && !R) return '请至少填一侧时长';
           /* 第 256 次：泵奶分左右奶量时，总量 = 左 + 右 */
           if (r.type === 'pump' && (r.amountL || r.amountR)) r.amount = (r.amountL || 0) + (r.amountR || 0);
@@ -210,6 +217,9 @@
         var f = fields[i], el = root.querySelector('#reF_' + f.k), raw = el ? String(el.value).trim() : '';
         if (f.t === 'dt') {
           if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw)) { Util.markInvalid(el, '请选择时间'); return; }
+          /* 第 273 次（审计 #14：只改强度 / 备注，开始结束被截成 HH:MM:00，同一分钟内起止的宫缩保存不了）：
+             输入框只到分钟；用户没动这个时间（和打开时显示的一样）就原样保留原值（含秒），动了才按分钟写 */
+          if (raw.slice(0, 16) === dtValue(rec[f.k]) && typeof rec[f.k] === 'string') { next[f.k] = rec[f.k]; continue; }
           var iso = raw.slice(0, 16) + ':00';
           if (new Date(iso).getTime() > Date.now() + 60000) { Util.markInvalid(el, '时间不能在未来'); return; }
           next[f.k] = iso;
@@ -232,7 +242,7 @@
           next[f.k] = raw || null;
         }
       }
-      var err = sc.fix ? sc.fix(next) : null;
+      var err = sc.fix ? sc.fix(next, rec) : null;
       if (err) { Util.toast(err, 'warn'); return; }
       var before = JSON.parse(JSON.stringify(rec));
       Object.keys(next).forEach(function (k) { rec[k] = next[k]; });

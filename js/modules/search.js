@@ -127,15 +127,34 @@
       var r = list[i];
       if (!r || typeof r !== 'object') continue;
       var tn = FEED_TYPE[r.type] || txt(r.type);
-      var amt = (r.amount != null) ? (r.amount + ' ml/g') : '';
-      var amtBm = (r.amountBm != null) ? ('母乳 ' + r.amountBm + ' ml') : '';
-      var amtFm = (r.amountFm != null) ? ('配方奶 ' + r.amountFm + ' ml') : '';
-      var dur = (r.durationMin != null) ? (r.durationMin + ' 分') : '';
+      /* 第 273 次（审计 #21：瓶喂「母乳 120 ml · 120 ml/g」写两遍、单位混写）：奶量只写一次，单位按类型——
+         奶（瓶喂 / 配方奶 / 泵奶 / 亲喂）写 ml，辅食按它自己的单位（克 / 勺 / 碗） */
+      var pos = function (v) { var n = Number(v); return isFinite(n) && n > 0 ? n : 0; };
+      var amtBm = pos(r.amountBm) ? ('母乳 ' + pos(r.amountBm) + ' ml') : '';
+      var amtFm = pos(r.amountFm) ? ('配方奶 ' + pos(r.amountFm) + ' ml') : '';
+      var amt = '';
+      if (r.type === 'solid') {
+        var sq = global.Modules && Modules.solid && Modules.solid._amtText ? Modules.solid._amtText(r) : (pos(r.amount) ? pos(r.amount) + ' 克' : '');
+        amt = sq || '';
+      } else if (!amtBm && !amtFm && pos(r.amount)) {
+        amt = (r.type === 'pump' && (pos(r.amountL) || pos(r.amountR)) ? '共 ' : '') + pos(r.amount) + ' ml';
+      }
+      /* 时长：计时得来的有秒（secL / secR），不到 1 分钟写秒；泵奶两侧同时，总时长 = 较长一侧 */
+      var secOf = function (sec, min) { return sec != null && isFinite(Number(sec)) ? Number(sec) : (min != null && isFinite(Number(min)) ? Number(min) * 60 : null); };
+      var sideTxt = function (sec) { return sec < 60 ? Math.round(sec) + ' 秒' : Math.round(sec / 60) + ' 分'; };
+      var sL = secOf(r.secL, r.durationL), sR = secOf(r.secR, r.durationR);
+      var dur = '';
+      if (r.durationMin != null && Number(r.durationMin) > 0 && !(r.secL != null || r.secR != null)) dur = r.durationMin + ' 分';
+      else if (sL != null || sR != null) {
+        var tot = r.type === 'pump' ? Math.max(sL || 0, sR || 0) : (sL || 0) + (sR || 0);
+        if (r.type === 'pump' && r.durationMin != null && Number(r.durationMin) * 60 >= tot + 60) tot = Number(r.durationMin) * 60; /* 单侧轮流泵时总时长比任一侧长 */
+        if (tot > 0) dur = sideTxt(tot);
+      }
       var durSide = '';
-      if (r.durationL != null || r.durationR != null) {
+      if (r.durationL != null || r.durationR != null || r.secL != null || r.secR != null) {
         var dp = [];
-        if (r.durationL) dp.push('左 ' + r.durationL + ' 分');
-        if (r.durationR) dp.push('右 ' + r.durationR + ' 分');
+        if (sL) dp.push('左 ' + sideTxt(sL));
+        if (sR) dp.push('右 ' + sideTxt(sR));
         durSide = dp.join(' · ');
       } else if (r.side) {
         durSide = (r.side === 'left' ? '左侧' : (r.side === 'right' ? '右侧' : '双侧'));
@@ -205,7 +224,7 @@
       var durTxt = '';
       if (r.start && r.end) {
         var a = ts(r.start), b = ts(r.end);
-        if (b > a) { try { durTxt = Util.fmtDuration(b - a); } catch (e) { durTxt = ''; } }
+        if (b > a) { try { durTxt = Util.fmtSecDur(b - a); } catch (e) { durTxt = ''; } }
       }
       rows.push({
         title: '宫缩',

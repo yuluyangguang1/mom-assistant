@@ -1186,6 +1186,8 @@
     },
 
     /** 各模块记录数统计（设置页用） */
+    /* 第 273 次（审计 #16）：所有「记录列表」型的顶层键（ARRAY_KEYS 去掉多宝宝档案 babies），导入覆盖前计数用 */
+    RECORD_KEYS: ARRAY_KEYS.filter(function (k) { return k !== 'babies'; }),
     stats: function () {
       var d = this.data || {};
       return [

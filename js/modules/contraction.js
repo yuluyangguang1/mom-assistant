@@ -14,7 +14,7 @@
     var oc = openC();
     var el = document.getElementById('cTimer');
     if (!oc || !el) return;
-    el.textContent = Util.fmtDuration(Date.now() - new Date(oc.start).getTime());
+    el.textContent = Util.fmtSecDur(Date.now() - new Date(oc.start).getTime()); /* 第 273 次：计时中也按秒走 */
   }
 
   /* 第 186 次：规则只收整数，导入脏值一律当未设置 */
@@ -33,6 +33,12 @@
   function laborList(d) {
     return (d.laborEvents || []).filter(function (e) { return e && LABOR[e.type] && e.time && !isNaN(new Date(e.time).getTime()); })
       .sort(function (a, b) { return new Date(b.time) - new Date(a.time); });
+  }
+  /* 第 273 次（审计 #13）：宫缩时长、间隔都精确到秒（「50秒」「4分55秒」），列表 / 提示 / 导出 / 近一小时同一口径 */
+  function secTxt(ms) { return Util.fmtSecDur(Math.max(0, ms)); }
+  /* 大数字统计位：「4分55秒」拆成数字 + 小号单位 */
+  function secStat(ms) {
+    return Util.escapeHtml(secTxt(ms)).replace(/(\d+)(小时|分|秒|天)/g, '$1<i class="stat-unit">$2</i>');
   }
   function agoText(ms) {
     var m = Math.max(0, Math.round(ms / 60000));
@@ -107,8 +113,8 @@
         var avgIv = ivs.length ? ivs.reduce(function (s, x) { return s + x; }, 0) / ivs.length : null;
         html += '<div class="stat-row">'
           + '<div class="stat"><span class="stat-num">' + hour.length + '<i class="stat-unit">次</i></span><span class="stat-lbl">次数</span></div>'
-          + '<div class="stat"><span class="stat-num">' + Math.round(avgDur / 1000) + '<i class="stat-unit">秒</i></span><span class="stat-lbl">平均时长</span></div>'
-          + (avgIv != null ? '<div class="stat"><span class="stat-num">' + (avgIv / 60000).toFixed(1) + '<i class="stat-unit">分</i></span><span class="stat-lbl">平均间隔</span></div>' : '')
+          + '<div class="stat"><span class="stat-num">' + secStat(avgDur) + '</span><span class="stat-lbl">平均时长</span></div>'
+          + (avgIv != null ? '<div class="stat"><span class="stat-num">' + secStat(avgIv) + '</span><span class="stat-lbl">平均间隔</span></div>' : '')
           + '</div>';
         var rule = normRule(d.pregnancy && d.pregnancy.contractionRule);
         if (rule && rule.iv && rule.dur && rule.span) {
@@ -149,8 +155,8 @@
           var dur = c.end ? (new Date(c.end).getTime() - new Date(c.start).getTime()) : null;
           var interval = (i > 0) ? (new Date(c.start).getTime() - new Date(list[i - 1].start).getTime()) : null;
           html += '<li>' + icon('contraction') + '<span>#' + (i + 1) + ' ' + Util.fmtDateTime(c.start) +
-            (dur != null ? ' ｜ 时长 ' + Util.fmtDuration(dur) : ' ｜ 进行中') +
-            (interval != null ? ' ｜ 距上次 ' + Util.fmtDuration(interval) : '') +
+            (dur != null ? ' ｜ 时长 ' + secTxt(dur) : ' ｜ 进行中') +
+            (interval != null ? ' ｜ 距上次 ' + secTxt(interval) : '') +
             (c.intensity ? ' ｜ ' + ({ 1: '轻', 2: '中', 3: '强' }[c.intensity] || '') : '') +
             '</span><button class="icon-btn" data-del="' + c.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
         }
@@ -203,7 +209,7 @@
         d.contractions.push(d.openContraction);
         var durMs = new Date(d.openContraction.end).getTime() - new Date(d.openContraction.start).getTime();
         d.openContraction = null;
-        if (Storage.save()) Util.toast('已记录：本次宫缩 ' + Util.fmtDuration(Math.max(0, durMs)), 'ok'); /* C1 */
+        if (Storage.save()) Util.toast('已记录：本次宫缩 ' + secTxt(durMs), 'ok'); /* C1 */
         global.App.rerender();
       });
       var cCancel = view.querySelector('#cCancel');
@@ -258,8 +264,8 @@
           var lines = ['咿呀记 宫缩时间线（仅供参考）', '生成时间：' + Util.nowLocal(), ''];
           for (var i = 0; i < arr.length; i++) {
             var cc = arr[i];
-            var dur = cc.end ? Util.fmtDuration(new Date(cc.end).getTime() - new Date(cc.start).getTime()) : '未结束';
-            var iv = i > 0 ? Util.fmtDuration(new Date(cc.start).getTime() - new Date(arr[i - 1].start).getTime()) : '-';
+            var dur = cc.end ? secTxt(new Date(cc.end).getTime() - new Date(cc.start).getTime()) : '未结束';
+            var iv = i > 0 ? secTxt(new Date(cc.start).getTime() - new Date(arr[i - 1].start).getTime()) : '-';
             lines.push('第' + (i + 1) + '次 开始 ' + Util.fmtDateTime(cc.start) + ' 时长 ' + dur + ' 距上次 ' + iv
               + (cc.intensity ? ' 强度 ' + ({ 1: '轻', 2: '中', 3: '强' }[cc.intensity] || '') : ''));
           }

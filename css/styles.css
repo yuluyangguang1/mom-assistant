@@ -1199,6 +1199,7 @@ body.dark .set-group .sg-ico { background: rgba(255,255,255,.08); }
   line-height: 1.05; letter-spacing: -.5px;
 }
 .stat-unit { font-size: calc(13px * var(--fs-mul)); font-weight: 600; font-style: normal; color: var(--muted); margin-left: 3px; }
+.stat-unit:not(:last-child) { margin-right: 6px; } /* 第 273 次：「4分29秒」这种复合读数，中间的单位和后一个数字隔开 */
 .stat-lbl { font-size: calc(13px * var(--fs-mul)); color: var(--muted); }.view-enter .stat-num { animation: statPop .5s var(--spring) both; }.view-enter .stat:nth-child(2) .stat-num { animation-delay: 45ms; }.view-enter .stat:nth-child(3) .stat-num { animation-delay: 90ms; }.view-enter .stat:nth-child(n+4) .stat-num { animation-delay: 130ms; }
 @keyframes statPop {
   from { opacity: 0; transform: translateY(7px) scale(.86); }
@@ -1265,6 +1266,8 @@ body.dark .set-group .sg-ico { background: rgba(255,255,255,.08); }
      角色 A（饱和填充底 + 其上文字）本项目**未覆盖**：--primary-fill/--on-primary
      只管品牌主按钮，不管每模块。若真需要每模块的饱和按钮，**提案**增设
      --tile-fill / --on-tile 并登记进 qa/contrast_check.js，不要就地塞进 --tile。
+     第 273 次：已按此增设 --tile-fill（记录面板保存按钮的填充底，浅色上白字 ≥4.6:1；白字本来就够的模块不设、回落 --tile），
+     其上文字浅色固定白、深色固定 #2A2116，未另设 --on-tile；对比度由 tests/regression.py 的 test_r273 守。
 
    ★ 禁止引入外部色板（第 118 次 · 对标 Cali 的核心结论）
      Cali 的 8 个模块色在我们的奶油底上只有 1.20–2.52 —— 它们**锁死在深色基底上**
@@ -1277,9 +1280,9 @@ body.dark .set-group .sg-ico { background: rgba(255,255,255,.08); }
      根因规律：**弱底分离能力 = 该模块色相离「奶油页底色相」有多远**。
      冷色相（青/蓝/紫/绿）天然分离好（ΔE76 6.9–12.0）；暖色相（赭/陶土/暖灰）
      一淡下来就融进奶油底 —— 所以下面 4 组暖色必须比同类更深一档。 */
-[data-accent="feeding"]     { --tile: #2E8C84; --tile-text: #17706A; --tile-weak: #E6EFEE; }
+[data-accent="feeding"]     { --tile: #2E8C84; --tile-text: #17706A; --tile-weak: #E6EFEE; --tile-fill: #2A8179; }
 [data-accent="sleep"]       { --tile: #686BAF; --tile-text: #454896; --tile-weak: #EDEEF4; }
-[data-accent="growth"]      { --tile: #43935B; --tile-text: #26713E; --tile-weak: #E9F0EB; }
+[data-accent="growth"]      { --tile: #43935B; --tile-text: #26713E; --tile-weak: #E9F0EB; --tile-fill: #3C8351; }
 [data-accent="period"]      { --tile: #B0576B; --tile-text: #96394B; --tile-weak: #F5EEF0; }
   /* 第 118 次：孕期/待产包/宫缩/尿布 —— 暖色相四组，弱底加深。
      页底由 #F8F2EC 加深到 #F2EBDF 后，"奶油底"本身变暖变深，把暖色弱底的
@@ -1293,27 +1296,27 @@ body.dark .set-group .sg-ico { background: rgba(255,255,255,.08); }
      修法是**只压深 --tile 一格**（不动弱底，动它会反过来牵动 ΔE76）：
      packing #8C7F6B→#897C69（2.883→3.002）、diaper #A8842B→#A6832B（2.955→3.004）。
      四组现均满足六条约束，逐条数值见 _frames/deep/lead_tile_solve.py 的输出。 */
-  [data-accent="pregnancy"]   { --tile: #9E6D24; --tile-text: #8A5A17; --tile-weak: #EDE4D8; }  /* ΔE76 2.3→6.6，字 4.79，tile/弱底 3.65 */
-  [data-accent="packing"]     { --tile: #897C69; --tile-text: #6A5D48; --tile-weak: #E4DFD7; }  /* ΔE76 3.1→5.4，字 4.73，tile/弱底 3.00（tile 已压深） */
-  [data-accent="contraction"] { --tile: #C0604A; --tile-text: #A33F26; --tile-weak: #F1E6E3; }  /* ΔE76 4.8→5.9，字 5.15，tile/弱底 3.39 */
+  [data-accent="pregnancy"]   { --tile: #9E6D24; --tile-text: #8A5A17; --tile-weak: #EDE4D8; --tile-fill: #9B6B23; }  /* ΔE76 2.3→6.6，字 4.79，tile/弱底 3.65 */
+  [data-accent="packing"]     { --tile: #897C69; --tile-text: #6A5D48; --tile-weak: #E4DFD7; --tile-fill: #7F7362; }  /* ΔE76 3.1→5.4，字 4.73，tile/弱底 3.00（tile 已压深） */
+  [data-accent="contraction"] { --tile: #C0604A; --tile-text: #A33F26; --tile-weak: #F1E6E3; --tile-fill: #B45A46; }  /* ΔE76 4.8→5.9，字 5.15，tile/弱底 3.39 */
 [data-accent="finance"]     { --tile: #6C63B8; --tile-text: #4B44A6; --tile-weak: #F1EFF6; }
-  [data-accent="diaper"]      { --tile: #A6832B; --tile-text: #7A5A0F; --tile-weak: #F6F1E6; }  /* ΔE76 3.5→6.8，字 5.38，tile/弱底 3.00（tile 已压深） */
-[data-accent="vaccine"]     { --tile: #4E7FA6; --tile-text: #2C5E82; --tile-weak: #ECF1F4; }
+  [data-accent="diaper"]      { --tile: #A6832B; --tile-text: #7A5A0F; --tile-weak: #F6F1E6; --tile-fill: #8F7125; }  /* ΔE76 3.5→6.8，字 5.38，tile/弱底 3.00（tile 已压深） */
+[data-accent="vaccine"]     { --tile: #4E7FA6; --tile-text: #2C5E82; --tile-weak: #ECF1F4; --tile-fill: #4A799E; }
 [data-accent="meds"]        { --tile: #A45F7C; --tile-text: #8A4660; --tile-weak: #F5EEF1; }
-[data-accent="milestone"]   { --tile: #5C7DB4; --tile-text: #3A5A94; --tile-weak: #EFF1F5; }
+[data-accent="milestone"]   { --tile: #5C7DB4; --tile-text: #3A5A94; --tile-weak: #EFF1F5; --tile-fill: #5676A9; }
 [data-accent="fetal"]       { --tile: #A84A7C; --tile-text: #8A3260; --tile-weak: #F5EFF3; }
-[data-accent="temp"]        { --tile: #2E8FA0; --tile-text: #176F80; --tile-weak: #E9F1F2; }
+[data-accent="temp"]        { --tile: #2E8FA0; --tile-text: #176F80; --tile-weak: #E9F1F2; --tile-fill: #297F8E; }
 [data-accent="mood"]        { --tile: #8A5FA0; --tile-text: #6F4787; --tile-weak: #F3EFF5; }
   /* 第 107 次：消耗品（浅色）——青绿，与 finance 的紫、temp 的青蓝区分开 */
-  [data-accent="supplies"]    { --tile: #3F8A6E; --tile-text: #2C6B54; --tile-weak: #E9F0ED; }
+  [data-accent="supplies"]    { --tile: #3F8A6E; --tile-text: #2C6B54; --tile-weak: #E9F0ED; --tile-fill: #3B8066; }
   /* 第 132 次：六个新模块（浅色）。挑色原则同前：彼此拉开色相，
      与既有 15 组也保持可辨（黄疸土黄 / 洗澡蓝灰 / 游泳海蓝 / 日晒橙 / 饮水深蓝 / 补剂草绿） */
-  [data-accent="jaundice"]    { --tile: #9A7B2E; --tile-text: #7A5E17; --tile-weak: #F0EDE1; }
-  [data-accent="bath"]        { --tile: #4A7E9C; --tile-text: #2F6480; --tile-weak: #ECF1F4; }
-  [data-accent="swim"]        { --tile: #2F86B0; --tile-text: #1B6A90; --tile-weak: #EBF2F5; }
-  [data-accent="sun"]         { --tile: #C1742C; --tile-text: #9A5514; --tile-weak: #F4EEE6; }
+  [data-accent="jaundice"]    { --tile: #9A7B2E; --tile-text: #7A5E17; --tile-weak: #F0EDE1; --tile-fill: #8E712A; }
+  [data-accent="bath"]        { --tile: #4A7E9C; --tile-text: #2F6480; --tile-weak: #ECF1F4; --tile-fill: #487A97; }
+  [data-accent="swim"]        { --tile: #2F86B0; --tile-text: #1B6A90; --tile-weak: #EBF2F5; --tile-fill: #2B7BA2; }
+  [data-accent="sun"]         { --tile: #C1742C; --tile-text: #9A5514; --tile-weak: #F4EEE6; --tile-fill: #A86526; }
   [data-accent="water"]       { --tile: #35709B; --tile-text: #1E5680; --tile-weak: #EBF0F4; }
-  [data-accent="supplement"]  { --tile: #5E8C4A; --tile-text: #46702F; --tile-weak: #EDF2E9; }
+  [data-accent="supplement"]  { --tile: #5E8C4A; --tile-text: #46702F; --tile-weak: #EDF2E9; --tile-fill: #567F43; }
 
 /* 暗色：同色系调亮，弱色改半透明叠底 */
 body.dark [data-accent="feeding"]     { --tile: #7BC4BC; --tile-text: #7BC4BC; --tile-weak: rgba(123,196,188,.16); }
@@ -4439,7 +4442,7 @@ body.dock-left .mod-cta, body.dock-right .mod-cta { position: static; }
 .rs-pills { display: flex; flex-wrap: wrap; gap: 8px; }
 .rs-pills .dp-pill.active { border-color: var(--tile); background: var(--tile-weak); color: var(--tile-text); }
 .rs-note input { width: 100%; min-height: 46px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); font: inherit; box-sizing: border-box; }
-.rs-save { width: 100%; min-height: 52px; margin-top: 20px; background: var(--tile); border-color: var(--tile); }
+.rs-save { width: 100%; min-height: 52px; margin-top: 20px; background: var(--tile-fill, var(--tile)); border-color: var(--tile-fill, var(--tile)); color: #fff; } /* 第 273 次：白字 + --tile-fill，见下方 .rs-save .ico 处说明 */
 /* 第 271 次（用户：尿布的「保存」要拉到最下面才看得到）：尿布面板的保存吸在面板底部，
    内容多（便便颜色 + 照片 + 用品）时不用滚到底也能点；滚到底时它落回内容末尾。
    第 272 次（用户确认吸底是对的，全站统一）：.rs-savebar 是所有记录面板的公共保存条——
@@ -4466,6 +4469,12 @@ body.dark .dpt-art img { filter: brightness(.92); }
 .tl-more { color: var(--muted); }
 .rs-when > *, .rs-tile input { min-width: 0; box-sizing: border-box; }
 body.dark .mc-main, body.dark .rs-ok, body.dark .dpt-check, body.dark .rs-done-ok { color: #2A2116; }
+/* 第 273 次（第 272 次遗留：浅色下记录面板「保存 / 保存修改」是深棕字压在模块中间色上，只有 2.8–4.2:1）：
+   浅色改白字；白字对模块色不到 4.5:1 的模块，按钮底用 --tile-fill（同色相按比例压深到白字 ≥4.6:1，色相不变）。
+   --tile-fill 写在各模块的 [data-accent] 定义行里。深色模式维持深字 + 原模块色（都在 7:1 以上）。有 --tile-on 的模块（亲喂 / 瓶喂 / 泵奶 / 辅食 / 睡眠）走 .ft-save，不受影响。 */
+.rs-save .ico { color: inherit; }
+.rs-save:hover, .rs-save:focus { background: var(--tile-fill, var(--tile)); border-color: var(--tile-fill, var(--tile)); }
+body.dark [data-accent] { --tile-fill: var(--tile); }
 body.dark .rs-save { color: #2A2116; }
 @media (max-width: 360px) { .rs-tile { padding: 9px 10px; } .rs-tile input { font-size: 15px; } .dp-type { min-height: 104px; } .dpt-art { width: 66px; } }
 /* 第 225 次：新骨架页的页头插画缩小（168→116，第 229 次再缩到 84），让摘要句上到首屏；后续迁移的模块加进这组选择器 */

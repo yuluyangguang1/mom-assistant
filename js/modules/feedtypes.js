@@ -70,6 +70,12 @@
   function dayKey(r, DS) { return Util.dayKeyOf(r.start, DS); }
   function valid(r) { return r && isFinite(ms(r.start)); }
 
+  /* 第 273 次：撤销刚加的一条喂养记录（亲喂 / 泵奶补记用） */
+  function undoAdd(id) {
+    var d = Storage.get(); if (!d) return;
+    d.feedings = (d.feedings || []).filter(function (x) { return !x || x.id !== id; });
+    Storage.save(); if (global.App) App.rerender();
+  }
   /* 亲喂一条的秒数（计时得来有 secL/secR；手记只有分钟） */
   function breastSec(r) {
     var L = r.secL != null ? Number(r.secL) || 0 : (r.durationL != null ? (Number(r.durationL) || 0) * 60 : null);
@@ -115,7 +121,14 @@
     var mask = root.querySelector('[data-ft-mask]');
     var box = root.querySelector('.rs-body');
     function onKey(e) { if (e.key === 'Escape') close(); }
-    function close() { root.innerHTML = ''; document.removeEventListener('keydown', onKey); if (global.Sheet) Sheet.sync(); }
+    /* 第 273 次（审计 #17）：api.onClose 在任何一种关闭（✕ / 点遮罩 / 下拉 / Esc / 系统返回）时都调一次，
+       调用方用它留住面板里已填的值（泵奶奶量）。保存走的也是 close，调用方自己判断要不要留 */
+    var closed = false;
+    function close() {
+      if (!closed) { closed = true; if (api && typeof api.onClose === 'function') { try { api.onClose(); } catch (e) { /* 不挡关闭 */ } } }
+      if (root.contains(mask)) root.innerHTML = '';
+      document.removeEventListener('keydown', onKey); if (global.Sheet) Sheet.sync();
+    }
     document.addEventListener('keydown', onKey);
     mask.addEventListener('click', function (e) { if (e.target === mask) close(); });
     box.querySelector('[data-x]').addEventListener('click', close);
@@ -389,6 +402,21 @@
         var c = calc();
         if (c.end < ms(tt.start)) { Util.toast('结束时间不能早于开始时间', 'warn'); return; }
         if (c.L + c.R < 1) { Util.toast('这次计时还不到 1 秒', 'warn'); return; }
+        /* 第 273 次（审计 #19：十几秒的误触计时也照存成 1 分钟、没有撤销）：和第 272 次睡眠同一处理——
+           不到 1 分钟不存，只结束计时，提示里「撤销」把计时原样放回；正常保存也带「撤销」（删记录、恢复计时） */
+        var keepT = JSON.parse(JSON.stringify(tt));
+        var undoT = function (recId) {
+          var d3 = Storage.get(); if (!d3) return;
+          if (recId) d3.feedings = (d3.feedings || []).filter(function (x) { return !x || x.id !== recId; });
+          if (!d3.feedingTimer) d3.feedingTimer = keepT;
+          Storage.save(); if (global.App) App.rerender();
+        };
+        if (c.L + c.R < 60) {
+          dd.feedingTimer = null;
+          if (Storage.save()) Util.toast('喂了不到 1 分钟，没有记录', 'info', { label: '撤销', onClick: function () { undoT(null); } });
+          api.close(); closeFull(); global.App.rerender();
+          return;
+        }
         var rec = {
           id: Util.uid(), type: 'breast', start: tt.start, end: loc(c.end),
           secL: c.L, secR: c.R,
@@ -399,7 +427,7 @@
         };
         dd.feedings.push(rec);
         dd.feedingTimer = null;
-        if (Storage.save()) Util.toast('已记录亲喂 ' + fmtSec(c.L + c.R), 'ok');
+        if (Storage.save()) Util.toast('已记录亲喂 ' + fmtSec(c.L + c.R), 'ok', { label: '撤销', onClick: function () { undoT(rec.id); } });
         api.close(); closeFull(); global.App.rerender();
       }
       box.querySelector('[data-save]').addEventListener('click', save);
@@ -438,10 +466,12 @@
         if (!L && !R) { Util.toast('请至少填一侧的分钟数', 'warn'); return; }
         var note = (box.querySelector('#mNote').value || '').trim().slice(0, 40);
         var dd = Storage.get();
-        dd.feedings.push({ id: Util.uid(), type: 'breast', start: loc(st), durationL: L, durationR: R, durationMin: L + R,
+        var mrec = { id: Util.uid(), type: 'breast', start: loc(st), durationL: L, durationR: R, durationMin: L + R,
           side: (L && R) ? 'both' : (L ? 'left' : 'right'), amount: null, amountBm: null, amountFm: null,
-          note: note || null, newFood: null, dish: null, ing: null, steps: null });
-        if (Storage.save()) Util.toast('已补记亲喂 ' + (L + R) + ' 分钟', 'ok');
+          note: note || null, newFood: null, dish: null, ing: null, steps: null };
+        dd.feedings.push(mrec);
+        /* 第 273 次（审计 #19）：补记也带「撤销」 */
+        if (Storage.save()) Util.toast('已补记亲喂 ' + (L + R) + ' 分钟', 'ok', { label: '撤销', onClick: function () { undoAdd(mrec.id); } });
         api.close(); global.App.rerender();
       }
       box.querySelector('[data-save]').addEventListener('click', save);
@@ -824,5 +854,5 @@
   /* 第 241 次：睡眠页复用同一套面板 / 时间磁贴 / 洞察小按钮 */
   global.FTUI = { SV: SV, openSheet: openSheet, whenTiles: whenTiles, readWhen: readWhen, setWhen: setWhen, bindWhen: bindWhen,
     dayLabel: dayLabel, hm: hm, loc: loc, isoDay: isoDay, ms: ms, fmtMin: fmtMin, insightChips: insightChips, bindChips: bindChips,
-    timeline: timeline, bindTimeline: bindTimeline };
+    timeline: timeline, bindTimeline: bindTimeline, undoAdd: undoAdd, fmtSec: fmtSec };
 })(window);

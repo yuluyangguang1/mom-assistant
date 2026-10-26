@@ -1215,15 +1215,17 @@
   /* P2-17：导入前差异预览——先告诉用户「现有多少条 → 将被替换为多少条」，
      配合阻断确认（U-33 同款：后果说明 + 先导出出口），避免误导入清空辛苦记录。 */
   function countRecords(obj) {
-    var arrays = ['feedings', 'sleeps', 'diapers', 'meds', 'milestones', 'growth',
-      'contractions', 'periods', 'metrics', 'moods'];
+    /* 第 273 次（审计 #16：只数了 10 个数组，体温 / 饮水 / 胎动 / 补剂 / 储奶等全漏，覆盖确认可能写「现有 0 条」）：
+       改为数 Storage.RECORD_KEYS（全部记录数组）+ 老的 metrics，再加嵌套容器里的记录 */
+    var arrays = ((global.Storage && Storage.RECORD_KEYS) || []).concat(['metrics']);
     var n = 0;
     arrays.forEach(function (k) { if (Array.isArray(obj && obj[k])) n += obj[k].length; });
-    var deep = [['finance', 'records'], ['prenatal', 'records'], ['prenatal', 'checks'], ['packing', 'items']];
+    var deep = [['finance', 'records'], ['prenatal', 'records'], ['prenatal', 'checks'], ['packing', 'items'], ['pregnancy', 'weights']];
     deep.forEach(function (p) {
       var sub = obj && obj[p[0]];
       if (sub && Array.isArray(sub[p[1]])) n += sub[p[1]].length;
     });
+    if (obj && obj.checkups && obj.checkups.done && typeof obj.checkups.done === 'object') n += Object.keys(obj.checkups.done).length;
     if (obj && obj.vaccines && obj.vaccines.done) n += Object.keys(obj.vaccines.done).length;
     /* 第 146 次：其他宝宝的记录收在 babies[].rec 里，导入差异预览也要算上 */
     if (obj && Array.isArray(obj.babies)) {

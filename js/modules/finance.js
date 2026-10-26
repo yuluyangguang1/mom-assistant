@@ -22,7 +22,7 @@
       var defCat = (lastRec && CATS.indexOf(lastRec.category) >= 0) ? lastRec.category : CATS[0];
 
       html += '<div class="card"><h2>记一笔</h2>';
-      html += '<label>金额（元）<input type="number" step="0.01" inputmode="decimal" id="fAmt" min="0"></label>';
+      html += '<label>金额（元）<input type="number" step="0.01" inputmode="decimal" id="fAmt" min="0.01"></label>';
       html += '<label>分类<select id="fCat">';
       CATS.forEach(function (c) { html += '<option value="' + c + '"' + (c === defCat ? ' selected' : '') + '>' + c + '</option>'; });
       html += '</select></label>';
@@ -68,7 +68,8 @@
 
       view.querySelector('#fSave').addEventListener('click', function () {
         var amt = view.querySelector('#fAmt').value;
-        if (amt === '' || parseFloat(amt) < 0) { Util.markInvalid(view.querySelector('#fAmt'), '请填写正确金额'); return; }
+        /* 第 273 次（审计 #20：0 元也能存）：金额必须是大于 0 的数 */
+        if (!(parseFloat(amt) > 0) || !isFinite(Number(amt))) { Util.markInvalid(view.querySelector('#fAmt'), '请填写大于 0 的金额'); return; }
         var cat = view.querySelector('#fCat').value;
         d.finance.records.push({
           id: Util.uid(),
@@ -82,9 +83,9 @@
       });
       var fExp = view.querySelector('#fExp');
       if (fExp) fExp.addEventListener('click', function () {
-        var lines = ['日期,分类,金额,备注'];
-        recs.forEach(function (r) { lines.push([r.date, r.category, r.amount, r.note || ''].join(',')); });
-        Util.download('母婴账单_' + Util.todayISO() + '.csv', '﻿' + lines.join('\n'), 'text/csv;charset=utf-8');
+        /* 第 273 次（审计 #18：备注里有逗号 / 引号时整行错列）：按 RFC 4180 转义，带 BOM、CRLF */
+        var csv = Util.toCsv(['日期', '分类', '金额', '备注'], recs.map(function (r) { return [r.date, r.category, r.amount, r.note || '']; }));
+        Util.download('母婴账单_' + Util.todayISO() + '.csv', csv, 'text/csv;charset=utf-8');
       });
       var fClear = view.querySelector('#fClear');
       if (fClear) fClear.addEventListener('click', function () {

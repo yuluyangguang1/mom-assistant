@@ -905,16 +905,229 @@ def test_r272(b):
     p.close()
 
 
+R273_SEED = r"""(()=>{const z=n=>String(n).padStart(2,'0');window.__L=t=>{t=new Date(t);return t.getFullYear()+'-'+z(t.getMonth()+1)+'-'+z(t.getDate())+'T'+z(t.getHours())+':'+z(t.getMinutes())+':'+z(t.getSeconds())};
+  window.__dl=[];Util.download=function(n,t){window.__dl.push([n,String(t)])};})()"""
+R273_TOASTS = "[...document.querySelectorAll('#toastRoot .toast:not(.leaving)')].map(t=>t.textContent).join('|')"
+R273_CR = r"""(sel)=>{const lum=a=>{const c=a.slice(0,3).map(x=>{x/=255;return x<=.03928?x/12.92:Math.pow((x+.055)/1.055,2.4)});return .2126*c[0]+.7152*c[1]+.0722*c[2]};
+  const b=[...document.querySelectorAll(sel)].pop(); if(!b) return null; const cs=getComputedStyle(b); const f=cs.color.match(/[\d.]+/g).map(Number), g=cs.backgroundColor.match(/[\d.]+/g).map(Number);
+  if(g.length>3&&g[3]<1) return ['alpha',cs.backgroundColor]; const A=lum(f),B=lum(g); return Math.round((Math.max(A,B)+.05)/(Math.min(A,B)+.05)*100)/100}"""
+
+
+def test_r273(b):
+    """第 273 次：审计第二轮 13–21 条 + 记录面板保存按钮对比度。"""
+    import csv as _csv
+    import re as _re
+    import io as _io
+    p, errs = fresh(b)
+    ev = p.evaluate
+    ev(R273_SEED)
+
+    def go(t):
+        ev(f"App.showTab('{t}',{{noVT:true}})"); p.wait_for_timeout(220)
+
+    def clear():
+        ev("document.querySelectorAll('#toastRoot .toast').forEach(t=>t.remove());Sheet.closeAll();document.getElementById('modalRoot').innerHTML=''"); p.wait_for_timeout(60)
+    # —— #13 宫缩按秒 ——
+    fs = ev("[45000,50000,65000,600000,3660000].map(x=>Util.fmtSecDur(x))")
+    check('#13 Util.fmtSecDur：45秒 / 50秒 / 1分05秒 / 10分 / 1小时1分', fs == ['45秒', '50秒', '1分05秒', '10分', '1小时1分'], fs)
+    ev("""(()=>{const d=Storage.get();d.settings.stage='pregnancy';const m0=Math.floor((Date.now()-600e3)/60000)*60000;
+      d.contractions=[{id:'c1',start:__L(m0+10e3),end:__L(m0+60e3)},{id:'c2',start:__L(m0+295e3),end:__L(m0+345e3)},{id:'c3',start:__L(m0+540e3+7e3),end:__L(m0+540e3+9e3)}];Storage.save()})()""")
+    go('contraction')
+    rows = ev("[...document.querySelectorAll('#view .list li')].map(l=>l.textContent.trim())")
+    check('#13 列表：50 秒写「时长 50秒」、间隔写「距上次 4分45秒」，不再是 0分', len(rows) == 3 and '时长 50秒' in rows[0] and '距上次 4分45秒' in rows[1] and '时长 2秒' in rows[2] and not any('0分' in r for r in rows), rows)
+    st = ev("[...document.querySelectorAll('#view .stat .stat-num')].map(s=>s.textContent)")
+    check('#13 近一小时：平均时长 / 平均间隔同一「分秒」写法', len(st) == 3 and st[1] == '34秒' and st[2] == '4分29秒', st)
+    ev("(()=>{const d=Storage.get();d.openContraction={id:'cx',start:__L(Date.now()-3200)};Storage.save();App.rerender()})()"); p.wait_for_timeout(150)
+    check('#13 计时中读数按秒', ev("document.getElementById('cTimer').textContent") in ('3秒', '4秒'), ev("document.getElementById('cTimer').textContent"))
+    p.click('#cEnd'); p.wait_for_timeout(200)
+    check('#13 结束提示「本次宫缩 3秒」', '本次宫缩 3秒' in ev(R273_TOASTS) or '本次宫缩 4秒' in ev(R273_TOASTS), ev(R273_TOASTS))
+    p.click('#cExport'); p.wait_for_timeout(100)
+    tl = ev("(__dl.pop()||['',''])[1]")
+    check('#13 导出时间线：时长 50秒、距上次 4分45秒', '时长 50秒 距上次 -' in tl and '时长 50秒 距上次 4分45秒' in tl and '0分' not in tl, tl[:300])
+    clear()
+    # —— #14 编辑保留秒 ——
+    ev("RecordEdit.open('contraction',Storage.get().contractions.find(x=>x.id=='c3'))"); p.wait_for_timeout(200)
+    p.select_option('#reF_intensity', '2'); p.click('[data-re-ok]'); p.wait_for_timeout(200)
+    c3 = ev("Storage.get().contractions.find(x=>x.id=='c3')")
+    check('#14 同一分钟内起止的宫缩：只改强度能保存，起止秒数原样', c3.get('intensity') == 2 and c3['start'].endswith(':07') and c3['end'].endswith(':09') and not ev("!!document.querySelector('#modalRoot .rec-edit')"), c3)
+    ev("RecordEdit.open('contraction',Storage.get().contractions.find(x=>x.id=='c1'))"); p.wait_for_timeout(200)
+    p.select_option('#reF_intensity', '3'); p.click('[data-re-ok]'); p.wait_for_timeout(200)
+    c1 = ev("Storage.get().contractions.find(x=>x.id=='c1')")
+    check('#14 跨分钟的宫缩：只改强度，开始仍是 :10 秒，时长仍 50 秒', c1['start'].endswith(':10') and c1['end'].endswith(':00') and c1.get('intensity') == 3, c1)
+    ev("(()=>{const d=Storage.get();d.settings.stage='baby';d.sleeps.push({id:'ss3',start:'2026-10-10T13:05:17',end:'2026-10-10T14:20:43',pausedMs:0});d.feedings.push({id:'bb3',type:'breast',start:'2026-10-10T09:00:21',end:'2026-10-10T09:12:40',secL:400,secR:339,durationL:7,durationR:6,durationMin:12,side:'both'});Storage.save()})()")
+    go('sleep'); clear()
+    ev("RecordEdit.open('sleep',Storage.get().sleeps.find(x=>x.id=='ss3'))"); p.wait_for_timeout(200)
+    p.fill('#reF_note', '改备注'); p.click('[data-re-ok]'); p.wait_for_timeout(200)
+    s3 = ev("Storage.get().sleeps.find(x=>x.id=='ss3')")
+    check('#14 睡眠只改备注：入睡 / 醒来的秒原样', s3['start'] == '2026-10-10T13:05:17' and s3['end'] == '2026-10-10T14:20:43' and s3.get('note') == '改备注', s3)
+    ev("RecordEdit.open('feeding',Storage.get().feedings.find(x=>x.id=='bb3'))"); p.wait_for_timeout(200)
+    p.fill('#reF_note', '改备注'); p.click('[data-re-ok]'); p.wait_for_timeout(200)
+    b3 = ev("Storage.get().feedings.find(x=>x.id=='bb3')")
+    check('#14 亲喂计时记录只改备注：开始秒数、secL/secR、durationMin 都不变', b3['start'] == '2026-10-10T09:00:21' and b3.get('secL') == 400 and b3.get('durationMin') == 12, b3)
+    ev("RecordEdit.open('sleep',Storage.get().sleeps.find(x=>x.id=='ss3'))"); p.wait_for_timeout(200)
+    p.fill('#reF_start', '2026-10-10T13:00'); p.click('[data-re-ok]'); p.wait_for_timeout(200)
+    s3 = ev("Storage.get().sleeps.find(x=>x.id=='ss3')")
+    check('#14 真改了时间才按分钟写（入睡 13:00:00，醒来仍 :43）', s3['start'] == '2026-10-10T13:00:00' and s3['end'] == '2026-10-10T14:20:43', s3)
+    clear()
+    # —— #15 泵奶编辑口径 ——
+    ev("(()=>{const d=Storage.get();d.feedings.push({id:'pm15',type:'pump',start:'2026-10-10T07:00:00',end:'2026-10-10T07:15:00',durationL:15,durationR:15,durationMin:15,amountL:60,amountR:50,amount:110,side:'both'},{id:'pm16',type:'pump',start:'2026-10-10T06:00:00',secL:600,secR:600,durationL:10,durationR:10,durationMin:20,amountL:40,amount:40,side:'both'},{id:'pm17',type:'pump',start:'2026-10-10T05:00:00',amountL:40,amount:40,side:'left'});Storage.save()})()")
+    go('pump')
+    for rid in ('pm15', 'pm16', 'pm17'):
+        ev(f"RecordEdit.open('feeding',Storage.get().feedings.find(x=>x.id=='{rid}'))"); p.wait_for_timeout(150)
+        p.fill('#reF_note', '只改备注'); p.click('[data-re-ok]'); p.wait_for_timeout(150)
+    pm = ev("['pm15','pm16','pm17'].map(i=>{const r=Storage.get().feedings.find(x=>x.id==i);return [r.durationMin,r.side,r.note]})")
+    check('#15 泵奶只改备注：时长不变（15 不变 30；轮流泵 20 不变 10；只记奶量的侧别不丢）', pm == [[15, 'both', '只改备注'], [20, 'both', '只改备注'], [None, 'left', '只改备注']], pm)
+    ev("RecordEdit.open('feeding',Storage.get().feedings.find(x=>x.id=='pm15'))"); p.wait_for_timeout(150)
+    p.fill('#reF_durationL', '20'); p.click('[data-re-ok]'); p.wait_for_timeout(150)
+    ev("RecordEdit.open('feeding',Storage.get().feedings.find(x=>x.id=='bb3'))"); p.wait_for_timeout(150)
+    p.fill('#reF_durationL', '9'); p.click('[data-re-ok]'); p.wait_for_timeout(150)
+    dm = ev("[Storage.get().feedings.find(x=>x.id=='pm15').durationMin, Storage.get().feedings.find(x=>x.id=='bb3').durationMin]")
+    check('#15 改了分钟：泵奶 = max(左, 右)=20，亲喂 = 左 + 右=15', dm == [20, 15], dm)
+    clear()
+    # —— #16 导入覆盖计数 ——
+    cnt = ev("""(()=>{const o={feedings:[],waters:[{id:1},{id:2}],temps:[{id:3}],fetal:[{id:4}],milkStash:[{id:5}],laborEvents:[{id:6}],supplements:[{id:7}],baths:[{id:8}],fetalSessions:[{id:9}]};
+      const all=JSON.parse(JSON.stringify(Storage.get()));let n=0;Storage.RECORD_KEYS.forEach(k=>{if(Array.isArray(all[k]))n+=all[k].length});
+      return [App._countRecords(o), App._countRecords(all)>=n, ['waters','temps','fetal','fetalSessions','milkStash','laborEvents','supplements','supplementPlans','baths','swims','suns','jaundices','supplies','moods','contractions','periods'].every(k=>Storage.RECORD_KEYS.includes(k)), Storage.RECORD_KEYS.indexOf('babies')]})()""")
+    check('#16 覆盖确认计数含饮水 / 体温 / 胎动 / 储奶 / 破水见红 / 补剂 / 洗澡 / 胎动会话（只记这些的人不再显示 0 条）', cnt == [9, True, True, -1], cnt)
+    # —— #17 泵奶奶量面板各种关法都保留 ——
+    ev("Storage.get().pumpTimer=null;Storage.save()"); go('pump')
+    p.click('[data-pstart]'); p.wait_for_timeout(450)
+    kept = []
+    for how in ('mask', 'closeTop', 'esc', 'x'):
+        p.click('.ftf [data-p=mlL]'); p.wait_for_timeout(350)
+        bb = p.locator('[data-pbtl] svg').bounding_box()
+        p.mouse.move(bb['x'] + bb['width'] / 2, bb['y'] + bb['height'] * 0.8); p.mouse.down()
+        p.mouse.move(bb['x'] + bb['width'] / 2, bb['y'] + bb['height'] * 0.6, steps=4); p.mouse.up(); p.wait_for_timeout(100)
+        v = int(ev("document.querySelector('[data-pval]').textContent"))
+        if how == 'mask': ev("(()=>{const m=document.querySelector('#modalRoot [data-ft-mask]');m.dispatchEvent(new MouseEvent('click',{bubbles:true}))})()")
+        elif how == 'closeTop': ev("Sheet.closeTop()")
+        elif how == 'esc': p.keyboard.press('Escape')
+        else: p.click('#modalRoot [data-x]')
+        p.wait_for_timeout(250)
+        kept.append([how, v > 0 and ev("Storage.get().pumpTimer.mlL") == v, ev("document.querySelector('.ftf [data-pv=mlL]').textContent") == f'{v} ml'])
+        ev("Storage.get().pumpTimer.mlL=null;Storage.save();Modules.pump._openFull()"); p.wait_for_timeout(100)
+    check('#17 奶量面板：点遮罩 / 下拉（closeTop）/ Esc / ✕ 关掉都留住已拖的奶量，全屏上同步显示', all(k[1] and k[2] for k in kept), kept)
+    # —— #19 泵奶 / 亲喂：不到 1 分钟、撤销 ——
+    n0 = ev("Storage.get().feedings.length")
+    ev("(()=>{const t=Storage.get().pumpTimer;t.start=t.since=__L(Date.now()-3000);t.accL=t.accR=t.accT=0;t.mlL=t.mlR=null;Storage.save()})()")
+    p.click('.ftf [data-p=stop]'); p.wait_for_timeout(350); p.click('[data-psave]'); p.wait_for_timeout(250)
+    t = ev(R273_TOASTS)
+    check('#19 泵 3 秒没填奶量：不存、结束计时，提示带撤销', ev("Storage.get().feedings.length") == n0 and not ev("Storage.get().pumpTimer") and '不到 1 分钟' in t and '撤销' in t, t)
+    ev("[...document.querySelectorAll('#toastRoot .toast-action')].pop().click()"); p.wait_for_timeout(200)
+    check('#19 撤销后泵奶计时放回', bool(ev("Storage.get().pumpTimer")))
+    clear()
+    ev("(()=>{const t=Storage.get().pumpTimer;t.start=t.since=__L(Date.now()-40000);t.accL=t.accR=t.accT=0;t.mlL=30;Storage.save()})()")
+    ev("Modules.pump._openFull()"); p.wait_for_timeout(150)
+    p.click('.ftf [data-p=stop]'); p.wait_for_timeout(350); p.click('[data-psave]'); p.wait_for_timeout(250)
+    t = ev(R273_TOASTS); last = ev("Storage.get().feedings.slice(-1)[0]")
+    check('#19 泵 40 秒填了 30 ml：照存（按秒）、提示带撤销', last['type'] == 'pump' and 40 <= (last.get('secL') or 0) <= 45 and last.get('amount') == 30 and '撤销' in t, [t, last])
+    go('pump')
+    row = ev("(()=>{const b=document.querySelector('[data-open=\"'+Storage.get().feedings.slice(-1)[0].id+'\"]');return b?b.textContent:''})()")
+    check('#19 泵奶行：不到 1 分钟写秒，不再「左 1分」', bool(_re.search(r'左 4\d秒', row)) and '1分' not in row, row)
+    ev("[...document.querySelectorAll('#toastRoot .toast-action')].pop().click()"); p.wait_for_timeout(200)
+    check('#19 泵奶保存后撤销：删记录、计时放回', ev("Storage.get().feedings.length") == n0 and bool(ev("Storage.get().pumpTimer")))
+    ev("Storage.get().pumpTimer=null;Storage.save();Modules.pump._closeFull()"); clear(); go('pump')
+    p.click('[data-padd]'); p.wait_for_timeout(350); p.fill('#pmLM', '10'); p.click('[data-pmsave]'); p.wait_for_timeout(200)
+    t = ev(R273_TOASTS)
+    ev("[...document.querySelectorAll('#toastRoot .toast-action')].pop().click()"); p.wait_for_timeout(200)
+    check('#19 泵奶补记带撤销，撤销后删掉', '撤销' in t and ev("Storage.get().feedings.length") == n0, t)
+    clear(); go('breast')
+    ev("Modules.breast._start()"); p.wait_for_timeout(300)
+    ev("(()=>{const t=Storage.get().feedingTimer;t.start=t.sideStart=__L(Date.now()-13000);Storage.save()})()")
+    p.click('.ftf [data-f=stop]'); p.wait_for_timeout(350); p.click('#modalRoot [data-save]'); p.wait_for_timeout(250)
+    t = ev(R273_TOASTS)
+    check('#19 亲喂 13 秒：不存成 1 分钟，结束计时，提示带撤销', ev("Storage.get().feedings.length") == n0 and not ev("Storage.get().feedingTimer") and '不到 1 分钟' in t and '撤销' in t, t)
+    ev("[...document.querySelectorAll('#toastRoot .toast-action')].pop().click()"); p.wait_for_timeout(200)
+    check('#19 撤销后亲喂计时放回', bool(ev("Storage.get().feedingTimer")))
+    clear()
+    ev("(()=>{const t=Storage.get().feedingTimer;t.start=t.sideStart=__L(Date.now()-300000);Storage.save()})()")
+    ev("Modules.breast._openFull ? Modules.breast._openFull() : Modules.breast._start()"); p.wait_for_timeout(250)
+    p.click('.ftf [data-f=stop]'); p.wait_for_timeout(350); p.click('#modalRoot [data-save]'); p.wait_for_timeout(250)
+    t = ev(R273_TOASTS)
+    ok5 = ev("Storage.get().feedings.length") == n0 + 1 and '撤销' in t
+    ev("[...document.querySelectorAll('#toastRoot .toast-action')].pop().click()"); p.wait_for_timeout(200)
+    check('#19 亲喂 5 分钟正常保存带撤销，撤销删记录、计时放回', ok5 and ev("Storage.get().feedings.length") == n0 and bool(ev("Storage.get().feedingTimer")), t)
+    ev("Storage.get().feedingTimer=null;Storage.save();Modules.breast._closeFull()"); clear()
+    ev("Modules.breast._manual()"); p.wait_for_timeout(300); p.fill('#mL', '8'); p.click('#modalRoot [data-save]'); p.wait_for_timeout(200)
+    t = ev(R273_TOASTS)
+    ev("[...document.querySelectorAll('#toastRoot .toast-action')].pop().click()"); p.wait_for_timeout(200)
+    check('#19 亲喂补记带撤销，撤销后删掉', '撤销' in t and ev("Storage.get().feedings.length") == n0, t)
+    clear()
+    # —— #18 / #20 记账 ——
+    go('finance')
+    nf = ev("Storage.get().finance.records.length")
+    for bad_amt in ('0', '-3'):
+        p.fill('#fAmt', bad_amt); p.click('#fSave'); p.wait_for_timeout(150)
+    check('#20 记账 0 元、负数都存不进去，金额框标红', ev("Storage.get().finance.records.length") == nf and ev("document.querySelector('#fAmt').getAttribute('aria-invalid')") == 'true')
+    p.fill('#fAmt', '0.01'); p.click('#fSave'); p.wait_for_timeout(150)
+    check('#20 0.01 元可以存', ev("Storage.get().finance.records.length") == nf + 1)
+    ev("(()=>{const r=Storage.get().finance.records;r.push({id:'q1',amount:128.5,category:'产检',note:'奶粉,两罐 \"大\"',date:'2026-10-10'},{id:'q2',amount:9,category:'其他',note:'第一行\\n第二行\\r',date:'2026-10-09'});Storage.save()})()")
+    go('finance'); ev("__dl=[]"); p.click('#fExp'); p.wait_for_timeout(100)
+    csvt = ev("(__dl.pop()||['',''])[1]")
+    rows = list(_csv.reader(_io.StringIO(csvt.lstrip('\ufeff'), newline='')))
+    nr = [r for r in rows if r]
+    check('#18 记账 CSV：带 BOM，逗号 / 引号 / 换行按 RFC 4180 转义，每行 4 列，内容原样', csvt.startswith('\ufeff') and all(len(r) == 4 for r in nr)
+          and ['2026-10-10', '产检', '128.5', '奶粉,两罐 "大"'] in nr and ['2026-10-09', '其他', '9', '第一行\n第二行\r'] in nr and '\r\n' in csvt, nr[:4])
+    go('settings')
+    ev("(()=>{const s=document.querySelector('#sCsvModule');s.value='finance'})()")
+    with p.expect_download() as dl:
+        ev("document.querySelector('#sCsv').click()")
+    raw = open(dl.value.path(), 'rb').read().decode('utf-8')
+    rows2 = [r for r in _csv.reader(_io.StringIO(raw.lstrip('\ufeff'), newline='')) if r]
+    check('#18 设置页 CSV 同一转义（含回车）', raw.startswith('\ufeff') and all(len(r) == 4 for r in rows2) and any(r[3] == '第一行\n第二行\r' for r in rows2), rows2[:3])
+    clear()
+    # —— #21 搜索 ——
+    ev("(()=>{const d=Storage.get();d.feedings.push({id:'sb21',type:'bottle',start:'2026-10-10T10:50:00',amount:125,amountBm:125,src:'bm'},{id:'sp21',type:'pump',start:'2026-10-10T07:30:00',amountL:60,amountR:65,amount:125,durationL:15,durationR:15,durationMin:15,note:'泵二一'},{id:'ss21',type:'solid',start:'2026-10-10T08:00:00',unit:'spoon',qty:3,dish:'南瓜泥二一'},{id:'sq21',type:'pump',start:'2026-10-10T06:30:00',secL:41,secR:41,durationL:1,durationR:1,durationMin:1,amountL:30,amount:30,note:'短泵二一'});Storage.save()})()")
+    go('search')
+    res = {}
+    for q in ('125', '泵二一', '南瓜泥二一', '短泵二一'):
+        p.fill('#searchInput', q); p.wait_for_timeout(350)
+        res[q] = ev("[...document.querySelectorAll('#view .sr-sub, #view li small, #view li .li-sub')].map(x=>x.textContent).join(' || ') || document.querySelector('#view').innerText")
+    bt = res['125']
+    check('#21 搜索瓶喂：奶量只写一次「母乳 125 ml」，没有 ml/g', 'ml/g' not in bt and bt.count('125') >= 1 and '母乳 125 ml · 125' not in bt and '母乳 125 ml' in bt, bt[:200])
+    check('#21 搜索泵奶：「共 125 ml」，没有 ml/g', '共 125 ml' in res['泵二一'] and 'ml/g' not in res['泵二一'], res['泵二一'][:200])
+    check('#21 搜索辅食：按自己的单位写「3 勺」', '3 勺' in res['南瓜泥二一'] and 'ml/g' not in res['南瓜泥二一'], res['南瓜泥二一'][:200])
+    check('#21 搜索 41 秒泵奶：左右写秒，不写「1 分」', '左 41 秒' in res['短泵二一'] and '1 分' not in res['短泵二一'], res['短泵二一'][:200])
+    clear()
+    # —— 保存按钮对比度（浅 / 深） ——
+    panels = {
+        '喝水': "App.showTab('water',{noVT:true});document.querySelector('[data-new]').click()",
+        '体温编辑': "App.showTab('temp',{noVT:true});document.querySelector('[data-open]').click()",
+        '洗澡': "App.showTab('bath',{noVT:true});document.querySelector('[data-new]').click()",
+        '日晒': "App.showTab('sun',{noVT:true});document.querySelector('[data-new]').click()",
+        '黄疸': "App.showTab('jaundice',{noVT:true});document.querySelector('[data-new]').click()",
+        '喂养表单': "App.showTab('feeding',{noVT:true});(()=>{const m=document.querySelector('[data-fd-mask]');m.hidden=false;Sheet.attach(m)})()",
+        '尿布': "App.showTab('diaper',{noVT:true});document.querySelector('[data-new]').click()",
+        '亲喂补记': "App.showTab('breast',{noVT:true});Modules.breast._manual()",
+        '泵奶补记': "App.showTab('pump',{noVT:true});document.querySelector('.ft-split-add').click()",
+        '辅食': "App.showTab('solid',{noVT:true});document.querySelector('[data-new], .mc-main').click()",
+    }
+    lows = []
+    for dark in (False, True):
+        ev(f"document.body.classList.toggle('dark',{str(dark).lower()})"); p.wait_for_timeout(100)
+        for k, js in panels.items():
+            ev(js); p.wait_for_timeout(350)
+            r = ev(R273_CR, '#modalRoot .rs-savebar button, #view .modal-mask:not([hidden]) .rs-savebar button')
+            if not isinstance(r, (int, float)) or r < 4.5: lows.append([('深' if dark else '浅') + k, r])
+            ev("Sheet.closeAll();document.getElementById('modalRoot').innerHTML='';document.querySelectorAll('#view .modal-mask').forEach(m=>m.hidden=true)"); p.wait_for_timeout(60)
+    ev("document.body.classList.remove('dark')")
+    check('记录面板「保存 / 保存修改」文字对比度浅 / 深色都 ≥4.5:1（WCAG AA）', not lows, lows)
+    check('第 273 次无报错', not errs, errs)
+    p.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
+# 第 273 次：第 273 次断言单独一组，四个子进程并行
 GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_diaper_photos', 'test_family'),
           ('test_css_rules', 'test_flows', 'test_pump', 'test_diaper_stock', 'test_solid', 'test_diaper_sheet',
            'test_dash', 'test_home_edit', 'test_format'),
-          ('test_r270', 'test_r271', 'test_r272'))
+          ('test_r270', 'test_r271', 'test_r272'),
+          ('test_r273',))
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

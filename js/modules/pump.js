@@ -240,25 +240,44 @@
       function done() {
         var tt = keep(); if (!tt) { api.close(); return; }
         if (!finish) { api.close(); if (fullEl) paintFull(); return; }
+        var keepT = JSON.parse(JSON.stringify(tt)); /* 结算前的计时，撤销时原样放回（接着计） */
         var now = Date.now(); settle(tt, now);
         var sL = Math.round((tt.accL || 0) / 1000), sR = Math.round((tt.accR || 0) / 1000);
+        var sT = Math.max(sL, sR, Math.round((tt.accT || 0) / 1000));
         if (sL + sR < 1 && !(v.L + v.R)) { Util.toast('这次计时还不到 1 秒', 'warn'); return; }
         var dd = Storage.get();
-        dd.feedings.push({
+        /* 第 273 次（审计 #19：泵 3 秒、没填奶量也存成「左 1分 · 右 1分」，没有撤销）：
+           和第 272 次睡眠一致——不到 1 分钟又没填奶量的不存，只结束计时，「撤销」把计时放回；
+           填了奶量的照存（时长按秒显示）；保存都带「撤销」（删记录、恢复计时） */
+        var undoT = function (recId) {
+          var d3 = Storage.get(); if (!d3) return;
+          if (recId) d3.feedings = (d3.feedings || []).filter(function (x) { return !x || x.id !== recId; });
+          if (!d3.pumpTimer) d3.pumpTimer = keepT;
+          Storage.save(); if (global.App) App.rerender();
+        };
+        if (sT < 60 && !(v.L + v.R)) {
+          dd.pumpTimer = null;
+          if (Storage.save()) Util.toast('泵了不到 1 分钟，没有记录', 'info', { label: '撤销', onClick: function () { undoT(null); } });
+          api.close(); closeFull(); if (global.App) App.rerender();
+          return;
+        }
+        var rec = {
           id: Util.uid(), type: 'pump', start: tt.start, end: FT().loc(now),
           secL: sL, secR: sR, durationL: Math.round(sL / 60), durationR: Math.round(sR / 60),
-          durationMin: Math.max(1, Math.round(Math.max(sL, sR, Math.round((tt.accT || 0) / 1000)) / 60)),
+          durationMin: Math.round(sT / 60) || null, /* 不到 1 分钟不再进成 1 分钟，按秒看 secL / secR */
           amountL: v.L || null, amountR: v.R || null, amount: (v.L + v.R) || null,
           side: (sL && sR) ? 'both' : (sL ? 'left' : (sR ? 'right' : null)), note: null
-        });
+        };
+        dd.feedings.push(rec);
         dd.pumpTimer = null;
-        if (Storage.save()) Util.toast('已记录泵奶' + ((v.L + v.R) ? ' ' + (v.L + v.R) + ' ml' : ''), 'ok');
+        if (Storage.save()) Util.toast('已记录泵奶' + ((v.L + v.R) ? ' ' + (v.L + v.R) + ' ml' : '') + (sT < 60 ? '（' + fmtSec(sT) + '）' : ''), 'ok', { label: '撤销', onClick: function () { undoT(rec.id); } });
         api.close(); closeFull(); if (global.App) App.rerender();
       }
       box.querySelector('[data-psave]').addEventListener('click', done);
       box.parentNode.parentNode.querySelector('[data-ok]').addEventListener('click', done);
-      /* 不保存直接关面板：计时中填的奶量也留着 */
-      var x = box.querySelector('[data-x]'); if (x) x.addEventListener('click', function () { keep(); if (fullEl) paintFull(); });
+      /* 不保存直接关面板：计时中填的奶量也留着。
+         第 273 次（审计 #17：原来只接了 ✕，点遮罩 / 下拉关掉就丢）：挂在面板的 onClose 上，所有关法一致 */
+      api.onClose = function () { if (keep() && fullEl) paintFull(); };
     });
   }
 
@@ -299,13 +318,15 @@
         if (!LM && !RM && !LA && !RA) { Util.toast('请至少填一侧的时长或奶量', 'warn'); return; }
         var note = (box.querySelector('#pmNote').value || '').trim().slice(0, 40);
         var dd = Storage.get();
-        dd.feedings.push({
+        var mrec = {
           id: Util.uid(), type: 'pump', start: F.loc(st), end: (LM || RM) ? F.loc(st + Math.max(LM, RM) * 60000) : null,
           durationL: LM || null, durationR: RM || null, durationMin: Math.max(LM, RM) || null,
           amountL: LA || null, amountR: RA || null, amount: (LA + RA) || null,
           side: ((LM || LA) && (RM || RA)) ? 'both' : ((LM || LA) ? 'left' : 'right'), note: note || null
-        });
-        if (Storage.save()) Util.toast('已补记泵奶', 'ok');
+        };
+        dd.feedings.push(mrec);
+        /* 第 273 次（审计 #19）：补记也带「撤销」 */
+        if (Storage.save()) Util.toast('已补记泵奶' + ((LA + RA) ? ' ' + (LA + RA) + ' ml' : ''), 'ok', { label: '撤销', onClick: function () { F.undoAdd(mrec.id); } });
         api.close(); if (global.App) App.rerender();
       }
       box.querySelector('[data-pmsave]').addEventListener('click', save);
@@ -319,7 +340,8 @@
     if (a.T) parts.push(a.legacy ? a.T + ' ml' : '共 ' + a.T + ' ml');
     var side = function (lbl, sec, ml) {
       if (!sec && !ml) return null;
-      return lbl + ' ' + [sec ? Math.max(1, Math.round(sec / 60)) + '分' : null, ml ? ml + ' ml' : null].filter(Boolean).join(' ');
+      /* 第 273 次（审计 #19：3 秒显示成「1分」）：不到 1 分钟写秒 */
+      return lbl + ' ' + [sec ? (sec < 60 ? Math.round(sec) + '秒' : Math.round(sec / 60) + '分') : null, ml ? ml + ' ml' : null].filter(Boolean).join(' ');
     };
     var l = side('左', s.L, a.L), rr = side('右', s.R, a.R);
     if (l) parts.push(l); if (rr) parts.push(rr);
