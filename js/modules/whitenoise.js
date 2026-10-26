@@ -64,7 +64,34 @@
   var MINUTES = [10, 20, 30, 0]; /* 0 = 不限时（显式选择，且带提示） */
 
   /* ---------------- 音频引擎（状态活在页面里，不产生任何网络请求） ---------------- */
-  var engine = { ctx: null, src: null, gain: null, playing: false, pending: null, el: null, url: null, mode: null };
+  var engine = { ctx: null, src: null, gain: null, playing: false, pending: null, el: null, url: null, mode: null, starting: false };
+
+  /* 第 271 次（真机：文字已是「播放中」、灵动岛也在放，大按钮还是 ▶；首页迷你条又是另一个样子）：
+     播放状态只认一个来源——<audio> 元素真实的 playing / pause / ended 事件（Web Audio 回落路径认 resume 兑现）。
+     play() 在 iOS 上是异步 Promise，可能晚到、也可能被拒，所以点下去只记「正在开始」（engine.starting），
+     真出声了才落库 playing=true。每次状态真的变了都走 notify()：全屏页大按钮 / 状态文字、白噪音页画卡、
+     首页卡片、dock 上方「正在进行」胶囊、锁屏 MediaSession 一起按同一份状态重画。 */
+  var notifyQ = 0;
+  function notify() {
+    if (notifyQ) return;
+    notifyQ = 1;
+    var run = function () {
+      notifyQ = 0;
+      try {
+        var wn = (Storage.get() || {}).whitenoise || {};
+        var ms = global.navigator && global.navigator.mediaSession;
+        if (ms) ms.playbackState = wn.playing ? 'playing' : (wn.paused ? 'paused' : 'none');
+      } catch (e) {}
+      try {
+        var App = global.App; if (!App) return;
+        var cur = App.currentTab ? App.currentTab() : '';
+        if (cur === 'whitenoise' || cur === 'home') App.rerender();
+        else if (App.buildTabbar) App.buildTabbar();
+      } catch (e) {}
+    };
+    /* 同一个事件循环里的多次变化（例如 pause() 落库 + 元素 pause 事件）合并成一次重画 */
+    if (typeof Promise === 'function') Promise.resolve().then(run); else setTimeout(run, 0);
+  }
 
   function AudioCtx() { return global.AudioContext || global.webkitAudioContext || null; }
   function audioSupported() { return !!AudioCtx() || elemSupported(); }
@@ -211,7 +238,8 @@
   function releaseElem() {
     var el = engine.el, url = engine.url;
     engine.el = null; engine.url = null;
-    if (el) { try { el.onended = null; el.onplaying = null; el.pause(); el.removeAttribute('src'); el.load(); } catch (e) {} }
+    if (el) { try { el.onended = null; el.onplaying = null; el.onpause = null; el.pause(); el.removeAttribute('src'); el.load(); } catch (e) {} }
+    engine.starting = false;
     if (url) { try { URL.revokeObjectURL(url); } catch (e) {} }
   }
   function mediaSession(on) {
@@ -221,9 +249,9 @@
       if (on) {
         if (global.MediaMetadata) ms.metadata = new global.MediaMetadata({ title: '哄睡白噪音', artist: '咿呀记' });
         /* 第 209 次：锁屏「暂停」只暂停，「播放」继续，「停止」才停 */
-        try { ms.setActionHandler('pause', function () { pause(); if (global.App) global.App.rerender(); }); } catch (e) {}
-        try { ms.setActionHandler('play', function () { resume(); if (global.App) global.App.rerender(); }); } catch (e) {}
-        try { ms.setActionHandler('stop', function () { stop(); if (global.App) global.App.rerender(); }); } catch (e) {}
+        try { ms.setActionHandler('pause', function () { pause(); notify(); }); } catch (e) {}
+        try { ms.setActionHandler('play', function () { resume(); notify(); }); } catch (e) {}
+        try { ms.setActionHandler('stop', function () { stop(); notify(); }); } catch (e) {}
         ms.playbackState = 'playing';
       } else {
         ms.playbackState = 'none';
@@ -245,14 +273,33 @@
       el.loop = !(minutes > 0);
       el.setAttribute('playsinline', '');
     } catch (e) { if (url) try { URL.revokeObjectURL(url); } catch (e2) {} return false; }
-    engine.el = el; engine.url = url; engine.playing = true; engine.mode = 'elem';
+    engine.el = el; engine.url = url; engine.playing = true; engine.mode = 'elem'; engine.starting = true;
     el.onplaying = function () {
+      if (engine.el !== el) return;
+      engine.starting = false;
       /* 第 209 次：只在首次出声时落库——暂停后继续 / 缓冲恢复也会触发 playing，不能把剩余时间重置成满格 */
-      if (engine.el !== el || el._started) return;
+      if (el._started) {
+        /* 第 271 次：继续播放（本页按钮、锁屏、灵动岛、耳机线控）以真正出声为准，这时才把「已暂停」翻成「播放中」 */
+        var wr = Storage.get().whitenoise;
+        if (wr && wr.paused) markResumed(wr);
+        engine.paused = false;
+        notify();
+        return;
+      }
       el._started = true;
       writeState(true, type, volume, prefMin != null ? prefMin : minutes, linkSleep);
       if (minutes > 0) { var w0 = Storage.get().whitenoise; if (w0) { w0.until = Date.now() + minutes * 60000; Storage.save(); } }
       mediaSession(true);
+      notify();
+    };
+    /* 第 271 次：系统替我们暂停（锁屏 / 灵动岛 / 来电 / 拔耳机 / 别的 App 抢了音频）也要反映到界面上：
+       不是我们自己调的 pause()，就在这里按「暂停」落库（保留剩余时间），界面一起变成 ▶。 */
+    el.onpause = function () {
+      if (engine.el !== el || el.ended) return;
+      engine.starting = false;
+      var wp = Storage.get().whitenoise;
+      if (wp && wp.playing) markPaused(wp);
+      notify();
     };
     el.onended = function () {
       if (engine.el !== el) return;
@@ -264,7 +311,7 @@
     try { p = el.play(); } catch (e) { releaseElem(); engine.playing = false; return false; }
     if (p && p['catch']) p['catch'](function () {
       if (engine.el !== el) return;
-      releaseElem(); engine.playing = false;
+      releaseElem(); engine.playing = false; engine.starting = false;
       writeState(false);
       if (global.Util && Util.toast) Util.toast('没能开始播放，请再点一次「开始播放」。', 'warn');
       if (global.App) global.App.rerender();
@@ -414,7 +461,7 @@
     Storage.save();
 
     /* 第 209 次：真正出声是异步确认的，确认后补刷底栏，让「正在播放」入口立刻出现 */
-    if (playing) { try { if (global.App && App.buildTabbar) App.buildTabbar(); } catch (e) {} }
+    notify();
 
     /* W-05 联动：一次点击同时开始哄睡计时（若当前没有计时在进行） */
     if (playing && linkSleep && !d.openSleep) {
@@ -425,7 +472,7 @@
 
   function stopEngine(immediate) {
     if (!engine.playing) return;
-    engine.playing = false; engine.paused = false; engine.dirty = false;
+    engine.playing = false; engine.paused = false; engine.dirty = false; engine.starting = false;
     if (engine.mode === 'elem') { releaseElem(); mediaSession(false); engine.pending = null; return; }
     /* 第 116 次：清掉待定播放参数。
        否则「点开始 → 立刻点停止 → 此时 resume 才兑现」会让 pending 里的
@@ -452,6 +499,7 @@
       d.whitenoise.leftMs = null;
     }
     Storage.save();
+    notify();
   }
 
   /** 刷新页面后音频必然已停：清掉「播放中」的残留状态，避免界面撒谎 */
@@ -478,18 +526,25 @@
            锁屏控件还在，定时倒计时冻结；
      继续：原地接着放，剩余时间从暂停那一刻接上。暂停期间改了音量 / 定时（engine.dirty），
            或引擎已经没了（例如被系统回收），就按剩余分钟重新生成一段再放。 */
-  function pause() {
-    var wn = (Storage.get() || {}).whitenoise;
-    if (!wn || !wn.playing) return false;
+  function markPaused(wn) {
     wn.leftMs = wn.until ? Math.max(1000, wn.until - Date.now()) : null;
     wn.playing = false; wn.paused = true; wn.until = null;
     Storage.save();
     engine.paused = true;
+    try { var ms = global.navigator && global.navigator.mediaSession; if (ms) ms.playbackState = 'paused'; } catch (e) {}
+  }
+  function pause() {
+    var wn = (Storage.get() || {}).whitenoise;
+    /* 第 271 次：还在「正在开始」（play() 没兑现）时点暂停 = 取消这次播放 */
+    if (engine.starting && engine.playing && !(wn && wn.paused)) { stop(); return true; }
+    if (!wn || !wn.playing) return false;
+    markPaused(wn);
+    engine.starting = false;
     try {
       if (engine.mode === 'elem' && engine.el) engine.el.pause();
       else if (engine.ctx && engine.ctx.suspend) engine.ctx.suspend();
     } catch (e) {}
-    try { var ms = global.navigator && global.navigator.mediaSession; if (ms) ms.playbackState = 'paused'; } catch (e) {}
+    notify();
     return true;
   }
   function markResumed(wn) {
@@ -506,15 +561,26 @@
     var left = wn.leftMs != null ? Math.max(1, Math.ceil(wn.leftMs / 60000)) : 0;
     if (engine.playing && engine.paused && !engine.dirty) {
       if (engine.mode === 'elem' && engine.el) {
+        /* 第 271 次：不再「先当成在放」——等元素的 playing 事件再翻状态（见 startElem 的 onplaying）。
+           被拒就保持暂停并提示，界面始终和真实声音一致。 */
         var el = engine.el, p;
-        try { p = el.play(); } catch (e) { p = null; }
-        markResumed(wn);
-        if (p && p['catch']) p['catch'](function () { pause(); if (global.App) global.App.rerender(); });
+        engine.starting = true;
+        try { p = el.play(); } catch (e) { p = null; engine.starting = false; }
+        if (p && p['catch']) p['catch'](function () {
+          if (engine.el !== el) return;
+          engine.starting = false;
+          if (global.Util && Util.toast) Util.toast('没能继续播放，请再点一次播放键。', 'warn');
+          notify();
+        });
+        notify();
         return true;
       }
       if (engine.mode === 'ctx' && engine.ctx) {
-        try { engine.ctx.resume(); } catch (e) {}
-        markResumed(wn);
+        var c0 = engine.ctx, rp;
+        engine.starting = true;
+        try { rp = c0.resume(); } catch (e) { rp = null; }
+        var done = function () { engine.starting = false; if (c0.state === 'running') { var w2 = Storage.get().whitenoise; if (w2 && w2.paused) markResumed(w2); } notify(); };
+        if (rp && rp.then) rp.then(done, done); else done();
         return true;
       }
     }
@@ -561,7 +627,15 @@
   function nameOf(v) { return NAMES[v] || typeName(v); }
   function minLabel(m) { return m > 0 ? m + ' 分钟' : '不限时'; }
 
+  /* 第 271 次：界面上的播放状态只从这里取（四态：idle / starting / playing / paused） */
+  function uiState(wn) {
+    if (engine.starting && engine.playing) return 'starting';
+    if (wn.playing) return 'playing';
+    if (wn.paused) return 'paused';
+    return 'idle';
+  }
   function playerState(wn) {
+    if (uiState(wn) === 'starting') return wn.paused ? '正在继续播放…' : '正在开始播放…';
     if (wn.paused) { var rp = remainingMin(); return rp != null ? '已暂停 · 还剩约 ' + rp + ' 分钟' : '已暂停 · 不限时'; }
     if (!wn.playing) return '轻点播放 · ' + (wn.minutes > 0 ? wn.minutes + ' 分钟后自动关闭' : '不限时');
     var r = remainingMin();
@@ -590,11 +664,18 @@
       + '<div class="wp-ctrl">'
       + '<button type="button" class="wp-round wp-side" id="wpTimer" aria-label="定时：' + minLabel(wn.minutes) + '">'
       + svg('<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2"/><path d="M9.5 3h5"/>') + '<span>' + (wn.minutes > 0 ? wn.minutes + '分' : '不限') + '</span></button>'
-      + '<button type="button" class="wp-play" id="wpToggle" aria-label="' + (wn.playing ? '暂停' : wn.paused ? '继续播放' : '开始播放') + '">' + (wn.playing ? ICON.pause : ICON.play) + '</button>'
-      + '<button type="button" class="wp-round wp-side" id="wpStop" aria-label="停止"' + (wn.playing || wn.paused ? '' : ' disabled') + '>' + ICON.stop + '<span>停止</span></button>'
+      + toggleHTML(wn)
+      + '<button type="button" class="wp-round wp-side" id="wpStop" aria-label="停止"' + (uiState(wn) === 'idle' ? ' disabled' : '') + '>' + ICON.stop + '<span>停止</span></button>'
       + '</div>'
       + (wn.minutes === 0 ? '<p class="wp-warn">不限时：请把音量压到最低，设备不要放进婴儿床。</p>' : '<p class="wp-tip">放在宝宝头部的位置听，应该很轻、不刺耳</p>')
       + '</div>';
+  }
+
+  function toggleHTML(wn) {
+    var u = uiState(wn), on = u === 'playing' || u === 'starting';
+    return '<button type="button" class="wp-play' + (u === 'starting' ? ' is-starting' : '') + '" id="wpToggle" data-state="' + u + '"'
+      + ' aria-label="' + (u === 'starting' ? '正在开始，点按取消' : u === 'playing' ? '暂停' : u === 'paused' ? '继续播放' : '开始播放') + '"'
+      + (u === 'starting' ? ' aria-busy="true"' : '') + '>' + (on ? ICON.pause : ICON.play) + '</button>';
   }
 
   function closePlayer() {
@@ -603,6 +684,7 @@
     if (!el) return;
     el.classList.remove('open');
     document.documentElement.classList.remove('wp-lock');
+    if (global.queueStatusColor) global.queueStatusColor();
     setTimeout(function () { if (el.parentNode && !Modules.whitenoise._open) el.parentNode.removeChild(el); }, 320);
   }
 
@@ -618,17 +700,26 @@
     }
     var wn = Storage.get().whitenoise;
     el.innerHTML = playerHTML(wn);
-    el.classList.toggle('is-playing', !!wn.playing);
-    el.classList.toggle('is-paused', !!wn.paused);
+    var u = uiState(wn);
+    el.classList.toggle('is-playing', u === 'playing');
+    el.classList.toggle('is-paused', u === 'paused');
+    el.classList.toggle('is-starting', u === 'starting');
+    el.setAttribute('data-state', u);
     document.documentElement.classList.add('wp-lock');
     if (fresh) { void el.offsetWidth; el.classList.add('open'); }
     else el.classList.add('open');
+    if (global.queueStatusColor) global.queueStatusColor();
     bindPlayer(el);
   }
 
   /* 第 209 次：播放键 = 播放 / 暂停 / 继续；停止另有按钮 */
   function playPause() {
     var cur = Storage.get().whitenoise;
+    /* 第 271 次：「正在开始 / 正在继续」时再点 = 取消 */
+    if (engine.starting && engine.playing) {
+      if (cur.paused) { engine.starting = false; try { if (engine.el) engine.el.pause(); } catch (e) {} notify(); return true; }
+      stop(); return true;
+    }
     if (cur.playing) return pause();
     if (cur.paused) return resume();
     var ok = start(cur.type, cur.volume, cur.minutes, cur.linkSleep);
@@ -694,6 +785,8 @@
   Modules.whitenoise = {
     id: 'whitenoise',
     title: '哄睡白噪音',
+    /* 第 271 次：离开本页（dock 返回 / 搜索 / 侧滑）时立刻收起播放页，不等每秒的 tick */
+    leave: function () { if (Modules.whitenoise._open || document.getElementById('wnPlayer')) closePlayer(); },
     render: function (view) {
       var d = Storage.get();
       var wn = d.whitenoise;
@@ -776,6 +869,9 @@
         var w = Storage.get().whitenoise;
         var bar = document.getElementById('wpBar'); if (bar) bar.style.width = progressPct(w).toFixed(1) + '%';
         var st = document.getElementById('wpState'); if (st) st.textContent = playerState(w);
+        /* 第 271 次兜底：万一漏了某个事件，大按钮和状态对不上就整页按真实状态重画一次 */
+        var tg = document.getElementById('wpToggle');
+        if (tg && tg.getAttribute('data-state') !== uiState(w)) global.App.rerender();
       }, 1000);
     }
   };
@@ -822,6 +918,10 @@
 
   /* 供首页 / 提醒卡复用：不打开页面也能知道还剩多久 */
   Modules.whitenoise._remainingMin = remainingMin;
+  Modules.whitenoise._art = ART;
+  Modules.whitenoise._uiState = function () { return uiState((Storage.get() || {}).whitenoise || {}); };
+  Modules.whitenoise._closePlayer = closePlayer;
+  Modules.whitenoise._notify = notify;
   Modules.whitenoise._typeName = typeName;
   Modules.whitenoise._audioSupported = audioSupported;
   Modules.whitenoise.resetStaleState = resetStaleState;

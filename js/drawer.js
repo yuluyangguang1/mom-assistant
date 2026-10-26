@@ -191,7 +191,7 @@
     var sx = 0, sy = 0, st = 0, mode = null, decided = false, lastP = 0;
     function canEdgeOpen() {
       if (!global.App || !App._isTop || !App._isTop()) return false;
-      if (document.body.classList.contains('qd-open') || document.body.classList.contains('ob-open') || document.body.classList.contains('ftf-open')) return false;
+      if (document.body.classList.contains('qd-open') || document.body.classList.contains('ob-open') || document.body.classList.contains('ftf-open') || document.documentElement.classList.contains('wp-lock')) return false; /* 第 271 次：白噪音播放页开着时不拉抽屉 */
       var mr = document.getElementById('modalRoot');
       if (mr && mr.children.length) return false;
       return !(App.inSub && App.inSub());

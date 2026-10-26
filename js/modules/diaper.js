@@ -254,8 +254,9 @@
       }
       h += '</div>';
       h += '<label class="rs-note"><span class="rs-lbl">备注</span><input type="text" id="dpsNote" maxlength="40" placeholder="可选，如 换了新码" value="' + Util.escapeHtml((editing && rec.note) || noteDraft || '') + '"></label>';
-      h += '<button type="button" class="btn btn-primary rs-save" data-ok>' + (editing ? '保存修改' : '保存') + '</button>';
+      /* 第 271 次：保存吸在面板底部（.rs-savebar）；删除放在它前面，跟着内容走（同辅食面板） */
       if (editing) h += '<button type="button" class="btn rs-del" data-delrec>删除这条记录</button>';
+      h += '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" data-ok>' + (editing ? '保存修改' : '保存') + '</button></div>';
       return h;
     }
     var noteDraft = '';

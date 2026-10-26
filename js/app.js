@@ -67,10 +67,117 @@
     }
     return '#' + out.map(hex2).join('');
   }
+  /* 第 271 次（真机：泵奶 / 白噪音全屏是深色，记录尿布面板是白的，状态栏却还是页面的浅灰一条）：
+     状态栏取「视口第 0 行最上面那一层」的颜色。原来只认首页天空 / 抽屉 / 页面底色，
+     盖在页面上的全屏层（白噪音播放页 .wn-player、亲喂 / 泵奶 / 睡眠全屏计时 .ftf、照片大图 .ph-view）
+     和面板（.modal-mask：面板顶到最上面时取面板底色，否则取遮罩压暗后的页面色）都没算进去。
+     做法：把这些层按 z-index 从上往下合成，碰到不透明的就停；层里的背景图（url）按 cover + background-position
+     取视口第 0 行那一行像素的平均色，渐变取首个色标，伪元素也算。 */
+  function rgbHex(rgb) { return '#' + [rgb[0], rgb[1], rgb[2]].map(hex2).join(''); }
+  function over(dst, col) { var a = col[3] == null ? 1 : col[3]; return [0, 1, 2].map(function (j) { return dst[j] * (1 - a) + col[j] * a; }); }
+  var stImgs = {};
+  function imgRow(url, r, posY) {
+    var im = stImgs[url];
+    if (!im) {
+      im = stImgs[url] = new Image();
+      im.onload = function () { im._ok = true; statusColorCache = ''; syncStatusColor(); };
+      im.src = url;
+      if (im.complete && im.naturalWidth) im._ok = true;
+    }
+    if (!(im._ok || (im.complete && im.naturalWidth)) || !r.width || !r.height) return null;
+    var key = Math.round(r.width) + 'x' + Math.round(r.height) + '@' + Math.round(r.top) + ':' + posY;
+    im._rows = im._rows || {};
+    if (im._rows[key]) return im._rows[key];
+    try {
+      var iw = im.naturalWidth, ih = im.naturalHeight, sc = Math.max(r.width / iw, r.height / ih);
+      var offY = (r.height - ih * sc) * posY, offX = (r.width - iw * sc) / 2;
+      var y = Math.max(0, Math.min(ih - 1, (-r.top - offY) / sc));
+      var x0 = Math.max(0, (Math.max(0, -r.left) - offX) / sc), x1 = Math.min(iw, (Math.min(r.width, (global.innerWidth || r.width) - r.left) - offX) / sc);
+      var cv = stImgs._cv || (stImgs._cv = document.createElement('canvas'));
+      cv.width = 32; cv.height = 1;
+      var g = cv.getContext('2d');
+      g.clearRect(0, 0, 32, 1);
+      g.drawImage(im, x0, y, Math.max(1, x1 - x0), Math.max(1, Math.min(ih - y, 3 / sc)), 0, 0, 32, 1);
+      var px = g.getImageData(0, 0, 32, 1).data, rgb = [0, 0, 0];
+      for (var i = 0; i < px.length; i += 4) { rgb[0] += px[i]; rgb[1] += px[i + 1]; rgb[2] += px[i + 2]; }
+      return (im._rows[key] = [rgb[0] / 32, rgb[1] / 32, rgb[2] / 32, 1]);
+    } catch (e) { return null; }
+  }
+  /* 一个元素（含 ::before / ::after）在视口第 0 行贡献的颜色，叠在 dst 上 */
+  function paintEl(dst, el, r, pseudo) {
+    var cs = global.getComputedStyle(el, pseudo || null);
+    if (pseudo && (!cs.content || cs.content === 'none')) return dst;
+    if (cs.display === 'none' || cs.visibility === 'hidden') return dst;
+    var bg = parseRgba(cs.backgroundColor);
+    if (bg && bg[3] > 0) dst = over(dst, bg);
+    var layers = (cs.backgroundImage || '').split(/,(?![^(]*\))(?=\s*(?:url|linear-gradient|radial-gradient|repeating))/);
+    var pos = (cs.backgroundPositionY || '').split(',');
+    for (var L = layers.length - 1; L >= 0; L--) {
+      var ly = layers[L].trim();
+      var mu = ly.match(/^url\(["']?([^"')]+)["']?\)/);
+      if (mu) {
+        var pY = String(pos[Math.min(L, pos.length - 1)] || '50%').trim();
+        var py = /%$/.test(pY) ? parseFloat(pY) / 100 : (pY === 'top' ? 0 : pY === 'bottom' ? 1 : 0.5);
+        var row = imgRow(mu[1], r, isNaN(py) ? 0.5 : py);
+        if (row) dst = over(dst, row);
+      } else if (/^linear-gradient\(/.test(ly)) {
+        var all = ly.match(/rgba?\([^)]*\)/g), c0 = all && parseRgba(all[0]);
+        if (c0) dst = over(dst, c0);
+      }
+    }
+    return dst;
+  }
+  function coversTop(r) { var vw = global.innerWidth || 390; return r.top <= 0.5 && r.bottom > 0.5 && r.left <= vw * 0.05 && r.right >= vw * 0.95; }
+  function layerTop(root, below) {
+    var r = root.getBoundingClientRect();
+    var bg = parseRgba(global.getComputedStyle(root).backgroundColor);
+    var dst = (bg && bg[3] >= 1) ? [0, 0, 0] : below();
+    dst = paintEl(dst, root, r, null);
+    dst = paintEl(dst, root, r, '::before');
+    Array.prototype.forEach.call(root.children, function (ch) {
+      var rc = ch.getBoundingClientRect();
+      if (!coversTop(rc)) return;
+      dst = paintEl(dst, ch, rc, '::before');
+      dst = paintEl(dst, ch, rc, null);
+      dst = paintEl(dst, ch, rc, '::after');
+    });
+    return paintEl(dst, root, r, '::after');
+  }
+  function overlayStack() {
+    var list = Array.prototype.filter.call(document.querySelectorAll('.wn-player.open, .ftf, .modal-mask, .home-sheet, .qd-mask, .ph-view'), function (el) {
+      if (el.classList.contains('sheet-ghost') || el.classList.contains('sheet-leaving') || el.hidden) return false;
+      if (!el.getClientRects().length) return false;
+      var cs = global.getComputedStyle(el);
+      if (cs.visibility === 'hidden' || cs.display === 'none') return false;
+      return coversTop(el.getBoundingClientRect());
+    });
+    list.sort(function (a, b) {
+      var za = parseInt(global.getComputedStyle(a).zIndex, 10) || 0, zb = parseInt(global.getComputedStyle(b).zIndex, 10) || 0;
+      if (za !== zb) return za - zb;
+      return (a.compareDocumentPosition(b) & 4) ? -1 : 1;
+    });
+    return list;
+  }
+  function overlayColor(list, i, base) {
+    if (i < 0) return base();
+    var el = list[i];
+    if (el.classList.contains('modal-mask') || el.classList.contains('home-sheet') || el.classList.contains('qd-mask')) {
+      var pan = el.querySelector(':scope > .is-sheet, :scope > .modal, :scope > .sheet, :scope > .home-sheet-panel');
+      var pr = pan && pan.getBoundingClientRect();
+      if (pr && pr.top <= 0.5 && pr.bottom > 0.5) return layerTop(pan, function () { return overlayColor(list, i - 1, base); });
+      var mc = parseRgba(global.getComputedStyle(el).backgroundColor);
+      var under = overlayColor(list, i - 1, base);
+      return mc ? over(under, mc) : under;
+    }
+    return layerTop(el, function () { return overlayColor(list, i - 1, base); });
+  }
+  global.__statusOverlay = function () { var l = overlayStack(); return l.map(function (e) { return e.className; }); };
+
   function syncStatusColor() {
     try {
       var b = document.body; if (!b) return;
       var c = '';
+      var ovl = overlayStack();
       /* 第 266 次：抽屉打开（或拖过一半）时，状态栏下面是抽屉，取抽屉底色 */
       var sdEl = document.querySelector('.side-drawer');
       var sdOn = !!sdEl && (b.classList.contains('sd-drag') ? b.classList.contains('sd-half') : b.classList.contains('sd-open'));
@@ -103,6 +210,10 @@
            按层从下往上合成每层的首个色标 = 视口第 0 行的真实颜色（Chromium 对拍误差 ≤1）。 */
         c = bodyEdgeColor(b, false);
       }
+      if (ovl.length) {
+        var baseC = c;
+        c = rgbHex(overlayColor(ovl, ovl.length - 1, function () { var p = parseRgba(baseC.replace(/^#(..)(..)(..)$/, function (m0, x, y, z) { return 'rgb(' + parseInt(x, 16) + ',' + parseInt(y, 16) + ',' + parseInt(z, 16) + ')'; })); return p ? p.slice(0, 3) : [253, 249, 244]; }));
+      }
       /* 底边同理：取各层末尾色标合成，给底部 .edge-strip 用 */
       var cb = bodyEdgeColor(b, true);
       if (cb !== edgeBottomCache) { edgeBottomCache = cb; document.documentElement.style.setProperty('--edge-bottom-color', cb); }
@@ -120,10 +231,24 @@
     syncStatusColor();
   }, 1500);
   var statusRaf = 0;
-  document.addEventListener('scroll', function () {
+  function queueStatus() {
     if (statusRaf) return;
     statusRaf = requestAnimationFrame(function () { statusRaf = 0; syncStatusColor(); });
-  }, { capture: true, passive: true });
+  }
+  global.queueStatusColor = queueStatus;
+  document.addEventListener('scroll', queueStatus, { capture: true, passive: true });
+  /* 第 271 次：全屏层 / 面板开合、遮罩淡入结束时重新取色（写入有缓存，没变不动） */
+  document.addEventListener('animationend', queueStatus, true);
+  document.addEventListener('transitionend', function (e) { if (e.target && e.target.nodeType === 1 && (e.target.parentNode === document.body || /modal|sheet|wn-player|ftf/.test(e.target.className || ''))) queueStatus(); }, true);
+  if (typeof MutationObserver !== 'undefined') {
+    var stMo = new MutationObserver(queueStatus);
+    var stObs = function () {
+      if (!document.body) return;
+      stMo.observe(document.body, { childList: true, attributes: true, attributeFilter: ['class'] });
+      var mr = document.getElementById('modalRoot'); if (mr) stMo.observe(mr, { childList: true });
+    };
+    if (document.body) stObs(); else document.addEventListener('DOMContentLoaded', stObs);
+  }
 
   function syncStandalone() {
     try {
@@ -349,6 +474,10 @@
     var wasTopLevel = isTopTab(prevId);
     if (!(opts && opts.silent) && !isTopLevel && wasTopLevel) {
       pushHistory(id);
+    }
+    /* 第 271 次：离开某页时给它一个收尾的机会（白噪音播放页挂在 body 上，要跟着收起） */
+    if (prevId && prevId !== id && Modules[prevId] && typeof Modules[prevId].leave === 'function') {
+      try { Modules[prevId].leave(id); } catch (e) { /* 收尾异常不影响切页 */ }
     }
     current = id;
     buildTabbar();

@@ -151,7 +151,9 @@
     var art = '';
     if (r.k === 'whitenoise') {
       var wn = Storage.get().whitenoise || {};
-      art = '<span class="dl-art" style="background-image:url(img/noise/' + esc(wn.type || 'white') + '.jpg)"></span>';
+      /* 第 271 次：原来指向不存在的 img/noise/*.jpg，胶囊里的封面一直是空的灰圈（IMG_4662） */
+      var artUrl = global.Modules && Modules.whitenoise && Modules.whitenoise._art ? Modules.whitenoise._art(String(wn.type || 'white').replace(/[^a-z]/g, '')) : '';
+      art = '<span class="dl-art" style="background-image:url(' + esc(artUrl) + ')"></span>';
     }
     var h = (runs.length > 1 ? '<button type="button" class="dl-cycle" aria-label="下一项（共 ' + runs.length + ' 项进行中）"><b>' + (idx + 1) + '</b>/' + runs.length + '</button>' : '')
       + '<button type="button" class="dl-main" aria-label="' + esc(r.label) + '，打开">'

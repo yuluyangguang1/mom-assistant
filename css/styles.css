@@ -3816,7 +3816,8 @@ body.dark .wn-lib { background: linear-gradient(180deg, rgba(169, 174, 216, .08)
 /* —— 全屏播放页 —— */
 html.wp-lock, html.wp-lock body { overflow: hidden; }
 .wn-player {
-  position: fixed; inset: 0; z-index: 200; overflow: hidden; color: #FFF; background: #34406B;
+  /* 第 271 次：z 200 → 9，落到 dock（#tabbar 10）之下，见本节末尾 */
+  position: fixed; inset: 0; z-index: 9; overflow: hidden; color: #FFF; background: #34406B;
   opacity: 0; transform: translateY(6%); transition: opacity .32s ease, transform .42s cubic-bezier(.2, .8, .2, 1);
 }
 .wn-player.open { opacity: 1; transform: none; }
@@ -3943,6 +3944,22 @@ body .tabbar.is-vertical .dock-now { margin: 4px 0; }
 /* 第 209 次：播放页停止钮在未播放时置灰；暂停时画面停止呼吸 */
 .wn-player .wp-side:disabled { opacity: .4; cursor: default; }
 .wn-player.is-paused .wp-bg { animation-play-state: paused; }
+
+/* 第 271 次（真机：白噪音播放页底部没有 dock）：播放页降到 dock 之下（.wn-player z 9 < #tabbar 10），
+   和其他页一样露出 返回 / 搜索 / ＋，＋ 打开的快记、面板、提示也都自然在它上面。
+   播放页内容给 dock 让出底部；dock 上方的「正在进行」胶囊在这里不显示（播放页自己就是那一项）。
+   同为 z 9 的页底渐隐带 body::after、触摸光斑会画在播放页上面，开着时关掉。 */
+html.wp-lock body::after, html.wp-lock .touch-glow { display: none; }
+html.wp-lock .dock-live { visibility: hidden; }
+.wn-player .wp-body { padding-bottom: calc(10px + 62px + 18px + env(safe-area-inset-bottom)); }
+.wn-player .wp-tip, .wn-player .wp-warn { margin-top: 22px; }
+body.dock-left .wn-player .wp-body, body.dock-right .wn-player .wp-body { padding-bottom: calc(26px + env(safe-area-inset-bottom)); }
+body.dock-left .wn-player .wp-ctrl { padding-left: 64px; }
+body.dock-right .wn-player .wp-ctrl { padding-right: 64px; }
+/* 第 271 次：play() 还没兑现（iOS 上是异步的）——显示暂停形状但轻轻呼吸，读屏报「正在开始」 */
+.wp-play.is-starting svg { animation: wpStarting 1s ease-in-out infinite; }
+@keyframes wpStarting { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .wp-play.is-starting svg { animation: none; opacity: .7; } }
 
 /* ============================================================
    第 210 次：首页视觉化（对标用户给的参考图：彩色小组件网格）
@@ -4416,6 +4433,12 @@ body.dock-left .mod-cta, body.dock-right .mod-cta { position: static; }
 .rs-pills .dp-pill.active { border-color: var(--tile); background: var(--tile-weak); color: var(--tile-text); }
 .rs-note input { width: 100%; min-height: 46px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); font: inherit; box-sizing: border-box; }
 .rs-save { width: 100%; min-height: 52px; margin-top: 20px; background: var(--tile); border-color: var(--tile); }
+/* 第 271 次（用户：尿布的「保存」要拉到最下面才看得到）：尿布面板的保存吸在面板底部，
+   内容多（便便颜色 + 照片 + 用品）时不用滚到底也能点；滚到底时它落回内容末尾。和辅食（.sd-savebar）同一做法。 */
+.rs-savebar { position: sticky; bottom: -20px; z-index: 2; margin: 14px -18px -20px; padding: 14px 18px calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(180deg, transparent, var(--surface) 34%); }
+.modal-mask.as-sheet > .is-sheet .rs-savebar { bottom: calc(-18px - env(safe-area-inset-bottom)); margin: 14px -20px calc(-18px - env(safe-area-inset-bottom)); padding: 14px 20px calc(14px + env(safe-area-inset-bottom)); }
+.rs-savebar .rs-save { margin-top: 0; box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--tile) 70%, transparent); }
+.rs-del + .rs-savebar { margin-top: 6px; }
 .rs-del { width: 100%; min-height: 46px; margin-top: 10px; background: transparent; border: none; color: var(--danger, #C0392B); }
 .rs-done { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 260px; animation: rsPop .35s var(--spring, ease) both; }
 .rs-done .dpt-art { width: 120px; }

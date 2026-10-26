@@ -642,12 +642,120 @@ def test_r270(b):
     p.close()
 
 
+FAKE_AUDIO = r"""
+window.__FA = [];
+window.Audio = function () {
+  var a = this; a.loop = false; a.ended = false; a.paused = true; a._n = 0; __FA.push(a);
+  a.setAttribute = function () {}; a.removeAttribute = function () {}; a.load = function () {};
+  a.play = function () { a._n++; return new Promise(function (res, rej) { a._res = res; a._rej = rej; }); };
+  a.pause = function () { if (!a.paused) { a.paused = true; a.onpause && a.onpause(); } else if (a._res) { a._res = null; } };
+  a._ok = function () { a.paused = false; var r = a._res; a._res = null; r && r(); a.onplaying && a.onplaying(); };
+  a._no = function () { var r = a._rej; a._res = null; r && r(new Error('NotAllowedError')); };
+};
+"""
+def test_r271(b):
+    """第 271 次：状态栏跟随全屏层 / 面板、尿布保存吸底、白噪音播放状态单一来源、播放页露出 dock。"""
+    p, errs = fresh(b)
+    ev = p.evaluate
+    ev(FAKE_AUDIO)
+    def tc():
+        return ev("document.querySelector('meta[name=theme-color]').content")
+    def row0(sel=None):
+        # 截图第 1 行平均色（Chromium 截图里的视口第 0 行 = 状态栏下面紧挨着的像素）
+        import io
+        from PIL import Image
+        im = Image.open(io.BytesIO(p.screenshot())).convert('RGB')
+        px = [im.getpixel((x, 1)) for x in range(im.width // 10, im.width * 9 // 10, 4)]  # 两端让开面板圆角
+        return tuple(round(sum(c[i] for c in px) / len(px)) for i in range(3))
+    def near(hexc, rgb, tol=3):
+        h = hexc.lstrip('#'); c = tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+        return max(abs(c[i] - rgb[i]) for i in range(3)) <= tol
+    # —— 白噪音：播放页 ——
+    ev("App.showTab('whitenoise',{noVT:true})"); p.wait_for_timeout(300)
+    p.click('.wn-art[data-type="white"]'); p.wait_for_timeout(700)
+    ev("syncStatusColor()")
+    c, r = tc(), row0()
+    check('状态栏：白噪音播放页取播放页顶色（不是页面浅色）', near(c, r) and c.lower() != '#fdf9f4', [c, r])
+    dock = ev("(()=>{const t=document.getElementById('tabbar');const r=t.getBoundingClientRect();const e=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return [getComputedStyle(t).visibility,!!e&&t.contains(e),[...t.querySelectorAll('#backBtn,.dock-plus')].filter(x=>x.offsetWidth).length]})()")
+    check('白噪音播放页：dock（返回 / ＋）露在播放页上面且能点到', dock == ['visible', True, 2], dock)
+    gap = ev("(()=>{const t=document.getElementById('tabbar').getBoundingClientRect();const tip=document.querySelector('.wp-tip,.wp-warn').getBoundingClientRect();const ctl=document.querySelector('.wp-ctrl').getBoundingClientRect();return [tip.bottom<=t.top,ctl.bottom<=t.top]})()")
+    check('白噪音播放页：控件和提示都在 dock 上方，不被压住', gap == [True, True], gap)
+    st = lambda: ev("(()=>{const b=document.getElementById('wpToggle');return [b.getAttribute('data-state'),b.querySelector('rect')?'pause':'play',document.getElementById('wpState').textContent]})()")
+    check('播放同步：没在放时 ▶ +「轻点播放」', st()[:2] == ['idle', 'play'], st())
+    p.click('#wpToggle'); p.wait_for_timeout(120)
+    s1 = st()
+    check('播放同步：play() 未兑现时显示「正在开始」，不谎报播放中', s1[0] == 'starting' and '正在开始' in s1[2] and not ev("Storage.get().whitenoise.playing"), s1)
+    ev("__FA[__FA.length-1]._ok()"); p.wait_for_timeout(150)
+    s2 = st()
+    check('播放同步：真正出声（playing 事件）后大按钮立刻变暂停、文字「播放中」', s2[0] == 'playing' and s2[1] == 'pause' and s2[2].startswith('播放中'), s2)
+    check('播放同步：锁屏 MediaSession 也是 playing', ev("navigator.mediaSession?navigator.mediaSession.playbackState:'playing'") == 'playing')
+    ev("__FA[__FA.length-1].pause()"); p.wait_for_timeout(150)
+    s3 = st()
+    check('播放同步：系统替我们暂停（锁屏 / 灵动岛）→ 界面变 ▶「已暂停」并保留剩余时间', s3[0] == 'paused' and s3[1] == 'play' and s3[2].startswith('已暂停') and ev("Storage.get().whitenoise.leftMs>0"), s3)
+    ev("__FA[__FA.length-1]._ok()"); p.wait_for_timeout(150)
+    check('播放同步：系统继续播放 → 界面回到播放中', st()[0] == 'playing', st())
+    p.click('#wpToggle'); p.wait_for_timeout(150)
+    check('播放同步：点暂停 → ▶ + 已暂停', st()[:2] == ['paused', 'play'], st())
+    p.click('#wpToggle'); p.wait_for_timeout(120)
+    check('播放同步：继续时 play() 未兑现，先「正在继续」，状态仍是暂停', st()[0] == 'starting' and ev("Storage.get().whitenoise.paused"), st())
+    ev("__FA[__FA.length-1]._no()"); p.wait_for_timeout(150)
+    check('播放同步：继续被拒 → 回到 ▶ 已暂停', st()[:2] == ['paused', 'play'], st())
+    # 首页迷你条（dock 上方胶囊）与播放页同一状态
+    p.click('#wpClose'); p.wait_for_timeout(400)
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(300)
+    dl = ev("(()=>{const d=document.getElementById('dockLive');const a=d.querySelector('[data-act=wn-pp]');const art=d.querySelector('.dl-art');return [d.hidden,a&&a.getAttribute('aria-label'),d.querySelector('.dl-val').textContent,art?art.style.backgroundImage:'']})()")
+    check('首页胶囊：与播放页同为「已暂停」+ 继续键，封面图存在', dl[0] is False and dl[1] == '继续播放' and '已暂停' in dl[2] and 'assets/sounds/white.webp' in dl[3], dl)
+    p.click('#dockLive [data-act=wn-pp]'); p.wait_for_timeout(100)
+    ev("__FA[__FA.length-1]._ok()"); p.wait_for_timeout(200)
+    dl2 = ev("(()=>{const d=document.getElementById('dockLive');const a=d.querySelector('[data-act=wn-pp]');return [a&&a.getAttribute('aria-label'),d.querySelector('.dl-val').textContent]})()")
+    check('首页胶囊：点继续、真正出声后胶囊变「暂停」键', dl2[0] == '暂停' and '已暂停' not in dl2[1], dl2)
+    ev("Modules.whitenoise._stop()"); p.wait_for_timeout(100)
+    # 首次播放被拒
+    ev("App.showTab('whitenoise',{noVT:true})"); p.wait_for_timeout(200)
+    p.click('.wn-art[data-type="pink"]'); p.wait_for_timeout(500)
+    p.click('#wpToggle'); p.wait_for_timeout(100)
+    ev("__FA[__FA.length-1]._no()"); p.wait_for_timeout(150)
+    check('播放同步：首次播放被拒 → 回到 ▶ 轻点播放', st()[:2] == ['idle', 'play'], st())
+    # 离开本页 → 播放页立刻收起
+    ev("document.getElementById('backBtn').click()"); p.wait_for_timeout(80)
+    check('白噪音：dock 返回离开本页，播放页立刻收起', ev("[App.currentTab(), !!document.querySelector('.wn-player.open'), document.documentElement.classList.contains('wp-lock')]") == ['home', False, False])
+    # —— 全屏计时（泵奶）——
+    p.wait_for_timeout(400)
+    ev("App.showTab('pump',{noVT:true})"); p.wait_for_timeout(200)
+    ev("Storage.get().pumpTimer={start:new Date().toISOString(),L:true,R:true,segs:[]};Storage.save();Modules.pump._openFull()"); p.wait_for_timeout(500)
+    ev("syncStatusColor()"); c, r = tc(), row0()
+    check('状态栏：泵奶全屏计时取全屏层顶色（深色）', near(c, r) and sum(r) < 150, [c, r])
+    ev("document.querySelector('.ftf [data-p=dim]').click()"); p.wait_for_timeout(450); ev("syncStatusColor()")
+    c, r = tc(), row0()
+    check('状态栏：泵奶全屏「关背景图」后仍同色', near(c, r), [c, r])
+    ev("Storage.get().pumpTimer=null;Storage.save();Modules.pump._closeFull?Modules.pump._closeFull():document.querySelector('.ftf').remove();document.body.classList.remove('ftf-open')"); p.wait_for_timeout(200)
+    # —— 尿布面板 ——
+    ev("App.showTab('diaper',{noVT:true})"); p.wait_for_timeout(300)
+    p.click('[data-new]'); p.wait_for_timeout(600)
+    p.click('.dp-type[data-t="poop"]'); p.wait_for_timeout(500)
+    ev("syncStatusColor()"); c, r = tc(), row0()
+    check('状态栏：尿布面板打开时取遮罩压暗后的页面色', near(c, r), [c, r])
+    sv = ev("(()=>{const s=document.querySelector('.rs-save'),pn=document.querySelector('.rec-sheet');const a=s.getBoundingClientRect(),q=pn.getBoundingClientRect();return [getComputedStyle(s.parentElement).position,pn.scrollHeight>pn.clientHeight+100,Math.round(q.bottom-a.bottom)]})()")
+    check('尿布面板：内容很长时「保存」吸在面板底部，不用滚到底', sv[0] == 'sticky' and sv[1] and 0 <= sv[2] <= 40, sv)
+    ev("document.querySelector('.rec-sheet').scrollTop=1e5"); p.wait_for_timeout(200)
+    end = ev("(()=>{const s=document.querySelector('.rs-save').getBoundingClientRect(),n=document.querySelector('#dpsNote').getBoundingClientRect();return s.top>n.bottom})()")
+    check('尿布面板：滚到底时「保存」落在备注之后', end)
+    ev("(()=>{const pn=document.querySelector('.rec-sheet');pn.style.maxHeight='none';pn.style.height='100vh';pn.style.animation='none'})()"); p.wait_for_timeout(200)
+    ev("syncStatusColor()"); c, r = tc(), row0()
+    check('状态栏：面板顶到最上面时取面板底色（白）', near(c, r) and sum(r) > 740, [c, r])
+    ev("document.querySelector('#modalRoot .rs-x').click()"); p.wait_for_timeout(700)
+    ev("syncStatusColor()")
+    check('状态栏：关掉面板后回到页面色', near(tc(), row0()), [tc(), row0()])
+    check('第 271 次无报错', not errs, errs)
+    p.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270')
+             'test_layout_and_toast', 'test_r270', 'test_r271')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
-GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_diaper_photos', 'test_family'),
+GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_diaper_photos', 'test_family', 'test_r271'),
           ('test_css_rules', 'test_flows', 'test_pump', 'test_diaper_stock', 'test_solid', 'test_diaper_sheet',
            'test_dash', 'test_home_edit', 'test_format', 'test_r270'))
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
