@@ -107,12 +107,12 @@
   /* ---------- 记录面板 ---------- */
   function texCard(t, on) {
     return '<button type="button" class="sd-tex' + (on ? ' on' : '') + '" data-tex="' + t.v + '" role="radio" aria-checked="' + on + '">'
-      + '<img src="' + IMG + 't_' + t.v + '.webp" alt="" width="360" height="360" decoding="async">'
+      + '<img src="' + IMG + 't_' + t.v + '.webp" alt="" width="360" height="360" decoding="sync">'
       + '<span class="sd-tn">' + t.t + '</span><i class="sd-ck" aria-hidden="true">' + icon('check') + '</i></button>';
   }
   function catCard(c, on) {
     return '<button type="button" class="sd-cat' + (on ? ' on' : '') + '" data-cat="' + c.v + '" aria-pressed="' + on + '">'
-      + '<img src="' + IMG + 'c_' + c.v + '.webp" alt="" width="300" height="300" decoding="async">'
+      + '<img src="' + IMG + 'c_' + c.v + '.webp" alt="" width="300" height="300" decoding="sync">'
       + '<span>' + c.t + '</span><i class="sd-ck" aria-hidden="true">' + icon('check') + '</i></button>';
   }
   function openSheet(rec, dateIso) {
@@ -381,7 +381,7 @@
       var html = '';
       if (!list.length) {
         weekOff = 0;
-        html += '<div class="sk-empty sd-empty"><img src="assets/hero/solid.webp" alt="" width="220" height="220" decoding="async"><p>点按底部 + 开始记录</p></div>';
+        html += '<div class="sk-empty sd-empty"><img src="assets/hero/solid.webp" alt="" width="220" height="220" decoding="sync"><p>点按底部 + 开始记录</p></div>';
       } else {
         html += weekCard(list, DS, dayNow);
         var todayL = list.filter(function (r) { return Util.dayKeyOf(r.start, DS) === dayNow; });

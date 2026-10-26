@@ -617,20 +617,89 @@ def test_solid(b):
     p.close()
 
 
-def main():
+def test_r270(b):
+    """第 270 次：状态栏接缝、插画预热、面板关闭替身、重启后回到第一条 history、抽屉缩放不露底。"""
+    p, errs = fresh(b)
+    ev = p.evaluate
+    p.wait_for_timeout(300)
+    cap = ev("(()=>{const s=document.querySelector('.home-sky');const c=s&&s.querySelector('.sky-cap');return c?[s.style.getPropertyValue('--sky-cap'),getComputedStyle(document.documentElement).getPropertyValue('--status-color').trim(),c.getBoundingClientRect().height]:null})()")
+    check('首页：天空顶端接缝色与状态栏同色', bool(cap) and cap[0] and cap[0] == cap[1] and cap[2] >= 56, cap)
+    p.wait_for_timeout(2600)
+    check('插画预热：页头 / 尿布 / 声音 / 辅食图都已载入', ev("Hero._warmed()") >= 50, ev("Hero._warmed()"))
+    check('插画预热后进页，页头插画同步可画', ev("(()=>{App.showTab('diaper',{noVT:true});const im=document.querySelector('.mod-hero img');return !!im&&im.complete&&im.naturalWidth>0})()"))
+    p.click('[data-new]'); p.wait_for_timeout(450)
+    ghost = ev("(async()=>{document.querySelector('#modalRoot .rs-x').click();await Promise.resolve();const g=document.querySelector('.sheet-ghost');return g?[!!g.querySelector('[id]'),g.getAttribute('aria-hidden'),getComputedStyle(g).pointerEvents]:null})()")
+    check('关面板：留下无 id、不可点的替身往下滑', ghost == [False, 'true', 'none'], ghost)
+    p.wait_for_timeout(450)
+    check('关面板：替身动画后移除', ev("!document.querySelector('.sheet-ghost')"))
+    check('打开面板：遮罩不再整体淡入（面板不半透明）', ev("(()=>{const m=document.createElement('div');m.className='modal-mask as-sheet';document.body.appendChild(m);const a=getComputedStyle(m).animationName;m.remove();return a})()") == 'sheetMaskIn')
+    check('抽屉：底色向上下多铺，缩放时不露页面底', ev("(()=>{Drawer.open();const cs=getComputedStyle(document.querySelector('.side-drawer'),'::before');const r=[cs.content,cs.top];Drawer.close();return r})()")[0] == '""')
+    p.wait_for_timeout(500)
+    ev("App.showTab('feeding')"); p.wait_for_timeout(250)
+    p.reload(); p.wait_for_timeout(900)
+    check('停在功能页时重启：回到第一条 history（身后没有旧快照）', ev("[App.currentTab(), history.state]") == ['home', None], ev("[App.currentTab(), history.state]"))
+    check('第 270 次无报错', not errs, errs)
+    p.close()
+
+
+ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
+             'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
+             'test_layout_and_toast', 'test_r270')
+# 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
+# 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
+GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_diaper_photos', 'test_family'),
+          ('test_css_rules', 'test_flows', 'test_pump', 'test_diaper_stock', 'test_solid', 'test_diaper_sheet',
+           'test_dash', 'test_home_edit', 'test_format', 'test_r270'))
+assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
+
+
+def run_tests(names):
+    out = {}
     with sync_playwright() as pw:
         b = pw.chromium.launch()
-        for fn in (test_data, test_flows, test_format, test_home_edit, test_family, test_dash, test_diaper_sheet, test_diaper_stock, test_diaper_photos, test_feeding_sheet, test_pump, test_solid, test_css_rules, test_layout_and_toast):
+        for name in names:
+            start = len(results)
             try:
-                fn(b)
+                globals()[name](b)
             except Exception as e:  # 一组崩了不影响其他组
-                check(fn.__name__ + ' 运行', False, repr(e)[:200])
+                check(name + ' 运行', False, repr(e)[:200])
+            out[name] = results[start:]
         b.close()
-    fails = [r for r in results if not r[1]]
-    for name, ok, detail in results:
+    return out
+
+
+def report(rows):
+    fails = [r for r in rows if not r[1]]
+    for name, ok, detail in rows:
         print(('PASS ' if ok else 'FAIL ') + name + ('' if ok else f'  ← {detail}'))
-    print(f'\n{len(results) - len(fails)}/{len(results)} 通过')
+    print(f'\n{len(rows) - len(fails)}/{len(rows)} 通过')
     sys.exit(1 if fails else 0)
+
+
+def main():
+    if '--only' in sys.argv:
+        names = sys.argv[sys.argv.index('--only') + 1].split(',')
+        out = run_tests(names)
+        print('@@RESULTS ' + json.dumps({k: [[n, bool(ok), str(d)] for n, ok, d in v] for k, v in out.items()}, ensure_ascii=False))
+        return
+    if '--serial' in sys.argv:
+        out = run_tests(ALL_TESTS)
+        report([r for name in ALL_TESTS for r in out[name]])
+        return
+    import subprocess
+    procs = [subprocess.Popen([sys.executable, __file__, '--only', ','.join(g)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+             for g in GROUPS]
+    merged = {}
+    for g, pr in zip(GROUPS, procs):
+        so, se = pr.communicate()
+        line = next((ln for ln in so.splitlines() if ln.startswith('@@RESULTS ')), None)
+        if line is None:
+            for name in g:
+                merged[name] = [(name + ' 运行', False, (se or so)[-300:])]
+            continue
+        for k, v in json.loads(line[len('@@RESULTS '):]).items():
+            merged[k] = [tuple(x) for x in v]
+    report([r for name in ALL_TESTS for r in merged.get(name, [(name + ' 运行', False, '子进程没有返回结果')])])
 
 
 if __name__ == '__main__':

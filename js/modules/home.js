@@ -835,6 +835,7 @@
         + '<canvas id="skyCanvas" class="sky-canvas" aria-hidden="true"></canvas>'
         + '<div class="sky-veil"></div>'
         + '<canvas id="wxCanvas" class="wx-canvas" aria-hidden="true"></canvas>'
+        + '<div class="sky-cap" aria-hidden="true"></div>' /* 第 270 次：状态栏下沿接缝 */
         + '<div class="home-greet">'
         + '<div class="hg-top"><p class="hg-date"><span class="hg-m">' + (nowD.getMonth() + 1) + '月</span>' + DOW_FULL[nowD.getDay()]
         + (fest ? '<b class="hg-fest">' + Util.escapeHtml(fest) + '</b>' : '') + wxTextHTML(wxNow) + '</p>'

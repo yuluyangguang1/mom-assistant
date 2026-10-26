@@ -4,6 +4,7 @@
    Service Worker，应用照旧以纯本地方式运行，功能零损失。
 
    策略：network-first —— 联网时总是取最新资源并顺手更新缓存；离线时回落缓存。
+   例外（第 270 次）：assets/ 下的图片缓存优先（见 fetch 处理器），换图必须升 CACHE 版本号。
    首次离线前需成功打开过一次页面。
    （第 127 次更正：本注释原写「stale-while-revalidate」，与实现不符——fetch 处理器
      自始就是 fetch 优先 + catch 回落缓存。第三方审查据此误判「index.html 可能长期
@@ -12,7 +13,8 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v233';
+var CACHE = 'baoma-static-v234';
+var REVALIDATED = {}; /* 第 270 次：图片缓存优先，后台校验过的 URL */
 /* v90（第 129 次）：首屏降噪——对标 Cali 首屏设计（HomeWidgetSnapshot 无 reminder 字段，
    逾期只以 VaccineReminderPlan.pendingCount 计数存在）。疫苗逾期 / 儿保过参考时间 /
    发育观察期过期这三类「今天不可能完成」的陈旧待办，从三条整卡合并为一行「待补」汇总
@@ -222,6 +224,26 @@ self.addEventListener('fetch', function (e) {
   /* 第 146 次（P1 · 弱网超时）：原先纯网络优先、无超时——地铁/医院这类「有信号但极慢」的网络下，
      页面会一直白屏等网络，离线缓存形同虚设。现在网络 3 秒没回来就先用缓存顶上，
      网络稍后回来仍会在后台更新缓存（下次打开即新版）；没有缓存时照旧等网络。 */
+  /* 第 270 次（真机录屏：每次进喂养 / 尿布 / 白噪音，页头插画、面板里的尿布图、声音画卡都要晚 0.3–0.6 秒才出来，
+     而且第二次、第三次进同一页照样晚）：network-first 让每张图都先跑一趟服务器校验（304 也要一个往返），
+     图片得等网络回来才交给页面。assets/ 下的图片已全部预缓存、换图时 CACHE 版本号一定会跟着升，
+     所以图片改为缓存优先：命中缓存立即返回，同时在后台照旧取一次新的写回缓存；没命中才走下面的网络优先。 */
+  if (/\/assets\/.+\.(?:webp|png|jpe?g|svg)$/i.test(new URL(req.url).pathname)) {
+    var key = req.url.split('?')[0];
+    var refresh = function () {
+      REVALIDATED[key] = 1; /* 每张图在这个 SW 生命周期里只后台校验一次，不在每次重绘都打网络 */
+      return fetch(new Request(req, { cache: 'no-cache' })).then(function (res) {
+        if (res && res.ok) { var cp = res.clone(); caches.open(CACHE).then(function (cache) { cache.put(req, cp); }); }
+        return res;
+      });
+    };
+    e.respondWith(caches.match(req, { ignoreSearch: true }).then(function (hit) {
+      if (!hit) return refresh();
+      if (!REVALIDATED[key]) e.waitUntil(refresh().catch(function () {}));
+      return hit;
+    }));
+    return;
+  }
   var TIMEOUT_MS = 3000;
   /* 第 164 次：网络请求一律带 no-cache 去服务器校验（没变只回 304，很省流量），
      避免浏览器 HTTP 缓存把刚推送的新版本挡住；navigate 请求不能带 init 重建，单独用 URL 构造 */

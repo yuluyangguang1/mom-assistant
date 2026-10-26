@@ -1041,6 +1041,18 @@ body.dark .home-sky::after {
   opacity: var(--sky-dim-o, 1);
   pointer-events: none;
 }
+/* 第 270 次：状态栏（实色，取天空第 0 行均色）与下面有云纹的天空之间的接缝。
+   天空顶上一截先铺成与状态栏完全相同的颜色，再在 56px 内渐渐露出云纹；
+   盖在天空画布、天气画布和暗色暖炭罩（::after，z 1）之上，问候区（z 2，DOM 在后）之下。
+   颜色与位置由 app.js syncStatusColor 写入；没写入前整块透明。 */
+.home-sky .sky-cap {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 2; pointer-events: none;
+  height: calc(var(--sky-cap-y, 0px) + 56px);
+  background: linear-gradient(180deg, var(--sky-cap, transparent) 0, var(--sky-cap, transparent) var(--sky-cap-y, 0px),
+    color-mix(in srgb, var(--sky-cap, transparent) 72%, transparent) calc(var(--sky-cap-y, 0px) + 16px),
+    color-mix(in srgb, var(--sky-cap, transparent) 30%, transparent) calc(var(--sky-cap-y, 0px) + 36px),
+    transparent 100%);
+}
 .home-greet h1 .hg-sub { font-size: calc(13px * var(--fs-mul)); font-weight: 400; color: var(--muted); letter-spacing: 0; }
 /* 副标题单行省略：问候卡高度恒定，hero（大日期）永远不会与它重叠（第 40 次根修）。
    第 63 次：颜色从白改 --muted（浅卡上白字不可读）。 */
@@ -3155,8 +3167,11 @@ body.dark .ob-card.active { border-color: var(--primary); }
 .modal-mask.as-sheet {
   align-items: flex-end; padding: 0;
   background: rgba(20, 16, 12, calc(.48 * var(--sheet-dim, 1)));
-  animation: maskIn .28s var(--ease) both;
+  /* 第 270 次（真机录屏：打开记录面板的前几帧，面板是半透明的，背后页面的字和面板里的字叠在一起）：
+     原来淡入的是整个遮罩的 opacity，面板是遮罩的子元素，跟着一起半透明。改成只淡入遮罩的底色，面板一出来就是实的。 */
+  animation: sheetMaskIn .28s var(--ease) backwards;
 }
+@keyframes sheetMaskIn { from { background-color: rgba(20, 16, 12, 0); } }
 .modal-mask.as-sheet.sheet-leaving { background: rgba(20, 16, 12, 0); transition: background .2s var(--ease); }
 .modal-mask.as-sheet > .is-sheet {
   width: 100%; max-width: 640px; margin: 0 auto;
@@ -3168,6 +3183,11 @@ body.dark .ob-card.active { border-color: var(--primary); }
   will-change: transform;
 }
 @keyframes sheetIn { from { transform: translate3d(0, 100%, 0); } to { transform: none; } }
+/* 第 270 次：关面板的替身（sheet.js ghostOut）沿原路滑下、遮罩淡掉 */
+.modal-mask.as-sheet.sheet-ghost { pointer-events: none; animation: sheetMaskOut .26s var(--ease) forwards; }
+.modal-mask.as-sheet.sheet-ghost > .is-sheet { animation: sheetOut .28s cubic-bezier(.4, 0, .2, 1) forwards; }
+@keyframes sheetMaskOut { to { background-color: rgba(20, 16, 12, 0); } }
+@keyframes sheetOut { from { transform: none; } to { transform: translate3d(0, 100%, 0); } }
 .sheet-grab {
   position: sticky; top: 0; z-index: 2;
   display: flex; justify-content: center; align-items: center;
@@ -5031,6 +5051,9 @@ body.sd-lock .side-drawer { visibility: visible; }
 /* 第 246 次：解锁后（#app 回到普通流、没有 z-index）抽屉必须立刻消失，否则会叠在页面上露出半透明残影 */
 body:not(.sd-lock) .side-drawer { visibility: hidden; transition: none; }
 body.dark .side-drawer { background: #121110; }
+/* 第 270 次（真机截图：拖抽屉时上下各露出一条页面底色）：抽屉拖动中是 scale(.96 → 1)，以左边中点为原点，
+   上下边会各缩进 2% 屏高（约 9px），后面的 body 底色就露了出来。底色向外多铺 6%，缩小时仍盖满整屏。 */
+.side-drawer::before { content: ''; position: absolute; top: -6%; bottom: -6%; left: 0; right: -6%; z-index: -1; background: inherit; pointer-events: none; }
 body.sd-open .side-drawer { transform: none; opacity: 1; }
 body.sd-drag .side-drawer, body.sd-drag .sd-mask, body.sd-drag #app { transition: none; }
 .sd-panel { height: 100%; }

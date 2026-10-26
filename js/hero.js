@@ -243,7 +243,7 @@
       return '<div class="mod-hero' + (STATE_CLASS[s.state] ? ' ' + STATE_CLASS[s.state] : '') + '" data-hero="' + id + '"' + style + '>'
         + '<button type="button" class="hero-art" aria-label="' + esc(title) + '">'
         + ring
-        + '<img src="assets/hero/' + id + '.webp" alt="" width="160" height="160" decoding="async">'
+        + '<img src="assets/hero/' + id + '.webp" alt="" width="160" height="160" decoding="sync">'
         + (s.state === 'asleep' ? '<span class="hero-z" aria-hidden="true"><i>z</i><i>z</i><i>Z</i></span>' : '')
         + (s.badge ? '<span class="hero-badge">' + esc(s.badge) + '</span>' : '')
         + '</button>'
@@ -252,6 +252,40 @@
         + '</div>';
     }
   };
+
+  /* 第 270 次（真机录屏：进喂养页奶瓶晚 0.6 秒、进尿布页只有角标没有尿布、回白噪音页画卡一片空白）：
+     模块页每次重绘都新建 <img>，图要重新经 Service Worker 取、再异步解码，比页面晚好几帧。
+     启动动画播完后，空闲时把页头插画、尿布类型图、辅食卡图、声音画卡逐张载入并预解码，
+     Image 对象一直留在这里 —— 同一文档里再出现同一个地址时直接用内存里已解码的图，
+     配合 decoding="sync"，插画与页面同一帧画出来。 */
+  var WARM = [];
+  function warmList() {
+    var ids = Object.keys(HERO), out = ids.map(function (k) { return 'assets/hero/' + k + '.webp'; });
+    ['pee', 'poop_gold', 'both', 'clean', 'poop_ygreen', 'poop_green', 'poop_brown', 'poop_black', 'poop_red', 'poop_pale'].forEach(function (k) { out.push('assets/diaper/' + k + '.webp'); });
+    ['pink', 'white', 'brown', 'shush', 'ocean', 'heart', 'fan', 'rain', 'dryer'].forEach(function (k) { out.push('assets/sounds/' + k + '.webp'); });
+    ['t_liquid', 't_puree', 't_minced', 't_granule', 't_chunk', 't_finger', 'c_grain', 'c_meat', 'c_fish', 'c_veg', 'c_fruit', 'c_other'].forEach(function (k) { out.push('assets/solid/' + k + '.webp'); });
+    return out;
+  }
+  function warm() {
+    if (WARM.length || typeof Image === 'undefined') return;
+    var list = warmList(), i = 0;
+    var idle = window.requestIdleCallback || function (fn) { return setTimeout(fn, 16); };
+    (function next() {
+      if (i >= list.length) return;
+      var batch = list.slice(i, i + 4); i += 4;
+      Promise.all(batch.map(function (src) {
+        var im = new Image();
+        im.decoding = 'async';
+        im.src = src;
+        WARM.push(im);
+        return (im.decode ? im.decode() : Promise.resolve()).catch(function () {});
+      })).then(function () { idle(next); });
+    })();
+  }
+  window.Hero.warm = warm;
+  window.Hero._warmed = function () { return WARM.length; };
+  function warmLater() { setTimeout(function () { (window.requestIdleCallback || setTimeout)(warm); }, 1600); }
+  if (document.readyState === 'complete') warmLater(); else window.addEventListener('load', warmLater);
 
   /* 点一下插画：小小的弹跳彩蛋 */
   document.addEventListener('click', function (e) {

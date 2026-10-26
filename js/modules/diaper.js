@@ -79,7 +79,7 @@
     return DIMG + 'clean.webp';
   }
   function diaperImg(src, cls) {
-    return '<img class="' + cls + '" src="' + src + '" alt="" width="360" height="360" decoding="async">';
+    return '<img class="' + cls + '" src="' + src + '" alt="" width="360" height="360" decoding="sync">';
   }
   function typeArt(t, color) {
     return '<span class="dpt-art">' + diaperImg(stainSrc(t, color), 'dpt-img') + '</span>';

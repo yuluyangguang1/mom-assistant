@@ -43,6 +43,7 @@
       panel.insertBefore(g, panel.firstChild);
     }
     bindDrag(mask, panel);
+    panel.addEventListener('scroll', function () { mask._st = panel.scrollTop; }, { passive: true });
   }
 
   function bindDrag(mask, panel) {
@@ -100,7 +101,42 @@
     });
   }
 
-  function sync() {
+  /* 第 270 次（真机录屏：点 ✕ / 保存后，记录面板一帧之内整块消失，页面「跳」回来）：
+     各模块关面板都是直接把节点从 #modalRoot 删掉。这里在删掉的那一刻放一个「替身」到 body 上——
+     原面板的克隆（去掉 id、不可交互、读屏忽略），让它沿原路滑下去、遮罩淡掉，再移除。
+     下拉关闭（已滑出屏幕，带 sheet-leaving）、换成另一个面板、减少动态效果时不放替身。 */
+  var reduceMq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+  function ghostOut(mask) {
+    try {
+      if (reduceMq.matches || mask.classList.contains('sheet-leaving') || mask.classList.contains('sheet-ghost')) return;
+      if (root.querySelector('.modal-mask.as-sheet')) return;
+      var panel = panelOf(mask); if (!panel) return;
+      var g = mask.cloneNode(true);
+      var src = mask.querySelectorAll('input, textarea, select'), dst = g.querySelectorAll('input, textarea, select');
+      for (var i = 0; i < src.length && i < dst.length; i++) {
+        try { if (src[i].type === 'checkbox' || src[i].type === 'radio') dst[i].checked = src[i].checked; else if (src[i].type !== 'file') dst[i].value = src[i].value; } catch (eV) {}
+      }
+      g.removeAttribute('id');
+      Array.prototype.forEach.call(g.querySelectorAll('[id]'), function (n) { n.removeAttribute('id'); });
+      g.classList.add('sheet-ghost');
+      g.setAttribute('aria-hidden', 'true');
+      try { g.inert = true; } catch (eI) {}
+      var gp = panelOf(g);
+      if (gp) { gp.style.transform = ''; gp.style.transition = ''; }
+      document.body.appendChild(g);
+      if (gp && mask._st) gp.scrollTop = mask._st;
+      setTimeout(function () { if (g.parentNode) g.parentNode.removeChild(g); }, 340);
+    } catch (e) { /* 替身只是观感，失败不影响关闭 */ }
+  }
+
+  function sync(muts) {
+    if (muts && muts.length) {
+      muts.forEach(function (m) {
+        Array.prototype.forEach.call(m.removedNodes || [], function (n) {
+          if (n.nodeType === 1 && n.classList.contains('modal-mask') && n.classList.contains('as-sheet')) ghostOut(n);
+        });
+      });
+    }
     var masks = root.querySelectorAll('.modal-mask');
     var anySheet = false;
     Array.prototype.forEach.call(masks, function (m) { enhance(m); if (m.classList.contains('as-sheet')) anySheet = true; });

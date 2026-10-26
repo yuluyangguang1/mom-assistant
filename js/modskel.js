@@ -233,7 +233,7 @@
          记录一律走底部按钮 → 半屏面板 / 计时页 */
       var isEmpty = !all.length && !live;
       if (isEmpty) {
-        html += '<div class="sk-empty"><img src="assets/hero/' + esc(cfg.id) + '.webp" alt="" width="220" height="220" decoding="async">'
+        html += '<div class="sk-empty"><img src="assets/hero/' + esc(cfg.id) + '.webp" alt="" width="220" height="220" decoding="sync">'
           + '<p>' + (cfg.care ? '点按底部开始，或用 ⊕ 补记' : '点按底部 + 开始记录') + '</p>'
           + (cfg.foot && cfg.ref ? '<p class="sk-empty-ref">' + cfg.ref + '</p>' : '') + '</div>';
       }

@@ -89,6 +89,12 @@
           rgb = rgb.map(function (v, j) { return v * (1 - a) + k[j] * a; });
         }
         c = '#' + rgb.map(hex2).join('');
+        /* 第 270 次（真机：状态栏是一条平的色带，下面的天空有云纹，接不上）：
+           状态栏只能是一种颜色，就让天空顶上那一截从这个颜色起步、再渐渐露出云纹。
+           .sky-cap 钉在天空里「滚动为 0 时视口第 0 行」的位置（天空本身向上伸出视口一截）。 */
+        var capY = Math.max(0, -(r.top + (global.pageYOffset || 0)));
+        if (capY !== sky._capY) { sky._capY = capY; sky.style.setProperty('--sky-cap-y', capY + 'px'); }
+        if (c !== sky._capC) { sky._capC = c; sky.style.setProperty('--sky-cap', c); }
       } else if (sdOn) {
         var sc = parseRgba(global.getComputedStyle(sdEl).backgroundColor);
         c = sc ? '#' + [sc[0], sc[1], sc[2]].map(hex2).join('') : bodyEdgeColor(b, false);
@@ -1901,7 +1907,28 @@
           global.history.back();
         } catch (eG) { ignorePop = 0; }
       };
+      /* 第 270 次（真机截图：抽屉开着时从左缘右滑，露出一张「深色主题 + 抽屉打开」的旧画面，像抽屉错乱）：
+         那是 iOS 的系统返回手势，拉出的是 history 里上一条记录的旧快照。正常使用时首页永远落在第一条记录上，
+         没有「上一条」可退；但 App 被系统回收后重新打开、或更新后自动重载时，如果当时停在某个功能页
+         （history 里的模块记录），重新启动就从这条记录上开始画首页，身后还压着旧会话的记录和它们的快照。
+         修法：启动时发现自己站在模块 / 占位记录上，就静默一路退回到 App 的第一条记录，再清掉前进栈。
+         万一退回时浏览器要重新载入文档，先写 swReload 让启动动画跳过（第 267 次同一机制）。 */
+      var rewind = 0;
+      var st0 = global.history.state;
+      if (st0 && (st0.baoma === 1 || st0.baoma === 'guard')) {
+        rewind = 12;
+        try { global.sessionStorage.setItem('swReload', '1'); } catch (eS) {}
+        try { global.history.back(); } catch (eR) { rewind = 0; }
+      }
       global.addEventListener('popstate', function (ev) {
+        if (rewind > 0) {
+          var rs = ev && ev.state;
+          if (rs && (rs.baoma === 1 || rs.baoma === 'guard') && --rewind > 0) { try { global.history.back(); return; } catch (eR2) {} }
+          rewind = 0;
+          try { global.sessionStorage.removeItem('swReload'); } catch (eS2) {}
+          dropForward();
+          return;
+        }
         if (ignorePop > 0) { ignorePop--; return; }
         var st = ev && ev.state;
         if (st && st.baoma === 'guard') { ignorePop++; try { global.history.back(); } catch (eB) { ignorePop = 0; } return; }
