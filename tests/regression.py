@@ -1088,6 +1088,7 @@ def test_r273(b):
     # —— #18 / #20 记账 ——
     go('finance')
     nf = ev("Storage.get().finance.records.length")
+    ev("document.querySelector('[data-fnew]').click()"); p.wait_for_timeout(300)  # 第 283 次：记账迁新骨架，在半屏面板里记
     for bad_amt in ('0', '-3'):
         p.fill('#fAmt', bad_amt); p.click('#fSave'); p.wait_for_timeout(150)
     check('#20 记账 0 元、负数都存不进去，金额框标红', ev("Storage.get().finance.records.length") == nf and ev("document.querySelector('#fAmt').getAttribute('aria-invalid')") == 'true')
@@ -1374,7 +1375,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v246（第 282 次升）', "var CACHE = 'baoma-static-v246';" in sw)
+    check('#275 SW 版本 v247（第 283 次升）', "var CACHE = 'baoma-static-v247';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -2699,9 +2700,70 @@ def test_r282(b):
     ctx.close()
 
 
+def test_r283(b):
+    """第 283 次：记账迁到新骨架——摘要 / 统计看板 / 时间轴 / 底部固定「+ 记一笔」/ 半屏面板；数据形状不变。"""
+    ctx = b.new_context(viewport={'width': 393, 'height': 852}, has_touch=True, device_scale_factor=2)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+    ev = p.evaluate
+
+    def go(t, wait=400):
+        ev(f"App.showTab('{t}',{{noVT:true}})"); p.wait_for_timeout(wait)
+        _poll(p, "!document.getAnimations().some(a=>a.playState==='running'&&a.effect&&a.effect.getComputedTiming().iterations!==Infinity)", 3000)
+
+    ev("(()=>{const d=Storage.get();d.finance={records:[]};Storage.save()})()")
+    go('home', 200); go('finance')
+    e0 = ev("({empty:!!document.querySelector('.fin-page .sk-empty'),form:!!document.querySelector('#view input:not(.hap-sw), #view select'),cta:!!document.querySelector('#view .mod-cta [data-fnew]'),pos:getComputedStyle(document.querySelector('#view .mod-cta')).position,status:getComputedStyle(document.querySelector('.mod-head .hero-status')||document.body).display})")
+    check('#283 记账空状态：插画 + 一句话，页面上不填表，底部固定「+ 记一笔」', e0['empty'] and not e0['form'] and e0['cta'] and e0['pos'] == 'fixed' and e0['status'] == 'none', e0)
+    # 面板记一笔：金额 / 分类 / 日期 / 备注；分类默认上一次；顶栏 ✓ 也能存
+    ev("document.querySelector('[data-fnew]').click()"); p.wait_for_timeout(350)
+    sh = ev("({t:document.querySelector('#ftsTitle').textContent,cats:[...document.querySelectorAll('[data-fcat]')].map(b=>b.textContent),on:(document.querySelector('[data-fcat].on')||{}).textContent,date:document.querySelector('#fDate').value,max:document.querySelector('#fDate').max,save:!!document.querySelector('.rs-savebar #fSave')})")
+    check('#283 记一笔面板：10 个分类、默认第一项、日期默认今天且最晚今天、保存吸底', sh['t'] == '记一笔' and len(sh['cats']) == 10 and sh['on'] == '产检' and sh['date'] == sh['max'] == ev("Util.todayISO()") and sh['save'], sh)
+    p.fill('#fAmt', '128.456'); ev("document.querySelector('[data-fcat=\"奶粉\"]').click()"); p.fill('#fNote', '两罐 <b id=pwnF>3</b> 段')
+    p.locator('#fSave').tap(); p.locator('#fSave').tap() if p.locator('#fSave').count() else None; p.wait_for_timeout(350)
+    r = ev("Storage.get().finance.records")
+    check('#283 保存：一条、金额两位小数、分类 / 备注 / 日期照填，字段形状不变（连点只存一条）', len(r) == 1 and r[0]['amount'] == 128.46 and r[0]['category'] == '奶粉' and r[0]['date'] == ev("Util.todayISO()") and sorted(r[0].keys()) == ['amount', 'category', 'date', 'id', 'note'], r)
+    check('#283 备注里的 HTML 被转义', not ev("!!document.querySelector('#pwnF')"))
+    pg = ev("({sum:document.querySelector('.mod-sum').textContent,dash:!!document.querySelector('.fin-dash'),rows:document.querySelectorAll('.mod-tl .tl-row').length,num:document.querySelector('.fin-num').textContent,lab:document.querySelector('.fin-day').textContent})")
+    check('#283 摘要写本月笔数与金额、最多的分类；统计看板；时间轴一行（今天 · ¥128.46）', '1 笔' in pg['sum'] and '¥128.46' in pg['sum'] and '奶粉' in pg['sum'] and pg['dash'] and pg['rows'] == 1 and pg['num'] == '¥128.46' and pg['lab'] == '今天', pg)
+    # 分类默认取上一次；未来日期不让存；顶栏 ✓ 存
+    ev("document.querySelector('[data-fnew]').click()"); p.wait_for_timeout(350)
+    on2 = ev("(document.querySelector('[data-fcat].on')||{}).textContent")
+    p.fill('#fAmt', '9'); ev("(()=>{const i=document.querySelector('#fDate');i.max='';i.value=Util.addDays(Util.todayISO(),2)})()"); ev("document.querySelector('#fSave').click()"); p.wait_for_timeout(200)
+    fut = ev("Storage.get().finance.records.length")
+    ev("(()=>{const i=document.querySelector('#fDate');i.value=Util.addDays(Util.todayISO(),-40)})()"); ev("document.querySelector('.rs-head [data-ok]').click()"); p.wait_for_timeout(300)
+    r2 = ev("Storage.get().finance.records")
+    check('#283 分类默认取上一次（奶粉）；未来日期不存；顶栏 ✓ 能保存、可补记 40 天前', on2 == '奶粉' and fut == 1 and len(r2) == 2 and r2[1]['date'] == ev("Util.addDays(Util.todayISO(),-40)") and r2[1]['amount'] == 9, [on2, fut, r2])
+    # 点按修改：不新增；删除走撤销
+    ev("document.querySelector('[data-fopen]').click()"); p.wait_for_timeout(350)
+    ed = ev("({t:document.querySelector('#ftsTitle').textContent,amt:document.querySelector('#fAmt').value,on:(document.querySelector('[data-fcat].on')||{}).textContent,del:!!document.querySelector('[data-fdel]')})")
+    p.fill('#fAmt', '100'); ev("document.querySelector('#fSave').click()"); p.wait_for_timeout(300)
+    r3 = ev("Storage.get().finance.records.map(x=>[x.amount,x.category])")
+    check('#283 点时间轴一行打开「修改这笔」，带原值；保存不新增', ed['t'] == '修改这笔' and ed['amt'] == '128.46' and ed['on'] == '奶粉' and ed['del'] and sorted(r3) == sorted([[100, '奶粉'], [9, '奶粉']]), [ed, r3])
+    ev("document.querySelector('[data-fopen]').click()"); p.wait_for_timeout(350); ev("document.querySelector('[data-fdel]').click()"); p.wait_for_timeout(300)
+    n4 = ev("Storage.get().finance.records.length")
+    ev("[...document.querySelectorAll('#toastRoot .toast-action')].pop().click()"); p.wait_for_timeout(250)
+    check('#283 修改面板里删除这笔，带撤销', n4 == 1 and ev("Storage.get().finance.records.length") == 2, n4)
+    # 统计口径（第 274 次）与 CSV 照旧
+    ev("""(()=>{const d=Storage.get();const t=Util.todayISO();d.finance.records=[{id:'f1',amount:100,category:'奶粉',note:null,date:'2025-09-30'},{id:'f2',amount:0.1,category:'奶粉',note:null,date:t},{id:'f3',amount:0.2,category:'用品',note:'x',date:t},{id:'bad',amount:'abc',category:'其他',note:null,date:t}];Storage.save()})()""")
+    go('home', 200); go('finance')
+    nums = ev("[...document.querySelectorAll('#view .li-num')].map(e=>e.textContent)")
+    check('#283 坏金额回落 ¥0.00，不出 NaN', 'NaN' not in ev("document.querySelector('#view').textContent") and '¥0.00' in nums, nums)
+    # 底部按钮固定、最后一条完整露出
+    ev("(()=>{const d=Storage.get();for(let i=0;i<20;i++)d.finance.records.push({id:'z'+i,amount:i+1,category:'用品',note:null,date:Util.addDays(Util.todayISO(),-i)});Storage.save()})()")
+    go('home', 200); go('finance')
+    m = ev(R282_SCAN)
+    check('#283 记账页底部「+ 记一笔」走第 282 次固定实现（滚动不动、最后一条完整露出）', r282_ok(m), m)
+    ev("document.body.classList.add('dark')"); m2 = ev(R282_SCAN); ev("document.body.classList.remove('dark')")
+    check('#283 深色同样', r282_ok(m2), m2)
+    check('#283 pageerror 为 0', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -2721,7 +2783,7 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r279',),
           ('test_r280',),
           ('test_r281',),
-          ('test_r282',))  # 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r282', 'test_r283'))  # 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

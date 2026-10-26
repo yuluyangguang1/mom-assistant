@@ -5221,7 +5221,7 @@ body.sd-open .touch-glow, body.qd-open .touch-glow { display: none; }
 .sk-empty img { width: 200px; height: 200px; object-fit: contain; }
 .sk-empty p { margin: 0; color: var(--muted); font-size: calc(15px * var(--fs-mul, 1)); }
 .sk-empty .sk-empty-ref { max-width: 320px; font-size: calc(12.5px * var(--fs-mul, 1)); line-height: 1.6; }
-.mod-head.has-hero:has(~ .skel-page .sk-empty) .hero-status, .mod-head.has-hero:has(~ .sd-page .sk-empty) .hero-status { display: none; }
+.mod-head.has-hero:has(~ .skel-page .sk-empty) .hero-status, .mod-head.has-hero:has(~ .sd-page .sk-empty) .hero-status, .mod-head.has-hero:has(~ .fin-page .sk-empty) .hero-status { display: none; }
 
 /* 第 254 次：开始记录的按钮只停在 dock 栏上方——内容少时把页面撑满，按钮推到底部，不再停在页面中间 */
 .view:has(> .ft-page), .view:has(> .mod-cta) { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; box-sizing: border-box; }
@@ -5896,3 +5896,23 @@ body.has-cta.dock-left .view, body.has-cta.dock-right .view { padding-bottom: ca
 html[data-nav] #view .mod-cta { view-transition-name: page-cta; }
 body.is-night .view-enter > :has(.mod-cta) > * { animation-duration: .01ms !important; }
 @media (prefers-reduced-motion: reduce) { .view-enter > :has(.mod-cta) > * { animation-duration: .01ms !important; } }
+
+/* ============================================================
+   第 283 次：记账迁到新骨架（js/modules/finance.js）
+   ============================================================ */
+.fin-amt .fin-yuan { color: var(--text); font-size: calc(22px * var(--fs-mul, 1)); font-weight: 800; }
+.fin-when { grid-template-columns: 1fr; }
+.fin-tot { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px 0 2px; }
+.fin-tot p { margin: 0; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--tile-weak); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fin-tot small { color: var(--muted); font-size: var(--fs-xs, 12px); line-height: 1.4; }
+.fin-tot b { font-size: calc(19px * var(--fs-mul, 1)); font-weight: 800; font-variant-numeric: tabular-nums; color: var(--tile-text); overflow-wrap: anywhere; }
+.fin-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.fin-bars li { display: grid; grid-template-columns: 4.6em 1fr auto; align-items: center; gap: 8px; font-size: var(--fs-sm, 13px); }
+.fin-bars .fb-k { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fin-bars .fb-bar { height: 8px; border-radius: var(--radius-pill); background: var(--surface-2); overflow: hidden; }
+.fin-bars .fb-bar i { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--tile); }
+.fin-bars .fb-v { font-variant-numeric: tabular-nums; color: var(--muted); }
+.fin-acts { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.fin-day { justify-content: center; font-size: var(--fs-xs, 12px); }
+.fin-num { flex-shrink: 0; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); }
+
