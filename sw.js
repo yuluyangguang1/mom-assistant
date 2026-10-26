@@ -13,7 +13,7 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v238';
+var CACHE = 'baoma-static-v239';
 var REVALIDATED = {}; /* 第 270 次：图片缓存优先，后台校验过的 URL */
 /* v90（第 129 次）：首屏降噪——对标 Cali 首屏设计（HomeWidgetSnapshot 无 reminder 字段，
    逾期只以 VaccineReminderPlan.pendingCount 计数存在）。疫苗逾期 / 儿保过参考时间 /
@@ -61,6 +61,7 @@ var ASSETS = [
   'index.html',
   'assets/icon-192.png',
   'assets/icon-512.png',
+  'assets/boot-icon.webp', /* 第 275 次：启动层图标 336px（原来直接用 387KB 的 512 图） */
   'assets/boot-text.png',
   'assets/maskable-512.png',
   'assets/apple-touch-icon.png',
@@ -149,6 +150,7 @@ var ASSETS = [
   'assets/hero/pregnancy.webp',
   'assets/hero/whitenoise.webp',
   'js/glass.js',
+  'js/dock-refract.js', /* 第 275 次：iOS dock 真折射 */
   'js/liquid-dock.js',
   'js/dock-live.js',
   'js/app.js',
@@ -244,6 +246,18 @@ self.addEventListener('fetch', function (e) {
     }));
     return;
   }
+  /* 第 275 次（真机：主屏幕 App 启动长时间白屏）：页面本身与 js / css / manifest 也改为缓存优先。
+     原来每次启动都要把 index.html、styles.css 和 58 个脚本逐个去服务器校验（304 也要一个往返），
+     弱网下每个请求最多等 3 秒超时才回落缓存——实测慢 4G 热启动首页要 4 秒、超过 5 秒兜底后
+     启动层被拿掉，露出没画完的空白页。这些文件全部在 ASSETS 里预缓存，且改任何一个都必须升 CACHE，
+     新版本由 SW 自身更新（每次打开 / 回到前台的 reg.update）→ 新 SW 预缓存全部最新文件 → 接管后 app.js 自动重载，
+     所以命中缓存直接返回是安全的；没命中（新增文件、ASSETS 漏登记）才走下面的网络优先。 */
+  e.respondWith(caches.match(req, { ignoreSearch: true }).then(function (hit) {
+    return hit || netFirst(e, req);
+  }));
+});
+
+function netFirst(e, req) {
   var TIMEOUT_MS = 3000;
   /* 第 164 次：网络请求一律带 no-cache 去服务器校验（没变只回 304，很省流量），
      避免浏览器 HTTP 缓存把刚推送的新版本挡住；navigate 请求不能带 init 重建，单独用 URL 构造 */
@@ -257,7 +271,7 @@ self.addEventListener('fetch', function (e) {
     }
     return res;
   });
-  e.respondWith(new Promise(function (resolve, reject) {
+  var p = new Promise(function (resolve, reject) {
     var settled = false;
     function done(r) { if (!settled && r) { settled = true; resolve(r); } }
     var timer = setTimeout(function () {
@@ -270,7 +284,8 @@ self.addEventListener('fetch', function (e) {
         else if (!settled) { settled = true; reject(new Error('offline and not cached')); }
       });
     });
-  }));
+  });
   /* 超时后先返回了缓存，网络请求仍在跑；waitUntil 保证 SW 不在它写完缓存前被回收 */
   e.waitUntil(network.catch(function () {}));
-});
+  return p;
+}

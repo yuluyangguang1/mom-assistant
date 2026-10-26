@@ -934,6 +934,10 @@
       html += '<div class="row-switch"><label for="sRefract">真实玻璃折射</label>' +
         '<input type="checkbox" id="sRefract"' + (s.settings.realRefraction !== false ? ' checked' : '') + '></div>';
       html += '<p class="hint">开启后，玻璃卡片会折射背后的背景（更逼真的液态玻璃）。低端设备若出现卡顿可关闭。</p>';
+      /* 第 275 次：iOS 上 dock 的真折射（dock-refract.js）单独一个开关；默认「自动」，性能不够时自己关 */
+      html += '<div class="row-switch"><label for="sDockGlass">底栏液态玻璃折射（试验）</label>' +
+        '<input type="checkbox" id="sDockGlass"' + (s.settings.dockGlass !== 'off' ? ' checked' : '') + '></div>';
+      html += '<p class="hint">iPhone / iPad 上让底栏边缘把背后的内容折弯、带一点彩色色散。手机性能不够时会自动退回普通磨砂玻璃；觉得耗电或卡顿可关掉。</p>';
       /* 第 45 次：保存触感反馈。默认开启；关掉只少一层手感反馈，不影响任何功能。 */
       html += '<div class="row-switch"><label for="sHaptic">保存时轻震一下</label>' +
         '<input type="checkbox" id="sHaptic"' + (s.settings.hapticEnabled !== false ? ' checked' : '') + '></div>';
@@ -1451,6 +1455,15 @@
         st.settings.realRefraction = refr.checked;
         Storage.save();
         if (global.Glass) global.Glass.setEnabled(refr.checked);
+        if (global.LiquidDock && global.LiquidDock.refresh) global.LiquidDock.refresh();
+      });
+      var dgl = view.querySelector('#sDockGlass');
+      if (dgl) dgl.addEventListener('change', function () {
+        var st = Storage.get();
+        st.settings.dockGlass = dgl.checked ? 'auto' : 'off';
+        Storage.save();
+        if (global.DockRefract) global.DockRefract.reset();
+        if (global.LiquidDock && global.LiquidDock.refresh) global.LiquidDock.refresh();
       });
 
       var awk = view.querySelector('#sAwake');

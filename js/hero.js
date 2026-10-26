@@ -284,7 +284,16 @@
   }
   window.Hero.warm = warm;
   window.Hero._warmed = function () { return WARM.length; };
-  function warmLater() { setTimeout(function () { (window.requestIdleCallback || setTimeout)(warm); }, 1600); }
+  /* 第 275 次：SW 注册挪到 load 之后，首次打开时它会在半路接管页面；接管前载入的图，接管后同一地址的新 <img>
+     不会复用（浏览器的内存图片表按「是否经过 SW」区分），预热就白做了。所以有注册中的 SW 时等它接管再预热（最多 5 秒）。 */
+  function afterController(fn) {
+    var sw = navigator.serviceWorker;
+    if (!sw || sw.controller || !/^https?:$/.test(location.protocol)) { fn(); return; }
+    var done = false, t = setTimeout(go, 5000);
+    function go() { if (done) return; done = true; clearTimeout(t); sw.removeEventListener('controllerchange', go); fn(); }
+    sw.addEventListener('controllerchange', go);
+  }
+  function warmLater() { setTimeout(function () { afterController(function () { (window.requestIdleCallback || setTimeout)(warm); }); }, 1600); }
   if (document.readyState === 'complete') warmLater(); else window.addEventListener('load', warmLater);
 
   /* 点一下插画：小小的弹跳彩蛋 */

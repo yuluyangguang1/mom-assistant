@@ -5422,3 +5422,30 @@ body.dark .sd-tex img, body.dark .sd-cat img { filter: brightness(.94); }
   .sd-qv input { font-size: 40px; }
   .sd-step button { width: 46px; }
 }
+
+/* ============================================================
+   第 275 次：iOS / WebKit 上 dock 的真折射（js/dock-refract.js）
+   页面快照 + WebGL 只画胶囊边缘一圈：边缘把背后内容往外拉弯、R/G/B 偏移不同（色散）、左上高光；
+   中间仍是实时的 backdrop-filter。开着时模糊从 14px 降到 5px、底色降到 30%（与 Chromium 折射档一致），
+   让中间也通透一些。画布盖住 1px 透明边框（inset:-1px），在水滴之下、按钮之下。
+   ============================================================ */
+body .tabbar.lg > canvas.lg-gl {
+  position: absolute; inset: -1px; width: calc(100% + 2px); height: calc(100% + 2px);
+  border-radius: inherit; pointer-events: none; z-index: 0 !important;
+  opacity: 0; transition: opacity .2s var(--ease);
+}
+body .tabbar.lg > canvas.lg-gl.on { opacity: 1; }
+html.lg-gl body .tabbar.lg {
+  -webkit-backdrop-filter: blur(5px) saturate(190%) brightness(1.04);
+  backdrop-filter: blur(5px) saturate(190%) brightness(1.04);
+  --lg-tint: color-mix(in srgb, var(--surface) 30%, transparent);
+}
+html.lg-gl body.dark .tabbar.lg { --lg-tint: color-mix(in srgb, var(--surface) 38%, transparent); }
+body.hc .tabbar.lg > canvas.lg-gl { display: none; }
+@media (prefers-reduced-transparency: reduce) {
+  body .tabbar.lg > canvas.lg-gl { display: none; }
+  html.lg-gl body .tabbar.lg { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body .tabbar.lg > canvas.lg-gl { transition: none; }
+}

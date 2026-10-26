@@ -325,6 +325,7 @@
         base.settings.baby = sb;
       }
       if (typeof s.realRefraction === 'boolean') base.settings.realRefraction = s.realRefraction;
+      if (s.dockGlass === 'off' || s.dockGlass === 'on' || s.dockGlass === 'auto') base.settings.dockGlass = s.dockGlass; /* 第 275 次 */
       if (typeof s.lunarDate === 'boolean') base.settings.lunarDate = s.lunarDate;
       if (s.weather && typeof s.weather === 'object' && !Array.isArray(s.weather)) {
         var wc = s.weather.city;

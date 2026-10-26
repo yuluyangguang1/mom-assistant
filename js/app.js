@@ -1171,7 +1171,7 @@
   }
   function obWelcome() {
     return '<div class="ob-hero">'
-      + '<img class="ob-logo" src="assets/icon-512.png" alt="" width="112" height="112">'
+      + '<img class="ob-logo" src="assets/boot-icon.webp" alt="" width="112" height="112">'
       + '<h2>咿呀记</h2>'
       + '<p class="ob-lead">喂奶、睡眠、尿布、疫苗，<br>单手几秒记一笔。</p>'
       + '<ul class="ob-points">'
@@ -1888,7 +1888,13 @@
           if (busy()) { pendingReload = true; return; }
           doReload();
         });
-        navigator.serviceWorker.register('sw.js').then(function (reg) {
+        /* 第 275 次：注册推迟到 load 之后。首次打开时新 SW 一装上就要预缓存 120 多个文件，
+           原来和首页自己的脚本 / 图片抢带宽；热启动时 register 也会去服务器比对 sw.js，没必要挤在首屏。 */
+        var regLater = function (fn) {
+          var go = function () { setTimeout(fn, 300); };
+          if (document.readyState === 'complete') go(); else global.addEventListener('load', go, { once: true });
+        };
+        regLater(function () { navigator.serviceWorker.register('sw.js').then(function (reg) {
           var lastCheck = Date.now();
           document.addEventListener('visibilitychange', function () {
             if (document.visibilityState === 'hidden') { if (pendingReload) doReload(); return; }
@@ -1896,7 +1902,7 @@
             lastCheck = Date.now();
             try { reg.update().catch(function () {}); } catch (eU) { /* 离线等情况忽略 */ }
           });
-        }).catch(function () {});
+        }).catch(function () {}); });
       }
     } catch (e) { /* SW 不可用不影响任何功能 */ }
 

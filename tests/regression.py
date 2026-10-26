@@ -46,6 +46,16 @@ def check(name, cond, detail=''):
     results.append((name, bool(cond), detail))
 
 
+def _poll(p, expr, timeout_ms, step=150):
+    """第 275 次：代替 page.wait_for_function（它轮询时在页面里 eval，会被 CSP 拦下）。"""
+    n = 0
+    while n < timeout_ms:
+        if p.evaluate(expr):
+            return True
+        p.wait_for_timeout(step); n += step
+    return False
+
+
 def fresh(browser, w=390, h=844, seeded=True):
     p = browser.new_page(viewport={'width': w, 'height': h})
     errs = []
@@ -632,10 +642,9 @@ def test_r270(b):
     check('首页：天空顶端接缝色与状态栏同色', bool(cap) and cap[0] and cap[0] == cap[1] and cap[2] >= 56, cap)
     p.wait_for_timeout(2600)
     # 第 274 次：五组并行时 CPU 吃紧，2.6 秒内偶尔只载入 44–48 张；改为最多再等 6 秒（断言内容不变：都要载入）
-    try:
-        p.wait_for_function("Hero._warmed() >= 50", timeout=6000)
-    except Exception:
-        pass
+    # 第 275 次：wait_for_function 一旦要轮询就会在页面里 eval，被本站 CSP（无 unsafe-eval）拦下并记成报错；
+    # 改为 Python 侧轮询，六组并行时最多再等 12 秒
+    _poll(p, "Hero._warmed() >= 50", 12000)
     check('插画预热：页头 / 尿布 / 声音 / 辅食图都已载入', ev("Hero._warmed()") >= 50, ev("Hero._warmed()"))
     check('插画预热后进页，页头插画同步可画', ev("(()=>{App.showTab('diaper',{noVT:true});const im=document.querySelector('.mod-hero img');return !!im&&im.complete&&im.naturalWidth>0})()"))
     p.click('[data-new]'); p.wait_for_timeout(450)
@@ -1286,20 +1295,260 @@ def test_r274(b):
     p.close()
 
 
+
+# ---------------- 第 275 次：启动白屏 + iOS dock 真折射 ----------------
+class _SlowSW(http.server.SimpleHTTPRequestHandler):
+    """第 275 次专用：sw.js 去掉本机绕过（让 127.0.0.1 下 SW 真正接管），并可对指定路径加延迟模拟弱网。"""
+    DELAY = {}
+    def log_message(self, *a):
+        pass
+
+    def end_headers(self):
+        self.send_header('Cache-Control', 'no-store')
+        super().end_headers()
+
+    def do_GET(self):
+        import time as _t
+        path = self.path.split('?')[0]
+        for k, v in list(_SlowSW.DELAY.items()):
+            if k == '*' or path.endswith(k):
+                _t.sleep(v)
+                break
+        if path.endswith('/sw.js'):
+            data = (ROOT / 'sw.js').read_bytes().replace(
+                rb"if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(self.location.hostname)) return;", b'')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/javascript')
+            self.send_header('Content-Length', str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        return super().do_GET()
+
+
+def _slow_server():
+    s2 = socketserver.ThreadingTCPServer(('127.0.0.1', 0), functools.partial(_SlowSW, directory=str(ROOT)))
+    s2.daemon_threads = True
+    threading.Thread(target=s2.serve_forever, daemon=True).start()
+    return s2, f'http://127.0.0.1:{s2.server_address[1]}/'
+
+
+STANDALONE = "Object.defineProperty(navigator,'standalone',{get:()=>true});" \
+    "window.__bt={};new MutationObserver(()=>{const b=document.getElementById('boot');" \
+    "if(b){if(b.classList.contains('is-play'))__bt.play=1;if(b.classList.contains('is-out'))__bt.out=1;}" \
+    "else if(!__bt.gone&&document.body)__bt.gone=performance.now();}).observe(document,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});"
+
+
+def test_r275_boot(b):
+    """第 275 次 A：启动白屏——首帧样式、脚本 defer、SW 缓存优先、启动层兜底与慢启动不加播动画。"""
+    import re as _re
+    import struct as _st
+    html = (ROOT / 'index.html').read_text(encoding='utf-8')
+    sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
+    man = json.loads((ROOT / 'manifest.webmanifest').read_text(encoding='utf-8'))
+    srcs = _re.findall(r'<script src="([^"]+)"([^>]*)></script>', html)
+    check('#275 只有 boot.js 同步，其余脚本全部 defer', srcs and srcs[0][0] == 'js/boot.js' and 'defer' not in srcs[0][1]
+          and all('defer' in a for n, a in srcs[1:]), [n for n, a in srcs[1:] if 'defer' not in a])
+    check('#275 页面里没有内联脚本（CSP 不放开 unsafe-inline）', not _re.search(r'<script(?![^>]*\bsrc=)[^>]*>', html)
+          and "script-src 'self';" in html)
+    head = html.split('<link rel="stylesheet"')[0]
+    check('#275 styles.css 之前内联了启动层关键样式，底色 #221E1A', '<style>' in head and 'html.is-booting' in head and '#221E1A' in head)
+    tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
+    check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
+    check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
+    check('#275 SW 版本 v239', "var CACHE = 'baoma-static-v239';" in sw)
+    bi = ROOT / 'assets' / 'boot-icon.webp'
+    bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
+    check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
+          bootsec.count('src="data:image/webp;base64,') == 2 and len(html.encode()) < 60000, len(html.encode()))
+    check('#275 引导页图标改用 336px webp（<60KB，原 512 png 387KB）且进预缓存', bi.exists() and bi.stat().st_size < 60000
+          and "'assets/boot-icon.webp'" in sw and 'src="assets/boot-icon.webp"' in (ROOT / 'js' / 'app.js').read_text(encoding='utf-8'), bi.stat().st_size if bi.exists() else None)
+    bad = []
+    for media, href in _re.findall(r'<link rel="apple-touch-startup-image" media="([^"]+)" href="([^"]+)">', html):
+        w = int(_re.search(r'device-width: (\d+)px', media).group(1)); h = int(_re.search(r'device-height: (\d+)px', media).group(1))
+        r = int(_re.search(r'pixel-ratio: (\d+)', media).group(1))
+        f = ROOT / href
+        if not f.exists():
+            bad.append(href); continue
+        pw_, ph_ = _st.unpack('>II', f.read_bytes()[16:24])
+        if (pw_, ph_) != (w * r, h * r):
+            bad.append((href, pw_, ph_))
+    check('#275 iOS 启动图：11 个机型尺寸齐全且像素与 media 对得上', not bad and html.count('apple-touch-startup-image') >= 11, bad)
+
+    srv2, base = _slow_server()
+    try:
+        # SW 缓存优先：装好后服务器每个请求都慢 4 秒，热启动不受影响
+        ctx = b.new_context(viewport={'width': 390, 'height': 844})
+        p = ctx.new_page(); errs = []
+        p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+        p.goto(base); p.wait_for_timeout(600)
+        p.evaluate('t=>Storage.importJSON(t)', SEED_V3)
+        reg_after_load = p.evaluate("(()=>{const n=performance.getEntriesByType('navigation')[0];return n.loadEventEnd})()")
+        p.reload()
+        _poll(p, '!!navigator.serviceWorker.controller', 15000)
+        p.wait_for_timeout(1200)
+        _SlowSW.DELAY = {'*': 4.0}
+        p2 = ctx.new_page()
+        p2.on('pageerror', lambda e: errs.append(str(e)[:160]))
+        p2.goto(base, wait_until='domcontentloaded', timeout=30000)
+        t = p2.evaluate("(()=>{const n=performance.getEntriesByType('navigation')[0];return [n.domContentLoadedEventEnd, !!document.querySelector('#view .card, #view .home-sky')]})()")
+        _SlowSW.DELAY = {}
+        check('#275 SW 接管后热启动不等网络（服务器每请求慢 4 秒，DOMContentLoaded < 2 秒）', t[0] < 2000, t)
+        check('#275 热启动首页照常画出', t[1], t)
+        ctx.close()
+        # SW 注册在 load 之后
+        ctx = b.new_context(viewport={'width': 390, 'height': 844})
+        ctx.add_init_script("window.__reg=0;const R=ServiceWorkerContainer.prototype.register;ServiceWorkerContainer.prototype.register=function(){window.__reg=performance.now();return R.apply(this,arguments)};")
+        p = ctx.new_page(); p.goto(base); p.wait_for_timeout(1500)
+        rv = p.evaluate("[window.__reg, performance.getEntriesByType('navigation')[0].loadEventEnd]")
+        check('#275 SW 注册挪到 load 之后（不和首屏抢带宽）', rv[0] > 0 and rv[0] >= rv[1], rv)
+        ctx.close()
+        # 启动层兜底：脚本迟迟不到时不能 5 秒就拆掉露出空白页
+        ctx = b.new_context(viewport={'width': 390, 'height': 844})
+        p = ctx.new_page(); p.goto(base); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.wait_for_timeout(1500)
+        p.evaluate("async()=>{for(const r of await navigator.serviceWorker.getRegistrations())await r.unregister();for(const k of await caches.keys())await caches.delete(k);}")
+        p.close()
+        ctx.add_init_script(STANDALONE)
+        _SlowSW.DELAY = {'js/app.js': 6.5}
+        p = ctx.new_page(); p.goto(base, wait_until='commit')
+        p.wait_for_timeout(5800)
+        still = p.evaluate("[!!document.getElementById('boot'), typeof App === 'undefined']")
+        check('#275 脚本没到齐（app.js 慢 6.5 秒）时 5 秒后启动层仍在，不露空白页', still == [True, True], still)
+        p.wait_for_timeout(4500)
+        bt = p.evaluate("[!!document.getElementById('boot'), window.__bt, !!document.querySelector('#view .card, #view .home-sky')]")
+        check('#275 慢启动：首页画好后直接淡出，不再加播 1.7 秒弹跳动画', (not bt[0]) and bt[1].get('out') == 1 and not bt[1].get('play') and bt[2], bt)
+        _SlowSW.DELAY = {}
+        ctx.close()
+        # 快启动：照常播动画
+        ctx = b.new_context(viewport={'width': 390, 'height': 844})
+        ctx.add_init_script(STANDALONE)
+        p = ctx.new_page(); p.goto(base); p.evaluate('t=>Storage.importJSON(t)', SEED_V3)
+        p.reload(); p.wait_for_timeout(3500)
+        bt = p.evaluate('window.__bt')
+        check('#275 快启动（首页 <1.5 秒画好）：仍播启动动画，播完移除', bt.get('play') == 1 and bt.get('gone', 0) > 0 and bt['gone'] < 3400, bt)
+        ctx.close()
+        check('#275 启动相关无报错', not errs, errs)
+    finally:
+        _SlowSW.DELAY = {}
+        srv2.shutdown()
+
+
+def _dock_px(p):
+    return p.evaluate("(()=>{const r=document.getElementById('tabbar').getBoundingClientRect();return {x:r.left-6,y:r.top-6,width:r.width+12,height:r.height+12}})()")
+
+
+def _img_diff(a, b2):
+    from PIL import Image, ImageChops, ImageStat
+    import io as _io
+    A = Image.open(_io.BytesIO(a)).convert('RGB'); B = Image.open(_io.BytesIO(b2)).convert('RGB')
+    st = ImageStat.Stat(ImageChops.difference(A, B))
+    return round(sum(st.mean) / 3, 2)
+
+
+DBG_CSS = "html.lgdbg #tabbar > :not(canvas){visibility:hidden!important} html.lgdbg #tabbar{background:transparent!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important;border-color:transparent!important} html.lgdbg #tabbar::before,html.lgdbg #tabbar::after{display:none!important} html.lgtruth #tabbar{visibility:hidden!important} html.lgdbg #dockOrb, html.lgtruth #dockOrb{visibility:hidden!important}"
+
+
+def test_r275_glass(b):
+    """第 275 次 B：dock 真折射（快照 + WebGL）——对齐、复用、释放、降级、设置开关。Chromium 里用 lgGlForce 强制走 iOS 路径。"""
+    p, errs = fresh(b)
+    ev = p.evaluate
+    ev("localStorage.setItem('lgGlForce','1');Storage.get().settings.dockGlass='on';Storage.save()")
+    p.reload(); p.wait_for_timeout(1800)
+    p.add_style_tag(content=DBG_CSS)
+    st = ev('DockRefract._stats()')
+    check('#275 折射层：1 个 WebGL 上下文、2 张纹理、着色器编译通过', st['on'] and st['ready'] and st['ctxLive'] == 1 and st['texLive'] == 2 and not st['err'], st)
+    order = ev("(()=>{const b=document.getElementById('tabbar');const k=[...b.children].map(e=>e.classList.contains('lg-gl')?'gl':e.classList.contains('lg-thumb')?'thumb':'x');return [k.indexOf('gl'),k.indexOf('thumb'),document.documentElement.classList.contains('lg-gl'),document.documentElement.classList.contains('lg-refract')]})()")
+    check('#275 画布是底栏第一个子节点、水滴在它之上；开着时不再叠 SVG 折射', order[0] == 0 and order[1] == 1 and order[2] and not order[3], order)
+    check('#275 dock 按钮仍可点（画布不挡命中）', ev("(()=>{const t=document.querySelector('#tabbar .tab-plus');const r=t.getBoundingClientRect();return document.elementFromPoint(r.left+r.width/2,r.top+r.height/2).closest('.tab-plus')===t})()"))
+
+    def fidelity(tab, sy):
+        ev(f"App.showTab('{tab}',{{noVT:true}})"); p.wait_for_timeout(1300)
+        ev(f"window.scrollTo(0,{sy})"); p.wait_for_timeout(700)
+        clip = _dock_px(p)
+        ev("document.documentElement.classList.add('lgtruth')"); p.wait_for_timeout(60)
+        truth = p.screenshot(clip=clip)
+        ev("document.documentElement.classList.remove('lgtruth');document.documentElement.classList.add('lgdbg');DockRefract._debug=true;DockRefract._draw()"); p.wait_for_timeout(80)
+        snap = p.screenshot(clip=clip)
+        ev("document.documentElement.classList.remove('lgdbg');DockRefract._debug=false;DockRefract._draw()")
+        return _img_diff(truth, snap)
+    d1 = fidelity('feeding', 260)
+    check('#275 快照与页面对齐：喂养页滚到中段，dock 背后快照与真实页面平均色差 < 10', d1 < 10, d1)
+    d2 = fidelity('home', 9999)
+    check('#275 快照与页面对齐：首页滚到底', d2 < 10, d2)
+    # 滚动后（不手动重画）也对齐：滚动事件驱动的那一帧用的是新滚动量
+    ev("App.showTab('feeding',{noVT:true})"); p.wait_for_timeout(1300)
+    ev("window.scrollTo(0,120)"); p.wait_for_timeout(500)
+    ev("document.documentElement.classList.add('lgdbg');DockRefract._debug=true;DockRefract._draw()")
+    ev("window.scrollTo(0,300)"); p.wait_for_timeout(250)
+    clip = _dock_px(p); snap = p.screenshot(clip=clip)
+    ev("document.documentElement.classList.remove('lgdbg');document.documentElement.classList.add('lgtruth')"); p.wait_for_timeout(60)
+    truth = p.screenshot(clip=clip)
+    ev("document.documentElement.classList.remove('lgtruth');DockRefract._debug=false;DockRefract._draw()")
+    d3 = _img_diff(truth, snap)
+    check('#275 滚动时折射层跟着滚（滚动事件那一帧已用新位置）', d3 < 10, d3)
+    # 左右手竖排
+    ev("document.body.classList.add('dock-left')"); p.wait_for_timeout(300)
+    ev("LiquidDock.refresh()"); p.wait_for_timeout(900)
+    cv = ev("(()=>{const c=document.querySelector('#tabbar canvas.lg-gl'),b=document.getElementById('tabbar').getBoundingClientRect(),r=c.getBoundingClientRect();return [Math.round(r.width-b.width),Math.round(r.height-b.height),b.height>b.width&&DockRefract._stats().ready]})()")
+    check('#275 左手竖排：画布跟着竖排胶囊（与边框盒同大，盖住 1px 透明边框）', cv[0] == 0 and cv[1] == 0 and cv[2], cv)
+    ev("document.body.classList.remove('dock-left');LiquidDock.refresh()"); p.wait_for_timeout(600)
+    # 反复切页：不新建上下文 / 纹理，节点与画布数不涨
+    tabs = ['home', 'feeding', 'diaper', 'sleep', 'whitenoise', 'settings', 'calendar', 'growth', 'search', 'home']
+
+    def spin(n):
+        for i in range(n):
+            ev(f"App.showTab('{tabs[i % len(tabs)]}',{{noVT:true}})"); p.wait_for_timeout(120)
+        ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(1500)
+        return ev("(()=>{const s=DockRefract._stats();return {els:document.getElementsByTagName('*').length,cv:document.getElementsByTagName('canvas').length,ctx:s.ctxCreated,live:s.ctxLive,tex:s.texCreated,texLive:s.texLive,re:s.uploadsRealloc,sub:s.uploadsSub,page:s.page}})()")
+    a = spin(10); z = spin(50)
+    check('#275 切页 50 次：上下文 / 纹理不新建（各 1 / 2），DOM 节点与画布数不涨', z['ctx'] == a['ctx'] == 1 and z['tex'] == a['tex'] == 2 and z['texLive'] == 2
+          and z['els'] == a['els'] and z['cv'] == a['cv'], [a, z])
+    check('#275 重拍复用同一张纹理（同尺寸走 texSubImage2D，不重新分配）', z['re'] == a['re'] and z['sub'] > a['sub'], [a, z])
+    # 上下文丢失 / 恢复
+    ev("(()=>{const c=document.querySelector('#tabbar canvas.lg-gl');window.__lc=c.getContext('webgl').getExtension('WEBGL_lose_context');__lc.loseContext()})()"); p.wait_for_timeout(300)
+    lost = ev("document.querySelector('#tabbar canvas.lg-gl').classList.contains('on')")
+    ev("__lc.restoreContext()"); p.wait_for_timeout(1500)
+    rs = ev('DockRefract._stats()')
+    check('#275 WebGL 上下文丢失时边缘淡出，恢复后重建并继续画', (not lost) and rs['ready'] and rs['ctxLive'] == 1 and rs['texLive'] == 2, [lost, rs])
+    # 高对比：停掉并释放
+    ev("document.body.classList.add('hc')"); p.wait_for_timeout(400)
+    hc = ev("(()=>{const s=DockRefract._stats();return [s.on,s.ctxLive,s.texLive,!!document.querySelector('canvas.lg-gl'),document.documentElement.classList.contains('lg-gl')]})()")
+    check('#275 高对比模式：折射层停掉（上下文 / 纹理 / 画布全部释放）', hc == [False, 0, 0, False, False], hc)
+    ev("document.body.classList.remove('hc');LiquidDock.refresh()"); p.wait_for_timeout(1500)
+    check('#275 退出高对比后恢复', ev('DockRefract._stats().ready'))
+    # 设置开关
+    ev("App.showTab('settings',{noVT:true})"); p.wait_for_timeout(500)
+    has = ev("!!document.getElementById('sDockGlass')")
+    ev("(()=>{const x=document.getElementById('sDockGlass');if(!x)return;if(x.closest('details'))x.closest('details').open=true;x.checked=false;x.dispatchEvent(new Event('change'))})()"); p.wait_for_timeout(400)
+    off = ev("(()=>{const s=DockRefract._stats();return [Storage.get().settings.dockGlass,s.on,s.ctxLive,s.texLive,!!document.querySelector('canvas.lg-gl'),document.documentElement.classList.contains('lg-refract')]})()")
+    check('#275 设置里关掉「底栏液态玻璃折射」：释放全部资源，Chromium 回到 SVG 折射', has and off == ['off', False, 0, 0, False, False] or (has and off[:5] == ['off', False, 0, 0, False]), off)
+    ev("(()=>{const x=document.getElementById('sDockGlass');x.checked=true;x.dispatchEvent(new Event('change'))})()"); p.wait_for_timeout(1800)
+    check('#275 再打开：重新建起（自动档）', ev("Storage.get().settings.dockGlass==='auto'&&DockRefract._stats().on"))
+    check('#275 存储清洗认 dockGlass，不认乱值', ev("(()=>{const d=JSON.parse(Storage.exportJSON());d.settings.dockGlass='<x>';Storage.importJSON(JSON.stringify(d));return Storage.get().settings.dockGlass===undefined})()"))
+    # 真机路径：iPhone UA 下默认就走它（不需要强制）
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, user_agent='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1')
+    q = ctx.new_page(); q.goto(URL); q.wait_for_timeout(600); q.evaluate('t=>Storage.importJSON(t)', SEED_V3); q.reload(); q.wait_for_timeout(1800)
+    ios = q.evaluate("[DockRefract._stats().on, document.documentElement.classList.contains('lg-refract')]")
+    check('#275 iPhone UA：默认开 WebGL 折射，不开 SVG 折射', ios == [True, False], ios)
+    ctx.close()
+    check('#275 折射层无报错', not errs, errs)
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
 # 第 273 次：第 273 次断言单独一组，四个子进程并行
 # 第 274 次：第 274 次断言单独一组，五个子进程并行
+# 第 275 次：启动 / dock 折射断言单独一组，六个子进程并行
 GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_diaper_photos', 'test_family'),
           ('test_css_rules', 'test_flows', 'test_pump', 'test_diaper_stock', 'test_solid', 'test_diaper_sheet',
            'test_dash', 'test_home_edit', 'test_format'),
           ('test_r270', 'test_r271', 'test_r272'),
           ('test_r273',),
-          ('test_r274',))
+          ('test_r274',),
+          ('test_r275_boot', 'test_r275_glass'))
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

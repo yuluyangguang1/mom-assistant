@@ -116,7 +116,9 @@
 
   function updateRefraction() {
     if (!bar) return;
-    var on = canRefract() && settingsAllow();
+    /* 第 275 次：iOS / WebKit 走 dock-refract.js（快照 + WebGL 边缘折射）；Chromium 仍走下面的 SVG 位移贴图 */
+    var gl = global.DockRefract ? global.DockRefract.sync(bar) : false;
+    var on = !gl && canRefract() && settingsAllow();
     if (!on) { doc.documentElement.classList.remove('lg-refract'); refractOn = false; return; }
     var w = Math.round(bar.offsetWidth), h = Math.round(bar.offsetHeight);
     if (w < 20 || h < 20) return;
@@ -146,7 +148,9 @@
     if (!thumb || thumb.parentNode !== bar) {
       thumb = doc.createElement('span');
       thumb.className = 'lg-thumb'; thumb.setAttribute('aria-hidden', 'true');
-      bar.insertBefore(thumb, bar.firstChild);
+      /* 第 275 次：折射画布（canvas.lg-gl）要在水滴之前，水滴才画在它上面 */
+      var glc = bar.firstChild && bar.firstChild.classList && bar.firstChild.classList.contains('lg-gl') ? bar.firstChild : null;
+      bar.insertBefore(thumb, glc ? glc.nextSibling : bar.firstChild);
     }
     var a = activeTab();
     if (!a) { thumb.classList.remove('on'); return; }
@@ -199,6 +203,8 @@
           if (m.target === thumb) continue;
           if (m.type === 'attributes' && m.target === bar && (/is-sub/.test(m.oldValue || '') === bar.classList.contains('is-sub'))) continue;
           if (m.type === 'childList' && m.addedNodes.length === 1 && m.addedNodes[0] === thumb) continue;
+          if (m.type === 'childList' && m.addedNodes.length === 1 && m.addedNodes[0].classList && m.addedNodes[0].classList.contains('lg-gl')) continue;
+          if (m.type === 'attributes' && m.target.classList && m.target.classList.contains('lg-gl')) continue;
           global.requestAnimationFrame ? requestAnimationFrame(refresh) : refresh();
           return;
         }
@@ -211,6 +217,7 @@
     global.addEventListener('pointercancel', onUp, { passive: true });
     place(false); updateRefraction();
   };
+  LD.refresh = function () { if (bar) { place(false); updateRefraction(); } };
   LD._state = function () { return { refract: refractOn, thumb: !!(thumb && thumb.classList.contains('on')), map: mapKey }; };
 
   global.LiquidDock = LD;
