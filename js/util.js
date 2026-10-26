@@ -390,6 +390,8 @@
       /* 第 185 次：饮水此前不进日期记录 */
       (d.waters || []).forEach(function (r) { add(isoOf(r.time), 'water', '饮水', r.ml ? r.ml + ' ml' : '', hmOf(r.time)); });
       (d.meds || []).forEach(function (r) { add(isoOf(r.time), 'meds', '服药', r.name || '', hmOf(r.time)); });
+      /* 第 280 次：营养品服用记录进日期记录 / 回顾 */
+      (d.supplements || []).forEach(function (r) { if (r && r.time) add(isoOf(r.time), 'supplement', '营养品', [r.name || '', r.dose || ''].filter(Boolean).join(' '), hmOf(r.time)); });
       (d.milestones || []).forEach(function (r) { add(r.date, 'milestone', '里程碑', r.title || ''); });
       (d.periods || []).forEach(function (r) { if (r.start) add(isoOf(r.start), 'period', '经期', ''); });
       if (d.prenatal && d.prenatal.records) d.prenatal.records.forEach(function (r) { add(r.date, 'pregnancy', '产检', r.item || ''); });

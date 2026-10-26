@@ -95,8 +95,11 @@
     var plans = (d.supplementPlans || []).filter(function (p) { return p && p.name && p.active !== false; });
     if (sup.length || plans.length) {
       var usedR = [], doneL = [], todo = [];
+      /* 第 280 次：今天不在服用日程里的计划（每周特定几天 / 隔天 / 还没开始 / 已结束）不列为未打卡；次数按今天的服用时间数 */
+      var SUPM = global.Modules && Modules.supplement;
       plans.forEach(function (p) {
-        var per = (typeof p.perDay === 'number' && p.perDay > 0) ? p.perDay : 1;
+        if (SUPM && SUPM._onDay && !SUPM._onDay(p, dayNow)) return;
+        var per = (SUPM && SUPM._norm) ? SUPM._norm(p).times.length : ((typeof p.perDay === 'number' && p.perDay > 0) ? p.perDay : 1);
         var hit = sup.filter(function (r) { return (r.planId && p.id) ? r.planId === p.id : r.name === p.name; });
         hit.forEach(function (r) { usedR.push(r); });
         var nm = String(p.name).slice(0, 12);
@@ -107,7 +110,7 @@
       var extra = {};
       sup.forEach(function (r) { if (usedR.indexOf(r) < 0) { var k = String(r.name).slice(0, 12); extra[k] = (extra[k] || 0) + 1; } });
       Object.keys(extra).forEach(function (k) { doneL.push(k + (extra[k] > 1 ? ' ×' + extra[k] : '')); });
-      L.push(''); L.push('◆ 补剂（今天）');
+      L.push(''); L.push('◆ 营养品（今天）');
       L.push((doneL.length ? '已吃 ' + doneL.join('、') : '还没打卡') + (todo.length ? '；未打卡 ' + todo.join('、') : ''));
     }
     /* 储奶 */
@@ -723,6 +726,7 @@
         + '<option value="growth">生长记录</option><option value="milestones">里程碑</option>'
         + '<option value="vaccines">疫苗接种</option><option value="contractions">宫缩记录</option>'
         + '<option value="periods">经期记录</option><option value="finance">记账记录</option>'
+        + '<option value="supplements">营养品服用记录</option>'
         + '</select><button class="btn" id="sCsv">导出 CSV</button></div>';
       html += '<p class="hint">CSV 可用 Excel / WPS 直接打开，适合整理归档。</p>';
       html += '<button class="btn" id="sPrint">打印成长报告</button>';
@@ -1598,6 +1602,12 @@
         },
         periods: function (d) {
           return toCsv(['开始', '结束'], (d.periods || []).map(function (r) { return [r.start, r.end || '']; }));
+        },
+        /* 第 280 次：营养品服用记录（时间、名称、用量、对应的服用时间、备注） */
+        supplements: function (d) {
+          return toCsv(['时间', '名称', '用量', '服用时间', '备注'], (d.supplements || []).filter(function (r) { return r && r.time; })
+            .slice().sort(function (a, b) { return String(a.time) < String(b.time) ? -1 : 1; })
+            .map(function (r) { return [r.time, r.name || '', r.dose || '', typeof r.slot === 'string' ? r.slot : '', r.note]; }));
         },
         finance: function (d) {
           var recs = (d.finance && d.finance.records) || [];

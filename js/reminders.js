@@ -257,11 +257,23 @@
     var nowD = new Date(now), hm = ('0' + nowD.getHours()).slice(-2) + ':' + ('0' + nowD.getMinutes()).slice(-2);
     function raOf(p) { var v = p.remindAt; return (typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v)) ? v : null; }
     var hasHistory = sups.some(function (r) { return r.time && new Date(r.time) >= cutoff && keyOf(r.time) !== dayNow; });
-    plans = plans.filter(function (p) { var ra = raOf(p); return ra ? hm >= ra : hasHistory; });
+    /* 第 280 次：新版营养品计划（有 times）只在「本机提醒」开着、今天在服用日程里时提醒，
+       到点的服用时间数 > 今天已记次数才算漏了；旧计划照第 185 / 196 次的规则 */
+    var SUPM = global.Modules && global.Modules.supplement;
+    var dueN = {};
+    plans = plans.filter(function (p) {
+      var v = SUPM && SUPM._norm ? SUPM._norm(p) : null;
+      if (v && !v.legacy) {
+        if (!SUPM._remindOn(p) || !SUPM._onDay(p, dayNow, v)) return false;
+        dueN[p.id] = v.times.filter(function (x) { return x.t <= hm; }).length;
+        return dueN[p.id] > 0;
+      }
+      var ra = raOf(p); return ra ? hm >= ra : hasHistory;
+    });
     if (plans.length) {
       var todaySup = sups.filter(function (r) { return r.time && keyOf(r.time) === dayNow; });
       var missing = plans.filter(function (p) {
-        var per = (typeof p.perDay === 'number' && p.perDay > 0) ? p.perDay : 1;
+        var per = dueN[p.id] != null ? dueN[p.id] : ((typeof p.perDay === 'number' && p.perDay > 0) ? p.perDay : 1);
         var n = todaySup.filter(function (r) { return (r.planId && p.id) ? r.planId === p.id : r.name === p.name; }).length;
         return n < per;
       });
@@ -269,7 +281,7 @@
         return {
           accent: 'meds', go: 'supplement', remLevel: 1,
           text: '今天的' + missing.slice(0, 2).map(function (p) { return p.name; }).join('、')
-            + (missing.length > 2 ? ' 等' : '') + '还没打卡，别忘了哦。'
+            + (missing.length > 2 ? ' 等' : '') + '还没记服用，别忘了哦。'
         };
       }
     }

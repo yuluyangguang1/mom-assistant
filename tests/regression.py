@@ -1374,7 +1374,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v243（第 279 次升）', "var CACHE = 'baoma-static-v243';" in sw)
+    check('#275 SW 版本 v244（第 280 次升）', "var CACHE = 'baoma-static-v244';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -2075,11 +2075,13 @@ def test_r278(b):
     # —— #40 补剂：重新启用时已有同名启用中计划 → 不启用 ——
     ev("(()=>{const d=Storage.get();d.supplementPlans=[{id:'a',name:'维生素D',form:'滴剂',perDay:1,active:false,sortOrder:0},{id:'b',name:'维生素D',form:'滴剂',perDay:1,active:true,sortOrder:1}];Storage.save()})()")
     go('supplement')
+    ev("document.querySelector('[data-manage]').click()"); p.wait_for_timeout(500)  # 第 280 次：停用 / 启用挪进「管理」面板
     ev("document.querySelector('[data-toggle=a]').click()"); p.wait_for_timeout(400)
     sp2 = ev("Storage.get().supplementPlans.map(x=>[x.id,x.active])")
     check('#40 补剂：已有同名启用中计划时不能再启用旧的那条，提示先停用 / 删掉', sp2 == [['a', False], ['b', True]] and ev("[...document.querySelectorAll('#toastRoot .toast')].some(t=>/已经有一条在用/.test(t.textContent))"), sp2)
     ev("document.querySelector('[data-toggle=b]').click()"); p.wait_for_timeout(300); ev("document.querySelector('[data-toggle=a]').click()"); p.wait_for_timeout(300)
     check('#40 补剂：停用新的那条后，旧的可以正常启用', ev("Storage.get().supplementPlans.map(x=>[x.id,x.active])") == [['a', True], ['b', False]])
+    ev("Sheet.closeAll()"); p.wait_for_timeout(300)
     # —— #41 Esc 由上到下：侧拉页上盖着切换宝宝面板 ——
     go('feeding')
     ev("Drawer.open()"); p.wait_for_timeout(500); ev("App._openBabySheet()"); p.wait_for_timeout(500)
@@ -2255,9 +2257,175 @@ def test_r279(b):
     check('#279 pageerror 为 0', not errs, errs)
     ctx.close()
 
+
+def test_r280(b):
+    """第 280 次：营养品重做——常用预设填充、6 步前进后退保留值、保存后日程 / 清单、记录服用与撤销、库存扣减、
+    旧数据兼容（无 times 的计划、无 slot 的记录、remindAt）、首页磁贴 / 提醒 / 交接班 / CSV / 日期记录口径、XSS。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844})
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(1000)
+    ev = p.evaluate
+
+    def go(t):
+        ev(f"App.showTab('{t}',{{noVT:true}})"); p.wait_for_timeout(260)
+
+    def clk(sel):
+        ev(f"document.querySelector({json.dumps(sel)}).click()"); p.wait_for_timeout(160)
+
+    def preset(k):
+        ev(f"(()=>{{const s=document.querySelector('#spwPreset');s.value='{k}';s.dispatchEvent(new Event('change',{{bubbles:true}}))}})()"); p.wait_for_timeout(160)
+    W = "(()=>{const w=document.querySelector('[data-spw]');if(!w)return null;const on=w.querySelector('.spw-form.on');const of=w.querySelector('.spw-of');const nm=w.querySelector('#spwName');" \
+        "return {step:of?of.textContent:'',name:nm?nm.value:null,form:on?on.getAttribute('data-form'):null,dose:[...w.querySelectorAll('.spw-dose')].map(x=>x.textContent)," \
+        "spec:(w.querySelector('#spwSpec')||{}).value,big:(w.querySelector('.spw-big')||{}).textContent,next:(w.querySelector('[data-next]')||{}).textContent," \
+        "dim:!!w.querySelector('[data-next].is-dim'),prog:document.querySelectorAll('.spw-prog i.on').length,groups:[...w.querySelectorAll('optgroup')].map(g=>g.label)}})()"
+    ev("(()=>{const d=Storage.get();d.supplementPlans=[];d.supplements=[];d.supplies=[];d.settings.stage='baby';Storage.save();localStorage.removeItem('yiya-sup-remind')})()")
+    go('supplement')
+    e0 = ev("[document.querySelector('.sp-none')&&document.querySelector('.sp-none').textContent, document.querySelector('.sp-empty p')&&document.querySelector('.sp-empty p').textContent, document.querySelectorAll('.sp-day').length, (document.querySelector('.sp-day.on small')||{}).textContent, document.querySelector('.mod-hero h1').textContent]")
+    check('#280 空状态：「这一天没有安排服用日程。」+ 清单空插画文案、一周 7 天日期条今天高亮、标题「营养品」',
+          e0 == ['这一天没有安排服用日程。', '添加营养品，安排适合自己的服用日程。', 7, '今', '营养品'], e0)
+    # —— 预设 ——
+    clk('[data-spadd]'); p.wait_for_timeout(300)
+    w1 = ev(W)
+    check('#280 向导第 1 步：6 段进度点亮 1 段、默认剂型胶囊、没名字时「下一步」变淡；预设分组宝宝在前', w1 and w1['step'] == '第 1 步，共 6 步' and w1['prog'] == 1 and w1['form'] == '胶囊' and w1['dim'] and w1['groups'] == ['宝宝', '妈妈'], w1)
+    preset('b-ad'); w2 = ev(W)
+    check('#280 预设「维生素AD」：自动填名称、剂型滴剂、下一步可点', w2['name'] == '维生素AD' and w2['form'] == '滴剂' and not w2['dim'], w2)
+    preset('m-fa'); w3 = ev(W)
+    check('#280 预设「叶酸」（妈妈组）：名称叶酸、剂型片剂', w3['name'] == '叶酸' and w3['form'] == '片剂', w3)
+    preset('b-ad'); clk('[data-next]'); w4 = ev(W)
+    check('#280 第 2 步：规格默认「未注明规格」（预设不强塞规格）', w4['step'] == '第 2 步，共 6 步' and w4['big'] == '未注明规格', w4)
+    clk('[data-specsw]')
+    sug = ev("[...document.querySelectorAll('[data-specq]')].map(b=>b.getAttribute('data-specq'))")
+    check('#280 打开规格开关：输入框为空，常见规格只作为可选建议列出', ev("document.querySelector('#spwSpec').value") == '' and len(sug) == 2 and 'A 1500 IU + D 500 IU' in sug, sug)
+    clk('[data-specq]')
+    clk('[data-next]'); w5 = ev(W)
+    check('#280 第 3 步：预设默认单位（维生素AD 按「粒」）', w5['dose'] == ['1 粒'], w5)
+    clk('[data-addt]'); clk('[data-tn="1"][data-d="1"]')
+    w6 = ev(W)
+    check('#280 添加时间 + 用量步进：两个时间、第二个 2 粒', w6['dose'] == ['1 粒', '2 粒'] and ev("[...document.querySelectorAll('[data-t]')].map(x=>x.value)") == ['08:00', '12:00'], w6)
+    clk('[data-next]'); clk('[data-meal="after"]'); clk('[data-next]')
+    w7 = ev(W)
+    # 一路后退到第 1 步再前进：值都还在
+    for _ in range(4):
+        clk('[data-prev]')
+    w8 = ev(W)
+    clk('[data-next]'); w9 = ev(W); clk('[data-next]'); w10 = ev(W); clk('[data-next]'); w11 = ev(W)
+    check('#280 前进到第 5 步再一路后退到第 1 步、再前进：名称 / 剂型 / 规格 / 两个时间和用量 / 服用方式都保留',
+          w7['step'] == '第 5 步，共 6 步' and w8['step'] == '第 1 步，共 6 步' and w8['name'] == '维生素AD' and w8['form'] == '滴剂'
+          and w9['spec'] == 'A 1500 IU + D 500 IU' and w10['dose'] == ['1 粒', '2 粒'] and w11['step'] == '第 4 步，共 6 步'
+          and ev("!!document.querySelector('[data-meal=\"after\"].active')"), [w8, w9, w10, w11])
+    clk('[data-next]')
+    # 库存：当场添加用品并关联
+    clk('[data-pick]')
+    pk = ev("[document.querySelector('#ftsTitle').textContent, (document.querySelector('.spw-empty')||{}).textContent, !document.querySelector('.rs-head [data-addsup]').hidden]")
+    check('#280 选择用品：标题「选择用品」、右上「添加用品」、没有用品时「先添加一件营养品用品，再关联到记录。」', pk == ['选择用品', '先添加一件营养品用品，再关联到记录。', True], pk)
+    clk('.rs-head [data-addsup]')
+    ev("(()=>{const n=document.querySelector('#spwSupN');n.value='30';})()")
+    clk('[data-supsave]')
+    clk('[data-remsw]')
+    st5 = ev("[document.querySelector('.spw-link b').textContent, (document.querySelector('.spw-link small')||{}).textContent, Storage.get().supplies.length, Storage.get().supplies[0].pieces, Storage.get().supplies[0].cat]")
+    check('#280 添加用品并关联：用品进「用品」模块（维D/药品，剩 30 粒），第 5 步显示已关联', st5 == ['维生素AD', '剩 30 粒', 1, 30, '维D/药品'], st5)
+    clk('[data-next]')
+    kv = ev("[...document.querySelectorAll('.spw-kv')].map(x=>x.textContent)")
+    check('#280 第 6 步确认：名称 / 剂型 / 规格 / 频率 / 每个时间与用量 / 服用方式 / 本机提醒 / 库存都列出，按钮「保存营养品」',
+          '名称维生素AD' in kv and '剂型滴剂' in kv and '规格A 1500 IU + D 500 IU' in kv and '服用频率每天 · 2 次' in kv and '08:001 粒' in kv and '12:002 粒' in kv
+          and '服用方式餐后' in kv and '本机提醒开启' in kv and any(x.startswith('库存维生素AD · 每次扣 1 粒') for x in kv) and ev(W)['next'] == '保存营养品', kv)
+    clk('[data-next]'); p.wait_for_timeout(300)
+    pl = ev("(()=>{const p=Storage.get().supplementPlans[0];return {n:p.name,f:p.form,per:p.perDay,v:p.v,t:p.times,u:p.unit,sp:p.spec,fr:p.freq,st:p.start,m:p.meal,stock:p.stock&&p.stock.n,rem:Modules.supplement._remindOn(p),ra:'remindAt' in p}})()")
+    check('#280 保存：计划带 v2 字段（times / unit / spec / freq / start / meal / stock），perDay = 时间数，本机提醒存在本机',
+          pl['n'] == '维生素AD' and pl['f'] == '滴剂' and pl['per'] == 2 and pl['v'] == 2 and pl['t'] == [{'t': '08:00', 'n': 1}, {'t': '12:00', 'n': 2}]
+          and pl['u'] == '粒' and pl['sp'] == 'A 1500 IU + D 500 IU' and pl['fr'] == 'daily' and pl['m'] == 'after' and pl['stock'] == 1 and pl['rem'] and not pl['ra'], pl)
+    cards = ev("[...document.querySelectorAll('.sp-dose')].map(c=>c.querySelector('.sp-t').textContent+'|'+c.querySelector('.sp-n').textContent+'|'+c.querySelector('small').textContent)")
+    items = ev("[...document.querySelectorAll('.sp-item')].map(c=>c.textContent)")
+    check('#280 保存后首页：服用日程两张卡（时间 / 名称 / 用量 · 服用方式），营养品清单「每天 · 2 次」', cards == ['08:00|维生素AD|1 粒 · 餐后', '12:00|维生素AD|2 粒 · 餐后'] and items == ['维生素AD每天 · 2 次'], [cards, items])
+    # —— 记录服用 / 撤销 ——
+    clk('.sp-dose[data-slot="0"]'); p.wait_for_timeout(300)
+    r1 = ev("(()=>{const r=Storage.get().supplements[0];return {n:Storage.get().supplements.length,slot:r.slot,dose:r.dose,plan:r.planId===Storage.get().supplementPlans[0].id,stock:r.stock&&r.stock.n,pcs:Storage.get().supplies[0].pieces,done:document.querySelectorAll('.sp-dose.is-done').length,due:Modules.supplement._due(Storage.get()).map(x=>[x.need,x.done])}})()")
+    check('#280 点日程卡记录服用：写 slot / dose / planId，库存 30→29，卡片打勾，今日 1/2', r1['n'] == 1 and r1['slot'] == '08:00' and r1['dose'] == '1 粒' and r1['plan'] and r1['stock'] == 1 and r1['pcs'] == 29 and r1['done'] == 1 and r1['due'] == [[2, 1]], r1)
+    ho = ev("Modules.settings._handoff(Storage.get())")
+    check('#280 交接班：营养品写「维生素AD 1/2」', '◆ 营养品（今天）' in ho and '维生素AD 1/2' in ho, ho[-200:])
+    idx = ev("(Util.buildDayIndex(Storage.get())[Util.todayISO()]||[]).filter(x=>x.label==='营养品').map(x=>x.val)")
+    check('#280 日期记录 / 回顾：服用记录进当天明细（营养品 维生素AD 1 粒）', idx == ['维生素AD 1 粒'], idx)
+    clk('.sp-dose[data-slot="0"]'); p.wait_for_timeout(400)
+    r2 = ev("[Storage.get().supplements.length, Storage.get().supplies[0].pieces, document.querySelectorAll('.sp-dose.is-done').length]")
+    check('#280 再点一次撤销：记录删掉、库存退回 30、卡片取消打勾', r2 == [0, 30, 0], r2)
+    ev("[...document.querySelectorAll('#toastRoot .toast button')].filter(b=>/撤销/.test(b.textContent)).forEach(b=>b.click())"); p.wait_for_timeout(400)
+    check('#280 撤销的撤销：记录回来、库存再扣到 29', ev("[Storage.get().supplements.length, Storage.get().supplies[0].pieces]") == [1, 29])
+    # 未来的日期不能记
+    ev("document.querySelectorAll('.sp-day')[2].click()"); p.wait_for_timeout(300)
+    clk('.sp-dose[data-slot="0"]')
+    check('#280 选到后天：日程照常显示，点卡片不记录（还没到这一天）', ev("[document.querySelectorAll('.sp-dose').length, Storage.get().supplements.length]") == [2, 1])
+    clk('[data-today]')
+    # 提醒：v2 计划本机提醒开着、过了 08:00 没记满 → 首页提醒；关掉就不提醒
+    rem = ev("(()=>{const d=Storage.get();d.supplements=[];Storage.save();const t=new Date();t.setHours(12,30,0,0);const a=Reminders.evaluate(d,t.getTime()).filter(x=>x.go==='supplement').length;Modules.supplement._setRemind(d.supplementPlans[0].id,false);const b=Reminders.evaluate(d,t.getTime()).filter(x=>x.go==='supplement').length;Modules.supplement._setRemind(d.supplementPlans[0].id,true);const t2=new Date();t2.setHours(7,0,0,0);const c=Reminders.evaluate(d,t2.getTime()).filter(x=>x.go==='supplement').length;return [a,b,c]})()")
+    check('#280 首页提醒：本机提醒开着、到点没记 → 提醒；本机提醒关 → 不提醒；还没到 08:00 → 不提醒', rem == [1, 0, 0], rem)
+    # 每周特定几天：不在今天就不出日程、不计入首页磁贴
+    ev("(()=>{const d=Storage.get(),p=d.supplementPlans[0],w=new Date().getDay()||7;p.freq='weekly';p.days=[w===1?2:1];Storage.save()})()"); go('supplement')
+    wk = ev("[document.querySelectorAll('.sp-dose').length, Modules.supplement._due(Storage.get()).length, (document.querySelector('.sp-item small')||{}).textContent]")
+    check('#280 每周特定几天：今天不是那天 → 今天没有日程、不计入要吃的；清单写「每周X」', wk[0] == 0 and wk[1] == 0 and wk[2].startswith('每周'), wk)
+    ev("(()=>{const d=Storage.get(),p=d.supplementPlans[0];p.freq='daily';delete p.days;Storage.save()})()")
+    # 编辑：向导预填，保存不换 id
+    go('supplement'); clk('.sp-item'); p.wait_for_timeout(300)
+    rs = ev("[document.querySelector('#ftsTitle').textContent, document.querySelector('.spr-name').textContent, document.querySelector('.spr-sub').textContent, document.querySelector('[data-remsw2]').getAttribute('aria-checked')]")
+    check('#280 清单卡点开「提醒设置」：名称、每天 · 2 次、本机提醒开关', rs[0] == '提醒设置' and rs[1] == '维生素AD' and rs[2].startswith('每天 · 2 次') and rs[3] == 'true', rs)
+    clk('[data-remsw2]'); clk('.spr-sheet [data-ok]'); p.wait_for_timeout(300)
+    check('#280 提醒设置 ✓：关掉本机提醒并保存', ev("Modules.supplement._remindOn(Storage.get().supplementPlans[0])") is False)
+    clk('.sp-item'); clk('[data-edit]'); p.wait_for_timeout(300)
+    we = ev(W)
+    check('#280 编辑营养品：向导预填名称 / 剂型，标题「编辑营养品」', we['name'] == '维生素AD' and we['form'] == '滴剂' and ev("document.querySelector('#ftsTitle').textContent") == '编辑营养品', we)
+    ev("(()=>{const n=document.querySelector('#spwName');n.value='维生素AD（伊）';n.dispatchEvent(new Event('input',{bubbles:true}))})()")
+    for _ in range(5):
+        clk('[data-next]')
+    clk('[data-next]'); p.wait_for_timeout(300)
+    ed = ev("[Storage.get().supplementPlans.length, Storage.get().supplementPlans[0].name, Storage.get().supplementPlans[0].times.length]")
+    check('#280 编辑保存：同一条计划改名，不新增', ed == [1, '维生素AD（伊）', 2], ed)
+    # 重名：新增同名被拦
+    clk('[data-spadd]'); ev("(()=>{const n=document.querySelector('#spwName');n.value='维生素AD（伊）';n.dispatchEvent(new Event('input',{bubbles:true}))})()")
+    clk('[data-next]')
+    check('#280 新增同名营养品：第 1 步拦下并标红', ev("[document.querySelector('.spw-of').textContent, !!document.querySelector('#spwName.is-invalid')]") == ['第 1 步，共 6 步', True])
+    ev("Sheet.closeAll()"); p.wait_for_timeout(300)
+    # —— 旧数据兼容 ——
+    ev("""(()=>{const d=Storage.get();const t=Util.todayISO();d.supplementPlans=[{id:'L1',name:'维生素D',form:'滴剂',perDay:2,active:true,sortOrder:0,remindAt:'09:00'},{id:'L2',name:'锌剂',form:'怪剂型',perDay:1,active:false,sortOrder:1}];
+      d.supplements=[{id:'o1',time:t+'T09:10:00',name:'维生素D',dose:null,note:null}];Storage.save();localStorage.removeItem('yiya-sup-remind')})()""")
+    go('supplement')
+    lg = ev("[[...document.querySelectorAll('.sp-dose')].map(c=>c.querySelector('.sp-t').textContent+(c.classList.contains('is-done')?'✓':'')), [...document.querySelectorAll('.sp-item')].map(c=>c.textContent), Modules.supplement._due(Storage.get()).map(x=>[x.need,x.done]), Modules.supplement._remindOn(Storage.get().supplementPlans[0])]")
+    check('#280 旧计划（只有 perDay / remindAt）：按 09:00 起排两次、没 planId 没 slot 的旧记录填进第一格；停用的不出现；旧 remindAt 视为本机提醒开',
+          lg == [['09:00✓', '13:00'], ['维生素D每天 · 2 次'], [[2, 1]], True], lg)
+    check('#280 旧计划：交接班「维生素D 1/2」', '维生素D 1/2' in ev("Modules.settings._handoff(Storage.get())"))
+    clk('.sp-item'); clk('[data-edit]'); p.wait_for_timeout(300)
+    lw = ev(W)
+    for _ in range(6):
+        clk('[data-next]')
+    p.wait_for_timeout(300)
+    lp = ev("(()=>{const p=Storage.get().supplementPlans.filter(x=>x.id==='L1')[0];return [p.v,p.times.map(x=>x.t),'remindAt' in p,Modules.supplement._remindOn(p),Storage.get().supplements[0].name]})()")
+    check('#280 旧计划在向导里保存一次：升成 v2（保留 id、时间 09:00/13:00、记录不丢），remindAt 换成本机提醒（开）',
+          lw['form'] == '滴剂' and lp == [2, ['09:00', '13:00'], False, True, '维生素D'], [lw, lp])
+    # CSV / 搜索
+    go('settings')
+    ev("(()=>{window.__csvB=null;const o=URL.createObjectURL;URL.createObjectURL=function(b){window.__csvB=b;return o.call(URL,b)};const s=document.querySelector('#sCsvModule');s.value='supplements';document.querySelector('#sCsv').click()})()"); p.wait_for_timeout(300)
+    csv = ev("window.__csvB?window.__csvB.text():null")
+    check('#280 设置 · 导出 CSV「营养品服用记录」：表头 时间 / 名称 / 用量 / 服用时间 / 备注，旧记录也导出', bool(csv) and '时间,名称,用量,服用时间,备注' in csv and '维生素D' in csv, (csv or '')[:200])
+    # —— XSS ——
+    X = '"><img src=x onerror="window.__pwn280=1"><i data-pwn280></i>'
+    ev("x=>{const d=Storage.get();const t=Util.todayISO();d.supplementPlans=[{id:'x1',name:x,form:x,perDay:1,active:true,v:2,times:[{t:'08:00',n:1}],unit:x,spec:x,freq:x,days:[x],meal:x,note:x,stock:{id:x,n:x},start:x,end:x}];d.supplements=[{id:'x2',time:t+'T08:01:00',name:x,dose:x,slot:x,planId:'x1',note:x,stock:{id:x,n:1}}];d.supplies=[{id:'s1',name:x,cat:x,pieces:3,pcsU:x,unit:x,date:t}];Storage.save()}", X)
+    go('supplement')
+    clk('.sp-item'); clk('[data-edit]'); p.wait_for_timeout(200)
+    for _ in range(4):
+        clk('[data-next]')
+    clk('[data-pick]'); clk('[data-x]')
+    clk('[data-next]'); p.wait_for_timeout(200)
+    ev("Sheet.closeAll()"); p.wait_for_timeout(300)
+    clk('[data-manage]'); p.wait_for_timeout(200); ev("Sheet.closeAll()"); p.wait_for_timeout(200)
+    go('home'); go('calendar'); go('search')
+    ev("(()=>{const i=document.querySelector('input[type=search], #searchInput');if(i){i.value='img';i.dispatchEvent(new Event('input',{bubbles:true}))}})()"); p.wait_for_timeout(400)
+    xs = ev("[document.querySelectorAll('[data-pwn280]').length, !!window.__pwn280, Modules.supplement._norm(Storage.get().supplementPlans[0]).form, Modules.supplies._pcsUnit(Storage.get().supplies[0])]")
+    check('#280 XSS：名称 / 剂型 / 单位 / 规格 / 用量 / 用品名等全是载荷，页面 / 向导 / 选择用品 / 管理 / 首页 / 日历 / 搜索都不注入；坏剂型当「其他」、坏计数单位回落', xs == [0, False, '其他', '个'], xs)
+    check('#280 pageerror 为 0', not errs, errs)
+    ctx.close()
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -2274,7 +2442,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r276', 'test_flows', 'test_pump'),
           ('test_r277',),
           ('test_r278',),
-          ('test_r279',))  # 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r279',),
+          ('test_r280',))  # 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

@@ -454,26 +454,17 @@
       var jaunLast = (d.jaundices || []).slice()
         .filter(function (r) { return r && typeof r.value === 'number' && isFinite(r.value); })
         .sort(function (a, b) { return new Date(b.time) - new Date(a.time); })[0];
-      var supPlans = (d.supplementPlans || []).filter(function (p) { return p && p.active !== false; });
-      var supNeed = supPlans.reduce(function (s, p) {
-        return s + ((typeof p.perDay === 'number' && p.perDay > 0) ? p.perDay : 1);
-      }, 0);
-      var supDone = 0;
-      supPlans.forEach(function (p) {
-        var per = (typeof p.perDay === 'number' && p.perDay > 0) ? p.perDay : 1;
-        var n = (d.supplements || []).filter(function (r) {
-          if (!r || careKeyOf(r.time) !== careDayNow()) return false;
-          return r.planId ? (r.planId === p.id) : (r.name === p.name);
-        }).length;
-        supDone += Math.min(per, n);
-      });
+      /* 第 280 次：「今天要吃几次」按服用日程算（每周特定几天 / 隔天的计划，不在今天就不计）；口径与营养品页同一份 */
+      var supDue = (Modules.supplement && Modules.supplement._due) ? Modules.supplement._due(d) : [];
+      var supNeed = supDue.reduce(function (s, x) { return s + x.need; }, 0);
+      var supDone = supDue.reduce(function (s, x) { return s + x.done; }, 0);
 
       tiles.push({ id: 'jaundice', stages: ['baby'], name: '黄疸', accent: 'jaundice', sum: jaunLast ? (jaunLast.value + ' ' + (jaunLast.unit === 'umol' ? 'µmol/L' : 'mg/dL')) : '暂无', badge: '', guide: false, empty: !jaunLast });
       tiles.push({ id: 'bath', stages: ['baby'], name: '洗澡', accent: 'bath', sum: bathM ? ('本月 ' + bathM + ' 次') : '暂无', badge: '', guide: false, empty: !bathM });
       tiles.push({ id: 'swim', stages: ['baby'], name: '游泳', accent: 'swim', sum: swimM ? ('本月 ' + swimM + ' 次') : '暂无', badge: '', guide: false, empty: !swimM });
       tiles.push({ id: 'sun', stages: ['baby'], name: '日晒', accent: 'sun', sum: sunMin ? ('今日 ' + sunMin + ' 分钟') : '暂无今日', badge: '', guide: false, empty: !sunMin });
       tiles.push({ id: 'water', stages: ['baby'], name: '饮水', accent: 'water', sum: waterMl ? ('今日 ' + waterMl + ' ml') : '暂无今日', badge: '', guide: false, empty: !waterMl });
-      tiles.push({ id: 'supplement', stages: ['baby'], name: '补剂', accent: 'supplement', sum: supNeed ? ('今日 ' + supDone + '/' + supNeed) : '未设计划', badge: supNeed && supDone < supNeed ? '待打卡' : '', guide: false, empty: !supNeed && !(d.supplements || []).length });
+      tiles.push({ id: 'supplement', stages: ['baby'], name: '营养品', accent: 'supplement', sum: supNeed ? ('今日 ' + supDone + '/' + supNeed) : ((d.supplementPlans || []).some(function (p) { return p && p.active !== false; }) ? '今天没有安排' : '未设计划'), badge: supNeed && supDone < supNeed ? '待打卡' : '', guide: false, empty: !supNeed && !(d.supplementPlans || []).length && !(d.supplements || []).length });
       /* 第 269 次：辅食独立模块。与第 132 次六个模块同纪律：近 7 天没记过就不占首屏 */
       var solidAll = (d.feedings || []).filter(function (r) { return r && r.type === 'solid' && r.start && !isNaN(new Date(r.start).getTime()); });
       var solidToday = solidAll.filter(function (r) { return careKeyOf(r.start) === careDayNow(); }).length;

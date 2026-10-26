@@ -106,7 +106,12 @@
      剩余天数在有 pieces 时改用「近 7 天实际用量」估算，比手填天数准。 */
   var PIECES_MAX = 99999;
   function hasPieces(s) { return !!s && typeof s.pieces === 'number' && isFinite(s.pieces) && s.pieces >= 0; }
-  function pcsUnit(s) { return s && s.cat === '纸尿裤' ? '片' : (s && s.cat === '清洁' ? '抽' : '个'); }
+  /* 第 280 次：营养品页当场添加的用品带 pcsU（粒 / 片 / 颗 / 滴 / 包 / ml / 次，白名单），剩余数量按它写 */
+  var PCS_U = ['粒', '片', '颗', '滴', '包', 'ml', '次'];
+  function pcsUnit(s) {
+    if (s && PCS_U.indexOf(s.pcsU) >= 0) return s.pcsU;
+    return s && s.cat === '纸尿裤' ? '片' : (s && s.cat === '清洁' ? '抽' : '个');
+  }
   function parsePieces(v) {
     var n = parseInt(v, 10);
     return (isNaN(n) || n < 0) ? null : Math.min(PIECES_MAX, n);
@@ -119,6 +124,12 @@
       if (!r || !Array.isArray(r.used) || r.used.indexOf(id) < 0) return;
       var t = new Date(r.time).getTime();
       if (t >= since && t <= now + 60000) { n++; if (t < first) first = t; }
+    });
+    /* 第 280 次：营养品服用记录里扣过这件的（stock.n 件）也算用量 */
+    ((d && d.supplements) || []).forEach(function (r) {
+      if (!r || !r.stock || r.stock.id !== id) return;
+      var t = new Date(r.time).getTime(), k = Number(r.stock.n);
+      if (t >= since && t <= now + 60000 && k > 0 && k < 100) { n += Math.floor(k); if (t < first) first = t; }
     });
     /* 分母 = 窗口内第一次扣减到现在的天数（至少 1 天、最多 7 天）：刚开始用时不会被 ÷7 稀释成「够用 300 天」 */
     return n ? n / Math.max(1, Math.min(7, (now - first) / 864e5)) : 0;

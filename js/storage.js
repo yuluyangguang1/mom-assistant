@@ -981,7 +981,7 @@
       }
       var LABEL = { feedings: '喂养', sleeps: '睡眠', diapers: '尿布', growth: '生长', meds: '吃药', milestones: '里程碑',
         milestoneObs: '发育观察', temps: '体温', baths: '洗澡', swims: '游泳', suns: '日晒', waters: '饮水', jaundices: '黄疸',
-        supplements: '补剂', supplementPlans: '补剂计划', periods: '经期', contractions: '宫缩', fetal: '胎动',
+        supplements: '营养品服用', supplementPlans: '营养品', periods: '经期', contractions: '宫缩', fetal: '胎动',
         fetalSessions: '胎动计数', laborEvents: '破水见红', milkStash: '储奶', moods: '情绪', supplies: '囤货' };
       var ARR_BABY = BABY_KEYS.filter(function (k) { return ARRAY_KEYS.indexOf(k) >= 0; });
       function mergeBaby(dst, src) {

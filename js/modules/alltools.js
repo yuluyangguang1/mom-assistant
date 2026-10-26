@@ -49,7 +49,7 @@
         { id: 'swim', name: '游泳' },
         { id: 'sun', name: '日晒' },
         { id: 'water', name: '饮水' },
-        { id: 'supplement', name: '补剂' },
+        { id: 'supplement', name: '营养品' },
         { id: 'mood', name: '妈妈情绪' },
         { id: 'finance', name: '记账' },
         { id: 'supplies', name: '消耗品' },

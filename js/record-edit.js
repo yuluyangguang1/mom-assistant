@@ -120,7 +120,7 @@
       ]
     },
     supplement: {
-      arr: 'supplements', title: '编辑补剂打卡',
+      arr: 'supplements', title: '编辑服用记录',
       fields: [{ k: 'time', l: '时间', t: 'dt' }, NOTE]
     },
     growth: {

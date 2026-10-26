@@ -55,7 +55,7 @@
     { key: 'swim',        title: '游泳',     go: 'swim',        icon: 'swim' },
     { key: 'sun',         title: '日晒',     go: 'sun',         icon: 'sun' },
     { key: 'water',       title: '饮水',     go: 'water',       icon: 'water' },
-    { key: 'supplement',  title: '补剂',     go: 'supplement',  icon: 'supplement' },
+    { key: 'supplement',  title: '营养品',     go: 'supplement',  icon: 'supplement' },
     { key: 'supplies',    title: '消耗品',   go: 'supplies',    icon: 'supplies' },
     { key: 'finance',     title: '记账',     go: 'finance',     icon: 'finance' },
     { key: 'pregnancy',   title: '孕期',     go: 'pregnancy',   icon: 'pregnancy' },
@@ -450,7 +450,7 @@
       var r = list[i];
       if (!r || typeof r !== 'object') continue;
       rows.push({
-        title: txt(r.name) || '补剂',
+        title: txt(r.name) || '营养品',
         sub: [fmt(r.time), txt(r.dose), txt(r.note)].filter(Boolean).join(' · '),
         text: makeText([r.name, r.dose, r.time, r.note, '补剂', '营养品']),
         sortKey: ts(r.time)
