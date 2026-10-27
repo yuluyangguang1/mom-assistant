@@ -965,9 +965,10 @@ def test_r273(b):
     ev("""(()=>{const d=Storage.get();d.settings.stage='pregnancy';const m0=Math.floor((Date.now()-600e3)/60000)*60000;
       d.contractions=[{id:'c1',start:__L(m0+10e3),end:__L(m0+60e3)},{id:'c2',start:__L(m0+295e3),end:__L(m0+345e3)},{id:'c3',start:__L(m0+540e3+7e3),end:__L(m0+540e3+9e3)}];Storage.save()})()""")
     go('contraction')
-    rows = ev("[...document.querySelectorAll('#view .list li')].map(l=>l.textContent.trim())")
-    check('#13 列表：50 秒写「时长 50秒」、间隔写「距上次 4分45秒」，不再是 0分', len(rows) == 3 and '时长 50秒' in rows[0] and '距上次 4分45秒' in rows[1] and '时长 2秒' in rows[2] and not any('0分' in r for r in rows), rows)
-    st = ev("[...document.querySelectorAll('#view .stat .stat-num')].map(s=>s.textContent)")
+    # 第 287 次：宫缩页迁到新骨架，列表 = 时间轴（新的在上），近一小时 = .mod-stats
+    rows = ev("[...document.querySelectorAll('#view .mod-tl .tl-row')].map(l=>l.textContent.trim())")
+    check('#13 列表：50 秒写「持续 50秒」、间隔写「间隔 4分45秒」，不再是 0分', len(rows) == 3 and '持续 50秒' in rows[2] and '间隔 4分45秒' in rows[1] and '持续 2秒' in rows[0] and not any('0分' in r for r in rows), rows)
+    st = ev("[...document.querySelectorAll('#view .mod-stats b')].map(s=>s.textContent)")
     check('#13 近一小时：平均时长 / 平均间隔同一「分秒」写法', len(st) == 3 and st[1] == '34秒' and st[2] == '4分29秒', st)
     ev("(()=>{const d=Storage.get();d.openContraction={id:'cx',start:__L(Date.now()-3200)};Storage.save();App.rerender()})()"); p.wait_for_timeout(150)
     check('#13 计时中读数按秒', ev("document.getElementById('cTimer').textContent") in ('3秒', '4秒'), ev("document.getElementById('cTimer').textContent"))
@@ -1379,7 +1380,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v250（第 286 次升）', "var CACHE = 'baoma-static-v250';" in sw)
+    check('#275 SW 版本 v251（第 287 次升）', "var CACHE = 'baoma-static-v251';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -2001,15 +2002,19 @@ def test_r278(b):
     gl = ev("(window.__csv.slice(-1)[0]||'').split(/\\r?\\n/).filter(l=>l.startsWith(Storage.get().growth.slice(-1)[0].date)).pop()")
     check('#31 生长 CSV：这一行身长 / 头围两列为空', gl is not None and gl.endswith(',,'), gl)
     # —— #32 经期：连点保存只存一条；已有未结束 / 区间重叠时拦下；重复老数据不影响预测 ——
+    # 第 287 次：经期迁到新骨架，记录在半屏面板里（#pdS / #pdE / #pdSave），错误写在 .pd-err
     ev("Storage.get().periods=[];Storage.save()"); go('period')
-    ev("document.querySelector('#pSave').click();document.querySelector('#pSave').click()"); p.wait_for_timeout(500)
-    ev("document.querySelector('#pSave').click()"); p.wait_for_timeout(500)
+    ev("document.querySelector('[data-pd=\"new\"]').click()"); p.wait_for_timeout(300)
+    ev("(()=>{const b=document.querySelector('#pdSave');b.click();b.click()})()"); p.wait_for_timeout(600)
+    ev("document.querySelector('[data-pd=\"new\"]').click()"); p.wait_for_timeout(300)
+    ev("document.querySelector('#pdSave').click()"); p.wait_for_timeout(300)
     pr = ev("Storage.get().periods.map(x=>[x.start,x.end])")
     check('#32 经期：连点保存 / 再点一次，只存下一条进行中的经期，并提示先结束它', len(pr) == 1 and pr[0][1] is None and '还没结束' in ev("(document.querySelector('.field-error')||{}).textContent||''"), pr)
-    ev("(()=>{const d=Storage.get(),t=Util.todayISO();d.periods=[{id:'q1',start:Util.addDays(t,-20),end:Util.addDays(t,-15),symptoms:[]}];Storage.save();App.rerender()})()"); p.wait_for_timeout(400)
-    ev("(()=>{const i=document.querySelector('#pStart');i.value=Util.addDays(Util.todayISO(),-17);const e=document.querySelector('#pEnd');e.value=Util.addDays(Util.todayISO(),-12);document.querySelector('#pSave').click()})()"); p.wait_for_timeout(400)
+    ev("(()=>{Sheet.closeAll&&Sheet.closeAll();document.getElementById('modalRoot').innerHTML='';const d=Storage.get(),t=Util.todayISO();d.periods=[{id:'q1',start:Util.addDays(t,-20),end:Util.addDays(t,-15),symptoms:[]}];Storage.save();App.rerender()})()"); p.wait_for_timeout(600)
+    ev("document.querySelector('[data-pd=\"new\"]').click()"); p.wait_for_timeout(300)
+    ev("(()=>{const i=document.querySelector('#pdS');i.value=Util.addDays(Util.todayISO(),-17);const e=document.querySelector('#pdE');e.value=Util.addDays(Util.todayISO(),-12);document.querySelector('#pdSave').click()})()"); p.wait_for_timeout(400)
     ov = ev("[Storage.get().periods.length, (document.querySelector('.field-error')||{}).textContent||'']")
-    ev("(()=>{const i=document.querySelector('#pStart');i.value=Util.addDays(Util.todayISO(),-50);const e=document.querySelector('#pEnd');e.value=Util.addDays(Util.todayISO(),-46);document.querySelector('#pSave').click()})()"); p.wait_for_timeout(400)
+    ev("(()=>{const i=document.querySelector('#pdS');i.value=Util.addDays(Util.todayISO(),-50);const e=document.querySelector('#pdE');e.value=Util.addDays(Util.todayISO(),-46);document.querySelector('#pdSave').click()})()"); p.wait_for_timeout(400)
     check('#32 经期：和已有记录区间重叠时拦下并说明；不重叠的补记照常保存', ov[0] == 1 and '重叠' in ov[1] and ev("Storage.get().periods.length") == 2, ov)
     pw = ev("Modules.period._predictWindow([{start:'2026-06-01'},{start:'2026-06-29'},{start:'2026-07-27'},{start:'2026-08-24'},{start:'2026-08-24'}])")
     check('#32 经期预测：老数据里同一天的重复记录只算一次，预测照常给出', pw.get('ok') is True, pw)
@@ -3506,9 +3511,274 @@ def test_r286(b):
     ctx.close()
 
 
+R287_SEED = r"""(()=>{const d=Storage.get();const z=n=>String(n).padStart(2,'0');const L=t=>{t=new Date(t);return t.getFullYear()+'-'+z(t.getMonth()+1)+'-'+z(t.getDate())+'T'+z(t.getHours())+':'+z(t.getMinutes())+':'+z(t.getSeconds())};
+ const now=Date.now(),m0=Math.floor((now-1500e3)/60000)*60000,T=Util.todayISO();
+ d.contractions=[];for(let i=0;i<5;i++)d.contractions.push({id:'c'+i,start:L(m0+i*300e3+5e3),end:L(m0+i*300e3+5e3+(50+i*3)*1e3),intensity:i%2?2:undefined});
+ d.laborEvents=[{id:'lb1',time:L(now-3600e3),type:'show',note:'<img src=x onerror=window.__pwn=1>'},{id:'lbBad',time:L(now-1800e3),type:'<b>x</b>',note:null}];
+ d.openContraction=null;d.fetalSession=null;
+ d.fetal=[];for(let i=0;i<6;i++)d.fetal.push({id:'f'+i,time:L(now-(i+1)*1200e3)});d.fetal.push({id:'fBad',time:'zz'});
+ d.fetalSessions=[{id:'fs1',start:L(now-3*3600e3),end:L(now-3*3600e3+1800e3),count:8}];
+ d.periods=[{id:'p1',start:Util.addDays(T,-90),end:Util.addDays(T,-85),symptoms:['腹痛'],flow:'多',pain:'中'},{id:'p2',start:Util.addDays(T,-61)+'T00:00:00',end:Util.addDays(T,-57)},
+   {id:'p3',start:Util.addDays(T,-33),end:Util.addDays(T,-29),symptoms:['<b id=pwnP>x</b>'],legacyX:1},{id:'p4',start:Util.addDays(T,-4),end:Util.addDays(T,-1),flow:'少'}];
+ if(!d.pregnancy||typeof d.pregnancy!=='object')d.pregnancy={};delete d.pregnancy.contractionRule;Storage.save()})()"""
+R287_TRUNC = r"""(sel)=>[...document.querySelectorAll(sel)].filter(e=>e.offsetParent!==null||getComputedStyle(e).position==='fixed').map(e=>{const r=e.getBoundingClientRect();
+  return {t:e.textContent.trim().slice(0,20),over:e.scrollWidth>e.clientWidth+1||r.right>innerWidth+0.5||r.left<-0.5,h:Math.round(r.height)}}).filter(x=>x.over)"""
+
+
+def test_r287(b):
+    """第 287 次：经期 / 宫缩 / 胎动迁到新骨架——三页渲染、增改删、旧数据兼容、日期页接入、XSS、窄屏大字号、防重复保存、深浅色。"""
+    ctx = b.new_context(viewport={'width': 393, 'height': 852}, has_touch=True, device_scale_factor=2)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+    ev = p.evaluate
+    ev(R273_SEED)
+
+    def go(t, wait=450):
+        ev(f"App.showTab('{t}',{{noVT:true}})"); p.wait_for_timeout(wait)
+        _poll(p, "!document.getAnimations().some(a=>a.playState==='running'&&a.effect&&a.effect.getComputedTiming().iterations!==Infinity)", 3000)
+
+    def clear():
+        ev("document.querySelectorAll('#toastRoot .toast').forEach(t=>t.remove());Sheet.closeAll&&Sheet.closeAll();document.getElementById('modalRoot').innerHTML=''"); p.wait_for_timeout(500)
+
+    def undo():
+        r = ev("(()=>{const b=[...document.querySelectorAll('#toastRoot button')].find(x=>x.textContent.indexOf('撤销')>=0);if(b){b.click();return true}return false})()"); p.wait_for_timeout(350)
+        return r
+
+    title = lambda: ev("(document.querySelector('#modalRoot #ftsTitle')||{}).textContent||null")
+    # —— 1. 空状态：三页都是插画 + 一句话，页面上不填表，底部固定按钮，页头状态行藏起来 ——
+    ev("(()=>{const d=Storage.get();d.periods=[];d.contractions=[];d.laborEvents=[];d.fetal=[];d.fetalSessions=[];d.openContraction=null;d.fetalSession=null;Storage.save()})()")
+    emp = {}
+    for t in ('period', 'contraction', 'fetal'):
+        go('home', 200); go(t)
+        emp[t] = ev("""({empty:!!document.querySelector('#view .skel-page .sk-empty'),form:!!document.querySelector('#view input:not(.hap-sw), #view select, #view textarea'),
+          cta:!!document.querySelector('#view .mod-cta button'),pos:getComputedStyle(document.querySelector('#view .mod-cta')).position,status:getComputedStyle(document.querySelector('.mod-head .hero-status')||document.body).display,
+          old:!!document.querySelector('#view .warn-box, #view .empty-state, #view details, #view .card:not(.dash-card)')})""")
+    check('#287 空状态（经期 / 宫缩 / 胎动）：插画 + 一句话，页面上没有表单 / 旧卡片，底部按钮固定，页头状态行藏起来',
+          all(v['empty'] and not v['form'] and v['cta'] and v['pos'] == 'fixed' and v['status'] == 'none' and not v['old'] for v in emp.values()), emp)
+    # —— 2. 旧数据兼容：老字段 / 坏记录 / 带时刻的日期照常渲染，坏 type 的破水见红不显示 ——
+    ev(R287_SEED)
+    pages = {}
+    for t in ('period', 'contraction', 'fetal'):
+        go('home', 200); go(t)
+        pages[t] = ev("""({sum:(document.querySelector('#view .mod-sum')||{}).textContent||'',dash:!!document.querySelector('#view .dash-card'),rows:document.querySelectorAll('#view .mod-tl .tl-row').length,
+          form:!!document.querySelector('#view input:not(.hap-sw), #view select'),txt:document.querySelector('#view').textContent})""")
+    pp, pc, pf = pages['period'], pages['contraction'], pages['fetal']
+    check('#287 经期页：摘要（上次开始 · 持续几天）+ 周期看板 + 4 条历史（带时刻的老开始日期也认）+ 页面不填表',
+          '持续' in pp['sum'] and pp['dash'] and pp['rows'] == 4 and not pp['form'] and 'NaN' not in pp['txt'] and 'undefined' not in pp['txt'], pp)
+    check('#287 宫缩页：摘要（距上次开始 / 上次持续）+ 近一小时看板 + 5 次宫缩和 1 条见红进同一条时间轴，坏 type 的不显示',
+          '距上次开始' in pc['sum'] and pc['dash'] and pc['rows'] == 6 and '<b>x</b>' not in pc['txt'] and 'NaN' not in pc['txt'], pc)
+    check('#287 胎动页：摘要（今天几次）+ 今天看板 + 计数段一行 + 段外的单次胎动（坏时间的跳过）',
+          '今天' in pf['sum'] and pf['dash'] and pf['rows'] == 7 and 'NaN' not in pf['txt'], pf)
+    # —— 3. 经期：面板增改删 ——
+    go('home', 200); go('period')
+    ev("document.querySelector('[data-pd=\"new\"]').click()"); p.wait_for_timeout(400)
+    sh = ev("({t:document.querySelector('#ftsTitle').textContent,s:document.querySelector('#pdS').value,e:document.querySelector('#pdE').value,eb:document.querySelector('[data-pd-end]').textContent,save:!!document.querySelector('.rs-savebar #pdSave'),flow:document.querySelectorAll('[data-pdseg=flow]').length,pain:document.querySelectorAll('[data-pdseg=pain]').length,sym:document.querySelectorAll('[data-pdsym]').length})")
+    check('#287 经期「记录经期」面板：开始默认今天、结束「未结束」、经量 3 档 / 痛经 4 档 / 症状 6 个、保存吸底', sh['t'] == '记录经期' and sh['s'] == ev("Util.todayISO()") and sh['e'] == '' and sh['eb'] == '未结束' and sh['save'] and sh['flow'] == 3 and sh['pain'] == 4 and sh['sym'] == 6, sh)
+    clear()
+    # 已有一条 4 天前开始、昨天结束的；补记 20–16 天前一条，经量中 / 痛经轻 / 腰酸，连点保存只存一条
+    ev("document.querySelector('[data-pd=\"new\"]').click()"); p.wait_for_timeout(400)
+    ev("""(()=>{const t=Util.todayISO(),s=document.querySelector('#pdS'),e=document.querySelector('#pdE');s.value=Util.addDays(t,-20);s.dispatchEvent(new Event('change'));e.value=Util.addDays(t,-16);e.dispatchEvent(new Event('change'));
+      document.querySelector('[data-pdseg=flow][data-v=\"中\"]').click();document.querySelector('[data-pdseg=pain][data-v=\"轻\"]').click();document.querySelector('[data-pdseg=pain][data-v=\"中\"]').click();document.querySelector('[data-pdseg=pain][data-v=\"中\"]').click();document.querySelector('[data-pdseg=pain][data-v=\"轻\"]').click();
+      document.querySelector('[data-pdsym=\"腰酸\"]').click();const b=document.querySelector('#pdSave');b.click();b.click()})()"""); p.wait_for_timeout(400)
+    nr = ev("Storage.get().periods.filter(x=>x.start===Util.addDays(Util.todayISO(),-20))")
+    check('#287 经期补记：连点保存只存一条；字段形状不变（start/end 日期、flow、pain、symptoms），再点一次取消选中', len(nr) == 1 and nr[0]['end'] == ev("Util.addDays(Util.todayISO(),-16)") and nr[0]['flow'] == '中' and nr[0]['pain'] == '轻' and nr[0]['symptoms'] == ['腰酸'] and sorted(nr[0].keys()) == ['end', 'flow', 'id', 'pain', 'start', 'symptoms'], nr)
+    # 点历史一行修改：老记录（p3，带自定义字段）只改结束日，别的字段原样
+    clear(); ev("[...document.querySelectorAll('[data-pdopen]')].find(b=>b.dataset.pdopen==='p3').click()"); p.wait_for_timeout(400)
+    ed = ev("({t:document.querySelector('#ftsTitle').textContent,s:document.querySelector('#pdS').value,del:!!document.querySelector('[data-pddel]'),sym:[...document.querySelectorAll('[data-pdsym].active')].length})")
+    ev("(()=>{const e=document.querySelector('#pdE');e.value=Util.addDays(Util.todayISO(),-28);e.dispatchEvent(new Event('change'));document.querySelector('#pdSave').click()})()"); p.wait_for_timeout(400)
+    p3 = ev("Storage.get().periods.find(x=>x.id==='p3')")
+    check('#287 经期修改：点历史一行打开「修改经期」带原值；保存不新增、老字段保留（导入的怪症状名只当文字，不进选中）', ed['t'] == '修改经期' and ed['s'] == ev("Util.addDays(Util.todayISO(),-33)") and ed['del'] and p3['end'] == ev("Util.addDays(Util.todayISO(),-28)") and p3.get('legacyX') == 1 and ev("Storage.get().periods.length") == 5 and not ev("!!document.querySelector('#pwnP')"), [ed, p3])
+    # 重叠拦下（和 p4 重叠），错误写在日期下面；删除走撤销
+    clear(); ev("document.querySelector('[data-pd=\"new\"]').click()"); p.wait_for_timeout(400)
+    ev("(()=>{const s=document.querySelector('#pdS');s.value=Util.addDays(Util.todayISO(),-3);s.dispatchEvent(new Event('change'));document.querySelector('#pdSave').click()})()"); p.wait_for_timeout(300)
+    ov = ev("[(document.querySelector('.pd-err')||{}).textContent||'',Storage.get().periods.length,!!document.querySelector('#modalRoot .ft-sheet')]")
+    check('#287 经期：和已有记录重叠时拦下，面板不关，原因写在日期下面', '重叠' in ov[0] and ov[1] == 5 and ov[2], ov)
+    clear(); ev("[...document.querySelectorAll('[data-pdopen]')].find(b=>b.dataset.pdopen==='p1').click()"); p.wait_for_timeout(400)
+    ev("document.querySelector('[data-pddel]').click()"); p.wait_for_timeout(400)
+    n1 = ev("Storage.get().periods.length"); u = undo()
+    check('#287 经期修改面板里删除，带撤销', n1 == 4 and u and ev("Storage.get().periods.length") == 5, [n1, u])
+    # 进行中：底部变「今天结束 | ⊕」，今天结束连点只写一次，可撤销
+    ev("(()=>{const d=Storage.get();d.periods=d.periods.filter(x=>x.id!=='p4');d.periods.push({id:'p5',start:Util.addDays(Util.todayISO(),-2),end:null,symptoms:[]});Storage.save();App.rerender()})()"); p.wait_for_timeout(500)
+    og = ev("({cta:[...document.querySelectorAll('#view .mod-cta button')].map(b=>b.getAttribute('data-pd')),sum:document.querySelector('#view .mod-sum').textContent,live:!!document.querySelector('.tl-live')})")
+    ev("(()=>{const b=document.querySelector('[data-pd=\"end\"]');b.click();b.click()})()"); p.wait_for_timeout(400)
+    p5 = ev("Storage.get().periods.find(x=>x.id==='p5').end")
+    check('#287 经期进行中：摘要「经期第 3 天」、底部「今天结束 | ⊕ 补记」；今天结束连点只写一次', og['cta'] == ['end', 'new'] and '经期第 3 天' in og['sum'] and og['live'] and p5 == ev("Util.todayISO()"), [og, p5])
+    # 妈妈的记录不随宝宝切换
+    n0 = ev("Storage.get().periods.length")
+    idB = ev("Storage.addBaby({name:'二宝',birthDate:'2026-10-01'}).id"); ev(f"Storage.switchBaby('{idB}')"); go('home', 200); go('period')
+    nB = ev("[Storage.get().periods.length, document.querySelectorAll('#view .mod-tl .tl-row').length]")
+    idA = ev("Storage.get().babies[0].id"); ev(f"Storage.switchBaby('{idA}');Storage.removeBaby('{idB}')")
+    check('#287 经期 / 宫缩 / 胎动是妈妈的记录：切到二宝后经期页照样是这些记录', nB == [n0, n0], [n0, nB])
+    # —— 4. 宫缩：计时 / 强度 / 结束 / 取消（连点不重复）——
+    clear(); ev(R287_SEED); go('home', 200); go('contraction')
+    nC = ev("Storage.get().contractions.length")
+    ev("(()=>{const b=document.querySelector('#cStart');b.click();b.click()})()"); p.wait_for_timeout(300)
+    live = ev("({oc:!!Storage.get().openContraction,int:document.querySelectorAll('#view .mod-cta .ct-int [data-int]').length,mini:!!document.querySelector('#view .mod-cta .ft-mini #cTimer'),sum:document.querySelector('#view .mod-sum').textContent})")
+    ev("document.querySelector('[data-int=\"3\"]').click()"); p.wait_for_timeout(250)
+    i3 = ev("[Storage.get().openContraction.intensity,document.querySelector('[data-int=\"3\"]').getAttribute('aria-checked')]")
+    ev("document.querySelector('[data-int=\"3\"]').click()"); p.wait_for_timeout(250)
+    i0 = ev("Storage.get().openContraction.intensity||null"); ev("document.querySelector('[data-int=\"2\"]').click()"); p.wait_for_timeout(250)
+    ev("(()=>{const d=Storage.get();d.openContraction.start=__L(Date.now()-52000);Storage.save()})()")
+    ev("(()=>{const b=document.querySelector('#cEnd');b.click();b.click()})()"); p.wait_for_timeout(300)
+    lc = ev("Storage.get().contractions.slice(-1)[0]")
+    check('#287 宫缩计时：开始（连点只开一次）→ 底部变「轻 / 中 / 强」+ 迷你计时条；强度再点取消；结束连点只记一条、强度和秒数都在',
+          live['oc'] and live['int'] == 3 and live['mini'] and '宫缩中' in live['sum'] and i3 == [3, 'true'] and i0 is None and ev("Storage.get().contractions.length") == nC + 1 and lc['intensity'] == 2 and lc.get('end') and not ev("Storage.get().openContraction") and any(('本次宫缩 %d秒' % k) in ev(R273_TOASTS) for k in (52, 53, 54)), [live, i3, i0, lc])
+    ev("document.querySelector('#cStart').click()"); p.wait_for_timeout(250); ev("document.querySelector('#cCancel').click()"); p.wait_for_timeout(250)
+    check('#287 宫缩计时取消：不留记录', not ev("Storage.get().openContraction") and ev("Storage.get().contractions.length") == nC + 1)
+    # 补记面板：宫缩（持续 50 秒、强度中）/ 破水（备注 XSS 只当文字）；连点保存只存一条
+    clear(); ev("document.querySelector('[data-ct=\"add\"]').click()"); p.wait_for_timeout(400)
+    ad = ev("({t:document.querySelector('#ftsTitle').textContent,k:[...document.querySelectorAll('[data-ctk]')].map(b=>b.textContent),note:document.querySelector('.ct-lf').hidden,dur:!document.querySelector('.ct-cf').hidden})")
+    ev("(()=>{const dd=document.querySelector('#ctDate');dd.value=Util.addDays(Util.todayISO(),-1);document.querySelector('#ctTime').value='06:30';document.querySelector('[data-ctq=\"45\"]').click();const i=document.querySelector('#ctDur');i.value='50';i.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-cti=\"2\"]').click();const b=document.querySelector('#ctSave');b.click();b.click()})()"); p.wait_for_timeout(400)
+    bc = ev("Storage.get().contractions.filter(c=>c.start.slice(0,16)===Util.addDays(Util.todayISO(),-1)+'T06:30')")
+    check('#287 宫缩补记面板：宫缩 / 破水 / 见红三选一（宫缩时不显示备注）；持续 50 秒 → 结束 = 开始 + 50 秒、强度中，连点只存一条',
+          ad['t'] == '记录宫缩' and ad['k'] == ['宫缩', '破水', '见红'] and ad['note'] and ad['dur'] and len(bc) == 1 and (ev(f"(new Date('{bc[0]['end']}')-new Date('{bc[0]['start']}'))/1000") == 50) and bc[0]['intensity'] == 2, [ad, bc])
+    clear(); ev("document.querySelector('[data-ct=\"add\"]').click()"); p.wait_for_timeout(400)
+    ev("(()=>{document.querySelector('[data-ctk=\"water\"]').click();document.querySelector('#ctDate').value=Util.addDays(Util.todayISO(),-1);document.querySelector('#ctTime').value='07:10';document.querySelector('#ctNote').value='<b id=pwnW>清</b>';document.querySelector('#ctSave').click()})()"); p.wait_for_timeout(400)
+    lw = ev("({ev:Storage.get().laborEvents.filter(e=>e.type==='water'),pwn:!!document.querySelector('#pwnW'),row:[...document.querySelectorAll('#view .tl-row.ct-lab b')].map(b=>b.textContent)})")
+    check('#287 记录破水：进 laborEvents（type=water、备注照存），时间轴出现「破水」，备注里的 HTML 只当文字', len(lw['ev']) == 1 and lw['ev'][0]['note'] == '<b id=pwnW>清</b>' and not lw['pwn'] and '破水' in lw['row'], lw)
+    # 点时间轴修改：只改强度，起止秒数原样（第 273 次 #14 同口径）；删除走撤销
+    clear(); ev("[...document.querySelectorAll('[data-ctopen][data-k=c]')].find(b=>b.dataset.ctopen==='c1').click()"); p.wait_for_timeout(400)
+    e1 = ev("({t:document.querySelector('#ftsTitle').textContent,d:document.querySelector('#ctDur').value,kind:!!document.querySelector('[data-ctk]')})")
+    before = ev("Storage.get().contractions.find(c=>c.id==='c1')")
+    ev("(()=>{document.querySelector('[data-cti=\"3\"]').click();document.querySelector('#ctSave').click()})()"); p.wait_for_timeout(400)
+    after = ev("Storage.get().contractions.find(c=>c.id==='c1')")
+    check('#287 宫缩修改：点时间轴一行打开「修改宫缩」（持续 53 秒）；只改强度 → 开始 / 结束的秒原样', e1['t'] == '修改宫缩' and e1['d'] == '53' and not e1['kind'] and after['start'] == before['start'] and after['end'] == before['end'] and after['intensity'] == 3, [e1, before, after])
+    clear(); ev("[...document.querySelectorAll('[data-ctopen][data-k=c]')].find(b=>b.dataset.ctopen==='c1').click()"); p.wait_for_timeout(400)
+    ev("document.querySelector('[data-ctdel]').click()"); p.wait_for_timeout(400)
+    g1 = ev("!Storage.get().contractions.some(c=>c.id==='c1')"); u = undo()
+    check('#287 宫缩修改面板里删除，带撤销', g1 and u and ev("Storage.get().contractions.some(c=>c.id==='c1')"), [g1, u])
+    # 提示规则面板 → 摘要里一行中性提示；近一小时 3 个数
+    clear(); ev("document.querySelector('[data-ct=\"rule\"]').click()"); p.wait_for_timeout(400)
+    ev("(()=>{document.querySelector('#crIv').value='6';document.querySelector('#crDur').value='45';document.querySelector('#crSpan').value='20';document.querySelector('#crSave').click()})()"); p.wait_for_timeout(400)
+    rl = ev("({r:Storage.get().pregnancy.contractionRule,ref:[...document.querySelectorAll('#view .mod-sum .ms-ref')].map(e=>e.textContent).join('|'),st:[...document.querySelectorAll('#view .mod-stats small')].map(e=>e.textContent)})")
+    check('#287 提示规则半屏：保存 {iv,dur,span}，摘要写「已符合 / 尚未符合你填写的…」（中性），近一小时 次数 / 平均持续 / 平均间隔',
+          rl['r'] == {'iv': 6, 'dur': 45, 'span': 20} and '你填写的「间隔 ≤6 分、每次 ≥45 秒」' in rl['ref'] and rl['st'] == ['次数', '平均持续', '平均间隔'], rl)
+    ev("__dl=[]"); ev("document.querySelector('#cExport').click()"); p.wait_for_timeout(150)
+    tl = ev("(__dl.pop()||['',''])[1]")
+    check('#287 宫缩导出时间线（文本）照旧，破水 / 见红一并写进去', '咿呀记 宫缩时间线' in tl and '见红' in tl and '破水' in tl, tl[:200])
+    # —— 5. 胎动：+1 / 计数段 / 修改 / 删除 ——
+    clear(); go('home', 200); go('fetal')
+    f0 = ev("Storage.get().fetal.length")
+    p.locator('#ftAdd').tap(); p.locator('#ftAdd').tap(); p.wait_for_timeout(400)
+    f1 = ev("Storage.get().fetal.length")
+    # 触感层回声（label.hap-layer > input.hap-sw 的合成 click）不算一下
+    ev("(()=>{const b=document.querySelector('#ftAdd');const l=document.createElement('label');l.className='hap-layer';const i=document.createElement('input');i.type='checkbox';i.className='hap-sw';l.appendChild(i);b.appendChild(l);i.click()})()"); p.wait_for_timeout(300)
+    f2 = ev("Storage.get().fetal.length")
+    ev("document.querySelector('#ftAdd').click()"); p.wait_for_timeout(200)
+    f3 = ev("Storage.get().fetal.length")
+    check('#287 胎动 +1：手指快速点两下只记一次、触感层回声不算、脚本点一次 +1，提示里写今天第几次', f1 == f0 + 1 and f2 == f1 and f3 == f1 + 1 and '今天第' in ev(R273_TOASTS), [f0, f1, f2, f3])
+    clear(); p.wait_for_timeout(1100); ev("(()=>{const b=document.querySelector('#fsStart');b.click();b.click()})()"); p.wait_for_timeout(300)
+    s1 = ev("({s:!!Storage.get().fetalSession,mini:!!document.querySelector('#view .mod-cta .ft-mini #fsElapsed'),add:!!document.querySelector('#view .mod-cta #ftAdd'),n:document.querySelector('.fe-n').textContent})")
+    for _ in range(3):
+        ev("document.querySelector('#ftAdd').click()"); p.wait_for_timeout(120)
+    n3 = ev("document.querySelector('.fe-n').textContent")
+    ns = ev("Storage.get().fetalSessions.length")
+    ev("(()=>{const b=document.querySelector('#fsEnd');b.click();b.click()})()"); p.wait_for_timeout(300)
+    ls = ev("Storage.get().fetalSessions")
+    check('#287 胎动计数：开始（连点一次）→ 底部迷你计时条 + ＋1；本次次数跟着走；结束连点只存一段、次数 3',
+          s1['s'] and s1['mini'] and s1['add'] and s1['n'] == '0' and n3 == '3' and len(ls) == ns + 1 and ls[-1]['count'] == 3 and not ev("Storage.get().fetalSession"), [s1, n3, ls[-1:]])
+    hid = ev("(()=>{const r=[...document.querySelectorAll('#view .mod-tl .tl-row')];return [r.filter(x=>x.classList.contains('fe-sess')).length,r.length]})()")
+    check('#287 胎动时间轴：计数段一行（段里的那几下合在里面），段外的单次胎动各一行', hid[0] == 2 and hid[1] == 2 + 6 + 2, hid)
+    clear(); ev("document.querySelector('#fsStart').click()"); p.wait_for_timeout(250); ev("document.querySelector('#ftAdd').click()"); p.wait_for_timeout(150)
+    k0 = ev("Storage.get().fetal.length"); ev("document.querySelector('#fsCancel').click()"); p.wait_for_timeout(250)
+    check('#287 胎动计数取消：不存计数段，这几下胎动保留', not ev("Storage.get().fetalSession") and ev("Storage.get().fetal.length") == k0 and ev("Storage.get().fetalSessions.length") == ns + 1)
+    clear(); ev("[...document.querySelectorAll('[data-feopen][data-k=s]')].find(b=>b.dataset.feopen==='fs1').click()"); p.wait_for_timeout(400)
+    ss = ev("({t:document.querySelector('#ftsTitle').textContent,n:document.querySelector('#fsCnt').value})")
+    ev("(()=>{const i=document.querySelector('#fsCnt');i.value='12';document.querySelector('#fsSave').click()})()"); p.wait_for_timeout(400)
+    clear(); ev("[...document.querySelectorAll('[data-feopen][data-k=f]')].find(b=>b.dataset.feopen==='f5').click()"); p.wait_for_timeout(400)
+    ft = ev("document.querySelector('#ftsTitle').textContent")
+    ev("(()=>{document.querySelector('#feDate').value=Util.addDays(Util.todayISO(),-1);document.querySelector('#feTime').value='05:05';document.querySelector('#feSave').click()})()"); p.wait_for_timeout(400)
+    f5 = ev("Storage.get().fetal.find(x=>x.id==='f5').time")
+    check('#287 胎动修改：计数段面板改次数（8→12）、单次胎动面板改时间', ss == {'t': '修改计数', 'n': '8'} and ev("Storage.get().fetalSessions.find(x=>x.id==='fs1').count") == 12 and ft == '修改胎动' and f5[11:16] == '05:05', [ss, ft, f5])
+    clear(); ev("[...document.querySelectorAll('[data-feopen][data-k=f]')].find(b=>b.dataset.feopen==='f5').click()"); p.wait_for_timeout(400)
+    ev("document.querySelector('[data-fedel]').click()"); p.wait_for_timeout(350)
+    g5 = ev("!Storage.get().fetal.some(x=>x.id==='f5')"); u = undo()
+    check('#287 胎动删除走撤销', g5 and u and ev("Storage.get().fetal.some(x=>x.id==='f5')"), [g5, u])
+    # —— 6. 日期页接入：时间轴 / 时间带 / 圆点；点按 / … 走各模块面板 ——
+    clear(); ev(R287_SEED)
+    ev("(()=>{const d=Storage.get();d.periods.push({id:'pT',start:Util.addDays(Util.todayISO(),-40),end:Util.addDays(Util.todayISO(),-36),symptoms:[]});Storage.save()})()")
+    go('home', 200); go('calendar', 600)
+    cal = ev("""(()=>{const L=[...document.querySelectorAll('#calDay li[data-ti]')].map(l=>[l.querySelector('.dl-label').textContent,(l.querySelector('.dt-val')||{}).textContent||'',l.dataset.accent,!!l.querySelector('.dt-more')]);
+      const dots=[...document.querySelectorAll('#calDay .dsh-dot')].map(d=>d.dataset.accent);return {L,dots}})()""")
+    lab = [x[0] for x in cal['L']]
+    cv = [x for x in cal['L'] if x[0] == '宫缩']
+    check('#287 日期页今天：5 次宫缩（带持续秒数）、见红、6 次胎动进时间轴，都有「…」；时间带有宫缩 / 胎动色的点；坏 type 的不进',
+          lab.count('宫缩') == 5 and '见红' in lab and lab.count('胎动') == 6 and all(x[3] for x in cal['L'] if x[0] in ('宫缩', '见红', '胎动')) and cv[0][1].endswith('秒') and cal['dots'].count('contraction') >= 6 and cal['dots'].count('fetal') == 6 and '<b>x</b>' not in str(lab), cal)
+    ev("[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='宫缩').querySelector('.dl-label').click()"); p.wait_for_timeout(500)
+    t1 = title(); clear()
+    ev("[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='见红').querySelector('.dl-label').click()"); p.wait_for_timeout(500)
+    t2 = title(); clear()
+    ev("[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='胎动').querySelector('.dl-label').click()"); p.wait_for_timeout(500)
+    t3 = title(); clear()
+    check('#287 日期页点宫缩 / 见红 / 胎动一行：打开各模块自己的修改面板，留在日期页', [t1, t2, t3] == ['修改宫缩', '修改见红', '修改胎动'] and ev("App.currentTab()") == 'calendar', [t1, t2, t3])
+    nf = ev("Storage.get().fetal.length")
+    ev("[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='胎动').querySelector('.dt-more').click()"); p.wait_for_timeout(350)
+    try: p.wait_for_selector('.cal-pop-mask [data-pick=del]', timeout=1500)
+    except Exception: pass
+    ev("(document.querySelector('.cal-pop-mask [data-pick=del]')||{click(){}}).click()"); p.wait_for_timeout(500)
+    nf1 = ev("[Storage.get().fetal.length,[...document.querySelectorAll('#calDay .dl-label')].filter(e=>e.textContent==='胎动').length]"); u = undo()
+    check('#287 日期页「…」删除胎动：数据和时间轴同时少一条，撤销后回来', nf1 == [nf - 1, 5] and u and ev("Storage.get().fetal.length") == nf, [nf, nf1, u])
+    PD = ev("Util.addDays(Util.todayISO(),-40)")
+    ev(f"Modules.calendar._go('{PD}')"); p.wait_for_timeout(500)
+    pr = ev("[...document.querySelectorAll('#calDay li[data-ti]')].map(l=>[l.querySelector('.dl-label').textContent,(l.querySelector('.dt-val')||{}).textContent||'',!!l.querySelector('.dt-more')])")
+    sdot = ev(f"!!document.querySelector('#calStrip [data-ws=\"{PD}\"] .ws-dot')")
+    ev("[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='经期').querySelector('.dl-label').click()"); p.wait_for_timeout(500)
+    t4 = title(); s4 = ev("(document.querySelector('#modalRoot #pdS')||{}).value"); clear()
+    check('#287 日期页经期：开始那天一行「经期 5 天」、有「有记录」圆点；点按打开经期修改面板（不再跳页）', ['经期', '5 天', True] in pr and sdot and t4 == '修改经期' and s4 == PD and ev("App.currentTab()") == 'calendar', [pr, sdot, t4, s4])
+    # —— 7. XSS：导入的恶意备注 / 症状 / id 在三页和日期页都不执行 ——
+    bad = '" onmouseover="window.__pwn=1" x="'
+    ev("""t=>{const d=Storage.get();d.fetal.push({id:t,time:Util.nowLocal()});d.contractions.push({id:t,start:Util.nowLocal(),end:Util.nowLocal()});d.periods.push({id:t,start:Util.addDays(Util.todayISO(),-200),end:null,symptoms:['<img src=x onerror=window.__pwn=1>'],flow:'<b>',pain:'<i>'});Storage.save()}""", bad)
+    p.reload(); p.wait_for_timeout(900); ev(R273_SEED)
+    for t in ('period', 'contraction', 'fetal', 'calendar'):
+        go(t, 350)
+        ev("document.querySelectorAll('[onmouseover]').forEach(e=>e.dispatchEvent(new MouseEvent('mouseover')))")
+    check('#287 XSS：恶意 id / 备注 / 症状 / 经量在经期 / 宫缩 / 胎动页和日期页都只当文字，不执行', not ev("window.__pwn") and not ev("!!document.querySelector('[onmouseover],img[src=\"x\"],#pwnP,#pwnW')"))
+    # —— 8. 窄屏 + 大字号：不横向溢出，按钮 / 数字 / 标题不截断；底部按钮固定、最后一条露出 ——
+    clear(); ev(R287_SEED); ev("(()=>{const d=Storage.get();d.pregnancy.contractionRule={iv:5,dur:60,span:60};Storage.save()})()")
+    p.set_viewport_size({'width': 320, 'height': 640}); ev("document.body.classList.add('fs-xl')"); p.wait_for_timeout(200)
+    narrow = {}
+    SEL = '#view .ft-mini-open b, #view .mod-sum b, #view .mod-stats b, #view .mod-stats small, #view .tl-txt b, #view .li-num, #view .mod-cta button, #view .mod-cta .ft-mini-side, #view .ct-int button, #view .ms-k, #view .dash-card h2, #view .btn-mini, .mod-head h1'
+    for t, extra in (('period', None), ('contraction', None), ('contraction', "document.querySelector('#cStart').click()"), ('fetal', None), ('fetal', "document.querySelector('#fsStart').click()")):
+        go('home', 200); go(t)
+        if extra:
+            ev(extra); p.wait_for_timeout(400)
+        k = t + ('_live' if extra else '')
+        narrow[k] = {'hx': ev("document.scrollingElement.scrollWidth>innerWidth"), 'tr': ev(R287_TRUNC, SEL), 'cta': r282_ok(ev(R282_SCAN)),
+                     # 迷你计时条里各块不重叠、读数不折行（「3秒」不能折成两行）
+                     'mini': ev("""(()=>{const m=document.querySelector('#view .mod-cta .ft-mini');if(!m)return [];const k=[...m.querySelectorAll('.ft-mini-open b, .ft-mini-side, .ft-mini-b, .ft-mini-end')].filter(e=>e.offsetWidth).map(e=>e.getBoundingClientRect());
+                       const bad=[];for(let i=1;i<k.length;i++)if(k[i].left<k[i-1].right-0.5)bad.push('overlap'+i);const b=m.querySelector('.ft-mini-open b');if(b&&b.getBoundingClientRect().height>parseFloat(getComputedStyle(b).fontSize)*1.9)bad.push('wrap');
+                       if(m.getBoundingClientRect().right>innerWidth)bad.push('out');return bad})()""")}
+        if extra:
+            ev("(()=>{const d=Storage.get();d.openContraction=null;d.fetalSession=null;Storage.save()})()")
+    for t in ('period', 'contraction', 'fetal'):
+        go('home', 200); go(t)
+        opener = {'period': '[data-pd="new"]', 'contraction': '[data-ct="add"]', 'fetal': '[data-feopen]'}[t]
+        ev("s=>document.querySelector(s).click()", opener); p.wait_for_timeout(450)
+        narrow[t + '_sheet'] = {'hx': ev("(()=>{const m=document.querySelector('#modalRoot .modal');return !m||m.scrollWidth>m.clientWidth+1||m.getBoundingClientRect().right>innerWidth+0.5})()"), 'tr': ev(R287_TRUNC, '#modalRoot .rs-seg button, #modalRoot .dp-pill, #modalRoot .ft-tt b, #modalRoot .ft-tt small, #modalRoot h2, #modalRoot .rs-save'), 'cta': True}
+        clear()
+    badn = {k: v for k, v in narrow.items() if v['hx'] or v['tr'] or not v['cta'] or v.get('mini')}
+    check('#287 320 宽 + 1.33 倍字号：三页（含计时中 / 计数中）和三个面板不横向溢出、文字不截断；底部按钮固定、最后一条完整露出', not badn, badn)
+    ev("document.body.classList.remove('fs-xl')"); p.set_viewport_size({'width': 393, 'height': 852}); p.wait_for_timeout(200)
+    # —— 9. 深浅色：底部按钮文字对比度 ≥ 4.5，底部按钮走第 282 次固定实现 ——
+    cr = {}
+    for dark in (False, True):
+        ev("document.body.classList.toggle('dark'," + ('true' if dark else 'false') + ")")
+        for t, sel in (('period', '#view .mod-cta .mc-main'), ('contraction', '#view .mod-cta .ft-split'), ('fetal', '#view .mod-cta .mc-main')):
+            go('home', 200); go(t)
+            cr[t + ('_dark' if dark else '')] = [ev(R273_CR, sel), r282_ok(ev(R282_SCAN))]
+        go('contraction'); ev("document.querySelector('#cStart').click()"); p.wait_for_timeout(300); ev("document.querySelector('[data-int=\"2\"]').click()"); p.wait_for_timeout(300)
+        cr['int' + ('_dark' if dark else '')] = [ev(R273_CR, '#view .ct-int button.on'), r282_ok(ev(R282_SCAN))]
+        ev("document.querySelector('#cCancel').click()"); p.wait_for_timeout(200)
+    ev("document.body.classList.remove('dark')")
+    check('#287 深浅色：经期 / 宫缩 / 胎动底部按钮与「轻 / 中 / 强」选中态文字对比度 ≥ 4.5，按钮固定不动', all(isinstance(v[0], (int, float)) and v[0] >= 4.5 and v[1] for v in cr.values()), cr)
+    check('#287 pageerror 为 0', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -3531,7 +3801,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r282', 'test_r283'),
           ('test_r284',),
           ('test_r285',),
-          ('test_r286',))  # 第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r286',),
+          ('test_r287',))  # 第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

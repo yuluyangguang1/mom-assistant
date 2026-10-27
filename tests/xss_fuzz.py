@@ -32,9 +32,11 @@ def main():
         return r
     for i, k in enumerate(['meds', 'milestones', 'milestoneObs', 'baths', 'swims', 'suns', 'waters', 'jaundices',
                            'supplements', 'supplementPlans', 'supplies', 'periods', 'contractions', 'fetal', 'moods',
-                           'temps', 'growth', 'diapers', 'feedings', 'sleeps']):
+                           'temps', 'growth', 'diapers', 'feedings', 'sleeps', 'fetalSessions', 'laborEvents']):
         data[k] = list(data.get(k) or []) + [rec(i)]
     data['supplementPlans'][-1]['id'] = 'z0'
+    # 第 287 次：破水见红用合法 type（坏 type 本来就不显示），备注是载荷；胎动计数段次数是载荷
+    data['laborEvents'].append(dict(rec(95), type='water')); data['fetalSessions'][-1]['count'] = P
     data['pregnancy'] = {'lmp': '2026-03-01', 'dueDate': '2026-12-06', 'weights': [dict(rec(90), kg=P)]}
     data['prenatal'] = {'checks': [rec(91)], 'records': [rec(92)]}
     data['finance'] = {'records': [dict(rec(93), amount=P)]}
@@ -76,6 +78,14 @@ def main():
                 p.evaluate("var m=document.getElementById('modalRoot');if(m)m.innerHTML=''")
                 if p.evaluate("!document.querySelector('#view .list')"):
                     p.evaluate(f"App.showTab('{t}')"); p.wait_for_timeout(80)
+            # 第 287 次：新骨架页的时间轴（.tl-card 点按修改）也逐条点开前 6 条，覆盖各模块自己的修改面板
+            n2 = min(p.locator('#view .tl-card').count(), 6)
+            for i in range(n2):
+                try:
+                    p.evaluate(f"(()=>{{const c=document.querySelectorAll('#view .tl-card')[{i}];if(c)c.click()}})()"); p.wait_for_timeout(500); note(t + ' 点开时间轴')
+                except Exception:
+                    pass
+                p.evaluate("Sheet.closeAll&&Sheet.closeAll();var m=document.getElementById('modalRoot');if(m)m.innerHTML=''")
         p.evaluate("App.showTab('search')"); p.wait_for_timeout(100)
         s = p.locator('input[type=search], #searchInput').first
         if s.count():

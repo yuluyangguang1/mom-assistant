@@ -399,9 +399,19 @@
       /* 第 280 次：营养品服用记录进日期记录 / 回顾 */
       (d.supplements || []).forEach(function (r) { if (r && r.time) tag(add(isoOf(r.time), 'supplement', '营养品', [r.name || '', r.dose || ''].filter(Boolean).join(' '), hmOf(r.time)), 'supplements', r); });
       (d.milestones || []).forEach(function (r) { tag(add(r.date, 'milestone', '里程碑', r.title || ''), 'milestones', r); });
-      (d.periods || []).forEach(function (r) { if (r.start) tag(add(isoOf(r.start), 'period', '经期', ''), 'periods', r); });
+      /* 第 287 次：经期行带一个关键数值（几天 / 进行中），点按走经期面板修改 */
+      (d.periods || []).forEach(function (r) {
+        if (!r || !r.start) return;
+        var s0 = isoOf(r.start), e0 = r.end ? isoOf(r.end) : '', n = e0 ? Util.daysBetween(s0, e0) + 1 : NaN, ago = Util.daysBetween(s0, Util.todayISO());
+        tag(add(s0, 'period', '经期', n > 0 ? n + ' 天' : (!e0 && ago >= 0 && ago < 10 ? '进行中' : '')), 'periods', r);
+      });
       if (d.prenatal && d.prenatal.records) d.prenatal.records.forEach(function (r) { tag(add(r.date, 'pregnancy', '产检', r.item || ''), 'prenatal', r); });
-      (d.contractions || []).forEach(function (r) { if (r.start) tag(add(isoOf(r.start), 'contraction', '宫缩', '', hmOf(r.start)), 'contractions', r); });
+      /* 第 287 次：宫缩行带持续时长（精确到秒，同宫缩页） */
+      (d.contractions || []).forEach(function (r) {
+        if (!r || !r.start) return;
+        var cd = r.end ? new Date(r.end) - new Date(r.start) : NaN;
+        tag(add(isoOf(r.start), 'contraction', '宫缩', isFinite(cd) && cd >= 0 ? Util.fmtSecDur(cd) : '', hmOf(r.start)), 'contractions', r);
+      });
       (d.fetal || []).forEach(function (r) { tag(add(isoOf(r.time), 'fetal', '胎动', '', hmOf(r.time)), 'fetal', r); });
       (d.temps || []).forEach(function (r) { tag(add(isoOf(r.time), 'temp', '体温', r.value != null ? r.value + '°C' : '', hmOf(r.time)), 'temps', r); });
       /* 第 286 次（用户确认「补上」）：洗澡 / 游泳 / 日晒 / 黄疸 / 情绪 / 破水见红也进日期页（时间轴、时间带、有记录圆点）。

@@ -167,8 +167,19 @@
 
   /* ---------- 第 286 次：时间轴条目 → 各模块已有的编辑 / 删除逻辑 ---------- */
   var SKEL = { baths: 'bath', swims: 'swim', suns: 'sun', jaundices: 'jaundice', moods: 'mood', temps: 'temp', meds: 'meds', waters: 'water' };
-  var EDIT_SC = { sleeps: 'sleep', supplements: 'supplement', fetal: 'fetal', contractions: 'contraction', milestones: 'milestone' };
-  var GO_MOD = { laborEvents: 'contraction', periods: 'period', prenatal: 'pregnancy', vaccines: 'vaccine' };
+  var EDIT_SC = { sleeps: 'sleep', supplements: 'supplement', milestones: 'milestone' };
+  /* 第 287 次：经期 / 宫缩 / 破水见红 / 胎动迁到新骨架，修改 / 删除走各模块自己的面板（不再跳页、不再用通用编辑框） */
+  var MOD_PANEL = {
+    periods: { mod: 'period', edit: '_open', del: '_remove' },
+    contractions: { mod: 'contraction', edit: '_edit', del: '_remove' },
+    laborEvents: { mod: 'contraction', edit: '_editLabor', del: '_removeLabor' },
+    fetal: { mod: 'fetal', edit: '_edit', del: '_remove' }
+  };
+  function modPanel(src, kind) {
+    var c = MOD_PANEL[src], M = c && global.Modules && Modules[c.mod];
+    return (M && typeof M[c[kind]] === 'function') ? M[c[kind]].bind(M) : null;
+  }
+  var GO_MOD = { prenatal: 'pregnancy', vaccines: 'vaccine' };
   function arrOf(d, src) {
     if (src === 'prenatal') return (d.prenatal && d.prenatal.records) || [];
     return Array.isArray(d[src]) ? d[src] : [];
@@ -319,6 +330,7 @@
       else if (global.RecordEdit) RecordEdit.open('feeding', rec, d.feedings);
     } else if (it.src === 'diapers' && M.diaper && M.diaper._edit) M.diaper._edit(rec);
     else if (it.src === 'growth' && M.growth && M.growth._open) M.growth._open(rec);
+    else if (modPanel(it.src, 'edit')) modPanel(it.src, 'edit')(rec);
     else if (SKEL[it.src] && global.ModSkel) {
       var cfg = ModSkel.cfgOf(SKEL[it.src]);
       if (cfg) ModSkel.openSheet(cfg, d, rec, null);
@@ -332,6 +344,7 @@
     if (it.src === 'supplements' && M.supplement && M.supplement._untake) { M.supplement._untake(rec); return; }
     if (it.src === 'feedings' && rec.type === 'solid' && M.solid && M.solid._remove) { M.solid._remove(rec.id); return; }
     if (it.src === 'growth' && M.growth && M.growth._remove) { M.growth._remove(rec.id); return; }
+    if (modPanel(it.src, 'del')) { modPanel(it.src, 'del')(rec.id); return; }
     if (SKEL[it.src] && global.ModSkel) { var cfg = ModSkel.cfgOf(SKEL[it.src]); if (cfg) { ModSkel.remove(cfg, rec.id); return; } }
     Util.removeWithUndo(arrOf(d, it.src), rec.id, {
       onSave: function () { Storage.save(); }, onAfter: function () { if (global.App) App.rerender(); },

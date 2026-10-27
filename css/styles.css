@@ -494,10 +494,6 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .nf-ring { flex: 0 0 auto; color: var(--text); }
 .backfill-note p { margin: 0; }
 
-/* 胎动计数（fetal.js）：大数字 + 通栏大按钮的专注版式 */
-.fetal-hero { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 2px 0 12px; }
-.fetal-hero .hint { margin: 0; }
-.fetal-add { width: 100%; margin: 4px 0 10px; padding: 15px 20px; font-size: calc(16px * var(--fs-mul)); font-weight: 600; }
 
 /* 日历周历条（对标 Cali 记录页，报告 P0-A）：所选日期所在周，点哪天看/记哪天。
    第 128 次：gap 4→1px——实测格宽 41.7px 低于 U-08 的 44 宽下限；
@@ -558,7 +554,6 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
 /* ============================================================
    勾选项
    ============================================================ */
-.chk-group { margin: 10px 0; font-size: calc(14px * var(--fs-mul)); }
 .chk input { margin-right: 6px; }
 /* 第 112 次：勾选框旁的行内说明（提示这笔记到记账的哪个类别） */
 .hint-inline { color: var(--text-sub, #6b6b6b); font-size: calc(13px * var(--fs-mul)); margin-left: 6px; }
@@ -3579,7 +3574,6 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
 .temp-chart .tc-med { stroke: var(--primary); stroke-width: 1.5; stroke-dasharray: 2 3; opacity: .8; }
 .temp-chart .tc-line { stroke: var(--text); stroke-width: 2; fill: none; stroke-linejoin: round; }
 .temp-chart .tc-dot { fill: var(--surface, #fff); stroke: var(--text); stroke-width: 1.5; }
-.c-rule summary { cursor: pointer; color: var(--muted); padding: 6px 0; }
 .pn-appt { display: flex; white-space: nowrap; align-items: center; gap: 8px; margin-top: 6px; font-size: var(--fs-sm, 13px); color: var(--muted); }
 .pn-appt input[type="date"] { width: auto; min-width: 0; flex: 1 1 auto; max-width: 180px; padding: 6px 8px; }
 .pn-item.is-done span { color: var(--muted); }
@@ -3618,13 +3612,6 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
    变成逐字竖排（不/显/示）。改为每行最多 4 枚、文字不折行，多的自然换行。 */
 .seg-wrap2 .seg-btn { flex: 0 0 calc(25% - 4.5px); white-space: nowrap; }
 /* ⑦ 一键记录 4 枚（吃药/维D）在 3 列网格里落单一枚 → 正好 4 枚时排成一行 4 列 */
-/* ⑨ 经期「症状」：原生小方框与上方经量/痛经的药丸语言不一致 → 同款药丸多选（勾选即主色弱底） */
-.chk-pills { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
-.chk-pills .chk { position: relative; display: inline-flex; align-items: center; margin: 0; padding: 9px 14px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface); cursor: pointer; transition: background-color .2s var(--ease), border-color .2s var(--ease), transform .12s var(--ease); }
-.chk-pills .chk input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
-.chk-pills .chk:active { transform: scale(.95); }
-.chk-pills .chk:has(input:checked) { background: var(--primary-weak); border-color: var(--primary); color: var(--primary-text); font-weight: 600; }
-.chk-pills .chk:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
 /* ⑩ 确认框三钮（出口 + 取消 + 确认）：320px 宽里三钮横排，「先导出备份」「仍要清空」各折两行。
    有出口按钮时改竖排：确认在上、出口居中、取消在底（iOS 警示框惯例）；危险框标题图标改警示三角。 */
 .modal-actions.has-extra { flex-direction: column; gap: var(--space-xs); }
@@ -3669,10 +3656,6 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
 .qk-sup { flex: 1 1 0; min-width: 0; gap: 6px; }
 .qk-sup span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* 第 197 次：宫缩页破水/见红两键并排 */
-.labor-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-.labor-btns .btn { min-height: 48px; margin: 0; }
-.labor-ev .warn-box { margin: 4px 0 10px; }
 
 /* 第 199 次：疫苗剂次详情（展开在该剂次行下方） */
 .vac-list li.vac-detail { display: block; padding: 4px 0 14px 44px; }
@@ -6250,3 +6233,61 @@ html body .qd-mask { transition: opacity .24s var(--ease), visibility .24s; }
   html body .qd-mask { transition: opacity .16s linear, visibility .16s !important; }
 }
 @keyframes qdFade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ============================================================
+   第 287 次：经期 / 宫缩 / 胎动迁到新骨架（页头插画 → 摘要 → 提示横幅 → 看板 → 时间轴 → 底部固定按钮 + 半屏面板）
+   ============================================================ */
+/* 说明 / 提示横幅：模块色 9% 浅底，无边框无阴影（经期阶段说明、异常信号；宫缩页 48 小时内的破水 / 见红） */
+.mod-note { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 2px 14px; padding: 12px 14px; border-radius: var(--radius); background: color-mix(in srgb, var(--tile) 9%, transparent); }
+.mod-note p { flex: 1 1 200px; min-width: 0; margin: 0; font-size: var(--fs-sm, 14px); line-height: 1.6; color: var(--text); overflow-wrap: anywhere; }
+.mod-note b { margin-right: 6px; color: var(--tile-text); font-weight: 800; }
+.mod-note .btn-mini { margin-left: auto; }
+/* 看板里的数字块：小标签 + 大数字（单位小一号），窄屏自动换行成两列，数字本身不折行 */
+.mod-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; margin: 6px 0 2px; }
+.mod-stats p { margin: 0; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mod-stats small { color: var(--muted); font-size: var(--fs-xs, 12px); line-height: 1.4; }
+.mod-stats b { font-size: calc(22px * var(--fs-mul, 1)); font-weight: 800; line-height: 1.2; color: var(--tile-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mod-stats b i { font-style: normal; font-size: calc(13px * var(--fs-mul, 1)); font-weight: 600; color: var(--muted); margin: 0 3px 0 2px; }
+body.dark .mod-stats p { background: rgba(255,255,255,.06); }
+.pd-pred, .ct-none { line-height: 1.55; }
+.pd-pred b { color: var(--text); font-weight: 700; }
+.ct-met { color: var(--warn-text); font-weight: 600; }
+.tl-live .li-num, .tl-card .li-num { flex-shrink: 0; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); white-space: nowrap; }
+.tl-live .li-num { color: var(--tile-text); }
+.pd-endq { margin-top: 10px; }
+.pd-err { display: block; margin: 8px 2px 0; }
+.ct-kind { margin: 6px 0 2px; }
+/* 底部：两行（宫缩计时中「轻 / 中 / 强」+ 迷你计时条；胎动计数中 迷你计时条 + ＋1） */
+.mod-cta.cta-col { flex-direction: column; align-items: center; gap: 8px; }
+.mod-cta.cta-col > .mc-main, .mod-cta.cta-col > .ft-mini { width: min(100%, 420px); }
+.ct-int { pointer-events: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: min(100%, 420px); padding: 4px; box-sizing: border-box; border-radius: var(--radius-pill);
+  background: var(--surface); box-shadow: 0 10px 28px -14px rgba(51,48,43,.45), inset 0 0 0 1.5px var(--tile-weak); }
+.ct-int button { min-height: 44px; border: none; border-radius: var(--radius-pill); background: transparent; color: var(--text); font: inherit; font-size: calc(16px * var(--fs-mul, 1)); font-weight: 600; cursor: pointer; }
+.ct-int button.on { background: var(--tile); color: var(--tile-on, #fff); font-weight: 800; }
+.fe-row { gap: 10px; align-items: stretch; }
+.fe-row > .mc-main { flex: 1 1 auto; width: auto; min-width: 0; }
+.fe-start { pointer-events: auto; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 54px; padding: 0 16px; border: none; border-radius: var(--radius-pill);
+  background: var(--surface); color: var(--tile-text); font: inherit; font-size: calc(15px * var(--fs-mul, 1)); font-weight: 700; white-space: nowrap; cursor: pointer;
+  box-shadow: 0 10px 28px -14px rgba(51,48,43,.45), inset 0 0 0 1.5px var(--tile-weak); }
+.fe-start svg { width: 20px; height: 20px; flex-shrink: 0; }
+.fe-start:active { transform: scale(.97); }
+.fe-plus { font-size: calc(20px * var(--fs-mul, 1)); font-weight: 800; letter-spacing: -.5px; }
+.fe-add span { white-space: nowrap; }
+.fe-cta .ft-mini-open svg { width: 22px; height: 22px; flex-shrink: 0; }
+.fe-cta .ft-mini-side b { color: var(--tile-text); font-weight: 800; font-variant-numeric: tabular-nums; }
+/* 浅色：白字对宫缩色只有 4.2:1，按钮底走 --tile-fill（4.7:1）；深色维持深字 + 原模块色 */
+body:not(.dark) .ct-page .ft-split, body:not(.dark) .ct-int button.on { background: var(--tile-fill, var(--tile)); color: #fff; }
+body.dark .ct-int button.on, body.dark .fe-page .mc-main, body.dark .pd-page .mc-main { color: var(--tile-on); }
+@media (max-width: 360px) { .fe-start { padding: 0 12px; } .mod-note { padding: 11px 12px; } }
+.ct-cf[hidden], .ct-lf[hidden] { display: none !important; }
+.ct-acts { flex-wrap: wrap; }
+/* 第 287 次：320 宽 + 1.33 倍字号时，日期 / 时间磁贴里的「06:35」「今天」不再顶出磁贴（全站面板共用） */
+@media (max-width: 360px) { .ft-tile { padding: 10px; gap: 8px; } .ft-ti svg { width: 22px; height: 22px; } }
+/* 窄屏：计时 / 计数条读数不折行、各块不重叠——收起图标、读数小一号；宫缩条的「宫缩中」与页头状态重复，收起；胎动只留「3 次」 */
+.ct-page .ft-mini-open b, .fe-page .ft-mini-open b { white-space: nowrap; }
+@media (max-width: 360px) {
+  .ct-page .ft-mini-open svg, .ct-page .ft-mini-open .ico, .fe-page .ft-mini-open svg, .ct-page .ft-mini-side, .fe-page .fe-k { display: none; }
+  .ct-page .ft-mini-open b, .fe-page .ft-mini-open b { font-size: calc(18px * var(--fs-mul, 1)); }
+  .ct-page .ft-mini-end, .fe-page .ft-mini-end { padding: 0 12px; }
+}
+.fe-k { font-style: normal; }
