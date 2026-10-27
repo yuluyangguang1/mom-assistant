@@ -396,7 +396,6 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .vac-item.is-due { background: var(--tile-weak, var(--primary-weak)); border-radius: var(--radius-sm, 10px); }
 .vac-item.is-due .vac-main small { color: var(--tile-text, var(--tile)); font-weight: 600; }
 .vac-item.is-over .vac-main small { color: var(--warn-text); font-weight: 600; } /* 第 146 次：--warn 对比度仅 2.70，改用 --warn-text */
-.vac-item.is-late .vac-main small { color: var(--muted); }
 
 
 .icon-btn {
@@ -2899,8 +2898,6 @@ body.dock-left .view, body.dock-right .view { padding-bottom: calc(var(--dock-h,
 .birth-field { display: block; }
 .birth-field input[type="date"] { display: block; width: 100%; min-height: 48px; margin-top: 6px; box-sizing: border-box; }
 .birth-field .hint { display: block; margin-top: 4px; }
-/* 第 146 次（P0-6）：疫苗「过了应种日还没记录」批量补记卡 */
-.vac-backfill { --bar-c: var(--warn); }
 
 /* ============================================================
    第 146 次（P1 · 列表两行排版）：360 宽下「时间+类型」与「详情」挤在一行，
@@ -3479,7 +3476,7 @@ input[type=time]::-webkit-date-and-time-value { text-align: left; margin: 0; }
 .card .list:not(:empty), .card .kv:not(:empty) { background: none; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
 /* 第 176 次：喂养参考、睡眠参考、哺乳期与月经这类纯说明卡（.info-card）也走浅色横幅，颜色跟随所在模块 */
 .card.info-card { --bar-c: var(--tile, var(--primary)); }
-.notice-banner, .review-card, .farewell-card, .vac-backfill, .card.backfill-note, .card.info-card {
+.notice-banner, .review-card, .farewell-card, .card.backfill-note, .card.info-card {
   background: color-mix(in srgb, var(--bar-c, var(--primary)) 9%, var(--surface));
   border-color: transparent; box-shadow: none;
 }
@@ -3578,7 +3575,6 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
 .pn-appt input[type="date"] { width: auto; min-width: 0; flex: 1 1 auto; max-width: 180px; padding: 6px 8px; }
 .pn-item.is-done span { color: var(--muted); }
 /* 第 187 次：自费 / 联合疫苗 */
-.vsub-add summary { cursor: pointer; color: var(--primary-text, var(--primary)); padding: 6px 0; }
 .vsub-covers { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; margin: 4px 0 10px; }
 .vsub-covers small { color: var(--muted); margin-left: 4px; }
 /* 第 187 次：点一行即可编辑 */
@@ -3658,11 +3654,6 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
 
 
 /* 第 199 次：疫苗剂次详情（展开在该剂次行下方） */
-.vac-list li.vac-detail { display: block; padding: 4px 0 14px 44px; }
-.vac-detail .vd-date { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 2px; }
-.vac-detail .lbl-text { display: block; margin-top: 10px; }
-.vac-detail .dp-flags { margin: 8px 0 6px; }
-@media (max-width: 360px) { .vac-list li.vac-detail { padding-left: 0; } }
 
 /* 第 200 次：欢迎页「从备份恢复」次要入口 */
 .ob-foot.ob-foot-2 { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
@@ -6284,3 +6275,138 @@ body.dark .ct-int button.on, body.dark .fe-page .mc-main, body.dark .pd-page .mc
   .ct-page .ft-mini-end, .fe-page .ft-mini-end { padding: 0 12px; }
 }
 .fe-k { font-style: normal; }
+
+/* ===================== 疫苗本（第 289 次，工具页第一个） =====================
+   封面暖陶土色 + 布纹 + 缝线；翻开是全屏一剂一页（.vb-book，z 86：页面之上、面板 100 之下），只动 transform / opacity。 */
+.vac-page { display: flex; flex-direction: column; }
+.vac-page .mod-sum { margin-bottom: 12px; }
+.vac-remind { padding: 16px 16px 14px; }
+.vac-remind .vr-t { display: block; font-size: calc(16px * var(--fs-mul, 1)); font-weight: 800; }
+.vac-remind p { margin: 6px 0 12px; color: var(--muted); font-size: calc(14px * var(--fs-mul, 1)); line-height: 1.55; }
+.vac-remind .vr-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.vac-remind .vr-acts .btn { min-height: 44px; border-radius: var(--radius-pill); white-space: nowrap; }
+.vac-bf p { flex: 1 1 200px; margin: 0; font-size: calc(14px * var(--fs-mul, 1)); line-height: 1.55; }
+.vac-bf .btn-mini { white-space: nowrap; }
+.vac-page, .vb-book, .vac-toc { --vb-cover: #A9553A; --vb-cover-ink: #FFF4E8; --vb-paper: #FFFDF9; --vb-desk: #F3ECE2; --vb-ink: #B4573C; }
+body.dark .vac-page, body.dark .vb-book, body.dark .vac-toc { --vb-cover: #7C4130; --vb-cover-ink: #FBE8DA; --vb-paper: #2B2622; --vb-desk: #1C1815; --vb-ink: #F2A88F; }
+.vb-cover { position: relative; display: flex; flex-direction: column; align-items: center; width: min(76%, 290px); aspect-ratio: 3 / 4; margin: 4px auto 0; padding: 30px 18px 22px 24px;
+  border: none; border-radius: var(--radius-sm) var(--radius-lg) var(--radius-lg) var(--radius-sm); color: var(--vb-cover-ink); cursor: pointer; text-align: center; font: inherit;
+  background-color: var(--vb-cover);
+  background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.035) 0 1px, transparent 1px 3px), repeating-linear-gradient(90deg, rgba(0,0,0,.04) 0 1px, transparent 1px 3px), linear-gradient(160deg, rgba(255,255,255,.12), rgba(0,0,0,.10));
+  box-shadow: 0 18px 34px -18px rgba(90,40,20,.55), inset 12px 0 0 rgba(0,0,0,.10); transition: transform .28s var(--spring); -webkit-tap-highlight-color: transparent; }
+.vb-cover::before { content: ''; position: absolute; inset: 10px 10px 10px 20px; border: 1.5px dashed rgba(255,244,232,.42); border-radius: var(--radius-xs) var(--radius) var(--radius) var(--radius-xs); pointer-events: none; }
+.vb-cover:active { transform: scale(.975); }
+.vb-cover .vbc-own { font-size: calc(14px * var(--fs-mul, 1)); opacity: .92; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.vb-cover .vbc-title { margin-top: 4px; font-size: calc(32px * var(--fs-mul, 1)); font-weight: 800; letter-spacing: .18em; text-indent: .18em; white-space: nowrap; }
+.vb-cover .vbc-stk { width: 80%; height: auto; margin: auto 0; transform: rotate(-7deg); filter: drop-shadow(0 8px 10px rgba(60,20,10,.28)); }
+.vb-cover .vbc-line { font-size: calc(14px * var(--fs-mul, 1)); white-space: nowrap; }
+.vb-cover .vbc-n { margin-top: 4px; font-size: calc(12.5px * var(--fs-mul, 1)); opacity: .86; white-space: nowrap; }
+.vb-hint { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 8px 0 12px; color: var(--muted); font-size: calc(13px * var(--fs-mul, 1)); }
+.vb-hint span { white-space: nowrap; }
+.vb-link { min-height: 44px; padding: 0 6px; border: none; background: none; color: var(--primary-text); font: inherit; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.vac-tools { padding: 4px 0; }
+.vt-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 0 16px; border: none; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.vt-row + .vt-row { border-top: 1px solid var(--border); }
+.vt-row b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vt-row small { color: var(--muted); font-size: calc(13.5px * var(--fs-mul, 1)); white-space: nowrap; }
+.vt-row small::after { content: '›'; margin-left: 8px; }
+.vt-ico { display: inline-flex; color: var(--tile-text); }
+.vt-ico svg { width: 22px; height: 22px; }
+.vac-ref { margin: 4px 4px 0; }
+.vac-birth { padding: 16px; }
+/* —— 全屏疫苗本 —— */
+.vb-book { position: fixed; inset: 0; z-index: 86; background-color: var(--vb-desk); color: var(--text); opacity: 1; transition: opacity .24s var(--ease); }
+.vb-book .vb-in { display: flex; flex-direction: column; height: 100%; padding-top: var(--sat-pad); transition: transform .26s var(--ease); }
+.vb-book.is-in, .vb-book.is-out { opacity: 0; }
+.vb-book.is-in .vb-in, .vb-book.is-out .vb-in { transform: translateY(18px) scale(.97); }
+.vb-book.is-in { transition: none; } .vb-book.is-in .vb-in { transition: none; }
+.vb-book.is-out { transition-duration: .2s; } .vb-book.is-out .vb-in { transition-duration: .2s; }
+.vb-top { display: grid; grid-template-columns: 46px 1fr 46px; align-items: center; gap: 8px; padding: 6px 16px 8px; }
+.vb-top b { text-align: center; font-size: calc(16px * var(--fs-mul, 1)); font-weight: 700; color: var(--muted); }
+.vb-btn { display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--surface); color: var(--text); cursor: pointer; }
+.vb-btn svg { width: 22px; height: 22px; }
+.vb-btn:disabled { opacity: .35; cursor: default; }
+.vb-btn[hidden] { display: inline-flex; visibility: hidden; }
+.vb-stage { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; touch-action: pan-y; }
+.vb-track { position: absolute; inset: 0; will-change: transform; }
+.vb-pg { position: absolute; top: 0; bottom: 0; left: 0; width: 100%; padding: 6px 18px 10px; overflow-y: auto; overscroll-behavior: contain; }
+.vb-pg.is-prev { left: -100%; } .vb-pg.is-next { left: 100%; }
+.vb-paper { display: flex; flex-direction: column; min-height: 100%; padding: 22px 22px 16px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--vb-paper); box-shadow: var(--shadow-card); }
+.vbp-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.vbp-k { position: relative; padding-bottom: 8px; color: var(--muted); font-size: calc(12.5px * var(--fs-mul, 1)); letter-spacing: .24em; white-space: nowrap; }
+.vbp-k::after { content: ''; position: absolute; left: 0; bottom: 0; width: 30px; height: 2px; border-radius: 2px; background: var(--vb-ink); }
+.is-todo .vbp-k::after { background: var(--muted); opacity: .5; }
+.vbp-n { font-size: calc(44px * var(--fs-mul, 1)); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; opacity: .88; }
+.vbp-name { margin: 20px 0 4px; font-size: calc(28px * var(--fs-mul, 1)); font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
+.is-todo .vbp-name { color: var(--muted); }
+.vbp-dose { margin: 0; color: var(--vb-ink); font-size: calc(15px * var(--fs-mul, 1)); font-weight: 600; }
+.is-todo .vbp-dose { color: var(--muted); }
+.vbp-dl { margin: 16px 0 0; }
+.vbp-dl > div { padding: 10px 0; border-top: 1px dashed var(--border); }
+.vbp-dl dt { color: var(--muted); font-size: calc(12.5px * var(--fs-mul, 1)); }
+.vbp-dl dd { margin: 3px 0 0; font-size: calc(16px * var(--fs-mul, 1)); overflow-wrap: anywhere; }
+.vbp-dl dd b { font-weight: 700; white-space: nowrap; }
+.vbp-dl dd small { color: var(--muted); white-space: nowrap; }
+.vbp-dl .vbp-ex { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; }
+.vbp-dl .vbp-ex dd { margin: 0; font-size: calc(14px * var(--fs-mul, 1)); text-align: right; min-width: 0; }
+.vbp-seal { display: flex; align-items: center; justify-content: center; gap: 14px; margin: auto 0 0; padding: 22px 0 10px; min-height: 150px; }
+.vb-stamp { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 112px; height: 112px; border: 2.5px solid var(--vb-ink); border-radius: 50%;
+  color: var(--vb-ink); transform: rotate(-12deg); box-shadow: inset 0 0 0 5px var(--vb-paper), inset 0 0 0 6.5px var(--vb-ink); opacity: .9; }
+.vb-stamp small { font-size: 13px; font-weight: 800; letter-spacing: .3em; text-indent: .3em; }
+.vb-stamp b { font-size: 13.5px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.vb-stamp.is-empty { border: 2px dashed var(--muted); color: var(--muted); box-shadow: none; opacity: .7; transform: none; }
+.vbp-stk { flex: 0 1 150px; width: 150px; min-width: 0; height: auto; transform: rotate(9deg); filter: drop-shadow(0 6px 8px rgba(60,30,10,.18)); }
+.vbp-slot { flex: 0 1 140px; width: 140px; height: 54px; border: 2px dashed var(--muted); border-radius: var(--radius-pill); transform: rotate(9deg); opacity: .45; }
+.vbp-cap { margin: 0 0 8px; text-align: center; color: var(--muted); font-size: calc(13px * var(--fs-mul, 1)); }
+.vbp-ft { display: flex; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--muted); font-size: calc(12.5px * var(--fs-mul, 1)); white-space: nowrap; }
+.vbp-ft span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.vb-bar { display: grid; grid-template-columns: 46px 1fr 46px; align-items: center; gap: 8px; padding: 8px 18px calc(12px + env(safe-area-inset-bottom)); }
+.vb-nav { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.vb-no { min-width: 64px; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* —— 面板 —— */
+.vac-toc .rs-ok, .vac-cover-sheet .rs-ok, .vac-rem-sheet .rs-ok, .vac-ck-sheet .rs-ok, .vac-birth-sheet .rs-ok { visibility: hidden; }
+.vac-sheet .vs-mode { margin: 14px 0 10px; }
+.vs-search input { width: 100%; min-height: 44px; padding: 0 14px; border: none; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); font-size: 16px; }
+.vs-list { margin-top: 6px; }
+.modal .vs-grp, .vs-grp { margin: 12px 4px 4px; color: var(--muted); font-size: calc(12.5px * var(--fs-mul, 1)); }
+.vs-opt { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 48px; padding: 8px 12px; border: none; border-bottom: 1px solid var(--border); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.vs-opt b { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.vs-opt small { flex: none; color: var(--muted); font-size: calc(12.5px * var(--fs-mul, 1)); white-space: nowrap; }
+.vs-opt.on { border-radius: var(--radius-sm); border-bottom-color: transparent; background: var(--tile-weak); }
+.vs-opt.on b { color: var(--tile-text); }
+.vs-opt[hidden], .vs-grp[hidden] { display: none; }
+.modal .vs-none { margin: 12px 4px; color: var(--muted); }
+.vs-cov { margin-top: 10px; }
+.vs-more { display: grid; gap: 8px; }
+.vs-sites { margin: 2px 0 4px; }
+.vs-stks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.vs-stk { display: flex; align-items: center; justify-content: center; min-height: 56px; padding: 6px; border: 2px solid transparent; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+.vs-stk img { width: 100%; max-width: 92px; height: auto; }
+.vs-stk.on { border-color: var(--tile); }
+.modal .vs-head { margin: 6px 0 4px; }
+.vs-head b { font-size: calc(22px * var(--fs-mul, 1)); font-weight: 800; }
+.vs-head span { margin-left: 8px; color: var(--muted); white-space: nowrap; }
+.modal .vs-txt { margin: 6px 0 4px; line-height: 1.6; }
+.vs-wide { width: 100%; min-height: 48px; margin-top: 12px; border-radius: var(--radius-pill); }
+.vc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+.vc-cell { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 10px 10px; border: 2px solid transparent; border-radius: var(--radius); background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; }
+.vc-cell img { width: 86%; height: auto; }
+.vc-cell span { font-size: calc(13px * var(--fs-mul, 1)); white-space: nowrap; }
+.vc-cell.on { border-color: var(--tile); }
+.vb-toc { margin: 4px 0 0; padding: 0; list-style: none; }
+.vbt-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 56px; padding: 6px 10px; border: none; border-bottom: 1px solid var(--border); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.vbt-n { color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 700; }
+.vbt-row.is-done .vbt-n { color: var(--vb-ink); }
+.vbt-t { display: flex; flex-direction: column; min-width: 0; }
+.vbt-t b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vbt-t small { color: var(--muted); font-size: calc(12.5px * var(--fs-mul, 1)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vbt-stk { width: 58px; height: auto; }
+.vbt-row.on { border-radius: var(--radius-sm); border-bottom-color: transparent; background: var(--tile-weak); }
+@media (max-width: 360px) {
+  .vb-paper { padding: 18px 16px 14px; } .vb-pg { padding-left: 12px; padding-right: 12px; }
+  .vb-stamp { width: 100px; height: 100px; } .vbp-stk { width: 124px; flex-basis: 124px; }
+  .vb-bar, .vb-top { padding-left: 12px; padding-right: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vb-book, .vb-book .vb-in, .vb-cover { transition: none; }
+}

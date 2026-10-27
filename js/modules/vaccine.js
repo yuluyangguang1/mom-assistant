@@ -18,6 +18,7 @@
  *   （百白破 2/4/6/18 月龄 + 6 岁；脊灰、麻腮风、乙脑、流脑、甲肝、卡介苗、乙肝时点不变），
  *   页面出处与提示文案同步改为 2026 年版。
  * 数据：d.vaccines.done = { 'hepb-1': '2026-01-05', ... }（剂次 key → 实际接种日期）
+ * 第 289 次：页面重做成「疫苗本」（封面 + 全屏翻页 + 创可贴贴纸），见文件后半段说明。
  */
 (function (global) {
   'use strict';
@@ -89,7 +90,9 @@
     { name: '轮状病毒疫苗', fam: [] },
     { name: '水痘疫苗', fam: [] },
     { name: '流感疫苗', fam: [] },
-    { name: '手足口（EV71）疫苗', fam: [] }
+    { name: '手足口（EV71）疫苗', fam: [] },
+    { name: 'Hib 疫苗', fam: [] },
+    { name: 'RSV 单抗（尼塞韦单抗）', fam: [] }
   ];
 
   /* 第 199 次：每剂接种详情（部位 / 单位 / 批号 / 接种后反应 / 备注），对标 Cali 的接种记录字段。
@@ -107,7 +110,6 @@
     var n = d.vaccines && d.vaccines.notes && d.vaccines.notes[key];
     return (n && typeof n === 'object' && !Array.isArray(n)) ? n : null;
   }
-  var openDetail = null;  /* 当前展开详情的剂次 key（模块级临时态） */
 
   /** 由生日生成每剂排期（供模块页与提醒引擎共用） */
   function plan(birthDate) {
@@ -149,422 +151,833 @@
     });
   }
 
+  /* ======================================================================
+     第 289 次：疫苗页重做成「疫苗本」（工具页第一个）
+     页面 = 摘要 → （首次）疫苗提醒卡 → 疫苗本封面（轻点翻开）→ 工具行（儿保 / 提醒 / 生日）→ 一行出处 → 底部「+ 记一次接种」。
+     翻开 = 全屏翻页，一剂一页（免疫规划按程序顺序，之后是不抵扣剂次的自选疫苗）；已接种页盖章 + 贴一枚创可贴，
+     待接种页留空章。记录 / 修改 / 删除都在半屏面板里完成。
+     数据只加可选字段，结构不动：
+       vaccines.done[key] = 'YYYY-MM-DD'（老数据偶有 { date } 对象，只读兼容）
+       vaccines.notes[key] = { site, clinic, lot, react, note, + at:'HH:MM', maker, stk }
+       vaccines.subs[i]    = { id, name, date, covers, + at, maker, lot, site, clinic, stk }
+       vaccines.cover      = 封面贴纸 id（可选，默认 heart）
+     本机提醒卡的选择存 localStorage 'yiya-vac-remind'（'cal' | 'no'），同营养品「每位照护者在自己的设备上」。
+     ====================================================================== */
+  var STK = [['heart', '爱心'], ['star', '星星'], ['flower', '小花'], ['sprout', '嫩芽'], ['moon', '月亮'], ['cloud', '云朵'], ['cherry', '樱桃'], ['lemon', '柠檬']];
+  var REM_KEY = 'yiya-vac-remind';
+  function esc(s) { return Util.escapeHtml(s == null ? '' : String(s)); }
+  function validDay(s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }
+  function validHM(s) { return typeof s === 'string' && /^\d{2}:\d{2}$/.test(s); }
+  function dOf(v) { if (validDay(v)) return v; if (v && typeof v === 'object' && validDay(v.date)) return v.date; return null; }
+  function stkOk(id) { for (var i = 0; i < STK.length; i++) if (STK[i][0] === id) return id; return null; }
+  function stkName(id) { for (var i = 0; i < STK.length; i++) if (STK[i][0] === id) return STK[i][1]; return ''; }
+  /* 没选过贴纸的老记录：按 key+日期 稳定挑一枚（每次打开都一样） */
+  function stkFor(seed, chosen) {
+    if (stkOk(chosen)) return chosen;
+    var h = 0, t = String(seed || '');
+    for (var i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0;
+    return STK[h % STK.length][0];
+  }
+  function stkImg(id, cls) { return '<img class="' + (cls || '') + '" src="assets/sticker/' + id + '.webp" alt="" width="200" height="74" decoding="async">'; }
+  function remState() { try { return global.localStorage.getItem(REM_KEY) || ''; } catch (e) { return ''; } }
+  function setRem(v) { try { global.localStorage.setItem(REM_KEY, v); } catch (e) {} }
+  function reduced() { try { return global.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
+  function vacOf(d) {
+    if (!d.vaccines || typeof d.vaccines !== 'object') d.vaccines = { done: {} };
+    if (!d.vaccines.done || typeof d.vaccines.done !== 'object') d.vaccines.done = {};
+    return d.vaccines;
+  }
+  function subsOf(d) { var v = d.vaccines; return (v && Array.isArray(v.subs)) ? v.subs.filter(function (x) { return x && typeof x === 'object' && x.id; }) : []; }
+  function subById(d, id) { var l = subsOf(d); for (var i = 0; i < l.length; i++) if (String(l[i].id) === String(id)) return l[i]; return null; }
+  function viaSub(d, key) { var via = d.vaccines && d.vaccines.via; return (via && typeof via === 'object' && via[key]) ? subById(d, via[key]) : null; }
+  function famOf(key) { return String(key).split('-')[0]; }
+  /* 参考月龄：0 = 出生时；≤18 月写月龄，更大写岁 */
+  function ageLab(at) {
+    var m = Math.round(at / 30.44);
+    if (m <= 0) return '出生时';
+    if (m <= 18) return m + ' 月龄';
+    return Math.round(m / 12) + ' 岁';
+  }
+  function cnDate(iso) { return validDay(iso) ? (+iso.slice(0, 4)) + ' 年 ' + (+iso.slice(5, 7)) + ' 月 ' + (+iso.slice(8, 10)) + ' 日' : ''; }
+  function mdDate(iso) { return validDay(iso) ? (+iso.slice(5, 7)) + '月' + (+iso.slice(8, 10)) + '日' : ''; }
+  function ago(iso, today) {
+    var n = Util.daysBetween(iso, today);
+    if (n <= 0) return '今天';
+    if (n === 1) return '昨天';
+    if (n < 31) return n + ' 天前';
+    return agoText(n) + '前';
+  }
+  function babyName(d) {
+    var b = (d.settings && d.settings.baby) || {};
+    var n = String(b.nickname || b.name || '').trim();
+    return n ? n.slice(0, 12) : '宝宝';
+  }
+
+  /* 疫苗本的页：免疫规划每剂一页（程序顺序），之后是不抵扣剂次的自选疫苗（按日期） */
+  function pagesOf(d) {
+    var b = (d.settings && d.settings.baby) || {};
+    var done = (d.vaccines && d.vaccines.done) || {};
+    var out = [];
+    if (b.birthDate) {
+      SCHEDULE.forEach(function (s) {
+        var dt = dOf(done[s.key]), n = dt ? noteOf(d, s.key) : null, vs = dt ? viaSub(d, s.key) : null;
+        out.push({ kind: 'plan', id: s.key, key: s.key, name: s.name, dose: s.dose, at: s.at, dueISO: Util.addDays(b.birthDate, s.at),
+          date: dt, hm: n && validHM(n.at) ? n.at : (vs && validHM(vs.at) ? vs.at : ''), note: n, via: vs,
+          stk: dt ? stkFor(s.key + dt, (n && n.stk) || (vs && vs.stk)) : null });
+      });
+    }
+    subsOf(d).filter(function (x) { return !(Array.isArray(x.covers) && x.covers.length) && dOf(x.date); })
+      .sort(function (a, c) { return String(a.date).localeCompare(String(c.date)); })
+      .forEach(function (x) {
+        out.push({ kind: 'sub', id: 'sub:' + x.id, sid: x.id, name: String(x.name || '自选疫苗'), dose: '', date: dOf(x.date), hm: validHM(x.at) ? x.at : '',
+          note: x, stk: stkFor(x.id + x.date, x.stk) });
+      });
+    return out;
+  }
+  /* 一次接种 = 一条自选记录（不论抵扣几剂）或一剂没被抵扣的免疫规划 */
+  function events(d) {
+    var done = (d.vaccines && d.vaccines.done) || {}, ev = [];
+    SCHEDULE.forEach(function (s) { var dt = dOf(done[s.key]); if (dt && !viaSub(d, s.key)) ev.push({ date: dt, stk: stkFor(s.key + dt, (noteOf(d, s.key) || {}).stk) }); });
+    subsOf(d).forEach(function (x) { var dt = dOf(x.date); if (dt) ev.push({ date: dt, stk: stkFor(x.id + dt, x.stk) }); });
+    return ev;
+  }
+
+  /* ---------- 半屏：记一次接种 / 修改这一页 ---------- */
+  var openAt = 0;
+  function sheetBase(title, body, cls, ready) {
+    var FT = global.FTUI; if (!FT) return null;
+    if (Date.now() - openAt < 450) return null; /* 手指连点不开两个 */
+    openAt = Date.now();
+    return FT.openSheet('vaccine', title, body, function (api) {
+      var m = api.box.closest('.modal'); if (m && cls) m.classList.add(cls);
+      var closed = false;
+      api.onClose = (function (prev) { return function () { closed = true; if (prev) prev.apply(this, arguments); }; })(api.onClose);
+      api.isClosed = function () { return closed; };
+      ready(api);
+    });
+  }
+  function sitePills(cur) {
+    return '<div class="dp-flags vs-sites">' + VSITES.map(function (o) {
+      return '<button type="button" class="dp-pill' + (cur === o[0] ? ' active' : '') + '" data-vds="' + o[0] + '" aria-pressed="' + (cur === o[0]) + '">' + o[1] + '</button>';
+    }).join('') + '</div>';
+  }
+  function stkPick(cur, allowRandom) {
+    var h = '<div class="vs-stks" role="radiogroup" aria-label="贴纸">';
+    if (allowRandom) h += '<button type="button" class="vs-stk' + (!cur ? ' on' : '') + '" data-vstk="" role="radio" aria-checked="' + (!cur) + '"><span>随机</span></button>';
+    STK.forEach(function (s) {
+      var on = cur === s[0];
+      h += '<button type="button" class="vs-stk' + (on ? ' on' : '') + '" data-vstk="' + s[0] + '" role="radio" aria-checked="' + on + '" aria-label="' + s[1] + '">' + stkImg(s[0]) + '</button>';
+    });
+    return h + '</div>';
+  }
+  function detailFields(n) {
+    n = n || {};
+    return '<p class="rs-lbl">接种信息（可选）</p><div class="vs-more">'
+      + '<label class="rs-note"><span class="rs-lbl">生产企业</span><input type="text" id="vaMaker" maxlength="30" placeholder="接种本上有" value="' + esc(n.maker || '') + '"></label>'
+      + '<label class="rs-note"><span class="rs-lbl">批号</span><input type="text" id="vaLot" maxlength="30" placeholder="接种本上有" value="' + esc(n.lot || '') + '"></label>'
+      + '<span class="rs-lbl">接种部位</span>' + sitePills(n.site)
+      + '<label class="rs-note"><span class="rs-lbl">接种单位</span><input type="text" id="vaClinic" maxlength="30" placeholder="如 XX 社区卫生服务中心" value="' + esc(n.clinic || '') + '"></label></div>';
+  }
+  function readDetails(box) {
+    var g = function (id) { var e = box.querySelector('#' + id); return e ? String(e.value || '').trim().slice(0, 30) || null : null; };
+    var sb = box.querySelector('[data-vds].active');
+    return { maker: g('vaMaker'), lot: g('vaLot'), clinic: g('vaClinic'), site: sb ? sb.getAttribute('data-vds') : null };
+  }
+  function bindPills(box) {
+    box.addEventListener('click', function (e) {
+      if (Util.hapEcho(e)) return;
+      var b = e.target.closest ? e.target.closest('[data-vds],[data-vstk],[data-vdr]') : null;
+      if (!b || !box.contains(b)) return;
+      if (b.hasAttribute('data-vds')) {
+        var on = b.classList.contains('active');
+        Array.prototype.forEach.call(box.querySelectorAll('[data-vds]'), function (x) { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false'); });
+        if (!on) { b.classList.add('active'); b.setAttribute('aria-pressed', 'true'); }
+      } else if (b.hasAttribute('data-vstk')) {
+        Array.prototype.forEach.call(box.querySelectorAll('[data-vstk]'), function (x) { var o = x === b; x.classList.toggle('on', o); x.setAttribute('aria-checked', String(o)); });
+      } else {
+        var v = b.getAttribute('data-vdr'), on2 = !b.classList.contains('active');
+        Array.prototype.forEach.call(box.querySelectorAll('[data-vdr]'), function (x) {
+          var xv = x.getAttribute('data-vdr');
+          if (on2 && ((v === 'none' && xv !== 'none') || (v !== 'none' && xv === 'none'))) { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false'); }
+        });
+        b.classList.toggle('active', on2); b.setAttribute('aria-pressed', String(on2));
+      }
+    });
+  }
+  function pickedStk(box) { var b = box.querySelector('[data-vstk].on'); var v = b ? b.getAttribute('data-vstk') : ''; return stkOk(v) || STK[Math.floor(Math.random() * STK.length)][0]; }
+  function nowHM() { var t = new Date(); return ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2); }
+  function coversHTML(d, pre) {
+    var b = (d.settings && d.settings.baby) || {}, done = (d.vaccines && d.vaccines.done) || {};
+    var items = b.birthDate ? plan(b.birthDate).filter(function (it) { return !dOf(done[it.key]); }) : [];
+    if (!items.length) return '<p class="ms-ref">没有未接种的免疫规划剂次可抵扣。</p>';
+    return items.map(function (it) {
+      var on = pre && pre.indexOf(it.key) >= 0;
+      return '<label class="chk"><input type="checkbox" value="' + it.key + '"' + (on ? ' checked' : '') + '> ' + it.name + it.dose + ' <small>' + it.dueISO + '</small></label>';
+    }).join('');
+  }
+  function famPreselect(d, preset) {
+    var done = (d.vaccines && d.vaccines.done) || {}, out = [];
+    (preset.fam || []).forEach(function (f) {
+      var keys = FAMILY[f] || [];
+      for (var i = 0; i < keys.length; i++) if (!dOf(done[keys[i]])) { out.push(keys[i]); break; }
+    });
+    return out;
+  }
+
+  /* 记一次接种：常见（免疫规划剂次 / 联合与自费）| 自定义 */
+  function openAdd(pre, after) {
+    var d = Storage.get();
+    var b = (d.settings && d.settings.baby) || {};
+    var today = Util.todayISO();
+    var done = (d.vaccines && d.vaccines.done) || {};
+    var pend = b.birthDate ? plan(b.birthDate).filter(function (it) { return !dOf(done[it.key]); }) : [];
+    var FT = global.FTUI;
+    var newId = Util.uid();
+    var pick = pre && /^k:/.test(pre) && pend.some(function (it) { return 'k:' + it.key === pre; }) ? pre : (pend.length ? 'k:' + pend[0].key : '');
+    var list = '';
+    if (pend.length) {
+      list += '<p class="vs-grp">免疫规划</p>';
+      pend.forEach(function (it) {
+        var on = pick === 'k:' + it.key;
+        list += '<button type="button" class="vs-opt' + (on ? ' on' : '') + '" data-vapick="k:' + it.key + '" data-q="' + esc(it.name + it.dose) + '" role="radio" aria-checked="' + on + '"><b>' + it.name + '</b><small>' + it.dose + ' · ' + mdDate(it.dueISO) + '</small></button>';
+      });
+    }
+    list += '<p class="vs-grp">联合 / 自费</p>';
+    SUB_PRESETS.forEach(function (p, i) {
+      list += '<button type="button" class="vs-opt" data-vapick="p:' + i + '" data-q="' + esc(p.name) + '" role="radio" aria-checked="false"><b>' + esc(p.name) + '</b>' + (p.fam.length ? '<small>可抵扣部分免疫规划剂次</small>' : '') + '</button>';
+    });
+    var body = FT.whenTiles('va', '接种时间', today, nowHM(), today, b.birthDate || '')
+      + '<div class="rs-seg sk-seg sk-n2 vs-mode" role="tablist"><button type="button" class="on" data-vamode="c" role="tab" aria-selected="true">常见</button><button type="button" data-vamode="u" role="tab" aria-selected="false">自定义</button></div>'
+      + '<div class="vs-pane" data-vapane="c"><label class="vs-search"><input type="search" id="vaQ" placeholder="搜索疫苗" aria-label="搜索疫苗" enterkeyhint="search"></label>'
+      + '<div class="vs-list" role="radiogroup" aria-label="选择疫苗">' + list + '<p class="vs-none" hidden>没有找到，可以在「自定义」里填写</p></div></div>'
+      + '<div class="vs-pane" data-vapane="u" hidden><label class="rs-note"><span class="rs-lbl">疫苗名称</span><input type="text" id="vaName" maxlength="30" placeholder="如 Hib 疫苗"></label></div>'
+      + '<div class="vs-cov" hidden><p class="rs-lbl">抵扣哪些免疫规划剂次（以门诊告知为准，可不选）</p><div class="vsub-covers" id="vaCovers"></div></div>'
+      + detailFields(null)
+      + '<p class="rs-lbl">贴纸</p>' + stkPick('', true)
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" id="vaSave">保存</button></div>';
+    sheetBase('记一次接种', body, 'vac-sheet', function (api) {
+      var box = api.box, saving = false, mode = 'c';
+      ['vaDate', 'vaTime'].forEach(function (id) { var e = box.querySelector('#' + id); if (e && e._paint) e._paint(); });
+      bindPills(box);
+      var cov = box.querySelector('.vs-cov'), covBox = box.querySelector('#vaCovers');
+      function showCov(pre2) { cov.hidden = false; covBox.innerHTML = coversHTML(Storage.get(), pre2); }
+      function setPick(v) {
+        pick = v;
+        Array.prototype.forEach.call(box.querySelectorAll('[data-vapick]'), function (x) { var o = x.getAttribute('data-vapick') === v; x.classList.toggle('on', o); x.setAttribute('aria-checked', String(o)); });
+        if (/^p:/.test(v)) showCov(famPreselect(Storage.get(), SUB_PRESETS[+v.slice(2)] || { fam: [] }));
+        else if (mode === 'c') cov.hidden = true;
+      }
+      if (/^p:\d+$/.test(pre || '')) setPick(pre);
+      box.addEventListener('click', function (e) {
+        if (api.isClosed() || Util.hapEcho(e)) return;
+        var t = e.target.closest ? e.target.closest('button') : null;
+        if (!t || !box.contains(t)) return;
+        if (t.id === 'vaSave' || t.hasAttribute('data-ok')) { save(); return; }
+        var pk = t.getAttribute('data-vapick'); if (pk) { setPick(pk); return; }
+        var md = t.getAttribute('data-vamode');
+        if (md) {
+          mode = md;
+          Array.prototype.forEach.call(box.querySelectorAll('[data-vamode]'), function (x) { var o = x === t; x.classList.toggle('on', o); x.setAttribute('aria-selected', String(o)); });
+          Array.prototype.forEach.call(box.querySelectorAll('[data-vapane]'), function (x) { x.hidden = x.getAttribute('data-vapane') !== md; });
+          if (md === 'u') showCov([]); else setPick(pick);
+        }
+      });
+      var q = box.querySelector('#vaQ');
+      q.addEventListener('input', function () {
+        var k = q.value.trim().toLowerCase(), any = false;
+        Array.prototype.forEach.call(box.querySelectorAll('[data-vapick]'), function (x) {
+          var hit = !k || x.getAttribute('data-q').toLowerCase().indexOf(k) >= 0; x.hidden = !hit; if (hit) any = true;
+        });
+        Array.prototype.forEach.call(box.querySelectorAll('.vs-grp'), function (g) { g.hidden = !!k; });
+        box.querySelector('.vs-none').hidden = any;
+      });
+      function save() {
+        if (saving || api.isClosed()) return;
+        var dv = (box.querySelector('#vaDate') || {}).value, tv = ((box.querySelector('#vaTime') || {}).value || '').slice(0, 5);
+        if (!validDay(dv) || dv > Util.todayISO()) { Util.toast('请选择不晚于今天的日期', 'warn'); return; }
+        if (!validHM(tv)) tv = null;
+        var det = readDetails(box), stk = pickedStk(box);
+        var s = Storage.get(), v = vacOf(s), name = '', covers = [], key = null;
+        if (mode === 'u') {
+          var ni = box.querySelector('#vaName'); name = String(ni.value || '').trim().slice(0, 30);
+          if (!name) { Util.markInvalid(ni, '请填写疫苗名称'); return; }
+        } else if (/^k:/.test(pick)) key = pick.slice(2);
+        else if (/^p:\d+$/.test(pick) && SUB_PRESETS[+pick.slice(2)]) name = SUB_PRESETS[+pick.slice(2)].name;
+        else { Util.toast('请选择疫苗', 'warn'); return; }
+        if (!key) covers = Array.prototype.map.call(box.querySelectorAll('#vaCovers input:checked'), function (c) { return c.value; })
+          .filter(function (k) { return SCHEDULE.some(function (x) { return x.key === k; }) && !dOf(v.done[k]); });
+        saving = true;
+        var snap = JSON.stringify(v), label, pageId;
+        if (key) {
+          if (dOf(v.done[key])) { saving = false; api.close(); return; } /* 幂等：已记过 */
+          v.done[key] = dv;
+          if (!v.notes || typeof v.notes !== 'object' || Array.isArray(v.notes)) v.notes = {};
+          var n0 = v.notes[key] && typeof v.notes[key] === 'object' ? v.notes[key] : {};
+          n0.at = tv; n0.stk = stk; n0.maker = det.maker; n0.lot = det.lot; n0.clinic = det.clinic; n0.site = det.site;
+          v.notes[key] = n0;
+          var it = SCHEDULE.filter(function (x) { return x.key === key; })[0];
+          label = it.name + it.dose; pageId = key;
+        } else {
+          if (!Array.isArray(v.subs)) v.subs = [];
+          if (!v.via || typeof v.via !== 'object') v.via = {};
+          if (v.subs.some(function (x) { return x && x.id === newId; })) { saving = false; api.close(); return; }
+          v.subs.push({ id: newId, name: name, date: dv, covers: covers, at: tv, maker: det.maker, lot: det.lot, clinic: det.clinic, site: det.site, stk: stk });
+          covers.forEach(function (k) { v.done[k] = dv; v.via[k] = newId; });
+          label = name + (covers.length ? '，抵扣 ' + covers.length + ' 剂' : ''); pageId = covers.length ? covers[0] : 'sub:' + newId;
+        }
+        if (!Storage.save()) { saving = false; return; }
+        api.close();
+        global.App.rerender();
+        if (after) after(pageId);
+        Util.toast('已记录：' + label, 'ok', { label: '撤销', onClick: function () {
+          var s2 = Storage.get(); s2.vaccines = JSON.parse(snap); Storage.save(); global.App.rerender(); Book.refresh();
+        } });
+      }
+    });
+  }
+
+  /* 修改这一页（免疫规划剂次 / 自选疫苗）；删除在面板里 */
+  function openEdit(pid, after) {
+    var d = Storage.get(), FT = global.FTUI;
+    var isSub = /^sub:/.test(String(pid));
+    var sub = isSub ? subById(d, String(pid).slice(4)) : null;
+    var key = isSub ? null : String(pid);
+    var it = key ? SCHEDULE.filter(function (x) { return x.key === key; })[0] : null;
+    var dt = sub ? dOf(sub.date) : (it ? dOf(((d.vaccines || {}).done || {})[key]) : null);
+    if ((!sub && !it) || !dt) return;
+    var n = sub || noteOf(d, key) || {};
+    var vs = key ? viaSub(d, key) : null;
+    var today = Util.todayISO(), b = (d.settings && d.settings.baby) || {};
+    var rx = Array.isArray(n.react) ? n.react : [];
+    var body = (sub ? '<label class="rs-note"><span class="rs-lbl">疫苗名称</span><input type="text" id="vaName" maxlength="30" value="' + esc(sub.name || '') + '"></label>'
+        : '<p class="vs-head"><b>' + it.name + '</b><span>' + it.dose + '</span></p>')
+      + (vs ? '<p class="ms-ref">这一剂由「' + esc(vs.name) + '」抵扣，日期跟随那条记录。</p>' : FT.whenTiles('va', '接种时间', dt, validHM(n.at) ? n.at : '', today, b.birthDate || ''))
+      + detailFields(n)
+      + '<span class="rs-lbl">接种后反应（可多选）</span><div class="dp-flags">'
+      + VREACT.map(function (o) { var on = rx.indexOf(o[0]) >= 0; return '<button type="button" class="dp-pill' + (on ? ' active' : '') + '" data-vdr="' + o[0] + '" aria-pressed="' + on + '">' + o[1] + '</button>'; }).join('')
+      + '</div><label class="rs-note"><span class="rs-lbl">备注</span><input type="text" id="vaNote" maxlength="60" placeholder="如 第二天退烧" value="' + esc(n.note || '') + '"></label>'
+      + '<p class="rs-lbl">贴纸</p>' + stkPick(stkFor((sub ? sub.id : key) + dt, n.stk), false)
+      + '<p class="ms-ref">接种后出现高热不退、大面积红肿、精神差或其他担心的情况，请联系接种门诊或就医。</p>'
+      + '<button type="button" class="btn rs-del" data-vadel>删除这条记录</button>'
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" id="vaSave">保存修改</button></div>';
+    sheetBase('修改这一页', body, 'vac-sheet', function (api) {
+      var box = api.box, saving = false;
+      ['vaDate', 'vaTime'].forEach(function (id) { var e = box.querySelector('#' + id); if (e && e._paint) e._paint(); });
+      bindPills(box);
+      box.addEventListener('click', function (e) {
+        if (api.isClosed() || Util.hapEcho(e)) return;
+        var t = e.target.closest ? e.target.closest('button') : null;
+        if (!t || !box.contains(t)) return;
+        if (t.id === 'vaSave' || t.hasAttribute('data-ok')) save();
+        else if (t.hasAttribute('data-vadel')) { api.close(); remove(pid); }
+      });
+      function save() {
+        if (saving || api.isClosed()) return;
+        var s = Storage.get(), v = vacOf(s), det = readDetails(box);
+        var dv = dt, tv = validHM(n.at) ? n.at : null;
+        var di = box.querySelector('#vaDate');
+        if (di) {
+          dv = di.value; tv = ((box.querySelector('#vaTime') || {}).value || '').slice(0, 5) || null;
+          if (!validDay(dv) || dv > Util.todayISO()) { Util.toast('请选择不晚于今天的日期', 'warn'); return; }
+          if (tv && !validHM(tv)) tv = null;
+        }
+        var nameV = null;
+        if (sub) { var ni = box.querySelector('#vaName'); nameV = String(ni.value || '').trim().slice(0, 30); if (!nameV) { Util.markInvalid(ni, '请填写疫苗名称'); return; } }
+        saving = true;
+        var stkB = box.querySelector('[data-vstk].on');
+        var fields = { at: tv, maker: det.maker, lot: det.lot, clinic: det.clinic, site: det.site,
+          react: Array.prototype.map.call(box.querySelectorAll('[data-vdr].active'), function (x) { return x.getAttribute('data-vdr'); }),
+          note: String((box.querySelector('#vaNote') || {}).value || '').trim().slice(0, 60) || null,
+          stk: stkB ? stkOk(stkB.getAttribute('data-vstk')) : null };
+        if (sub) {
+          var real = subById(s, sub.id); if (!real) { api.close(); return; }
+          Object.keys(fields).forEach(function (k) { real[k] = fields[k]; });
+          real.name = nameV;
+          if (real.date !== dv) {
+            real.date = dv;
+            var via = v.via || {};
+            Object.keys(via).forEach(function (k) { if (via[k] === real.id) v.done[k] = dv; });
+          }
+        } else {
+          if (!vs) v.done[key] = dv;
+          if (!v.notes || typeof v.notes !== 'object' || Array.isArray(v.notes)) v.notes = {};
+          var cur = v.notes[key] && typeof v.notes[key] === 'object' ? v.notes[key] : {};
+          Object.keys(fields).forEach(function (k) { cur[k] = fields[k]; });
+          v.notes[key] = cur;
+        }
+        if (!Storage.save()) { saving = false; return; }
+        api.close(); global.App.rerender(); Book.refresh();
+        if (after) after();
+        Util.toast('已保存', 'ok');
+      }
+    });
+  }
+
+  /* 删除：免疫规划剂次撤回已种（连同详情 / 抵扣标记）；自选疫苗连同它抵扣的剂次一起撤回。都可撤销 */
+  function remove(pid) {
+    var s = Storage.get(), v = vacOf(s), snap = JSON.stringify(v), txt;
+    if (/^sub:/.test(String(pid))) {
+      var sid = String(pid).slice(4), sub = subById(s, sid); if (!sub) return;
+      v.subs = v.subs.filter(function (x) { return !(x && String(x.id) === sid); });
+      var via = v.via || {}, n = 0;
+      Object.keys(via).forEach(function (k) { if (String(via[k]) === sid) { delete via[k]; delete v.done[k]; n++; } });
+      txt = '已删除「' + String(sub.name || '').slice(0, 12) + '」' + (n ? '，' + n + ' 剂恢复为待接种' : '');
+    } else {
+      if (!dOf(v.done[pid])) return;
+      delete v.done[pid];
+      if (v.via) delete v.via[pid];
+      if (v.notes) delete v.notes[pid];
+      txt = '已删除这条接种记录';
+    }
+    Storage.save(); global.App.rerender(); Book.refresh();
+    Util.toast(txt, 'ok', { label: '撤销', onClick: function () { var s2 = Storage.get(); s2.vaccines = JSON.parse(snap); Storage.save(); global.App.rerender(); Book.refresh(); } });
+  }
+
+  /* ---------- 疫苗本（全屏翻页） ---------- */
+  var Book = (function () {
+    var el = null, track = null, panes = [], idx = 0, pages = [], rel = null, closing = false;
+    var sx = 0, sy = 0, lock = 0, W = 1, off = 0, raf = 0, samples = [], anim = null;
+    var FLIP = 'cubic-bezier(.22,.8,.28,1)', BACK = 'cubic-bezier(.3,1.2,.5,1)';
+    function pageHTML(p, i, d) {
+      if (!p) return '';
+      var nm = esc(babyName(d)), h = '<article class="vb-paper' + (p.date ? ' is-done' : ' is-todo') + '">'
+        + '<header class="vbp-hd"><span class="vbp-k">' + (p.date ? '已接种' : '待接种') + '</span><b class="vbp-n">' + (i + 1) + '</b></header>'
+        + '<h2 class="vbp-name">' + esc(p.name) + '</h2>' + (p.dose ? '<p class="vbp-dose">' + esc(p.dose) + '</p>' : '<p class="vbp-dose">自选疫苗</p>')
+        + '<dl class="vbp-dl">';
+      if (p.date) h += '<div><dt>接种时间</dt><dd><b>' + cnDate(p.date) + '</b>' + (p.hm ? ' <small>' + esc(p.hm) + '</small>' : '') + '</dd></div>';
+      else h += '<div><dt>参考时间</dt><dd><b>' + ageLab(p.at) + '</b> <small>' + mdDate(p.dueISO) + (p.dueISO.slice(0, 4) !== Util.todayISO().slice(0, 4) ? ' · ' + p.dueISO.slice(0, 4) : '') + '</small></dd></div>';
+      var pv = p.kind === 'plan' ? PREVENTS[famOf(p.key)] : '';
+      if (pv) h += '<div><dt>预防</dt><dd>' + pv + '</dd></div>';
+      if (p.via) h += '<div><dt>抵扣</dt><dd>由「' + esc(p.via.name) + '」抵扣</dd></div>';
+      if (p.kind === 'sub' && p.note && Array.isArray(p.note.covers) && p.note.covers.length === 0) h += '';
+      var n = p.note || {}, ex = [];
+      if (p.date) {
+        if (n.maker) ex.push(['生产企业', esc(n.maker)]);
+        if (n.lot) ex.push(['批号', esc(n.lot)]);
+        if (lbl(VSITES, n.site)) ex.push(['部位', lbl(VSITES, n.site)]);
+        if (n.clinic) ex.push(['接种单位', esc(n.clinic)]);
+      }
+      ex.forEach(function (x) { h += '<div class="vbp-ex"><dt>' + x[0] + '</dt><dd>' + x[1] + '</dd></div>'; });
+      h += '</dl><div class="vbp-seal">';
+      if (p.date) h += '<span class="vb-stamp"><small>已接种</small><b>' + p.date.replace(/-/g, '.') + '</b></span>' + stkImg(p.stk, 'vbp-stk');
+      else h += '<span class="vb-stamp is-empty"><small>待接种</small></span><span class="vbp-slot" aria-hidden="true"></span>';
+      h += '</div>' + (p.date ? '' : '<p class="vbp-cap">接种后，这里会盖上章</p>')
+        + '<footer class="vbp-ft"><span>' + nm + '</span><span>' + (i + 1) + ' / ' + pages.length + '</span></footer></article>';
+      return h;
+    }
+    function fill(pane, i) { var d = Storage.get(); pane.innerHTML = (i >= 0 && i < pages.length) ? pageHTML(pages[i], i, d) : ''; pane._i = i; }
+    function place() {
+      panes[0].className = 'vb-pg is-prev'; panes[1].className = 'vb-pg is-cur'; panes[2].className = 'vb-pg is-next';
+      panes.forEach(function (pn, i) { if (i !== 1) pn.setAttribute('aria-hidden', 'true'); else pn.removeAttribute('aria-hidden'); try { pn.inert = i !== 1; } catch (e) {} });
+      var no = el.querySelector('.vb-no'); if (no) no.textContent = (idx + 1) + ' / ' + pages.length;
+      var pv = el.querySelector('[data-vbprev]'), nx = el.querySelector('[data-vbnext]');
+      if (pv) pv.disabled = idx <= 0; if (nx) nx.disabled = idx >= pages.length - 1;
+      var mo = el.querySelector('[data-vbmore]'); if (mo) mo.hidden = !(pages[idx] && pages[idx].date);
+      el.setAttribute('data-page', pages[idx] ? pages[idx].id : '');
+    }
+    function renderAll() { fill(panes[0], idx - 1); fill(panes[1], idx); fill(panes[2], idx + 1); place(); }
+    function write() { raf = 0; track.style.transform = 'translate3d(' + off.toFixed(1) + 'px,0,0)'; }
+    function finishAnim() { if (!anim) return; var a = anim; anim = null; clearTimeout(a.t); track.removeEventListener('transitionend', a.fn); a.done(); }
+    function animate(to, ease, dur, done) {
+      finishAnim();
+      if (reduced() || dur <= 0) { off = to; track.style.transition = 'none'; done(); return; }
+      track.style.transition = 'transform ' + dur + 'ms ' + ease;
+      off = to; track.style.transform = 'translate3d(' + to + 'px,0,0)';
+      var a = { done: function () { track.style.transition = ''; done(); } };
+      a.fn = function (e) { if (e.target === track && anim === a) { anim = null; clearTimeout(a.t); track.removeEventListener('transitionend', a.fn); a.done(); } };
+      a.t = setTimeout(function () { if (anim === a) { anim = null; track.removeEventListener('transitionend', a.fn); a.done(); } }, dur + 90);
+      track.addEventListener('transitionend', a.fn); anim = a;
+    }
+    function rest() { track.style.transition = 'none'; track.style.transform = ''; off = 0; el.classList.remove('is-drag'); }
+    function commit(dir) {
+      idx += dir;
+      if (dir > 0) panes = [panes[1], panes[2], panes[0]]; else panes = [panes[2], panes[0], panes[1]];
+      var rec = dir > 0 ? panes[2] : panes[0];
+      fill(rec, dir > 0 ? idx + 1 : idx - 1);
+      place(); rest();
+    }
+    function flip(dir, v) {
+      if (!el) return false;
+      if (idx + dir < 0 || idx + dir >= pages.length) { animate(0, BACK, off ? 260 : 0, rest); return false; }
+      W = el.querySelector('.vb-stage').clientWidth || 1;
+      var to = -dir * W, dist = Math.abs(to - off);
+      var dur = v ? Math.max(200, Math.min(340, dist / Math.max(Math.abs(v), 0.6) * 1.6)) : 300;
+      animate(to, FLIP, Math.round(dur), function () { commit(dir); });
+      return true;
+    }
+    function go(i) {
+      if (!el || i < 0 || i >= pages.length) return;
+      finishAnim(); idx = i; renderAll();
+    }
+    function onStart(e) {
+      lock = 0;
+      if (!e.touches || e.touches.length !== 1 || modalOpen()) { lock = -1; return; }
+      if (anim) finishAnim(); /* 动画中又来手势：先落定，页码不乱 */
+      var t = e.touches[0]; sx = t.clientX; sy = t.clientY; samples = [[Date.now(), sx]];
+      if (sx < 16) lock = -1; /* iOS 左缘归系统返回 */
+    }
+    function onMove(e) {
+      if (lock < 0 || !e.touches || !e.touches[0]) return;
+      var t = e.touches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+      if (!lock) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        if (Math.abs(dx) <= Math.abs(dy) * 1.15) { lock = -1; return; }
+        lock = 1; W = el.querySelector('.vb-stage').clientWidth || 1; el.classList.add('is-drag');
+      }
+      if (e.cancelable) e.preventDefault();
+      var now = Date.now(); samples.push([now, t.clientX]); if (samples.length > 6) samples.shift();
+      if (reduced()) return;
+      var x = dx;
+      if ((dx > 0 && idx <= 0) || (dx < 0 && idx >= pages.length - 1)) x = (1 - 1 / (Math.abs(dx) * 0.55 / W + 1)) * W * (dx < 0 ? -1 : 1);
+      off = x;
+      if (!raf) raf = requestAnimationFrame(write);
+    }
+    function onEnd(e, cancel) {
+      if (lock !== 1) { lock = 0; return; }
+      lock = 0;
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      var t = (e.changedTouches && e.changedTouches[0]) || null;
+      var x = t ? t.clientX : (samples.length ? samples[samples.length - 1][1] : sx), dx = x - sx, v = 0;
+      if (!cancel && samples.length > 1) { var a = samples[0], b = samples[samples.length - 1]; if (b[0] - a[0] > 0) v = (b[1] - a[1]) / (b[0] - a[0]); }
+      if (Date.now() - (samples.length ? samples[samples.length - 1][0] : 0) > 120) v = 0;
+      var dir = 0;
+      if (Math.abs(dx) >= W / 3) dir = dx < 0 ? 1 : -1;
+      else if (Math.abs(v) >= 0.3 && (v < 0) === (dx < 0) && dx !== 0) dir = v < 0 ? 1 : -1;
+      if (dir && flip(dir, v)) return;
+      animate(0, BACK, reduced() ? 0 : 260, rest);
+    }
+    function modalOpen() { var mr = document.getElementById('modalRoot'); return !!(mr && mr.children.length); }
+    function onKey(e) {
+      if (!el || modalOpen()) return;
+      if (e.key === 'ArrowLeft') { flip(-1); e.preventDefault(); }
+      else if (e.key === 'ArrowRight') { flip(1); e.preventDefault(); }
+    }
+    function onClick(e) {
+      if (Util.hapEcho(e) || closing) return;
+      var b = e.target.closest ? e.target.closest('button') : null;
+      if (!b || !el.contains(b)) return;
+      if (b.hasAttribute('data-vbx')) close();
+      else if (b.hasAttribute('data-vbprev')) flip(-1);
+      else if (b.hasAttribute('data-vbnext')) flip(1);
+      else if (b.hasAttribute('data-vbtoc')) toc();
+      else if (b.hasAttribute('data-vbmore')) { var p = pages[idx]; if (p && p.date) openEdit(p.id); }
+      else if (b.hasAttribute('data-vbadd')) { var p2 = pages[idx]; openAdd(p2 && p2.kind === 'plan' && !p2.date ? 'k:' + p2.key : null, jumpTo); }
+    }
+    function jumpTo(pid) { if (!el) return; pages = pagesOf(Storage.get()); for (var i = 0; i < pages.length; i++) if (pages[i].id === pid) { go(i); return; } renderAll(); }
+    function toc() {
+      var h = '<ol class="vb-toc">';
+      pages.forEach(function (p, i) {
+        h += '<li><button type="button" class="vbt-row' + (i === idx ? ' on' : '') + (p.date ? ' is-done' : '') + '" data-vbgo="' + i + '"><span class="vbt-n">' + (i + 1) + '</span>'
+          + '<span class="vbt-t"><b>' + esc(p.name) + '</b><small>' + (p.dose ? esc(p.dose) + ' · ' : '') + (p.date ? '已接种 ' + mdDate(p.date) : '参考 ' + ageLab(p.at)) + '</small></span>'
+          + (p.date ? stkImg(p.stk, 'vbt-stk') : '') + '</button></li>';
+      });
+      h += '</ol>';
+      sheetBase('疫苗本目录', h, 'vac-toc', function (api) {
+        var cur = api.box.querySelector('.vbt-row.on'); if (cur && cur.scrollIntoView) try { cur.scrollIntoView({ block: 'center' }); } catch (e) {}
+        api.box.addEventListener('click', function (e) {
+          if (Util.hapEcho(e) || api.isClosed()) return;
+          var b = e.target.closest ? e.target.closest('[data-vbgo]') : null; if (!b) return;
+          var i = +b.getAttribute('data-vbgo'); api.close(); go(i);
+        });
+      });
+    }
+    function open(at) {
+      if (el || closing) return;
+      var d = Storage.get(); pages = pagesOf(d);
+      if (!pages.length) return;
+      idx = 0;
+      if (typeof at === 'string') { for (var i = 0; i < pages.length; i++) if (pages[i].id === at) idx = i; }
+      else { var best = -1, bd = ''; pages.forEach(function (p, i2) { if (p.date && p.date >= bd) { bd = p.date; best = i2; } }); if (best >= 0) idx = best; }
+      var SV = (global.FTUI && FTUI.SV) || {};
+      el = document.createElement('div');
+      el.className = 'vb-book'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', '疫苗本'); el.setAttribute('data-no-drawer', '');
+      el.setAttribute('data-accent', 'vaccine');
+      el.innerHTML = '<div class="vb-in"><div class="vb-top"><button type="button" class="vb-btn" data-vbx aria-label="合上疫苗本">' + icon('close') + '</button><b>疫苗本</b>'
+        + '<button type="button" class="vb-btn" data-vbmore aria-label="修改这一页">' + (SV.more || '…') + '</button></div>'
+        + '<div class="vb-stage"><div class="vb-track"><section class="vb-pg"></section><section class="vb-pg"></section><section class="vb-pg"></section></div></div>'
+        + '<div class="vb-bar"><button type="button" class="vb-btn" data-vbtoc aria-label="目录"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5h10M9 12h10M9 17.5h10" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="5" cy="6.5" r="1.3" fill="currentColor"/><circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="5" cy="17.5" r="1.3" fill="currentColor"/></svg></button>'
+        + '<div class="vb-nav"><button type="button" class="vb-btn" data-vbprev aria-label="上一页"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'
+        + '<span class="vb-no" aria-live="polite"></span><button type="button" class="vb-btn" data-vbnext aria-label="下一页"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>'
+        + '<button type="button" class="vb-btn" data-vbadd aria-label="记一次接种">' + icon('plus') + '</button></div></div>';
+      document.body.appendChild(el);
+      track = el.querySelector('.vb-track'); panes = Array.prototype.slice.call(track.children);
+      renderAll();
+      /* 画面开始变化之前登记 history（第 288 次规则：动画中途不写 history） */
+      rel = global.App && App._pushOverlay ? App._pushOverlay(onPop) : null;
+      var stage = el.querySelector('.vb-stage');
+      stage.addEventListener('touchstart', onStart, { passive: true });
+      stage.addEventListener('touchmove', onMove, { passive: false });
+      stage.addEventListener('touchend', function (e) { onEnd(e, false); }, { passive: true });
+      stage.addEventListener('touchcancel', function (e) { onEnd(e, true); }, { passive: true });
+      el.addEventListener('click', onClick);
+      document.addEventListener('keydown', onKey);
+      document.body.classList.add('vb-open');
+      if (!reduced()) { el.classList.add('is-in'); requestAnimationFrame(function () { requestAnimationFrame(function () { if (el) el.classList.remove('is-in'); }); }); }
+      if (global.queueStatusColor) global.queueStatusColor();
+      try { el.querySelector('[data-vbx]').focus({ preventScroll: true }); } catch (e) {}
+    }
+    /* 系统返回：盖在上面的面板先关、疫苗本留着（补回那条记录）；否则直接落定关闭，不播动画（和系统快照一致） */
+    function onPop() {
+      if (global.Sheet && Sheet.isOpen && Sheet.isOpen()) { Sheet.closeTop(); rel = App._pushOverlay(onPop); return; }
+      rel = null; teardown();
+    }
+    function teardown() {
+      if (!el) return;
+      finishAnim(); if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      document.removeEventListener('keydown', onKey);
+      if (el.parentNode) el.parentNode.removeChild(el);
+      el = null; closing = false; document.body.classList.remove('vb-open');
+      if (global.queueStatusColor) global.queueStatusColor();
+      var c = document.querySelector('#view .vb-cover'); if (c) try { c.focus({ preventScroll: true }); } catch (e) {}
+    }
+    function close() {
+      if (!el || closing) return;
+      closing = true;
+      var r = rel; rel = null;
+      var done = function () { teardown(); if (r) r(); }; /* 落定后才退 history */
+      if (reduced()) { done(); return; }
+      el.classList.add('is-out');
+      var t = setTimeout(done, 260);
+      el.addEventListener('transitionend', function f(e) { if (e.target === el) { el.removeEventListener('transitionend', f); clearTimeout(t); done(); } });
+    }
+    function refresh() { if (!el) return; var cur = pages[idx] && pages[idx].id; pages = pagesOf(Storage.get()); if (!pages.length) { close(); return; } var j = 0; for (var i = 0; i < pages.length; i++) if (pages[i].id === cur) j = i; idx = Math.min(j, pages.length - 1); renderAll(); }
+    return { open: open, close: close, refresh: refresh, isOpen: function () { return !!el; }, go: go, flip: flip, idx: function () { return idx; }, count: function () { return pages.length; } };
+  })();
+
+  /* ---------- 其它半屏：封面贴纸 / 疫苗提醒 / 儿保体检 / 宝宝生日 ---------- */
+  function openCoverPick() {
+    var d = Storage.get(), cur = stkOk(d.vaccines && d.vaccines.cover) || 'heart';
+    var h = '<div class="vc-grid" role="radiogroup" aria-label="封面贴纸">';
+    STK.forEach(function (s) {
+      var on = s[0] === cur;
+      h += '<button type="button" class="vc-cell' + (on ? ' on' : '') + '" data-vcov="' + s[0] + '" role="radio" aria-checked="' + on + '">' + stkImg(s[0]) + '<span>' + s[1] + '</span></button>';
+    });
+    sheetBase('封面贴纸', h + '</div>', 'vac-cover-sheet', function (api) {
+      api.box.addEventListener('click', function (e) {
+        if (Util.hapEcho(e) || api.isClosed()) return;
+        var b = e.target.closest ? e.target.closest('[data-vcov]') : null; if (!b) return;
+        var s = Storage.get(); vacOf(s).cover = stkOk(b.getAttribute('data-vcov')) || 'heart';
+        if (Storage.save()) { api.close(); global.App.rerender(); }
+      });
+    });
+  }
+  function exportIcs() {
+    var d = Storage.get(), bdv = ((d.settings && d.settings.baby) || {}).birthDate; if (!bdv) return 0;
+    var dn = (d.vaccines && d.vaccines.done) || {}, ck = (d.checkups && d.checkups.done) || {};
+    var t0 = Util.todayISO(), byDay = {};
+    plan(bdv).forEach(function (it) {
+      if (dOf(dn[it.key]) || it.dueISO < t0) return;
+      (byDay[it.dueISO] = byDay[it.dueISO] || []).push(it.name + it.dose);
+    });
+    var evs = Object.keys(byDay).sort().map(function (k) {
+      return { uid: 'vac-' + k, date: k, title: '疫苗参考日：' + byDay[k].join('、'), desc: '按国家免疫规划程序推算的参考日期，以接种门诊预约为准。' };
+    });
+    planCheckups(bdv).forEach(function (it) {
+      if (ck[it.key] || it.dueISO < t0) return;
+      evs.push({ uid: 'ck-' + it.key, date: it.dueISO, title: '儿保：' + it.name, desc: it.content + '（参考时间，以体检机构安排为准）' });
+    });
+    if (!evs.length) { Util.toast('没有待接种或待体检的项目', 'ok'); return 0; }
+    Util.shareOrDownload('咿呀记_疫苗与儿保.ics', Util.buildICS('宝宝疫苗与儿保', evs), 'text/calendar');
+    Util.toast('已生成 ' + evs.length + ' 个日历事件', 'ok');
+    return evs.length;
+  }
+  function remindText(d) {
+    return '把待接种和儿保的参考日加进手机日历，前一天 9:00 由日历提醒。'
+      + (d.settings && d.settings.remindersEnabled === false ? '' : '打开 App 时，首页也会在参考日前 7 天提示。');
+  }
+  function openRemind() {
+    var d = Storage.get(), st = remState();
+    var h = '<p class="vs-txt">' + remindText(d) + '</p>'
+      + '<p class="ms-ref">日历事件是一次性导出的：之后记了新的接种、改了生日，需要再导出一次；旧的事件可以在日历里删掉。</p>'
+      + '<button type="button" class="btn btn-primary vs-wide" id="vIcs">导出到系统日历</button>'
+      + (st === 'cal' ? '' : '<p class="ms-ref">' + (st === 'no' ? '目前没有开启。' : '') + '</p>');
+    sheetBase('疫苗提醒', h, 'vac-rem-sheet', function (api) {
+      api.box.addEventListener('click', function (e) {
+        if (Util.hapEcho(e) || api.isClosed()) return;
+        var b = e.target.closest ? e.target.closest('#vIcs') : null; if (!b) return;
+        if (exportIcs()) { setRem('cal'); api.close(); global.App.rerender(); }
+      });
+    });
+  }
+  function ckBody(d) {
+    var baby = (d.settings && d.settings.baby) || {}, today = Util.todayISO();
+    var ckDone = (d.checkups && d.checkups.done) || {};
+    var h = '<ul class="list vac-list">';
+    planCheckups(baby.birthDate).forEach(function (it) {
+      var doneDate = ckDone[it.key], left = Util.daysBetween(today, it.dueISO), status, cls;
+      if (doneDate) { status = '已体检 ' + esc(doneDate); cls = ' is-done'; }
+      else if (left < -30) { status = '已过参考时间较久，下次体检时一并评估'; cls = ' is-over'; }
+      else if (left < 0) { status = '已过参考时间 ' + (-left) + ' 天'; cls = ' is-over'; }
+      else if (left <= 7) { status = left === 0 ? '参考时间就是今天' : left + ' 天后到期'; cls = ' is-due'; }
+      else { status = '参考时间 ' + it.dueISO; cls = ''; }
+      h += '<li class="vac-item' + cls + '"><span class="row-ico">' + icon(doneDate ? 'check' : 'heart') + '</span>'
+        + '<span class="vac-main"><b>' + it.name + '</b><br><small>' + it.content + ' · ' + status + '</small></span>'
+        + (doneDate ? '<button class="btn btn-mini" type="button" data-ckdate="' + it.key + '">改日期</button><button class="icon-btn" type="button" data-unck="' + it.key + '" aria-label="取消已体检" title="取消已体检">' + icon('trash') + '</button>'
+          : '<button class="btn btn-mini" type="button" data-ck="' + it.key + '">已体检</button>') + '</li>';
+    });
+    return h + '</ul><p class="ms-ref">体检时点按国家 0-6 岁儿童健康管理规范生成，仅供参考；以社区卫生服务中心 / 妇幼保健院的实际安排为准，早产宝宝请遵医嘱。</p>';
+  }
+  function openCheckups() {
+    var d = Storage.get(); if (!((d.settings && d.settings.baby) || {}).birthDate) return;
+    var lastTap = 0;
+    sheetBase('儿保体检', '<div class="vck-wrap">' + ckBody(d) + '</div>', 'vac-ck-sheet', function (api) {
+      var wrap = api.box.querySelector('.vck-wrap');
+      function redraw() { wrap.innerHTML = ckBody(Storage.get()); global.App.rerender(); }
+      function setDate(key, val) {
+        var today = Util.todayISO();
+        Util.editDate({ title: '实际体检日期', message: '可补记到过去某天；以体检机构记录为准。', value: val || today, max: today, okText: '保存日期',
+          onConfirm: function (v) { var s = Storage.get(); s.checkups = s.checkups || { done: {} }; s.checkups.done[key] = v; if (Storage.save()) Util.toast('已更新体检日期：' + v, 'ok'); global.App.rerender(); } });
+      }
+      api.box.addEventListener('click', function (e) {
+        if (Util.hapEcho(e) || api.isClosed()) return;
+        var b = e.target.closest ? e.target.closest('[data-ck],[data-unck],[data-ckdate]') : null; if (!b) return;
+        if (e.isTrusted && Date.now() - lastTap < 450) return; lastTap = Date.now();
+        var s = Storage.get(); s.checkups = s.checkups || { done: {} }; if (!s.checkups.done) s.checkups.done = {};
+        var k = b.getAttribute('data-ck');
+        if (k) { if (!s.checkups.done[k]) { s.checkups.done[k] = Util.todayISO(); Storage.save(); Util.toast('已记录体检：' + Util.todayISO(), 'ok'); } redraw(); return; }
+        k = b.getAttribute('data-unck');
+        if (k) { delete s.checkups.done[k]; Storage.save(); redraw(); return; }
+        k = b.getAttribute('data-ckdate');
+        if (k) { api.close(); setDate(k, s.checkups.done[k]); }
+      });
+    });
+  }
+  function bindBirth(root) {
+    var bi = root.querySelector('#vBirth'); if (!bi) return;
+    Util.bindDateSliders(root);
+    bi.addEventListener('change', function (e) {
+      var s = Storage.get();
+      s.settings.baby = s.settings.baby || { sex: 'boy', birthDate: null, preterm: false, birthGestWeeks: 40 };
+      s.settings.baby.birthDate = e.target.value || null;
+      s.settings.baby.birthLunar = Util.birthLunarOf ? Util.birthLunarOf('vBirth') : null;
+      /* 第 80 次（宝宝档案）：生日改动同步回当前宝宝档案 */
+      if (Storage.syncBabyFromSettings) Storage.syncBabyFromSettings();
+      Storage.save(); global.App.rerender();
+    });
+  }
+  function openBirth() {
+    var d = Storage.get(), baby = d.settings.baby || {};
+    var h = Util.birthInput({ id: 'vBirth', title: '出生日期', value: baby.birthDate || '', lunar: baby.birthLunar })
+      + '<p class="ms-ref">与「生长」共用同一生日，改一处两边生效；接种排期跟着生日推算。</p>';
+    sheetBase('宝宝生日', h, 'vac-birth-sheet', function (api) {
+      bindBirth(api.box);
+      var bi = api.box.querySelector('#vBirth'); if (bi) bi.addEventListener('change', function () { setTimeout(function () { if (!api.isClosed()) api.close(); }, 0); });
+    });
+  }
+  function backfill() {
+    var today = Util.todayISO();
+    var its = plan(Storage.get().settings.baby.birthDate);
+    var s0 = Storage.get(), v0 = vacOf(s0);
+    var keys = its.filter(function (it) { return !dOf(v0.done[it.key]) && Util.daysBetween(today, it.dueISO) < 0; });
+    Util.confirm({
+      title: '补记 ' + keys.length + ' 剂为已接种？',
+      message: '日期按各剂的参考日填写，之后可以翻开疫苗本逐页改成接种证上的日期。',
+      okText: '补记', cancelText: '取消',
+      onConfirm: function () {
+        var s = Storage.get(), v = vacOf(s);
+        keys.forEach(function (it) { if (!dOf(v.done[it.key])) v.done[it.key] = it.dueISO; });
+        Storage.save(); global.App.rerender();
+        Util.toast('已补记 ' + keys.length + ' 剂', 'ok', { label: '撤销', onClick: function () {
+          var s2 = Storage.get(); keys.forEach(function (it) { delete s2.vaccines.done[it.key]; });
+          Storage.save(); global.App.rerender();
+        } });
+      }
+    });
+  }
+
+  var tapAt = 0;
   Modules.vaccine = {
     id: 'vaccine',
-    /* 第 183 次：给页头插画用的接种进度（与下方进度条同一口径） */
+    title: '疫苗',
+    noHero: true, /* 第 289 次：封面就是这一页的主角，不再叠页头大插画 */
+    /* 第 183 次：给页头插画 / 侧拉页用的接种进度 */
     progress: function (d) {
       var b = (d.settings && d.settings.baby) || {};
       if (!b.birthDate) return null;
       var done = (d.vaccines && d.vaccines.done) || {};
       var items = plan(b.birthDate);
-      return { done: items.filter(function (it) { return done[it.key]; }).length, total: items.length };
+      return { done: items.filter(function (it) { return dOf(done[it.key]); }).length, total: items.length };
     },
-    title: '疫苗',
     render: function (view) {
       var d = Storage.get();
       var baby = d.settings.baby || {};
-      var done = (d.vaccines && d.vaccines.done) || {};
       var today = Util.todayISO();
       var html = '';
-      var vSubs = (d.vaccines && Array.isArray(d.vaccines.subs)) ? d.vaccines.subs.filter(function (x) { return x && typeof x === 'object' && x.id; }) : [];
-      var vVia = (d.vaccines && d.vaccines.via && typeof d.vaccines.via === 'object') ? d.vaccines.via : {};
-      function viaOf(key) {
-        var sid = vVia[key]; if (!sid) return null;
-        for (var i = 0; i < vSubs.length; i++) if (vSubs[i].id === sid) return vSubs[i];
-        return null;
-      }
-
-      /* 宝宝生日（与生长模块共用 settings.baby.birthDate） */
-      html += '<div class="card"><h2>宝宝生日</h2>';
-      html += Util.birthInput({ id: 'vBirth', title: '出生日期', value: baby.birthDate || '', lunar: baby.birthLunar });
-      html += '<p class="hint">与「生长」模块共用同一生日，改一处两边生效。</p></div>';
-
       if (!baby.birthDate) {
-        html += '<div class="card"><p class="hint">填写宝宝出生日期后，自动生成国家免疫规划疫苗接种时间表。</p></div>';
+        html += '<div class="sk-empty vac-empty"><img src="assets/hero/vaccine.webp" alt="" width="200" height="200" decoding="sync">'
+          + '<p>填写宝宝生日，疫苗本会按免疫程序排好每一页</p></div>'
+          + '<div class="card vac-birth">' + Util.birthInput({ id: 'vBirth', title: '出生日期', value: '', lunar: baby.birthLunar })
+          + '<p class="ms-ref">与「生长」共用同一生日。</p></div>';
       } else {
-        var items = plan(baby.birthDate);
-        var doneN = items.filter(function (it) { return done[it.key]; }).length;
-        var next = items.filter(function (it) { return !done[it.key]; })
-          .sort(function (a, b) { return new Date(a.dueISO) - new Date(b.dueISO); })[0];
-
-        html += '<div class="card"><h2>接种进度</h2>';
-        html += '<div class="progress"><div class="progress-bar" style="width:' + Math.round(doneN / items.length * 100) + '%"></div></div>';
-        html += '<p class="hint">已完成 ' + doneN + ' / ' + items.length + ' 剂'
-          + (next ? '，下一剂：' + next.name + next.dose + '（' + next.dueISO + '）' : '，全部完成！') + '</p>'
-          /* 第 186 次：未种剂次 + 未做儿保 → 系统日历（.ics，前一天 9 点提醒） */
-          + '<div class="row"><button class="btn btn-mini" type="button" id="vIcs">导出到系统日历</button></div></div>';
-
-        /* 第 146 次：多剂「过了应种日还没记录」时，最常见的原因是「其实种过了、只是没在本机记」。
-           给一键补记出口（按应种日记、可逐条改），并说清楚没种的该怎么办。 */
-        var pastDue = items.filter(function (it) { return !done[it.key] && Util.daysBetween(today, it.dueISO) < 0; });
+        var items = plan(baby.birthDate), done = (d.vaccines && d.vaccines.done) || {};
+        var ev = events(d), last = ev.reduce(function (m, x) { return x.date > m ? x.date : m; }, '');
+        var next = items.filter(function (it) { return !dOf(done[it.key]); })[0];
+        var sum = ev.length ? '疫苗本里有 <b>' + ev.length + ' 次</b>接种记录，上次在<b>' + ago(last, today) + '</b>。'
+          : '疫苗本还没有记录，接种后记一笔就会留在这里。';
+        if (next) sum += '下一剂参考：<b>' + next.name + '</b><b>' + next.dose + '</b>（' + mdDate(next.dueISO) + '）。';
+        else sum += '免疫规划剂次都已记录。';
+        html += '<div class="mod-sum"><span class="ms-k">摘要</span><p>' + sum + '</p></div>';
+        var pend = items.filter(function (it) { return !dOf(done[it.key]); });
+        var future = pend.filter(function (it) { return it.dueISO >= today; });
+        if (!remState() && future.length) {
+          html += '<div class="card vac-remind"><b class="vr-t">开启疫苗提醒</b><p>' + remindText(d) + '</p>'
+            + '<div class="vr-acts"><button type="button" class="btn btn-primary" data-vrem="on">开启</button><button type="button" class="btn" data-vrem="no">暂不</button></div></div>';
+        }
+        /* 第 146 次：多剂过了参考日还没记录时，最常见的原因是「其实种过了、只是没在本机记」 */
+        var pastDue = pend.filter(function (it) { return Util.daysBetween(today, it.dueISO) < 0; });
         if (pastDue.length >= 3) {
-          html += '<div class="card vac-backfill"><h2>有 ' + pastDue.length + ' 剂过了应种日还没记录</h2>'
-            + '<p class="hint">如果宝宝已按门诊安排接种，可以一次补记，日期先按应种日填，之后可逐条改。还没种的，带上接种证联系接种门诊补种即可。</p>'
-            + '<div class="row"><button class="btn" type="button" id="vBackfill">都已接种，一键补记</button></div></div>';
+          html += '<div class="mod-note vac-bf"><p>有 ' + pastDue.length + ' 剂过了参考日还没记录。已按门诊安排接种的，可以先按参考日一次补记，之后逐页改。</p>'
+            + '<button class="btn btn-mini" type="button" id="vBackfill">一键补记</button></div>';
         }
-
-        html += '<div class="card"><h2>接种时间表</h2><ul class="list vac-list">';
-        items.forEach(function (it) {
-          var doneDate = done[it.key];
-          var left = Util.daysBetween(today, it.dueISO);
-          var status, cls;
-          var viaSub = viaOf(it.key);
-          if (doneDate && viaSub) { status = '已由「' + Util.escapeHtml(viaSub.name) + '」抵扣 ' + doneDate; cls = ' is-done'; }
-          else if (doneDate) { status = '已种 ' + doneDate; cls = ' is-done'; }
-          /* 第 146 次：逾期分档。原先超过 30 天一律「逾期较久」+ 加粗警示色，
-             生日一填、历史剂次没补记时整屏飘红，制造焦虑且看不出轻重。
-             现在：30 天内 = 提醒尽快补种（警示色）；更久 = 平和地说明「过了多久」+ 补种出口（次要色）。 */
-          else if (left < -30) { status = '已过应种日约 ' + agoText(-left) + ' · 未种请预约补种'; cls = ' is-late'; }
-          else if (left < 0) { status = '已过应种日 ' + (-left) + ' 天，请尽快补种'; cls = ' is-over'; }
-          else if (left <= 7) { status = left === 0 ? '今天应种' : left + ' 天后应种'; cls = ' is-due'; }
-          else { status = it.dueISO; cls = ''; }
-          var vn = doneDate ? noteOf(d, it.key) : null;
-          if (vn) {
-            var bits = [lbl(VSITES, vn.site)].concat((Array.isArray(vn.react) ? vn.react : []).map(function (r) { return lbl(VREACT, r); })).filter(Boolean);
-            if (bits.length) status += ' · ' + bits.join('、');
-          }
-          html += '<li class="vac-item' + cls + '">'
-            + '<span class="row-ico">' + icon(doneDate ? 'check' : 'vaccine') + '</span>'
-            + '<span class="vac-main"><b>' + it.name + '</b> <i>' + it.dose + '</i><br><small>' + status + '</small></span>'
-            + (doneDate
-              ? '<button class="btn btn-mini" data-vacdet="' + it.key + '" aria-expanded="' + (openDetail === it.key) + '">详情</button>'
-                + '<button class="icon-btn" data-unvax="' + it.key + '" aria-label="取消已种" title="取消已种">' + icon('trash') + '</button>'
-              : '<button class="btn btn-mini" data-vax="' + it.key + '">已接种</button>')
-            + '</li>';
-          if (doneDate && openDetail === it.key) {
-            var n0 = vn || {}, rx = Array.isArray(n0.react) ? n0.react : [];
-            var fam = it.key.split('-')[0];
-            html += '<li class="vac-detail">'
-              + (PREVENTS[fam] ? '<p class="hint">预防：' + PREVENTS[fam] + '</p>' : '')
-              + '<div class="row vd-date"><span>接种日期 <b>' + Util.escapeHtml(doneDate) + '</b></span><button type="button" class="btn btn-mini" data-vaxdate="' + it.key + '">改日期</button></div>'
-              + '<span class="lbl-text">接种部位</span><div class="dp-flags" id="vdSite">'
-              + VSITES.map(function (o) { return '<button type="button" class="dp-pill' + (n0.site === o[0] ? ' active' : '') + '" data-vds="' + o[0] + '" aria-pressed="' + (n0.site === o[0]) + '">' + o[1] + '</button>'; }).join('')
-              + '</div><span class="lbl-text">接种后反应（可多选）</span><div class="dp-flags" id="vdReact">'
-              + VREACT.map(function (o) { var on = rx.indexOf(o[0]) >= 0; return '<button type="button" class="dp-pill' + (on ? ' active' : '') + '" data-vdr="' + o[0] + '" aria-pressed="' + on + '">' + o[1] + '</button>'; }).join('')
-              + '</div>'
-              + '<label>接种单位<input type="text" id="vdClinic" maxlength="30" placeholder="如 XX 社区卫生服务中心" value="' + Util.escapeHtml(n0.clinic || '') + '"></label>'
-              + '<label>疫苗批号<input type="text" id="vdLot" maxlength="30" placeholder="接种本上有" value="' + Util.escapeHtml(n0.lot || '') + '"></label>'
-              + '<label>备注<input type="text" id="vdNote" maxlength="60" placeholder="如 第二天退烧" value="' + Util.escapeHtml(n0.note || '') + '"></label>'
-              + '<button type="button" class="btn btn-primary btn-save" id="vdSave" data-key="' + it.key + '">保存详情</button>'
-              + '<p class="hint">接种后出现高热不退、大面积红肿、精神差或其他担心的情况，请联系接种门诊或就医。</p>'
-              + '</li>';
-          }
-        });
-        html += '</ul><p class="hint">时间表按《国家免疫规划疫苗儿童免疫程序及说明（2026 年版）》生成，仅供参考；同一天到期的国家免疫规划疫苗可以按程序同时接种，实际以接种门诊安排为准。</p></div>';
-
-        /* 第 187 次：自费 / 联合疫苗卡 */
-        html += '<div class="card"><h2>自费 / 联合疫苗</h2>';
-        if (vSubs.length) {
-          html += '<ul class="list">';
-          vSubs.slice().sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); }).forEach(function (x) {
-            var cv = (Array.isArray(x.covers) ? x.covers : []).map(function (k) {
-              var it = items.filter(function (y) { return y.key === k; })[0];
-              return it ? it.name + it.dose : '';
-            }).filter(Boolean);
-            html += '<li><span class="row-ico">' + icon('vaccine') + '</span>'
-              + '<span class="vac-main"><b>' + Util.escapeHtml(x.name || '') + '</b><br><small>'
-              + Util.escapeHtml(String(x.date || '')) + (cv.length ? ' · 抵扣 ' + Util.escapeHtml(cv.join('、')) : ' · 不抵扣免疫规划剂次') + '</small></span>'
-              + '<button class="icon-btn" data-subdel="' + Util.escapeHtml(x.id) + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
-          });
-          html += '</ul>';
-        }
-        html += '<details class="vsub-add"' + (vSubs.length ? '' : ' open') + '><summary>记一剂自费 / 联合疫苗</summary>'
-          + '<label>疫苗<select id="vsName"><option value="">请选择</option>'
-          + SUB_PRESETS.map(function (p, i) { return '<option value="' + i + '">' + p.name + '</option>'; }).join('')
-          + '<option value="custom">其他（自己填）</option></select></label>'
-          + '<label id="vsCustomWrap" style="display:none">名称<input type="text" id="vsCustom" maxlength="30" placeholder="如 Hib 疫苗"></label>'
-          + '<label>接种日期<input type="date" id="vsDate" max="' + today + '" value="' + today + '"></label>'
-          + '<span class="lbl-text">抵扣哪些免疫规划剂次（以门诊告知为准，可不选）</span>'
-          + '<div class="vsub-covers" id="vsCovers">'
-          + items.filter(function (it) { return !done[it.key]; }).map(function (it) {
-            return '<label class="chk"><input type="checkbox" value="' + it.key + '"> ' + it.name + it.dose + ' <small>' + it.dueISO + '</small></label>';
-          }).join('')
-          + '</div>'
-          + '<button class="btn btn-primary btn-save" type="button" id="vsSave">保存</button></details>';
-        html += '<p class="hint">联合疫苗能替代哪几剂，取决于疫苗种类、月龄和门诊安排；预选只是按疫苗家族勾上下一剂未种的，请按接种门诊的说法调整。</p></div>';
-
-        /* 第 70 次（B4）：儿保体检节点——与接种时间表并排的另一张官方时刻表。
-           标记只落本机 checkups.done，随导出走；早产宝宝的体检安排常按矫正月龄，
-           因此本表只作参考、以医生安排为准。 */
-        var cks = planCheckups(baby.birthDate);
-        var ckDone = (d.checkups && d.checkups.done) || {};
-        html += '<div class="card"><h2>儿保体检节点</h2><ul class="list vac-list">';
-        cks.forEach(function (it) {
-          var doneDate = ckDone[it.key];
-          var left = Util.daysBetween(today, it.dueISO);
-          var status, cls;
-          if (doneDate) { status = '已体检 ' + doneDate; cls = ' is-done'; }
-          else if (left < -30) { status = '已过参考时间较久，下次体检时一并评估'; cls = ' is-over'; }
-          else if (left < 0) { status = '已过参考时间 ' + (-left) + ' 天'; cls = ' is-over'; }
-          else if (left <= 7) { status = left === 0 ? '参考时间就是今天' : left + ' 天后到期'; cls = ' is-due'; }
-          else { status = '参考时间 ' + it.dueISO; cls = ''; }
-          html += '<li class="vac-item' + cls + '">'
-            + '<span class="row-ico">' + icon(doneDate ? 'check' : 'heart') + '</span>'
-            + '<span class="vac-main"><b>' + it.name + '</b><br><small>' + it.content + ' · ' + status + '</small></span>'
-            + (doneDate
-              ? '<button class="btn btn-mini" data-ckdate="' + it.key + '">改日期</button>'
-                + '<button class="icon-btn" data-unck="' + it.key + '" aria-label="取消已体检" title="取消已体检">' + icon('trash') + '</button>'
-              : '<button class="btn btn-mini" data-ck="' + it.key + '">已体检</button>')
-            + '</li>';
-        });
-        html += '</ul><p class="hint">体检时点按国家 0-6 岁儿童健康管理规范生成，仅供参考；'
-          + '以社区卫生服务中心 / 妇幼保健院的实际安排为准，早产宝宝的体检与评估请遵医嘱。</p></div>';
+        var cov = stkOk(d.vaccines && d.vaccines.cover) || 'heart';
+        html += '<button type="button" class="vb-cover" data-vbopen aria-label="翻开疫苗本，共 ' + (items.length + pagesOf(d).length - items.length) + ' 页">'
+          + '<span class="vbc-own">' + esc(babyName(d)) + ' 的</span><b class="vbc-title">疫苗本</b>'
+          + stkImg(cov, 'vbc-stk')
+          + '<span class="vbc-line">一针一页，慢慢长大</span><span class="vbc-n">已收集 ' + ev.length + ' 枚贴纸</span></button>'
+          + '<p class="vb-hint"><span>轻点封面翻开</span><button type="button" class="vb-link" data-vbstk>换封面贴纸</button></p>';
+        var ckDone = (d.checkups && d.checkups.done) || {}, cks = planCheckups(baby.birthDate);
+        var ckN = cks.filter(function (c) { return ckDone[c.key]; }).length;
+        var rs = remState();
+        html += '<div class="card vac-tools"><button type="button" class="vt-row" data-vck><span class="vt-ico">' + icon('heart') + '</span><b>儿保体检</b><small>已记 ' + ckN + ' / ' + cks.length + '</small></button>'
+          + '<button type="button" class="vt-row" data-vremind><span class="vt-ico">' + icon('bell') + '</span><b>疫苗提醒</b><small>' + (rs === 'cal' ? '已导出到日历' : '未开启') + '</small></button>'
+          + '<button type="button" class="vt-row" data-vbirth><span class="vt-ico">' + icon('calendar') + '</span><b>宝宝生日</b><small>' + esc(baby.birthDate) + '</small></button></div>';
+        html += '<p class="ms-ref vac-ref">排期按《国家免疫规划疫苗儿童免疫程序及说明（2026 年版）》推算，仅供参考，以接种门诊安排为准。</p>';
+        html += '<div class="mod-cta"><button type="button" class="mc-main" data-vnew>' + icon('plus') + '<span>记一次接种</span></button></div>';
       }
-
-      /* 第 59 次：医学提示（遵医嘱） */
-      html += '<p class="hint med-note">接种时间以社区卫生服务中心 / 接种门诊的通知为准，本页仅作记录，不构成医疗建议；接种前有疑问请咨询医生。</p>';
-
-      view.innerHTML = html;
-      var vIcs = view.querySelector('#vIcs');
-      if (vIcs) vIcs.addEventListener('click', function () {
-        var bdv = (d.settings.baby || {}).birthDate; if (!bdv) return;
-        var dn = (d.vaccines && d.vaccines.done) || {}, ck = (d.checkups && d.checkups.done) || {};
-        var t0 = Util.todayISO(), byDay = {};
-        plan(bdv).forEach(function (it) {
-          if (dn[it.key] || it.dueISO < t0) return;
-          (byDay[it.dueISO] = byDay[it.dueISO] || []).push(it.name + it.dose);
-        });
-        var evs = Object.keys(byDay).sort().map(function (k) {
-          return { uid: 'vac-' + k, date: k, title: '疫苗参考日：' + byDay[k].join('、'), desc: '按国家免疫规划程序推算的参考日期，以接种门诊预约为准。' };
-        });
-        planCheckups(bdv).forEach(function (it) {
-          if (ck[it.key] || it.dueISO < t0) return;
-          evs.push({ uid: 'ck-' + it.key, date: it.dueISO, title: '儿保：' + it.name, desc: it.content + '（参考时间，以体检机构安排为准）' });
-        });
-        if (!evs.length) { Util.toast('没有待接种或待体检的项目', 'ok'); return; }
-        Util.shareOrDownload('咿呀记_疫苗与儿保.ics', Util.buildICS('宝宝疫苗与儿保', evs), 'text/calendar');
-        Util.toast('已生成 ' + evs.length + ' 个日历事件', 'ok');
+      view.innerHTML = '<div class="vac-page" data-accent="vaccine">' + html + '</div>';
+      bindBirth(view);
+      var page = view.querySelector('.vac-page');
+      page.addEventListener('click', function (e) {
+        if (Util.hapEcho(e)) return;
+        var b = e.target.closest ? e.target.closest('button') : null;
+        if (!b || !page.contains(b)) return;
+        if (e.isTrusted && Date.now() - tapAt < 450 && !b.hasAttribute('data-vbopen')) return;
+        tapAt = Date.now();
+        if (b.hasAttribute('data-vbopen')) Book.open();
+        else if (b.hasAttribute('data-vnew')) openAdd(null, null);
+        else if (b.hasAttribute('data-vbstk')) openCoverPick();
+        else if (b.hasAttribute('data-vck')) openCheckups();
+        else if (b.hasAttribute('data-vremind')) openRemind();
+        else if (b.hasAttribute('data-vbirth')) openBirth();
+        else if (b.id === 'vBackfill') backfill();
+        else if (b.getAttribute('data-vrem') === 'on') { if (exportIcs()) { setRem('cal'); global.App.rerender(); } }
+        else if (b.getAttribute('data-vrem') === 'no') { setRem('no'); global.App.rerender(); }
       });
-      Util.bindDateSliders(view);
-      var vsName = view.querySelector('#vsName');
-      if (vsName) vsName.addEventListener('change', function () {
-        var v = vsName.value;
-        view.querySelector('#vsCustomWrap').style.display = (v === 'custom') ? '' : 'none';
-        var preset = SUB_PRESETS[parseInt(v, 10)];
-        var boxes = view.querySelectorAll('#vsCovers input[type="checkbox"]');
-        Array.prototype.forEach.call(boxes, function (cb) { cb.checked = false; });
-        if (!preset) return;
-        /* 每个家族预选「最早一剂未种的」 */
-        preset.fam.forEach(function (f) {
-          var keys = FAMILY[f] || [];
-          for (var i = 0; i < keys.length; i++) {
-            var cb = view.querySelector('#vsCovers input[value="' + keys[i] + '"]');
-            if (cb) { cb.checked = true; break; }
-          }
-        });
-      });
-      var vsSave = view.querySelector('#vsSave');
-      if (vsSave) vsSave.addEventListener('click', function () {
-        var v = vsName.value, name = '';
-        if (v === 'custom') name = (view.querySelector('#vsCustom').value || '').trim();
-        else if (SUB_PRESETS[parseInt(v, 10)]) name = SUB_PRESETS[parseInt(v, 10)].name;
-        if (!name) { Util.markInvalid(v === 'custom' ? view.querySelector('#vsCustom') : vsName, '请选择或填写疫苗'); return; }
-        var dt = view.querySelector('#vsDate').value;
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(dt) || dt > today) { Util.markInvalid(view.querySelector('#vsDate'), '请选择不晚于今天的日期'); return; }
-        var covers = Array.prototype.map.call(view.querySelectorAll('#vsCovers input:checked'), function (cb) { return cb.value; });
-        var s = Storage.get();
-        s.vaccines = s.vaccines || { done: {} };
-        if (!Array.isArray(s.vaccines.subs)) s.vaccines.subs = [];
-        if (!s.vaccines.via || typeof s.vaccines.via !== 'object') s.vaccines.via = {};
-        var sub = { id: Util.uid(), name: name, date: dt, covers: covers };
-        s.vaccines.subs.push(sub);
-        covers.forEach(function (k) { s.vaccines.done[k] = dt; s.vaccines.via[k] = sub.id; });
-        if (Storage.save()) Util.toast('已记录 ' + name + (covers.length ? '，抵扣 ' + covers.length + ' 剂' : ''), 'ok');
-        global.App.rerender();
-      });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-subdel]'), function (b) {
-        b.addEventListener('click', function () {
-          var sid = b.getAttribute('data-subdel');
-          var s = Storage.get();
-          var list = (s.vaccines && s.vaccines.subs) || [];
-          var sub = list.filter(function (x) { return x.id === sid; })[0];
-          if (!sub) return;
-          Util.confirm({
-            title: '删除这条自费疫苗记录？',
-            message: (sub.covers && sub.covers.length) ? '它抵扣的 ' + sub.covers.length + ' 剂会恢复为未种。' : '',
-            okText: '删除', danger: true,
-            onConfirm: function () {
-              s.vaccines.subs = list.filter(function (x) { return x.id !== sid; });
-              var via = s.vaccines.via || {};
-              Object.keys(via).forEach(function (k) {
-                if (via[k] === sid) { delete via[k]; if (s.vaccines.done) delete s.vaccines.done[k]; }
-              });
-              Storage.save(); global.App.rerender();
-            }
-          });
-        });
-      });
-
-      view.querySelector('#vBirth').addEventListener('change', function (e) {
-        var s = Storage.get();
-        s.settings.baby = s.settings.baby || { sex: 'boy', birthDate: null, preterm: false, birthGestWeeks: 40 };
-        s.settings.baby.birthDate = e.target.value || null;
-        s.settings.baby.birthLunar = Util.birthLunarOf ? Util.birthLunarOf('vBirth') : null;
-        /* 第 80 次（宝宝档案）：生日改动同步回当前宝宝档案 */
-        if (Storage.syncBabyFromSettings) Storage.syncBabyFromSettings();
-        Storage.save(); global.App.rerender();
-      });
-      /* 打开「改日期」弹层的共用流程（C6）：快捷记录写死了今天，补种 / 补记要能改到过去某天 */
-      function openDatePicker(key, val) {
-        Util.editDate({
-          title: '实际接种日期',
-          message: '可补记到过去某天；以接种门诊记录为准。',
-          value: val || today, max: today, okText: '保存日期',
-          onConfirm: function (v) {
-            var s = Storage.get();
-            s.vaccines = s.vaccines || { done: {} };
-            s.vaccines.done[key] = v;
-            if (Storage.save()) Util.toast('已更新接种日期：' + v, 'ok');
-            global.App.rerender();
-          }
-        });
-      }
-      Array.prototype.forEach.call(view.querySelectorAll('[data-vax]'), function (b) {
-        b.addEventListener('click', function () {
-          var key = b.getAttribute('data-vax');
-          var s = Storage.get();
-          s.vaccines = s.vaccines || { done: {} };
-          s.vaccines.done[key] = today;
-          Storage.save();
-          /* C6：默认记今天，但立刻给「日期不对？」改期出口，不用删掉重来 */
-          Util.toast('已记录接种：' + today, 'ok', {
-            label: '日期不对？',
-            onClick: function () { openDatePicker(key, null); }
-          });
-          global.App.rerender();
-        });
-      });
-      var bf = view.querySelector('#vBackfill');
-      if (bf) bf.addEventListener('click', function () {
-        var its = plan(Storage.get().settings.baby.birthDate);
-        var s0 = Storage.get(); s0.vaccines = s0.vaccines || { done: {} };
-        var keys = its.filter(function (it) { return !s0.vaccines.done[it.key] && Util.daysBetween(today, it.dueISO) < 0; });
-        Util.confirm({
-          title: '补记 ' + keys.length + ' 剂为已接种？',
-          message: '日期按各剂的应种日填写，之后可以点「改日期」逐条改成接种证上的日期。',
-          okText: '补记', cancelText: '取消',
-          onConfirm: function () {
-            var s = Storage.get();
-            keys.forEach(function (it) { s.vaccines.done[it.key] = it.dueISO; });
-            Storage.save(); global.App.rerender();
-            Util.toast('已补记 ' + keys.length + ' 剂', 'ok', { label: '撤销', onClick: function () {
-              var s2 = Storage.get();
-              keys.forEach(function (it) { delete s2.vaccines.done[it.key]; });
-              Storage.save(); global.App.rerender();
-            } });
-          }
-        });
-      });
-      /* 第 199 次：接种详情展开 / 部位单选 / 反应多选 / 保存 */
-      Array.prototype.forEach.call(view.querySelectorAll('[data-vacdet]'), function (b) {
-        b.addEventListener('click', function () {
-          var k = b.getAttribute('data-vacdet');
-          openDetail = (openDetail === k) ? null : k;
-          global.App.rerender();
-        });
-      });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-vds]'), function (b) {
-        b.addEventListener('click', function () {
-          var on = b.classList.contains('active');
-          Array.prototype.forEach.call(view.querySelectorAll('[data-vds]'), function (x) { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false'); });
-          if (!on) { b.classList.add('active'); b.setAttribute('aria-pressed', 'true'); }
-        });
-      });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-vdr]'), function (b) {
-        b.addEventListener('click', function () {
-          var v = b.getAttribute('data-vdr'), on = !b.classList.contains('active');
-          /* 「无明显反应」与其他项互斥 */
-          Array.prototype.forEach.call(view.querySelectorAll('[data-vdr]'), function (x) {
-            var xv = x.getAttribute('data-vdr');
-            if (on && ((v === 'none' && xv !== 'none') || (v !== 'none' && xv === 'none'))) { x.classList.remove('active'); x.setAttribute('aria-pressed', 'false'); }
-          });
-          b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on));
-        });
-      });
-      var vdSave = view.querySelector('#vdSave');
-      if (vdSave) vdSave.addEventListener('click', function () {
-        var k = vdSave.getAttribute('data-key');
-        var s = Storage.get();
-        s.vaccines = s.vaccines || { done: {} };
-        if (!s.vaccines.notes || typeof s.vaccines.notes !== 'object' || Array.isArray(s.vaccines.notes)) s.vaccines.notes = {};
-        var siteB = view.querySelector('[data-vds].active');
-        var n = {
-          site: siteB ? siteB.getAttribute('data-vds') : null,
-          react: Array.prototype.map.call(view.querySelectorAll('[data-vdr].active'), function (x) { return x.getAttribute('data-vdr'); }),
-          clinic: view.querySelector('#vdClinic').value.trim().slice(0, 30) || null,
-          lot: view.querySelector('#vdLot').value.trim().slice(0, 30) || null,
-          note: view.querySelector('#vdNote').value.trim().slice(0, 60) || null
-        };
-        if (!n.site && !n.react.length && !n.clinic && !n.lot && !n.note) delete s.vaccines.notes[k];
-        else s.vaccines.notes[k] = n;
-        openDetail = null;
-        if (Storage.save()) Util.toast('已保存接种详情', 'ok');
-        global.App.rerender();
-      });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-vaxdate]'), function (b) {
-        b.addEventListener('click', function () {
-          var key = b.getAttribute('data-vaxdate');
-          openDatePicker(key, (Storage.get().vaccines && Storage.get().vaccines.done[key]) || null);
-        });
-      });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-unvax]'), function (b) {
-        b.addEventListener('click', function () {
-          var s = Storage.get();
-          var uk = b.getAttribute('data-unvax');
-          if (s.vaccines && s.vaccines.done) delete s.vaccines.done[uk];
-          if (s.vaccines && s.vaccines.via) delete s.vaccines.via[uk];
-          if (s.vaccines && s.vaccines.notes) delete s.vaccines.notes[uk];
-          if (openDetail === uk) openDetail = null;
-          Storage.save(); global.App.rerender();
-        });
-      });
-      /* 第 70 次：体检标记交互（与疫苗同款三件套：记今天 + 改日期 + 取消） */
-      function openCkDate(key, val) {
-        Util.editDate({
-          title: '实际体检日期',
-          message: '可补记到过去某天；以体检机构记录为准。',
-          value: val || today, max: today, okText: '保存日期',
-          onConfirm: function (v) {
-            var s = Storage.get();
-            s.checkups = s.checkups || { done: {} };
-            s.checkups.done[key] = v;
-            if (Storage.save()) Util.toast('已更新体检日期：' + v, 'ok');
-            global.App.rerender();
-          }
-        });
-      }
-      Array.prototype.forEach.call(view.querySelectorAll('[data-ck]'), function (b) {
-        b.addEventListener('click', function () {
-          var key = b.getAttribute('data-ck');
-          var s = Storage.get();
-          s.checkups = s.checkups || { done: {} };
-          s.checkups.done[key] = today;
-          Storage.save();
-          Util.toast('已记录体检：' + today, 'ok', {
-            label: '日期不对？',
-            onClick: function () { openCkDate(key, null); }
-          });
-          global.App.rerender();
-        });
-      });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-ckdate]'), function (b) {
-        b.addEventListener('click', function () {
-          var key = b.getAttribute('data-ckdate');
-          openCkDate(key, (Storage.get().checkups && Storage.get().checkups.done[key]) || null);
-        });
-      });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-unck]'), function (b) {
-        b.addEventListener('click', function () {
-          var s = Storage.get();
-          if (s.checkups && s.checkups.done) delete s.checkups.done[b.getAttribute('data-unck')];
-          Storage.save(); global.App.rerender();
-        });
-      });
-    }
+    },
+    /* 日期页 / 测试用的面板入口：rec = { id: 剂次 key | 'sub:'+id } */
+    _edit: function (rec) { if (rec && rec.id != null) openEdit(String(rec.id)); },
+    _remove: function (id) { remove(String(id)); },
+    _add: function (pre) { openAdd(pre || null, null); },
+    _recs: function (d) { return pagesOf(d || Storage.get()).filter(function (p) { return p.date; }).map(function (p) { return { id: p.id }; }); },
+    _pages: function (d) { return pagesOf(d || Storage.get()); },
+    _book: Book,
+    _stickers: STK
   };
 
   /* 提醒引擎共用：由生日生成排期 */
   Modules.vaccine._plan = plan;
   /* 第 70 次：体检排期同样供提醒引擎共用 */
   Modules.vaccine._planCheckups = planCheckups;
+  Modules.vaccine._dateOf = dOf;
+  Modules.vaccine._schedule = SCHEDULE;
 })(window);

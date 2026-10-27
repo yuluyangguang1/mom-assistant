@@ -145,7 +145,7 @@
     return paintEl(dst, root, r, '::after');
   }
   function overlayStack() {
-    var list = Array.prototype.filter.call(document.querySelectorAll('.wn-player.open, .ftf, .modal-mask, .home-sheet, .qd-mask, .ph-view, .side-drawer'), function (el) {
+    var list = Array.prototype.filter.call(document.querySelectorAll('.wn-player.open, .ftf, .modal-mask, .home-sheet, .qd-mask, .ph-view, .vb-book, .side-drawer'), function (el) {
       if (el.classList.contains('sheet-ghost') || el.classList.contains('sheet-leaving') || el.hidden) return false;
       if (!el.getClientRects().length) return false;
       var cs = global.getComputedStyle(el);
@@ -491,6 +491,8 @@
       var pv = document.querySelectorAll('body > .ph-view'), top = null;
       if (pv.length) top = function () { var t = pv[pv.length - 1]; if (t._phClose) t._phClose(); else if (t.parentNode) t.parentNode.removeChild(t); };
       else if (global.Sheet && Sheet.isOpen && Sheet.isOpen()) top = function () { Sheet.closeTop(); };
+      /* 第 289 次：疫苗本（全屏翻页层）在面板之下、页面之上 */
+      else if (document.querySelector('body > .vb-book') && global.Modules && Modules.vaccine && Modules.vaccine._book) top = function () { Modules.vaccine._book.close(); };
       if (!top) return;
       e.stopImmediatePropagation(); e.preventDefault();
       top();
@@ -613,7 +615,7 @@
       if (subT) {
         head.className = 'mod-head mod-head-sub';
         head.innerHTML = '<h1>' + Util.escapeHtml(subT) + '</h1>';
-      } else if (global.Hero && Hero.has(id) && !subExit) {
+      } else if (global.Hero && Hero.has(id) && !subExit && !Modules[id].noHero) {
         head.className = 'mod-head has-hero';
         head.innerHTML = Hero.html(id, Modules[id].title);
       } else
@@ -2214,6 +2216,7 @@
   function onSwipeStart(e) {
     if (historyDepth <= 0) return;                /* 没有上一层，不响应 */
     if (document.querySelector('body > .ph-view')) return; /* 第 278 次：照片大图上的横滑是换张 */
+    if (document.querySelector('body > .vb-book')) return; /* 第 289 次：疫苗本上的横滑是翻页，返回走 history */
     if (global.Sheet && Sheet.isOpen && Sheet.isOpen()) return; /* 第 272 次：面板开着时左缘拖动交给面板（下拉关闭），不拖底下的页 */
     if (swipeActive) return;
     var t = e.touches && e.touches[0];

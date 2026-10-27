@@ -173,7 +173,9 @@
     periods: { mod: 'period', edit: '_open', del: '_remove' },
     contractions: { mod: 'contraction', edit: '_edit', del: '_remove' },
     laborEvents: { mod: 'contraction', edit: '_editLabor', del: '_removeLabor' },
-    fetal: { mod: 'fetal', edit: '_edit', del: '_remove' }
+    fetal: { mod: 'fetal', edit: '_edit', del: '_remove' },
+    /* 第 289 次：疫苗走疫苗本的修改面板（id = 剂次 key 或 'sub:'+自选记录 id）；没有 id 的老键仍去疫苗页 */
+    vaccines: { mod: 'vaccine', edit: '_edit', del: '_remove' }
   };
   function modPanel(src, kind) {
     var c = MOD_PANEL[src], M = c && global.Modules && Modules[c.mod];
@@ -182,6 +184,7 @@
   var GO_MOD = { prenatal: 'pregnancy', vaccines: 'vaccine' };
   function arrOf(d, src) {
     if (src === 'prenatal') return (d.prenatal && d.prenatal.records) || [];
+    if (src === 'vaccines') return (global.Modules && Modules.vaccine && Modules.vaccine._recs) ? Modules.vaccine._recs(d) : [];
     return Array.isArray(d[src]) ? d[src] : [];
   }
   function recOf(it) {
@@ -189,7 +192,7 @@
     return arrOf(Storage.get(), it.src).filter(function (r) { return r && String(r.id) === it.id; })[0] || null;
   }
   /* 能就地修改 / 删除的条目才有「…」；疫苗、经期、产检、破水见红点一下去各自的页 */
-  function editable(it) { return !!(it && it.src && it.id != null && !GO_MOD[it.src]); }
+  function editable(it) { return !!(it && it.src && it.id != null && (!GO_MOD[it.src] || MOD_PANEL[it.src])); }
 
   /* 同义第二行不显示：「游泳 / 游泳记录」「服药 / 服药」这类 */
   function valOf(it) {
@@ -321,7 +324,7 @@
   }
   function editRec(it) {
     var M = global.Modules || {};
-    if (it.src && GO_MOD[it.src]) { state.keep = true; if (global.App) App.showTab(GO_MOD[it.src]); return; }
+    if (it.src && GO_MOD[it.src] && !editable(it)) { state.keep = true; if (global.App) App.showTab(GO_MOD[it.src]); return; }
     var rec = recOf(it);
     if (!rec) return;
     var d = Storage.get();

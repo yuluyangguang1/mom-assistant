@@ -388,9 +388,21 @@
         var t = r.type === 'pee' ? '尿' : (r.type === 'poop' ? '便' : '尿+便');
         tag(add(isoOf(r.time), 'diaper', '尿布', t, hmOf(r.time)), 'diapers', r);
       });
-      if (d.vaccines && d.vaccines.done) {
+      /* 第 289 次：疫苗按「一页」进日期页——名称 + 剂次、接种时刻（有就带），点按走疫苗本的修改面板。
+         被联合疫苗抵扣的几剂各占一行（和疫苗本一致）；不认识的老键（如已撤销的白破 'dt'）照旧只写「疫苗接种」、点按去疫苗页。 */
+      if (d.vaccines && d.vaccines.done && typeof d.vaccines.done === 'object') {
+        var VM = global.Modules && global.Modules.vaccine, known = {};
+        if (VM && VM._pages) VM._pages(d).forEach(function (pg) {
+          if (!pg.date) return;
+          if (pg.kind === 'plan') known[pg.key] = 1;
+          var vi = add(pg.date, 'vaccine', '疫苗', pg.name + (pg.dose ? ' ' + pg.dose : ''), pg.hm || '');
+          if (vi) { vi.src = 'vaccines'; vi.id = pg.id; }
+        });
         Object.keys(d.vaccines.done).forEach(function (k) {
-          var vi = add(d.vaccines.done[k], 'vaccine', '疫苗接种', ''); if (vi) vi.src = 'vaccines';
+          if (known[k]) return;
+          var v0 = d.vaccines.done[k], iso0 = (typeof v0 === 'string') ? v0 : (v0 && typeof v0 === 'object' ? v0.date : null);
+          if (typeof iso0 !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(iso0)) return;
+          var vi2 = add(iso0, 'vaccine', '疫苗接种', ''); if (vi2) vi2.src = 'vaccines';
         });
       }
       /* 第 185 次：饮水此前不进日期记录 */

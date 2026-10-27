@@ -1380,7 +1380,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v252（第 288 次升）', "var CACHE = 'baoma-static-v252';" in sw)
+    check('#275 SW 版本 v253（第 289 次升）', "var CACHE = 'baoma-static-v253';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -4089,9 +4089,241 @@ def test_r288(b):
     check('#288 pageerror 为 0', not errs, errs)
     ctx.close()
 
+R289_SEED = r"""(()=>{const s=Storage.get(),T=Util.todayISO();s.settings.baby.birthDate=Util.addDays(T,-80);s.settings.remindersEnabled=true;
+ s.vaccines={done:{'bcg':Util.addDays(T,-80),'hepb-1':Util.addDays(T,-79)},notes:{'hepb-1':{at:'09:30',lot:'2026A01',maker:'某生物',site:'rua',clinic:'社区卫生服务中心'}}};
+ try{localStorage.removeItem('yiya-vac-remind')}catch(e){};Storage.save()})()"""
+R289_BOOK = r"""(()=>{const b=document.querySelector('body > .vb-book');if(!b)return null;const c=b.querySelector('.vb-pg.is-cur');const q=s=>{const e=c.querySelector(s);return e?e.textContent.trim():''};
+ const tr=b.querySelector('.vb-track').style.transform;return {idx:Modules.vaccine._book.idx(),n:Modules.vaccine._book.count(),k:q('.vbp-k'),name:q('.vbp-name'),dose:q('.vbp-dose'),dl:q('.vbp-dl'),
+ stamp:q('.vb-stamp'),empty:!!c.querySelector('.vb-stamp.is-empty'),stk:(c.querySelector('.vbp-stk')||{}).src||'',cap:q('.vbp-cap'),no:b.querySelector('.vb-no').textContent,tr:tr,
+ st:JSON.stringify(history.state),done:!!c.querySelector('.vb-paper.is-done')}})()"""
+
+
+def test_r289(b):
+    """第 289 次：疫苗页重做成「疫苗本」——封面摘要、提醒卡开启 / 暂不、打开疫苗本、翻页（跟手 / 距离 / 速度 / 边缘 / 左缘）与目录跳转、
+    已接种 / 待接种页内容、新增（常见 / 联合抵扣 / 自定义）、修改删除撤销、贴纸更换、旧数据兼容、日期页接入、XSS、history 只在静止时写、窄屏大字号。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+    ev = p.evaluate
+    drag = lambda *a: ev(TOUCH2_JS, list(a))
+    ev(R289_SEED)
+    ev("""(()=>{window.__h=[];['pushState','back','go'].forEach(k=>{const o=history[k].bind(history);history[k]=function(...a){const v=document.querySelector('body > .vb-book');
+      __h.push({k,book:!!v,cls:v?v.className:'',anim:!!(v&&v.getAnimations&&v.querySelector('.vb-track').style.transition&&v.querySelector('.vb-track').style.transition!=='none'),drag:!!(v&&v.classList.contains('is-drag')),s:a[0]&&a[0].baoma,ext:!!window.__ext});return o(...a)}})})()""")
+
+    def go(t, wait=500):
+        ev(f"App.showTab('{t}',{{noVT:true}})"); p.wait_for_timeout(wait)
+    go('vaccine')
+    pg = ev("""(()=>{const v=document.getElementById('view');return {sum:(v.querySelector('.mod-sum')||{}).textContent||'',hero:!!v.querySelector('.mod-head.has-hero'),
+      own:(v.querySelector('.vbc-own')||{}).textContent,n:(v.querySelector('.vbc-n')||{}).textContent,cta:(v.querySelector('.mod-cta .mc-main')||{}).textContent,
+      rem:!!v.querySelector('.vac-remind'),hint:(v.querySelector('.vb-hint')||{}).textContent,cover:(v.querySelector('.vbc-stk')||{}).src||'',tools:[...v.querySelectorAll('.vt-row b')].map(x=>x.textContent)}})()""")
+    check('#289 封面：摘要「2 次接种记录 · 上次 · 下一剂参考」、「豆豆 的 疫苗本」+ 已收集 2 枚贴纸、轻点封面翻开 / 换封面贴纸、底部固定「记一次接种」、不叠页头大插画、工具行 儿保 / 提醒 / 生日',
+          '2 次' in pg['sum'] and '上次在' in pg['sum'] and '下一剂参考' in pg['sum'] and pg['own'] == '豆豆 的' and pg['n'] == '已收集 2 枚贴纸' and pg['cta'] == '记一次接种'
+          and not pg['hero'] and '换封面贴纸' in pg['hint'] and pg['cover'].endswith('/heart.webp') and pg['tools'] == ['儿保体检', '疫苗提醒', '宝宝生日'], pg)
+    # —— 提醒卡 ——
+    ev("document.querySelector('[data-vrem=\"no\"]').click()"); p.wait_for_timeout(300)
+    r1 = ev("[localStorage.getItem('yiya-vac-remind'),!!document.querySelector('.vac-remind'),[...document.querySelectorAll('.vt-row small')][1].textContent]")
+    ev("localStorage.removeItem('yiya-vac-remind');window.__ics=null;Util.shareOrDownload=(f,t,m)=>{window.__ics=[f,t.length,m,/BEGIN:VEVENT/.test(t)]};App.rerender()"); p.wait_for_timeout(300)
+    card = ev("(document.querySelector('.vac-remind p')||{}).textContent||''")
+    ev("document.querySelector('[data-vrem=\"on\"]').click()"); p.wait_for_timeout(300)
+    r2 = ev("[localStorage.getItem('yiya-vac-remind'),!!document.querySelector('.vac-remind'),[...document.querySelectorAll('.vt-row small')][1].textContent,window.__ics]")
+    check('#289 提醒卡：暂不 → 记住、卡片消失、显示「未开启」；开启 → 导出 .ics 到系统日历、显示「已导出到日历」；文案只承诺日历提醒和首页提示（不说推送）',
+          r1 == ['no', False, '未开启'] and r2[0] == 'cal' and not r2[1] and r2[2] == '已导出到日历' and r2[3] and r2[3][0].endswith('.ics') and r2[3][3]
+          and '日历' in card and '推送' not in card and '通知' not in card, [r1, r2, card])
+    ev("document.querySelector('[data-vremind]').click()"); p.wait_for_timeout(400)
+    ev("window.__ics=null;document.querySelector('#modalRoot #vIcs').click()"); p.wait_for_timeout(300)
+    check('#289 「疫苗提醒」半屏里可以再次导出（#vIcs 保留）', ev("!!window.__ics&&!document.querySelector('#modalRoot .vac-rem-sheet')"))
+    # —— 打开疫苗本：落在最近一次接种那一页 ——
+    h0 = ev("history.length")
+    ev("document.querySelector('[data-vbopen]').click()"); p.wait_for_timeout(600)
+    bk = ev(R289_BOOK)
+    check('#289 打开疫苗本：全屏、登记一条 ov 记录、停在最近一次接种（乙肝第 1 剂，2/22）', bk and bk['idx'] == 1 and bk['n'] == 22 and bk['no'] == '2 / 22' and bk['st'] == '{"baoma":"ov"}', bk)
+    check('#289 已接种页：已接种 · 序号 · 乙肝疫苗 · 第 1 剂 · 接种时间（年月日 + 09:30）· 预防 乙型肝炎 · 生产企业 / 批号 / 部位 / 单位 · 印章「已接种 + 日期」+ 贴纸',
+          bk['done'] and bk['k'] == '已接种' and bk['name'] == '乙肝疫苗' and bk['dose'] == '第 1 剂' and '09:30' in bk['dl'] and '乙型肝炎' in bk['dl'] and '2026A01' in bk['dl'] and '右上臂' in bk['dl']
+          and '社区卫生服务中心' in bk['dl'] and '已接种' in bk['stamp'] and '.' in bk['stamp'] and '/assets/sticker/' in bk['stk'], bk)
+    ev("document.querySelector('[data-vbnext]').click()"); p.wait_for_timeout(500)
+    b2 = ev(R289_BOOK)
+    check('#289 待接种页：待接种 · 乙肝疫苗 第 2 剂 · 参考时间「1 月龄」· 预防 · 空章「待接种」+ 空贴纸位 + 一句说明，无贴纸', b2['idx'] == 2 and b2['k'] == '待接种' and b2['dose'] == '第 2 剂' and '1 月龄' in b2['dl']
+          and b2['empty'] and b2['stk'] == '' and b2['cap'] and not b2['done'], b2)
+    # —— 跟手翻页 ——
+    ev("(()=>{window.__rafOn=1;(function f(){if(window.__rafOn)requestAnimationFrame(f)})()})()"); p.wait_for_timeout(100)  # WebKit 无头：rAF 循环先跑起来（同 test_r288）
+    drag(300, 400, 200, 400, 'none', 5, 60); p.wait_for_timeout(260)
+    _poll(p, "/translate3d\\(-/.test(document.querySelector('.vb-track').style.transform)", 600, 50)
+    mid = ev(R289_BOOK)
+    ev("window.__rafOn=0")
+    ev("(()=>{const t=document.querySelector('.vb-stage');const e=new Event('touchend',{bubbles:true});Object.defineProperty(e,'changedTouches',{value:[{clientX:200,clientY:400}]});Object.defineProperty(e,'touches',{value:[]});t.dispatchEvent(e)})()"); p.wait_for_timeout(500)
+    back1 = ev(R289_BOOK)
+    import re as _re
+    mx = _re.search(r'translate3d\((-?[\d.]+)px', mid['tr'] or '')
+    check('#289 1:1 跟手：拖 100px 时 track 位移 ≈ -100px；松手不到 1/3 宽、慢速 → 回弹不翻页', mx and abs(float(mx.group(1)) + 100) < 4 and back1['idx'] == 2, [mid['tr'], back1['idx']])
+    drag(320, 400, 60, 400, True, 8, 16); p.wait_for_timeout(600)
+    f1 = ev(R289_BOOK)['idx']
+    drag(250, 400, 190, 400, True, 3, 8); p.wait_for_timeout(600)
+    f2 = ev(R289_BOOK)['idx']
+    drag(60, 400, 330, 400, True, 8, 16); p.wait_for_timeout(600)
+    f3 = ev(R289_BOOK)['idx']
+    drag(8, 400, 300, 400, True, 8, 16); p.wait_for_timeout(600)
+    f4 = ev(R289_BOOK)['idx']
+    drag(200, 300, 210, 600, True, 8, 16); p.wait_for_timeout(400)
+    f5 = ev(R289_BOOK)['idx']
+    check('#289 翻页：拖过 1/3 宽 → 下一页；短距离快甩 → 下一页；右拖 → 上一页；左缘 16px 内起手不接（归 iOS 返回）；竖向拖不翻', [f1, f2, f3, f4, f5] == [3, 4, 3, 3, 3], [f1, f2, f3, f4, f5])
+    ev("Modules.vaccine._book.go(0)"); p.wait_for_timeout(100)
+    drag(60, 400, 340, 400, True, 8, 16); p.wait_for_timeout(600)
+    e0 = ev(R289_BOOK)
+    ev("Modules.vaccine._book.go(21)"); p.wait_for_timeout(100)
+    drag(340, 400, 60, 400, True, 8, 16); p.wait_for_timeout(600)
+    e1 = ev(R289_BOOK)
+    check('#289 第一页 / 最后一页继续拖：橡皮筋回弹，页码不变、track 复位；上一页 / 下一页按钮在两端禁用', e0['idx'] == 0 and e1['idx'] == 21 and not e0['tr'] and not e1['tr']
+          and ev("document.querySelector('[data-vbnext]').disabled"), [e0['idx'], e1['idx'], e0['tr'], e1['tr']])
+    # 连续快速翻页（动画中再来手势先落定）
+    ev("Modules.vaccine._book.go(5)")
+    for _ in range(3):
+        drag(320, 400, 100, 400, True, 4, 10); p.wait_for_timeout(60)
+    p.wait_for_timeout(600)
+    check('#289 连续快速左滑 3 次：正好翻 3 页（动画中来手势先落定）', ev(R289_BOOK)['idx'] == 8, ev(R289_BOOK)['idx'])
+    # —— 目录 ——
+    ev("document.querySelector('[data-vbtoc]').click()"); p.wait_for_timeout(500)
+    tc = ev("(()=>{const m=document.querySelector('#modalRoot .vac-toc');if(!m)return null;return {n:m.querySelectorAll('[data-vbgo]').length,on:(m.querySelector('.vbt-row.on .vbt-n')||{}).textContent,done:m.querySelectorAll('.vbt-row.is-done').length}})()")
+    ev("document.querySelector('#modalRoot [data-vbgo=\"14\"]').click()"); p.wait_for_timeout(500)
+    check('#289 目录：半屏列出 22 剂（当前页高亮、已接种 2 剂带贴纸）、点一项关面板并跳到那一页', tc and tc['n'] == 22 and tc['on'] == '9' and tc['done'] == 2 and ev(R289_BOOK)['idx'] == 14
+          and not ev("!!document.querySelector('#modalRoot .vac-toc')"), [tc, ev(R289_BOOK)['idx']])
+    # —— 面板开着时系统返回：先关面板、疫苗本留着 ——
+    ev("document.querySelector('[data-vbtoc]').click()"); p.wait_for_timeout(450)
+    ev("window.__ext=1;history.back();window.__ext=0"); p.wait_for_timeout(500)
+    s1 = ev("[!!document.querySelector('#modalRoot .vac-toc'),!!document.querySelector('body > .vb-book'),JSON.stringify(history.state)]")
+    ev("window.__ext=1;history.back();window.__ext=0"); p.wait_for_timeout(500)
+    s2 = ev("[!!document.querySelector('body > .vb-book'),App.currentTab(),document.body.classList.contains('vb-open')]")
+    check('#289 系统返回：疫苗本上开着目录时只关目录（ov 记录补回）；再返回直接合上疫苗本、留在疫苗页', s1 == [False, True, '{"baoma":"ov"}'] and s2 == [False, 'vaccine', False], [s1, s2])
+    ev("document.querySelector('[data-vbopen]').click()"); p.wait_for_timeout(500)
+    p.keyboard.press('ArrowRight'); p.wait_for_timeout(450)
+    kx = ev(R289_BOOK)['idx']
+    p.keyboard.press('Escape'); p.wait_for_timeout(500)
+    es = ev("[!!document.querySelector('body > .vb-book'),JSON.stringify(history.state)]")
+    ev("document.querySelector('[data-vbopen]').click()"); p.wait_for_timeout(500)
+    ev("document.querySelector('[data-vbx]').click()"); p.wait_for_timeout(600)
+    xs = ev("[!!document.querySelector('body > .vb-book'),JSON.stringify(history.state),history.length]")
+    hl = ev("__h")
+    check('#289 → 键翻页、Esc 合上；✕ 合上：过渡落定后才退那条记录；history 写入全在疫苗本静止时（打开时尚未开始过渡、关闭时已拆掉，无拖动 / 翻页动画中写入）',
+          kx == 2 and not es[0] and es[1] != '{"baoma":"ov"}' and not xs[0] and xs[1] != '{"baoma":"ov"}'
+          and all(not x['drag'] and not x['anim'] for x in hl) and all(x['book'] and x['cls'] == 'vb-book' for x in hl if x['k'] == 'pushState' and x['s'] == 'ov') and any(x['s'] == 'ov' for x in hl)
+          and all('is-out' not in x['cls'] and 'is-in' not in x['cls'] for x in hl) and [x for x in hl if x['k'] == 'back'][-1]['book'] is False,
+          [kx, es, xs, [x for x in hl if x['drag'] or x['anim'] or 'is-' in x['cls']], [x for x in hl if x['k'] == 'back'][-1:]])
+    # —— 新增：常见（免疫规划剂次）——
+    T = ev("Util.todayISO()")
+    ev("document.querySelector('[data-vnew]').click()"); p.wait_for_timeout(500)
+    a0 = ev("(()=>{const m=document.querySelector('#modalRoot .vac-sheet');return m?{on:(m.querySelector('.vs-opt.on b')||{}).textContent,n:m.querySelectorAll('[data-vapick]').length,date:(m.querySelector('#vaDate')||{}).value}:null})()")
+    ev("(()=>{const q=document.querySelector('#vaQ');q.value='四联';q.dispatchEvent(new Event('input'))})()")
+    sr = ev("[...document.querySelectorAll('#modalRoot [data-vapick]')].filter(x=>!x.hidden).map(x=>x.textContent)")
+    ev("(()=>{const q=document.querySelector('#vaQ');q.value='';q.dispatchEvent(new Event('input'));const t=document.querySelector('#vaTime');t.value='10:15';t.dispatchEvent(new Event('change'));document.querySelector('#vaLot').value='L-77';document.querySelector('#modalRoot [data-vstk=\"star\"]').click();const b=document.querySelector('#vaSave');b.click();b.click()})()"); p.wait_for_timeout(500)
+    sv = ev("(()=>{const v=Storage.get().vaccines;return [v.done['hepb-2'],(v.notes['hepb-2']||{}).at,(v.notes['hepb-2']||{}).stk,(v.notes['hepb-2']||{}).lot,Object.keys(v.done).length,!!document.querySelector('#modalRoot .vac-sheet')]})()")
+    check('#289 新增·常见：默认选下一剂未种（乙肝第 2 剂）、日期今天；搜索「四联」只剩四联；保存写 done + 时刻 / 批号 / 选的贴纸，连点只记一次',
+          a0 and a0['on'] == '乙肝疫苗' and a0['date'] == T and sr == ['四联疫苗（百白破-Hib）可抵扣部分免疫规划剂次'] and sv == [T, '10:15', 'star', 'L-77', 3, False], [a0, sr, sv])
+    # —— 新增：联合疫苗抵扣 ——
+    ev("document.querySelector('[data-vnew]').click()"); p.wait_for_timeout(500)
+    ev("document.querySelector('#modalRoot [data-vapick=\"p:0\"]').click()")
+    cv = ev("[...document.querySelectorAll('#vaCovers input:checked')].map(x=>x.value)")
+    ev("document.querySelector('#vaSave').click()"); p.wait_for_timeout(500)
+    cs = ev("(()=>{const v=Storage.get().vaccines,s=v.subs[v.subs.length-1];return [s.name,s.covers,v.done['dtap-1'],v.done['ipv-1'],v.via['dtap-1']===s.id]})()")
+    check('#289 新增·联合疫苗：选「五联」预选百白破 / 脊灰各下一剂，保存后两剂记为已种（via 指向这条），沿用第 187 次抵扣结构',
+          sorted(cv) == ['dtap-1', 'ipv-1'] and cs[1] and sorted(cs[1]) == ['dtap-1', 'ipv-1'] and cs[2] == T and cs[3] == T and cs[4], [cv, cs])
+    # —— 新增：自定义 + XSS ——
+    X = '<img src=x onerror=__pwn=1>'
+    ev("document.querySelector('[data-vnew]').click()"); p.wait_for_timeout(500)
+    ev("x=>{document.querySelector('#modalRoot [data-vamode=\"u\"]').click();document.querySelector('#vaName').value=x;document.querySelector('#vaLot').value=x;document.querySelector('#vaMaker').value=x;document.querySelector('#vaClinic').value=x;document.querySelector('#vaSave').click()}", X); p.wait_for_timeout(500)
+    sid = ev("(()=>{const v=Storage.get().vaccines;return v.subs[v.subs.length-1].id})()")
+    ev("document.querySelector('[data-vbopen]').click()"); p.wait_for_timeout(400)
+    ev(f"Modules.vaccine._book.go(Modules.vaccine._book.count()-1)"); p.wait_for_timeout(200)
+    xb = ev(R289_BOOK)
+    ev("document.querySelector('[data-vbtoc]').click()"); p.wait_for_timeout(400)
+    ev("Sheet.closeTop()"); p.wait_for_timeout(300)
+    check('#289 新增·自定义：名称 / 批号 / 企业 / 单位含 HTML 也只当文字；排在疫苗本最后（第 23 页、自选疫苗），目录里同样转义，不执行脚本',
+          xb['n'] == 23 and xb['name'] == X and X in xb['dl'] and xb['dose'] == '自选疫苗' and not ev("window.__pwn") and not ev("!!document.querySelector('.vb-book img[src=\"x\"], #modalRoot img[src=\"x\"]')"), xb)
+    # 疫苗本里点「…」修改这一页、＋ 预选当前待接种剂次
+    ev("Modules.vaccine._book.go(3)"); p.wait_for_timeout(150)
+    ev("document.querySelector('[data-vbadd]').click()"); p.wait_for_timeout(500)
+    pre = ev("(document.querySelector('#modalRoot .vs-opt.on')||{}).textContent||''")
+    ev("Sheet.closeTop()"); p.wait_for_timeout(300)
+    ev("Modules.vaccine._book.go(1)"); p.wait_for_timeout(150)
+    ev("document.querySelector('[data-vbmore]').click()"); p.wait_for_timeout(500)
+    mt = ev("(document.querySelector('#modalRoot .vac-sheet h2')||{}).textContent")
+    ev("(()=>{document.querySelector('#vaLot').value='NEW-1';document.querySelector('#modalRoot [data-vstk=\"moon\"]').click();document.querySelector('#modalRoot [data-vdr=\"fever\"]').click();document.querySelector('#vaSave').click()})()"); p.wait_for_timeout(500)
+    me = ev("(()=>{const n=Storage.get().vaccines.notes['hepb-1'];return [n.lot,n.stk,n.react,n.at,n.maker]})()")
+    bm = ev(R289_BOOK)
+    check('#289 疫苗本 ＋ 在待接种页预选这一剂；「…」= 修改这一页：改批号 / 贴纸 / 反应保存，没动的时刻 / 企业保留，页面即时更新',
+          pre.startswith('脊灰灭活疫苗') and mt == '修改这一页' and me == ['NEW-1', 'moon', ['fever'], '09:30', '某生物'] and bm['stk'].endswith('/moon.webp') and 'NEW-1' in bm['dl'], [pre, mt, me, bm['stk']])
+    # 删除 + 撤销；删除联合疫苗撤回抵扣
+    ev("document.querySelector('[data-vbmore]').click()"); p.wait_for_timeout(450)
+    ev("document.querySelector('#modalRoot [data-vadel]').click()"); p.wait_for_timeout(400)
+    dl1 = ev("[!!Storage.get().vaccines.done['hepb-1'],!!(Storage.get().vaccines.notes||{})['hepb-1'],Modules.vaccine._book.isOpen()]")
+    ev("(()=>{const b=[...document.querySelectorAll('#toastRoot button')].find(x=>x.textContent.indexOf('撤销')>=0);b&&b.click()})()"); p.wait_for_timeout(400)
+    dl2 = ev("[!!Storage.get().vaccines.done['hepb-1'],(Storage.get().vaccines.notes['hepb-1']||{}).lot]")
+    ev("Modules.vaccine._book.close()"); p.wait_for_timeout(500)
+    ss = ev("Storage.get().vaccines.subs.find(s=>s.covers&&s.covers.length).id")
+    ev(f"Modules.vaccine._remove('sub:{ss}')"); p.wait_for_timeout(300)
+    dl3 = ev("(()=>{const v=Storage.get().vaccines;return [!!v.done['dtap-1'],!!v.done['ipv-1'],!!(v.via||{})['dtap-1'],v.subs.length]})()")
+    check('#289 删除走面板：删一剂（连同详情）可撤销恢复；删联合疫苗记录同时撤回它抵扣的剂次', dl1 == [False, False, True] and dl2 == [True, 'NEW-1'] and dl3 == [False, False, False, 1], [dl1, dl2, dl3])
+    # —— 贴纸更换 ——
+    go('vaccine', 300)
+    ev("document.querySelector('[data-vbstk]').click()"); p.wait_for_timeout(450)
+    nc = ev("document.querySelectorAll('#modalRoot .vc-cell').length")
+    ev("document.querySelector('#modalRoot [data-vcov=\"cloud\"]').click()"); p.wait_for_timeout(400)
+    check('#289 换封面贴纸：8 种（爱心 / 星星 / 小花 / 嫩芽 / 月亮 / 云朵 / 樱桃 / 柠檬）、选中即保存并更新封面', nc == 8 and ev("Storage.get().vaccines.cover") == 'cloud'
+          and ev("document.querySelector('.vbc-stk').src.endsWith('/cloud.webp')"), nc)
+    # —— 日期页接入 ——
+    idx = ev("(()=>{const T=Util.todayISO(),D=Util.addDays(T,-79),i=Util.buildDayIndex(Storage.get());return [(i[D]||[]).filter(x=>x.icon==='vaccine').map(x=>[x.label,x.val,x.time,x.id]),(i[T]||[]).filter(x=>x.icon==='vaccine').map(x=>x.val)]})()")
+    D = ev("Util.addDays(Util.todayISO(),-79)")
+    go('calendar', 400); ev(f"Modules.calendar._go('{D}')"); p.wait_for_timeout(500)
+    ev("(()=>{const li=[...document.querySelectorAll('.dt-ed')].find(l=>l.textContent.indexOf('乙肝疫苗')>=0);li&&li.click()})()"); p.wait_for_timeout(500)
+    cal = ev("[(document.querySelector('#modalRoot .vac-sheet h2')||{}).textContent,App.currentTab()]")
+    ev("Sheet.closeAll && Sheet.closeAll()"); p.wait_for_timeout(300)
+    check('#289 日期页：接种按「疫苗 · 名称 剂次 · 时刻」进时间轴（联合 / 自定义也在）；点按直接弹疫苗本的修改面板、停在日期页',
+          idx[0] == [['疫苗', '乙肝疫苗 第 1 剂', '09:30', 'hepb-1']] and '乙肝疫苗 第 2 剂' in idx[1] and X in idx[1] and cal == ['修改这一页', 'calendar'], [idx, cal])
+    # —— 旧数据兼容 ——
+    ev("""(()=>{const s=Storage.get(),T=Util.todayISO();s.vaccines={done:{'bcg':{date:Util.addDays(T,-80)},'dt':'2020-01-01','hepb-1':Util.addDays(T,-70),'<img src=x onerror=window.__pwn=2>':{date:'2026-01-01'}},
+      notes:{'hepb-1':{site:'lth',react:['swell'],clinic:'<b>x</b>',lot:null,note:'老备注'}},subs:[{id:'o1',name:'13 价肺炎球菌疫苗',date:Util.addDays(T,-60),covers:[]}]};Storage.save()})()""")
+    go('vaccine', 400)
+    od = ev("""(()=>{const v=document.getElementById('view');Modules.vaccine._book.open('bcg');const r1=document.querySelector('.vb-pg.is-cur').textContent;Modules.vaccine._book.go(1);const r2=document.querySelector('.vb-pg.is-cur').textContent;
+      const n=Modules.vaccine._book.count();Modules.vaccine._book.go(n-1);const r3=document.querySelector('.vb-pg.is-cur .vbp-name').textContent;
+      const i=Util.buildDayIndex(Storage.get());return {sum:v.querySelector('.mod-sum').textContent,n,r1:r1.indexOf('已接种')>=0,r2:r2.indexOf('左大腿')>=0&&r2.indexOf('<b>x</b>')>=0,r3,bad:Object.keys(i).filter(k=>!/^\\d{4}-\\d{2}-\\d{2}$/.test(k))}})()""")
+    p.wait_for_timeout(300); ev("Modules.vaccine._book.close()"); p.wait_for_timeout(500)
+    check('#289 旧数据兼容：done 里的 { date } 对象当已种、孤儿键（白破 dt / 异常键）不报错不渲染、老详情（部位 / 单位）照显示且转义、老自费记录成为自选页；日期索引没有坏键',
+          od['n'] == 23 and od['r1'] and od['r2'] and od['r3'] == '13 价肺炎球菌疫苗' and '3 次' in od['sum'] and not od['bad'] and not ev("window.__pwn"), od)
+    # —— 窄屏 + 1.33 倍字号（封面、疫苗本、新增面板）——
+    p.set_viewport_size({'width': 320, 'height': 640}); ev("document.body.classList.add('fs-xl')"); p.wait_for_timeout(200)
+    OVF = """(sels)=>{const o=[];sels.forEach(s=>document.querySelectorAll(s).forEach(e=>{if(e.offsetParent!==null&&e.scrollWidth>e.clientWidth+1)o.push(s+':'+e.textContent.trim().slice(0,12))}));return {o,doc:document.scrollingElement.scrollWidth}}"""
+    go('vaccine', 400)
+    n1 = ev(OVF, ['.vbc-title', '.vbc-own', '.vbc-line', '.vbc-n', '.vt-row b', '.vt-row small', '.vb-hint span', '.vb-link', '.mc-main span'])
+    ev("Modules.vaccine._book.open('hepb-1')"); p.wait_for_timeout(500)
+    n2 = ev(OVF, ['.vb-pg.is-cur .vbp-k', '.vb-pg.is-cur .vbp-dl dd b', '.vb-pg.is-cur .vbp-dl dd small', '.vb-pg.is-cur .vb-stamp b', '.vb-no', '.vb-pg.is-cur .vbp-ft span'])
+    geo = ev("(()=>{const b=document.querySelector('.vb-bar').getBoundingClientRect(),s=document.querySelector('.vb-pg.is-cur .vb-stamp').getBoundingClientRect(),k=document.querySelector('.vb-pg.is-cur .vbp-stk').getBoundingClientRect();return [Math.round(b.bottom),innerHeight,Math.round(s.left),Math.round(k.right)]})()")
+    ev("Modules.vaccine._book.close()"); p.wait_for_timeout(500)
+    ev("document.querySelector('[data-vnew]').click()"); p.wait_for_timeout(500)
+    n3 = ev(OVF, ['#modalRoot .vs-opt small', '#modalRoot .ft-tt b', '#modalRoot .vs-mode button'])
+    ev("Sheet.closeAll && Sheet.closeAll()"); p.wait_for_timeout(300)
+    check('#289 320 宽 + 1.33 倍字号：封面 / 工具行 / 疫苗本页（日期、印章、页码）/ 新增面板都不折行不截断，没有横向滚动，底栏在屏内、印章与贴纸不出页',
+          not n1['o'] and not n2['o'] and not n3['o'] and n1['doc'] <= 320 and geo[0] <= geo[1] and geo[2] >= 0 and geo[3] <= 320, [n1, n2, n3, geo])
+    ev("document.body.classList.remove('fs-xl')"); p.set_viewport_size({'width': 390, 'height': 844})
+    # 底部按钮固定（第 282 次同一套扫描）
+    go('vaccine', 400)
+    m = ev(R282_SCAN)
+    check('#289 「记一次接种」固定在 dock 上方（第 282 次扫描：逐 120px 滚动不动、滚到底最后一项在按钮上方 ≥16px、祖先无 transform）', r282_ok(m), m)
+    # 减少动态效果：打开 / 翻页无过渡，立即到位
+    p.emulate_media(reduced_motion='reduce')
+    ev("document.querySelector('[data-vbopen]').click()"); p.wait_for_timeout(60)
+    ev("Modules.vaccine._book.go(0)"); i0 = ev("Modules.vaccine._book.idx()")
+    drag(320, 400, 60, 400, True, 6, 12); p.wait_for_timeout(120)
+    rm = ev("[Modules.vaccine._book.idx(),document.querySelector('.vb-track').style.transform,document.querySelector('.vb-book').className]")
+    ev("document.querySelector('[data-vbx]').click()"); p.wait_for_timeout(80)
+    rc = ev("!!document.querySelector('body > .vb-book')")
+    p.emulate_media(reduced_motion='no-preference')
+    check('#289 减少动态效果：拖动不跟手、松手直接换页；打开 / 合上没有过渡', rm[0] == i0 + 1 and rm[1] == '' and rm[2] == 'vb-book' and not rc, [i0, rm, rc])
+    check('#289 无 pageerror', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -4116,7 +4348,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r285',),
           ('test_r286',),
           ('test_r287',),
-          ('test_r288',))  # 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r288',),
+          ('test_r289',))  # 第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 
