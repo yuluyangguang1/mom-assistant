@@ -341,13 +341,16 @@
       function add(iso, ic, label, val, time) {
         if (!iso) return;
         if (!idx[iso]) idx[iso] = [];
-        idx[iso].push({ icon: ic, label: label, val: val, time: time || '' });
+        var it = { icon: ic, label: label, val: val, time: time || '' };
+        idx[iso].push(it);
+        return it;
       }
       (d.feedings || []).forEach(function (r) {
         var t = r.type === 'breast' ? '母乳' : (r.type === 'bottle' ? '奶瓶' : (r.type === 'formula' ? '奶粉' : (r.type === 'pump' ? '吸奶' : '辅食')));
         var bm = r.durationMin || r.duration;
         var v = r.type === 'breast' ? (bm ? bm + ' 分' : '') : ((r.amount ? r.amount + (r.type === 'solid' ? ' g' : ' ml') : '') + (r.type === 'pump' && r.durationMin ? ' · ' + r.durationMin + ' 分' : ''));
-        add(isoOf(r.start), 'feeding', t, v, hmOf(r.start));
+        var fi = add(isoOf(r.start), 'feeding', t, v, hmOf(r.start));
+        if (fi) fi.kind = r.type; /* 第 285 次：日期页按喂养类型取模块色（亲喂 / 瓶喂 / 泵奶 / 辅食），icon 仍是 feeding */
       });
       /* 第 274 次（审计 #23）：跨午夜的睡眠按午夜切开，两天都列出、各写各自那部分（与睡眠页、首页同口径）。
          接续的那一天写「00:00 睡眠 10分 · 接前一天 22:30，共 1小时40分」，cont 标记让回顾卡不重复计条数。 */

@@ -1206,10 +1206,7 @@ body.dark .set-group .sg-ico { background: rgba(255,255,255,.08); }
 .stat-lbl { font-size: calc(13px * var(--fs-mul)); color: var(--muted); }
 /* 第 274 次（审计 #29）：日期记录「今日概览」三等分时，「3.8 小时」被挤成数字一行、单位一行。
    数字和单位不折行；格子太窄时数字按格宽缩小（cqi，最大仍是 --fs-display），标签一行放不下就省略号。 */
-.today-overview .stat { container-type: inline-size; min-width: 0; }
-.today-overview .stat-num { white-space: nowrap; font-size: min(var(--fs-display), calc(40cqi / var(--fs-mul, 1))); }
-.today-overview .stat-unit { font-size: min(calc(13px * var(--fs-mul, 1)), 16cqi); }
-.today-overview .stat-lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.view-enter .stat-num { animation: statPop .5s var(--spring) both; }.view-enter .stat:nth-child(2) .stat-num { animation-delay: 45ms; }.view-enter .stat:nth-child(3) .stat-num { animation-delay: 90ms; }.view-enter .stat:nth-child(n+4) .stat-num { animation-delay: 130ms; }
+.view-enter .stat-num { animation: statPop .5s var(--spring) both; }.view-enter .stat:nth-child(2) .stat-num { animation-delay: 45ms; }.view-enter .stat:nth-child(3) .stat-num { animation-delay: 90ms; }.view-enter .stat:nth-child(n+4) .stat-num { animation-delay: 130ms; }
 @keyframes statPop {
   from { opacity: 0; transform: translateY(7px) scale(.86); }
   to { opacity: 1; transform: none; }
@@ -1581,29 +1578,6 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
    ============================================================ */
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .cal-title { font-size: calc(15px * var(--fs-mul)); font-weight: 700; }
-.cal-nav { display: flex; gap: 6px; }
-.cal-nav button {
-  width: 34px; height: 34px; border-radius: var(--radius-pill); border: 1px solid var(--border);
-  background: var(--surface); color: var(--muted); cursor: pointer; font-size: calc(15px * var(--fs-mul));
-  display: flex; align-items: center; justify-content: center;
-  transition: background .2s var(--ease), color .2s var(--ease);
-}
-.cal-nav button:hover { background: var(--primary-weak); color: var(--primary-text); }
-.cal-nav button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-/* 第 94 次：周历默认只显示最近七天——展开/收起整月的切换按钮（居中细字轻入口，
-   不与卡内其它按钮抢注意力；箭头随展开态翻转） */
-.cal-toggle {
-  display: flex; align-items: center; justify-content: center; gap: 5px;
-  width: 100%; margin: 0 0 4px; padding: 7px 0; min-height: 44px; box-sizing: border-box; /* 第 128 次：30→44px（U-08 下限） */
-  border: none; background: transparent; color: var(--muted);
-  font-family: inherit; font-size: calc(12.5px * var(--fs-mul)); cursor: pointer;
-  border-radius: var(--radius-md);
-  transition: background .2s var(--ease), color .2s var(--ease);
-}
-.cal-toggle:hover { background: var(--surface-2); color: var(--text); }
-.cal-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-.cal-toggle .cal-chev { display: inline-block; font-size: calc(11px * var(--fs-mul)); line-height: 1; transition: transform .25s var(--spring); }
-.cal-toggle[aria-expanded="true"] .cal-chev { transform: rotate(180deg); }
 .cal-week, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
 .cal-week { margin-bottom: 4px; }
 /* 第 92 次：字号随格子放大（宽屏格约 118px，固定 11/13px 偏小） */
@@ -1623,21 +1597,23 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 .cal-cell.is-sel .cal-dot { background: #fff; }
 .cal-dots { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); display: flex; gap: 3px; align-items: center; }
 .cal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--tile, var(--primary)); flex: none; }
-.day-detail { margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 12px; }
-.day-detail h3 { font-size: calc(13px * var(--fs-mul)); font-weight: 700; margin: 0 0 8px; color: var(--muted); }
 .day-list { list-style: none; padding: 0; margin: 0; }
-.day-list li { display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: calc(13.5px * var(--fs-mul)); border-bottom: 1px solid var(--border); }
-.day-list li:last-child { border-bottom: none; }
-/* 第 95 次（用户反馈）：明细行显示记录的时间戳——几点记的一眼可读；
-   无时刻来源的记录（里程碑/疫苗等纯日期项）不占位。 */
-.day-list .dl-time { font-size: calc(11.5px * var(--fs-mul)); color: var(--muted); flex: none; min-width: 36px; font-variant-numeric: tabular-nums; }
-.day-list .ico { width: 17px; height: 17px; color: var(--primary); flex: none; }
-.day-list li[data-accent] .ico { color: var(--tile, var(--primary)); }
-.day-list .dl-label { color: var(--muted); flex: none; width: 38px; }
-.day-list .dl-val { flex: 1 1 auto; min-width: 0; color: var(--text); }
+/* 第 285 次：日期页时间轴做减法——时间 · 模块色小图标 · 名称 · 数值，一层分组列表（第 173 次），不再有同义第二行 */
+.day-list li { display: flex; align-items: center; gap: 10px; padding: 11px 0; font-size: calc(14.5px * var(--fs-mul)); border-top: 1px solid var(--border); scroll-margin: 120px 0; }
+.day-list li:first-child, .day-list .dt-gap, .day-list .dt-gap + li { border-top: none; }
+/* 第 95 次（用户反馈）：明细行显示记录的时间戳；无时刻的记录（里程碑 / 疫苗等纯日期项）时间列留空 */
+.day-list .dl-time { font-size: calc(12px * var(--fs-mul)); color: var(--muted); flex: none; width: calc(38px * var(--fs-mul)); font-variant-numeric: tabular-nums; }
+.day-list .dt-ico { flex: none; width: 30px; height: 30px; border-radius: var(--radius-xs); display: inline-flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--tile, var(--primary)) 14%, transparent); color: var(--tile-text, var(--tile, var(--primary))); }
+.day-list .ico { width: 17px; height: 17px; flex: none; }
+.day-list .dt-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; text-align: left; }
+.day-list .dl-label { color: var(--text); font-weight: 600; }
+.day-list .dt-val { flex: none; max-width: 52%; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .day-list .dl-note { display: block; margin-top: 2px; font-size: calc(12px * var(--fs-mul)); font-weight: 500; color: var(--muted); white-space: normal; letter-spacing: 0; } /* 第 274 次：跨夜睡眠「接前一天 22:30 入睡，共 1小时40分」 */
-.day-empty { font-size: calc(13px * var(--fs-mul)); color: var(--muted); margin: 0; }
-.day-total { margin-top: 8px; font-size: calc(12.5px * var(--fs-mul)); color: var(--muted); text-align: right; }
+.day-list .dt-gap { display: block; padding: 2px 0 2px calc(48px * var(--fs-mul)); font-size: calc(11px * var(--fs-mul)); color: var(--muted); opacity: .75; font-variant-numeric: tabular-nums; }
+.day-list li.is-flash { animation: dlFlash 1.2s var(--ease); }
+@keyframes dlFlash { 0%, 35% { background: color-mix(in srgb, var(--tile, var(--primary)) 14%, transparent); } 100% { background: transparent; } }
+.day-empty { font-size: calc(15px * var(--fs-mul)); color: var(--muted); margin: 0; padding: 48px 0 20px; text-align: center; }
 
 
 /* ---------- 设置：开关行 ---------- */
@@ -1682,16 +1658,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 .page-head { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 16px; }
 .page-head h1 { display: flex; align-items: center; gap: 8px; font-size: calc(20px * var(--fs-mul)); font-weight: 700; margin: 0; }
 .page-head p { margin: 0; color: var(--muted); font-size: calc(13px * var(--fs-mul)); line-height: 1.6; }
-/* 第 92 次（月历适配宽高）：去掉 560px 限宽——此前宽屏下月历卡比同页其它卡
-   窄一截（.view 默认 640 / 宽屏 860），用户反馈「月历总是很窄不适配宽高」。
-   卡片保持与同页其它卡同宽。
-   第 93 次（网格封顶）：用户澄清「整个铺的太大」——全宽下格子放大到约 110px、
-   月历占满整屏，太大的是**月历本体**而非卡片。月份头/星期行/格子限宽 460px
-   居中，格子封顶约 63px。
-   第 95 次（用户反馈：周历块拉长适应屏幕宽）：默认视图只剩周历条+当日明细，
-   460px 封顶反而让七天空洞——周历条与当日明细移出限宽组，跟随卡片撑满；
-   展开整月后网格三段仍保持 460 居中，两侧布局互不影响。 */
-.cal-page { margin: 0 auto; }
+/* 第 93 次：月份头 / 星期行 / 格子限宽 460px 居中（第 285 次起只在跳转日期半屏里） */
 .cal-head, .cal-week, .cal-grid {
   max-width: 460px; margin-left: auto; margin-right: auto;
 }
@@ -1766,7 +1733,6 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
   .record-tile { padding: 10px 12px; gap: 10px; }
   .stat-row, .stat-row[data-n="3"], .stat-row[data-n="5"], .stat-row[data-n="6"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .seg-btn { padding: 9px 10px; font-size: calc(13px * var(--fs-mul)); }
-  .cal-nav button { width: 32px; height: 32px; }
 }
 
 /* ============================================================
@@ -1788,7 +1754,6 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
   .btn-primary:hover { background: linear-gradient(180deg, var(--primary) 0%, var(--primary-strong) 100%); }
   .seg-btn.active:hover, .tab.active:hover { background: var(--primary-weak); }
   .icon-btn:hover { background: transparent; color: var(--muted); }
-  .cal-nav button:hover { background: var(--surface); color: var(--muted); }
   .cal-cell:hover:not(.is-empty) { background: transparent; }
 }
 
@@ -1899,32 +1864,13 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
    ============================================================ */
 .review-card { --bar-c: var(--primary); }
 .review-card p { line-height: 1.7; }
-.review-card .row { margin-top: var(--space-sm); }
-.review-card .row .btn { width: 100%; }
+.review-card .btn { width: 100%; margin-top: var(--space-sm); }
 
 .farewell-card { --bar-c: var(--primary); }
 .farewell-card h2 { display: flex; align-items: center; gap: 6px; }
 .farewell-card h2 .ico { width: 18px; height: 18px; }
 .farewell-card p { line-height: 1.7; }
 .farewell-card .btn { margin-top: 6px; }
-
-/* ============================================================
-   成长时间轴（calendar.js / U-27）：纯本地生成，只用灰调线与柔色点，
-   不做「超前/落后」着色，避免把时间轴读成评分表。
-   ============================================================ */
-.timeline-card .timeline { list-style: none; margin: 0; padding: 0; }
-.timeline-card .timeline li {
-  position: relative; display: flex; align-items: flex-start; gap: 8px;
-  padding: 8px 0 8px 16px; border-left: 2px solid var(--border);
-}
-.timeline-card .timeline li:last-child { border-left-color: transparent; }
-.timeline-card .tl-dot {
-  position: absolute; left: -6px; top: 14px; width: 10px; height: 10px; border-radius: 50%;
-  background: var(--primary-weak); border: 2px solid var(--primary);
-}
-.timeline-card .tl-date { flex: none; width: 88px; font-size: calc(12.5px * var(--fs-mul)); color: var(--muted); padding-top: 2px; }
-.timeline-card .tl-text { flex: 1 1 auto; min-width: 0; font-size: calc(14px * var(--fs-mul)); line-height: 1.5; }
-.timeline-card .tl-text i { display: block; font-style: normal; font-size: calc(12.5px * var(--fs-mul)); color: var(--muted); }
 
 /* ============================================================
    U-08 触控目标 44×44（取 WCAG 2.2 SC 2.5.5 AAA，高于 SC 2.5.8 AA 的 24×24）：
@@ -1936,7 +1882,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
    「规矩立了没落地」——.sp-tpl-btn 注释自称「逼近 44 下限」实际只给 38px、
    .btn-mini 第 72 次停在 40px。本轮把缺口类全部补齐（各自规则处有 第 128 次 标注）：
      .btn-mini 40→44 · .sp-tpl-btn 38→44 · .mood-lv button 41→44
-     .week-strip button 宽 41.7→44+（gap 4→1px）· .cal-toggle 30→44
+     .week-strip button 宽 41.7→44+（gap 4→1px）· .cal-toggle 30→44（第 285 次已删）
      .row-switch 行 36/38→44 · .search-input 38.4→44 · .home-edit-btn 28→44
      .ds-opt 行 23→44 · .pack-item label 25.8→铺满 64px 行
    复测探针：_probe/touch_128_verify.js（10 类逐元素量宽×高对表 44×44）。
@@ -1944,8 +1890,8 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 /* 第 92 次：.cal-cell 移出 44px 触控清单——min-height 与 aspect-ratio:1/1 冲突
    （窄屏格宽约 41px 被 min-height 拉成 41×44 长方形，月历「不适配宽高」的成因之一）；
    41px 触控目标仍可接受，格子恢复正方形自适应 */
-.btn, .seg-btn, .icon-btn, .quick-btn, .tab, .cal-nav button { min-height: 44px; }
-.icon-btn, .cal-nav button { min-width: 44px; }
+.btn, .seg-btn, .icon-btn, .quick-btn, .tab { min-height: 44px; }
+.icon-btn, .cal-jump { min-width: 44px; }
 
 /* ============================================================
    U-09 夜间（22:00–06:00，body.is-night）：压低动效强度与强调色饱和度，
@@ -6062,3 +6008,64 @@ body.dark .gr-pill { background: rgba(255,255,255,.08); box-shadow: none; }
 .gr-fstat .kv li span { color: var(--muted); min-width: 0; }
 .gr-fstat .kv li b { text-align: right; font-variant-numeric: tabular-nums; }
 .gr-ago, .gr-it { white-space: nowrap; }
+
+/* ============================================================
+   第 285 次 · 日期页做减法：一屏一天
+   页头日期 + 日历按钮 → 周条（有记录一个小圆点）→「一天的形状」（0–24 点细时间带 + 最多 3 个数字）
+   → 时间轴 → 补记小条 →「查看前一天」。没有对比、没有评价词、没有多日堆叠。
+   ============================================================ */
+.page-head.cal-head-row { flex-direction: row; align-items: center; justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-sm); }
+.cal-head-row h1 { font-size: calc(22px * var(--fs-mul)); font-weight: 800; letter-spacing: .2px; font-variant-numeric: tabular-nums; }
+.cal-jump { flex: none; width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%; background: var(--surface); color: var(--muted); box-shadow: 0 6px 16px -12px rgba(51,48,43,.4); cursor: pointer; }
+.cal-jump .ico { width: 21px; height: 21px; }
+body.dark .cal-jump { background: rgba(255,255,255,.08); color: var(--text); box-shadow: none; }
+.cal-day-page .week-strip { margin-bottom: var(--space-md); touch-action: pan-y; }
+.ws-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--muted); opacity: .75; margin-top: 1px; }
+.week-strip button.is-sel .ws-dot { background: var(--on-primary); opacity: .9; }
+.cal-day { touch-action: pan-y; }
+
+/* 一天的形状 */
+.card.day-shape { padding: 26px 18px 16px; margin-bottom: var(--space-md); }
+.dsh-band { position: relative; height: 28px; margin: 0 2px; }
+.dsh-track { position: absolute; left: 0; right: 0; top: 50%; height: 8px; margin-top: -4px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--text) 8%, transparent); }
+.dsh-seg { position: absolute; top: 50%; height: 8px; margin-top: -4px; min-width: 3px; padding: 0; border: none; border-radius: 3px; cursor: pointer;
+  background: var(--tile, var(--primary)); opacity: .85; }
+.dsh-seg::before { content: ''; position: absolute; left: 0; right: 0; top: -10px; bottom: -10px; }
+.dsh-seg.is-live { opacity: .55; }
+.dsh-dot { position: absolute; top: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px; padding: 0; border: none; background: none; cursor: pointer; }
+.dsh-dot::before { content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%;
+  background: var(--tile, var(--primary)); box-shadow: 0 0 0 2px var(--surface-solid); }
+.dsh-seg:focus-visible, .dsh-dot:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.dsh-now { position: absolute; top: 3px; bottom: 3px; width: 2px; margin-left: -1px; border-radius: 1px; pointer-events: none;
+  background: color-mix(in srgb, var(--text) 60%, transparent); }
+.dsh-now i { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 2px; font-style: normal; white-space: nowrap;
+  font-size: calc(10.5px * var(--fs-mul)); line-height: 1; color: var(--muted); }
+.dsh-axis { display: flex; justify-content: space-between; margin: 1px 2px 0; font-size: calc(10.5px * var(--fs-mul)); color: var(--muted); font-variant-numeric: tabular-nums; }
+.dsh-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-sm); margin-top: var(--space-md); }
+.dsh-nums[data-n="1"] { grid-template-columns: minmax(0, 1fr); }
+.dsh-nums[data-n="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dsh-num { container-type: inline-size; min-width: 0; }
+.dsh-v { display: block; white-space: nowrap; line-height: 1.15; }
+.dsh-v b { font-size: min(calc(22px * var(--fs-mul)), 21cqi); font-weight: 800; font-variant-numeric: tabular-nums; }
+.dsh-v i { font-style: normal; font-size: min(calc(12px * var(--fs-mul)), 11cqi); font-weight: 600; color: var(--muted); margin: 0 2px 0 1px; }
+.dsh-l { display: block; margin-top: 2px; font-size: calc(12px * var(--fs-mul)); color: var(--muted); }
+
+/* 时间轴：一个容器，行间细线 */
+.day-tl { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 2px 16px; }
+.cal-quick { justify-content: center; margin: var(--space-lg) 0 0; }
+.cal-prev { display: block; margin: var(--space-sm) auto 0; min-height: 44px; padding: 0 16px; border: none; background: none; cursor: pointer;
+  font-family: inherit; font-size: calc(13px * var(--fs-mul)); color: var(--muted); border-radius: var(--radius-pill); }
+.cal-prev:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+
+/* 跳转日期半屏（月历周一起 + 回顾） */
+.cal-sheet .cal-head button { width: 44px; height: 44px; border: none; border-radius: 50%; background: none; color: var(--text); cursor: pointer;
+  font-family: inherit; font-size: calc(20px * var(--fs-mul)); display: inline-flex; align-items: center; justify-content: center; }
+.cal-sheet .cal-head button:disabled { opacity: .3; cursor: default; }
+.cal-cell.is-future { color: var(--muted); opacity: .4; cursor: default; }
+.cal-today { display: block; margin: var(--space-xs) auto 0; min-height: 44px; padding: 0 18px; border: none; background: none; cursor: pointer;
+  font-family: inherit; font-size: calc(14px * var(--fs-mul)); font-weight: 600; color: var(--primary-text); border-radius: var(--radius-pill); }
+.cal-review { margin-top: var(--space-lg); padding: 14px 16px; border-radius: var(--radius); }
+.cal-review .rs-lbl { margin-top: 0; }
+.cal-review p { margin: 0; font-size: calc(14px * var(--fs-mul)); }
+@media (prefers-reduced-motion: reduce) { .day-list li.is-flash { animation: none; background: color-mix(in srgb, var(--tile, var(--primary)) 14%, transparent); } }

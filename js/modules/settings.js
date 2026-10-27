@@ -836,7 +836,7 @@
       html += '<div class="row-switch"><label for="sReview">每周回顾提醒</label>'
         + '<input type="checkbox" id="sReview"' + (s.settings.weeklyReviewEnabled ? ' checked' : '') + '></div>';
       html += '<p class="hint">默认关闭。开启后每周最多一次，内容只是「摘要已生成」，不催你、不打卡、不提连续天数；'
-        + '随时可以在「日期记录」页看到回顾，不需要靠提醒。</p></div>';
+        + '随时可以在「日期记录」页右上角的日历里看到回顾，不需要靠提醒。</p></div>';
       html += '</details>';
 
       html += sgOpen('baby', '称呼与阶段', '宝宝档案 / 首页称呼 / 首次引导 / 当前阶段');

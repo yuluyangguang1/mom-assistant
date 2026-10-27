@@ -1450,7 +1450,7 @@
 
   /* U-04 周回顾提醒：只有用户主动开启后才出现，每周最多 1 次，
      内容必须是「回报兑现」（摘要已生成）而不是催促；关掉不损失任何功能
-     ——回顾本身在「日期记录」页随时可看，不需要提醒也能拿到。 */
+     ——回顾本身在「日期记录」页右上角的日历里随时可看，不需要提醒也能拿到。 */
   function maybeWeeklyReview() {
     var s = Storage.get();
     if (!s.settings.weeklyReviewEnabled) return;
@@ -1461,7 +1461,11 @@
     Storage.save();
     Util.toast('本周记录摘要已生成。', 'ok', {
       label: '去看看',
-      onClick: function () { showTab('calendar'); }
+      onClick: function () {
+        showTab('calendar');
+        /* 第 285 次：回顾挪进日期页右上角的「跳转到日期」半屏 */
+        setTimeout(function () { if (Modules.calendar && Modules.calendar._openJump) Modules.calendar._openJump(); }, 360);
+      }
     });
   }
 
