@@ -4780,6 +4780,15 @@ body.qd-open .dock-live { opacity: 0; visibility: hidden; }
 .dl-go .ico { color: var(--muted); }
 .dl-cycle { flex: none; min-width: 44px; height: 44px; padding: 0 4px; font-size: calc(12px * var(--fs-mul)); color: var(--muted) !important; font-variant-numeric: tabular-nums; }
 .dl-cycle b { color: var(--text); font-size: calc(14px * var(--fs-mul)); }
+/* 第 291 次：窄屏（≤360）+ 大字号时「1/2 + 封面 + 剩 20 分 + 暂停 + 停止」挤不下，数字被顶到暂停键底下（框像崩了）：收一点间距和圆钮，数字不截断 */
+@media (max-width: 360px) {
+  .dock-live { gap: 2px; padding-left: 4px; padding-right: 4px; }
+  .dl-main { gap: 8px; padding-right: 2px; }
+  .dl-ico { width: 34px; height: 34px; }
+  .dl-act { width: 40px; height: 44px; }
+  .dl-act-txt { width: auto; padding: 0 12px; height: 38px; }
+  .dl-cycle { min-width: 34px; padding: 0 2px; }
+}
 /* 有胶囊时页面底部多留一截，最后一张卡不会被挡 */
 body.has-live .view { padding-bottom: calc(176px + env(safe-area-inset-bottom)); }
 /* 左右手竖排：胶囊贴底、让开竖条 */
@@ -4927,8 +4936,10 @@ body.dark .qd-badge { background: rgba(255, 255, 255, .08); }
 body #quickDock .qd-action .qd-ico { width: 20px; height: 20px; color: var(--tile, var(--primary)); }
 .qd-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .qd-txt b { font-size: calc(15px * var(--fs-mul, 1)); font-weight: 800; color: var(--tile-text, var(--text)); }
-.qd-txt small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.qd-grid > .qd-action:last-child:nth-child(odd) { grid-column: 1 / -1; }
+/* 第 291 次：「喂奶」说明（按上一次：母乳 15 分钟 · 左侧 / 奶瓶 母乳 80 · 配方奶 40 ml）独占一行、放不下就折行，不再省略号截断 */
+.qd-txt small { font-size: 12px; color: var(--muted); white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
+.qd-grid > #qdFeed { grid-column: 1 / -1; }
+.qd-grid > .qd-action:last-child:nth-child(even) { grid-column: 1 / -1; }
 html body.qd-open .qd-mask { background: rgba(40, 34, 28, .22); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
 @media (max-width: 340px) { .qd-badge { width: 32px; height: 32px; } #quickDock .qd-action { gap: 8px; padding: 8px; } }
 
@@ -6007,20 +6018,7 @@ body.dark .cb-badge { box-shadow: 0 0 0 2px #1E1B18; }
 .day-list .dt-more[aria-expanded="true"] { background: var(--surface-2); }
 .cal-pane .cal-prev { margin-top: var(--space-md); }
 
-/* 底部快捷记录条：第 282 次固定底部规则（.mod-cta：dock 上方、带底衬、页面底部按实际高度留白） */
-#view .cal-qbar { padding-top: 0; }
-.cq-row { display: flex; gap: 4px; padding: 6px; border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--surface) 84%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%);
-  box-shadow: inset 0 0 0 .5px rgba(255,255,255,.5), 0 10px 26px -16px rgba(90,74,62,.45); }
-body.dark .cq-row { background: color-mix(in srgb, var(--surface) 86%, transparent); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.1), 0 10px 26px -16px rgba(0,0,0,.7); }
-.cq-b { flex: 1 1 0; min-width: 0; min-height: 54px; padding: 6px 2px 5px; border: none; border-radius: var(--radius); background: none; cursor: pointer; font-family: inherit;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--text); }
-.cq-b:active { background: var(--tile-weak, var(--surface-2)); }
-.cq-b:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-.cq-ico { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--tile-weak, var(--surface-2)); color: var(--tile-text, var(--tile)); }
-.cq-ico .ico { width: 19px; height: 19px; }
-.cq-t { font-size: calc(11.5px * var(--fs-mul)); font-weight: 600; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+/* 第 291 次：日期页底部快捷记录条（.cal-qbar / .cq-*）按用户要求删掉，记录入口走「＋」 */
 
 /* 从按钮那里弹出的小菜单（宝宝切换、时间轴 …）：右上角锚定，弹簧放大 + 淡入；减少动态效果只淡入 */
 .cal-pop-mask { position: fixed; inset: 0; z-index: 2100; -webkit-tap-highlight-color: transparent; }

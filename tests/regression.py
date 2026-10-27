@@ -737,11 +737,11 @@ def test_r271(b):
     # 首页迷你条（dock 上方胶囊）与播放页同一状态
     p.click('#wpClose'); p.wait_for_timeout(400)
     ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(300)
-    dl = ev("(()=>{const d=document.getElementById('dockLive');const a=d.querySelector('[data-act=wn-pp]');const art=d.querySelector('.dl-art');return [d.hidden,a&&a.getAttribute('aria-label'),d.querySelector('.dl-val').textContent,art?art.style.backgroundImage:'']})()")
+    dl = ev("(()=>{const d=document.getElementById('dockLive');const a=d.querySelector('[data-act=wn-pp]');const art=d.querySelector('.dl-art');return [d.hidden,a&&a.getAttribute('aria-label'),d.querySelector('.dl-txt').textContent,art?art.style.backgroundImage:'']})()")
     check('首页胶囊：与播放页同为「已暂停」+ 继续键，封面图存在', dl[0] is False and dl[1] == '继续播放' and '已暂停' in dl[2] and 'assets/sounds/white.webp' in dl[3], dl)
     p.click('#dockLive [data-act=wn-pp]'); p.wait_for_timeout(100)
     ev("__FA[__FA.length-1]._ok()"); p.wait_for_timeout(200)
-    dl2 = ev("(()=>{const d=document.getElementById('dockLive');const a=d.querySelector('[data-act=wn-pp]');return [a&&a.getAttribute('aria-label'),d.querySelector('.dl-val').textContent]})()")
+    dl2 = ev("(()=>{const d=document.getElementById('dockLive');const a=d.querySelector('[data-act=wn-pp]');return [a&&a.getAttribute('aria-label'),d.querySelector('.dl-txt').textContent]})()")
     check('首页胶囊：点继续、真正出声后胶囊变「暂停」键', dl2[0] == '暂停' and '已暂停' not in dl2[1], dl2)
     ev("Modules.whitenoise._stop()"); p.wait_for_timeout(100)
     # 首次播放被拒
@@ -1381,7 +1381,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v254（第 290 次升）', "var CACHE = 'baoma-static-v254';" in sw)
+    check('#275 SW 版本 v255（第 291 次升）', "var CACHE = 'baoma-static-v255';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -3118,11 +3118,11 @@ def test_r285(b):
     check('#285 间隔按上一段结束算（睡眠按醒来）：今天夜里喂奶在睡眠里不写间隔；只有 ≥3 小时才写', gaps == [] and all('小时' in g for g in gy), [gaps, gy])
     # —— 空状态 ——
     ev(f"Modules.calendar._go('{E}')"); p.wait_for_timeout(400)
-    em = ev("(()=>{const c=document.getElementById('calDay');return {t:c.querySelector('.day-empty')&&c.querySelector('.day-empty').textContent,ps:c.querySelectorAll('p,.hint,.es-ico,svg.empty').length,shape:!!c.querySelector('.day-shape'),quick:document.querySelectorAll('#view .cal-qbar [data-qk]').length+c.querySelectorAll('[data-backfill]').length*100,txt:c.innerText}})()")
+    em = ev("(()=>{const c=document.getElementById('calDay');return {t:c.querySelector('.day-empty')&&c.querySelector('.day-empty').textContent,ps:c.querySelectorAll('p,.hint,.es-ico,svg.empty').length,shape:!!c.querySelector('.day-shape'),quick:document.querySelectorAll('#view .cal-qbar [data-qk]').length+c.querySelectorAll('[data-backfill]').length*100,txt:c.innerText}})()")  # 第 291 次：快捷条删掉，quick 应为 0
     ev("""(()=>{const d=Storage.get();const t=Util.todayISO();['feedings','sleeps','diapers','meds'].forEach(k=>d[k]=(d[k]||[]).filter(r=>String(r.start||r.time||'').slice(0,10)!==t&&String(r.end||'').slice(0,10)!==t));Storage.save()})()""")
     go('home'); go('calendar', 500)
     et = ev("(()=>{const c=document.getElementById('calDay');return {t:c.querySelector('.day-empty')&&c.querySelector('.day-empty').textContent,txt:c.innerText}})()")
-    check('#285 空状态只有一句：今天「今天还没有记录」、别的日子「这一天没有记录」；补记小条并进底部快捷条（第 286 次，只有一份）；不再有空盒子图标和重复说明', em['t'] == '这一天没有记录' and em['ps'] == 1 and not em['shape'] and em['quick'] == 5
+    check('#285 空状态只有一句：今天「今天还没有记录」、别的日子「这一天没有记录」；没有补记小条、也没有底部快捷条（第 291 次删掉，记录走「＋」）；不再有空盒子图标和重复说明', em['t'] == '这一天没有记录' and em['ps'] == 1 and not em['shape'] and em['quick'] == 0
           and et['t'] == '今天还没有记录' and '有记录的日期' not in et['txt'] and '暂无' not in et['txt'], [em, et])
     # —— 底部不遮挡（浅 / 深、320 宽 + 1.33 倍字号、正在进行胶囊）——
     ev(R285_SEED)
@@ -3135,15 +3135,15 @@ def test_r285(b):
         if dark: ev("document.body.classList.add('dark')")
         go('calendar', 500); ev(f"Modules.calendar._go('{Y}')"); p.wait_for_timeout(400)
         ev("scrollTo(0,document.documentElement.scrollHeight)"); p.wait_for_timeout(400)
-        g = ev("""(()=>{const pv=document.querySelector('#calDay .cal-prev').getBoundingClientRect(),q=document.querySelector('#view .cal-qbar').getBoundingClientRect();
+        g = ev("""(()=>{const pv=document.querySelector('#calDay .cal-prev').getBoundingClientRect();
           const tops=['tabbar','dockLive','dockOrb'].map(i=>document.getElementById(i)).filter(e=>e&&!e.hidden&&e.getBoundingClientRect().height>0).map(e=>e.getBoundingClientRect().top);
           const top=Math.min(...tops,innerHeight);const li=[...document.querySelectorAll('#calDay .day-list li')].pop().getBoundingClientRect();
-          return {prev:pv.bottom,quick:q.bottom,qtop:q.top,last:li.bottom,dock:top}})()""")
-        # 第 286 次：快捷条固定在 dock 上方；滚到底时最后一条和「查看前一天」都在快捷条上方
-        if not (g['quick'] <= g['dock'] - 4 and g['prev'] <= g['qtop'] - 4 and g['last'] < g['prev']): badb.append([w, fs, dark, live, g])
+          return {prev:pv.bottom,last:li.bottom,dock:top}})()""")
+        # 第 291 次：快捷条删掉；滚到底时最后一条和「查看前一天」都在 dock / 正在进行胶囊上方
+        if not (g['prev'] <= g['dock'] - 4 and g['last'] < g['prev']): badb.append([w, fs, dark, live, g])
     ev("(()=>{const s=Storage.get();s.settings.fontScale='normal';s.openSleep=null;Storage.save()})()")
     p.set_viewport_size({'width': 393, 'height': 852}); p.reload(); p.wait_for_timeout(700); ev(R285_SEED)
-    check('#285 滚到底：最后一条、「查看前一天」在快捷条上方，快捷条在 dock / 正在进行胶囊上方（浅 / 深、320 宽 + 1.33 倍字号、胶囊）', not badb, badb)
+    check('#285 滚到底：最后一条、「查看前一天」在 dock / 正在进行胶囊上方（浅 / 深、320 宽 + 1.33 倍字号、胶囊；第 291 次起没有快捷条）', not badb, badb)
     # —— 「查看前一天」、周条小圆点、跳转日期半屏 ——
     go('calendar', 500)
     ev("document.querySelector('#calDay [data-cal-prev]').click()"); p.wait_for_timeout(500)
@@ -3332,34 +3332,9 @@ def test_r286(b):
     rs = [sel(), ev("document.querySelector('.cal-track').style.transform")]
     p.emulate_media(reduced_motion='no-preference')
     check('#286 减少动态效果：拖动时内容不跟手平移，松手立即换到前一天（无滑动动画）', rtf in ('', 'none') and rs[0] == ev(f"Util.addDays('{Y}',-1)") and rs[1] in ('', 'none'), [rtf, rs])
-    # —— 5. 底部快捷条 ——
+    # —— 5. 底部快捷条：第 291 次按用户要求删掉（记录入口走「＋」），设置项一起去掉 ——
     go('home'); go('calendar', 400); ev(f"Modules.calendar._go('{Y}')"); p.wait_for_timeout(450)
-    qb = ev("[...document.querySelectorAll('#view .cal-qbar [data-qk]')].map(b=>b.textContent)")
-    check('#286 底部快捷条默认 亲喂 / 瓶喂 / 辅食 / 生长 / 尿布，是固定在 dock 上方的那一份（.mod-cta），页面里没有第二份补记小条', qb == ['亲喂', '瓶喂', '辅食', '生长', '尿布'] and ev("document.querySelectorAll('#view .mod-cta').length") == 1 and not ev("document.querySelector('[data-backfill]')"), qb)
-    ev("document.querySelector('.cal-qbar [data-qk=breast]').click()"); p.wait_for_timeout(400)
-    bd = ev("[(document.querySelector('#modalRoot h2')||{}).textContent,(document.querySelector('#modalRoot #sDate')||{}).value,(document.querySelector('#modalRoot #sTime')||{}).value]")
-    ev("(()=>{document.querySelector('#modalRoot #mL').value='7';document.querySelector('#modalRoot [data-save]').click()})()"); p.wait_for_timeout(500)
-    nb = ev(f"Storage.get().feedings.filter(r=>r.type==='breast'&&r.durationL===7).map(r=>r.start.slice(0,10))")
-    rowb = ev("[...document.querySelectorAll('#calDay .day-list li[data-ti]')].some(l=>l.querySelector('.dl-label').textContent==='母乳'&&(l.querySelector('.dt-val')||{}).textContent==='7 分')")
-    nowhm = ev("(()=>{const d=new Date();return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)})()")
-    check('#286 选昨天点「亲喂」：直接在日期页打开补记亲喂面板，日期 = 昨天、时间 = 现在的钟点（面板里可改），保存后记到昨天、昨天时间轴多一条，页面停在昨天', bd[0] == '补记亲喂' and bd[1] == Y and bd[2][:2] == nowhm[:2] and nb == [Y] and rowb and sel() == Y and ev("App.currentTab()") == 'calendar', [bd, nb, rowb, sel()])
-    ev("document.querySelector('.cal-qbar [data-qk=growth]').click()"); p.wait_for_timeout(500)
-    gd = ev("(document.querySelector('#grDate')||{}).value"); ev("Sheet.closeTop()"); p.wait_for_timeout(300)
-    p.wait_for_timeout(200)
-    ev("document.querySelector('.cal-qbar [data-qk=diaper]').click()"); p.wait_for_timeout(400)
-    dd = ev("[...document.querySelectorAll('#modalRoot input[type=date]')].map(i=>i.value)"); ev("Sheet.closeTop()"); p.wait_for_timeout(300)
-    check('#286 快捷条「生长」「尿布」打开各自模块的记录面板，日期都是所选那天', gd == Y and dd and all(x == Y for x in dd), [gd, dd])
-    ev("(()=>{const s=Storage.get();s.settings.calQuick=['bath','temp','diaper','mood','sleep'];Storage.save()})()"); go('home'); go('calendar', 400)
-    qb2 = ev("[...document.querySelectorAll('#view .cal-qbar [data-qk]')].map(b=>b.dataset.qk)")
-    ev(f"Modules.calendar._go('{Y}')"); p.wait_for_timeout(450)
-    ev("document.querySelector('.cal-qbar [data-qk=bath]').click()"); p.wait_for_timeout(400)
-    bh = ev("[(document.querySelector('#modalRoot h2')||{}).textContent,(document.querySelector('#modalRoot #skDate')||{}).value]")
-    ev("(()=>{const i=document.querySelector('#modalRoot #sk_minutes');i.value='12';document.querySelector('#modalRoot .rs-save').click()})()"); p.wait_for_timeout(500)
-    nbath = ev("Storage.get().baths.filter(r=>r.minutes===12).map(r=>r.time.slice(0,10))")
-    ev("(()=>{const s=Storage.get();s.settings.calQuick='auto';Storage.save()})()"); go('home'); go('calendar', 400)
-    qa = ev("Modules.calendar._quickIds()")
-    ev("(()=>{const s=Storage.get();s.settings.calQuick=null;Storage.save()})()")
-    check('#286 设置里自选的快捷条按固定顺序显示；点「洗澡」记到所选那天；「按使用频率」挑近 30 天用得多的 5 个（喂养 / 尿布 / 睡眠在内）', qb2 == ['diaper', 'sleep', 'temp', 'bath', 'mood'] and bh == ['记录洗澡', Y] and nbath == [Y] and len(qa) == 5 and 'diaper' in qa and 'sleep' in qa, [qb2, bh, nbath, qa])
+    check('#286→#291 日期页底部快捷条已删除：没有 .cal-qbar / [data-qk]、没有 .mod-cta、没有补记小条', ev("document.querySelectorAll('#view .cal-qbar,#view [data-qk],#view .mod-cta,[data-backfill]').length") == 0)
     # —— 6. 右上角宝宝切换 ——
     go('home'); go('calendar', 400)
     hd = ev("""(()=>{const t=document.getElementById('calTitle').getBoundingClientRect(),a=document.querySelector('[data-cal-baby]').getBoundingClientRect(),c=document.querySelector('[data-cal-jump]').getBoundingClientRect();
@@ -3390,14 +3365,14 @@ def test_r286(b):
     check('#286 切到二宝：日期页停在原来那天、带轻转场；时间轴 / 时间带 / 周条圆点 / 月历圆点都换成二宝的（宝宝记录为空，只剩妈妈的情绪 / 破水）', sw['act'] == idB and sw['sel'] == Y and sw['rows'] == 0 and sw['dots'] == 0 and sw['ws'] == 0 and sw['fx'] and mdB == 0 and nA > 0, [sw, mdB, nA])
     go('home', 300); hb = ev("[Storage.activeBaby().id, (document.getElementById('avatarBtn')||{}).innerHTML!==undefined]")
     go('calendar', 400); ev(f"Modules.calendar._go('{Y}')"); p.wait_for_timeout(450)
-    ev("document.querySelector('.cal-qbar [data-qk=diaper]').click()"); p.wait_for_timeout(400)
+    ev("Modules.diaper._open(Modules.calendar._state.sel)"); p.wait_for_timeout(400)  # 第 291 次：日期页快捷条删了，直接开尿布面板（同一个记到所选那天的入口）
     ev("(()=>{const b=document.querySelector('#modalRoot [data-t=pee]');if(b)b.click()})()"); p.wait_for_timeout(100)
     ev("(()=>{const b=document.querySelector('#modalRoot .rs-save,#modalRoot [data-ok]');if(b)b.click()})()"); p.wait_for_timeout(1000)
     inB = ev("Storage.get().diapers.filter(r=>r.time.slice(0,10)===Modules.calendar._state.sel).length")
     ev("document.querySelector('[data-cal-baby]').click()"); p.wait_for_timeout(350)
     ev(f"document.querySelector('.cal-pop-mask [data-pick=\"b:{idA}\"]').click()"); p.wait_for_timeout(600)
     back = ev("[Storage.get().settings.activeBabyId,document.querySelectorAll('#calDay li[data-ti]').length,Storage.get().babies.find(b=>b.id==='" + idB + "').rec.diapers.length]")
-    check('#286 全站当前宝宝一致（首页也是二宝）；在二宝下用快捷条记的尿布只在二宝名下；切回大宝，大宝的时间轴原样回来', hb[0] == idB and inB == 1 and back[0] == idA and back[1] == nA and back[2] == 1, [hb, inB, back, nA])
+    check('#286 全站当前宝宝一致（首页也是二宝）；在二宝下记的尿布只在二宝名下；切回大宝，大宝的时间轴原样回来', hb[0] == idB and inB == 1 and back[0] == idA and back[1] == nA and back[2] == 1, [hb, inB, back, nA])
     ev("document.querySelector('[data-cal-baby]').click()"); p.wait_for_timeout(300)
     ev("document.querySelector('.cal-pop-mask').dispatchEvent(new MouseEvent('click',{bubbles:true}))"); p.wait_for_timeout(300)
     check('#286 点菜单外面关闭菜单', not ev("!!document.querySelector('.cal-pop-mask')"), '')
@@ -3464,6 +3439,8 @@ def test_r286(b):
     bads = []
     for tab in ('home', 'calendar'):
         go(tab, 400)
+        # 第 291 次：切页后会先站上前进栈占位（guard），静止后才退下来——基准状态取静止后的
+        _poll(p, "!App._onGuard()&&!App._histBusy()", 2500, 20); p.wait_for_timeout(150)
         st0 = ev("JSON.stringify(history.state)")
         for n in (2, 3, 5):
             for gap in (0, 120):
@@ -4549,6 +4526,7 @@ def test_r290b(b):
         elif exp != 'home':
             ev("App.showTab('home',{noVT:true})")
         idle()
+        _poll(p, "!App._onGuard()&&!App._histBusy()", 2500, 20)  # 第 291 次：回首页后先站在前进栈占位上，静止后才退下来
         if ev("history.state") is not None or ev("App.currentTab()") != 'home':
             bad.append([go, 'back', ev("JSON.stringify(history.state)"), ev("App.currentTab()")])
     check('#290 每个入口（29 个）：同一次点击里面板立即关掉（不留遮罩 / inert / 锁定）、新页已画好；二级页由菜单那条记录改写成该页、一级页记录退掉；返回回首页', not bad, bad[:3])
@@ -4594,11 +4572,303 @@ def test_r290b(b):
         c2.close()
 
 
+R291_HLOG = r"""(()=>{if(window.__h291)return;window.__h291=[];['pushState','replaceState','back','go','forward'].forEach(k=>{const o=history[k].bind(history);history[k]=function(...a){try{const v=document.getElementById('view');
+ const an=document.getAnimations().filter(x=>x.playState==='running'&&x.effect&&x.effect.target&&(x.effect.target===v||v.contains(x.effect.target))&&!(x.effect.getComputedTiming&&x.effect.getComputedTiming().iterations===Infinity)).map(x=>(x.animationName||x.transitionProperty||'?')+'@'+(x.effect.target.className||x.effect.target.tagName)).join(',')||0;
+ __h291.push({k,s:a[0]&&a[0].baoma,tab:App.currentTab(),anim:an,vt:v.style.transform||'',hp:App._hpBusy(),ext:!!window.__ext})}catch(e){};return o(...a)}})})()"""
+R291_ST = r"""(()=>{const v=document.getElementById('view');const H=__h291;let gi=-1;H.forEach((x,i)=>{if(x.k==='pushState'&&x.s==='guard')gi=i});
+ const lv=gi<0?null:(H.slice(gi+1).find(x=>x.k==='back'&&!x.ext)||null);
+ return {tab:App.currentTab(),st:JSON.stringify(history.state),hl:history.length,fg:App._fwdGuard(),on:App._onGuard(),leave:lv,
+ vt:v.style.transform,vo:v.style.opacity,cvt:getComputedStyle(v).transform,guards:__h291.filter(x=>x.k==='pushState'&&x.s==='guard'),
+ qd:document.body.classList.contains('qd-open'),head:(document.querySelector('#view .mod-head h1')||{}).textContent||''}})()"""
+
+
+def test_r291(b):
+    """第 291 次：① 首页滑动只有一个方向（左滑去日期页，右滑不动）、返回首页后前进栈里不再留刚才那页的快照（清前进栈推迟到首页静止）、
+    前进 = 去日期页、左缘 / 二级页边缘返回 / 疫苗本翻页 / 日期页分页不受影响；② 日期页底部快捷条删掉；③「＋」快捷记录每一项的提示文案与记下的类型对得上
+    （「喂奶」不再变成泵奶 / 辅食），「喂奶」说明 320 宽 + 1.33 倍字号不截断。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(1000)
+    ev = p.evaluate
+    drag = lambda *a: ev(TOUCH2_JS, list(a))
+    st = lambda: ev(R291_ST)
+    ev(R291_HLOG)
+    ev("(()=>{window.__rafOn=1;(function f(){if(window.__rafOn)requestAnimationFrame(f)})()})()")  # WebKit 无头：rAF 先跑起来
+
+    def settle(ms=1100):
+        # 占位要等 #view 入场动画走完才退下（最多 1.6 秒）；WebKit 无头动画偏慢，再多等它退下（超时照常往下断言）
+        p.wait_for_timeout(ms); _poll(p, "!App._histBusy()&&!App._hpBusy()&&!App._onGuard()", 2500, 50)
+
+    # —— ① 打开模块 → 返回按钮回首页：清前进栈推迟到首页画好、入场动画走完 ——
+    ev("App.showTab('diaper')"); settle(600)
+    s0 = st()
+    check('#291 进入模块登记一条记录（换尿布页）', s0['tab'] == 'diaper' and '"baoma":1' in s0['st'], s0)
+    ev("window.__h291.length=0;document.getElementById('backBtn').click()"); p.wait_for_timeout(80)
+    s1 = st()
+    check('#291 返回落地那一刻：同步站上占位（前进栈里刚才那页已清掉），还没离开占位（首页还没静止，不拍占位的快照）',
+          s1['tab'] == 'home' and len(s1['guards']) == 1 and s1['st'] == '{"baoma":"guard"}' and s1['on'] and not s1['leave'], s1)
+    settle()
+    s2 = st()
+    lv = s2['leave']
+    check('#291 首页静止后才离开占位（back）：离开时在首页、#view 没有在跑的入场动画、没有跟手位移 → 前进栈里占位的系统快照 = 静止的首页',
+          len(s2['guards']) == 1 and lv and lv['tab'] == 'home' and lv['anim'] == 0 and lv['vt'] == '' and not lv['hp'] and s2['st'] == 'null' and s2['fg'] and not s2['on'], s2)
+    # —— 前进（iOS 右缘左滑 / 前进键）：不会回到换尿布页，而是去首页右边的日期页 ——
+    ev("window.__h291.length=0;history.forward()"); p.wait_for_timeout(500)
+    s3 = st()
+    check('#291 首页「前进」= 进日期页（不是刚才打开的换尿布页），history 层级不变', s3['tab'] == 'calendar' and s3['hl'] == s2['hl'] and '尿布' not in s3['head'], s3)
+    settle()
+    s3b = st()
+    lv3 = [x for x in ev("__h291") if x['k'] == 'back' and not x['ext']]
+    check('#291 前进到占位后就站在上面，进日期页静止后才退下来（前进栈里的快照换成日期页）', s3b['st'] == 'null' and len(lv3) == 1 and lv3[0]['tab'] == 'calendar' and lv3[0]['anim'] == 0 and lv3[0]['vt'] == '' and s3b['fg'], [s3b, lv3])
+    ev("history.forward()"); settle(600)
+    check('#291 日期页「前进」：什么都不发生（停在日期页）', st()['tab'] == 'calendar' and st()['st'] == 'null', st())
+    ev("App.showTab('home')"); settle()
+    s4 = st()
+    check('#291 dock 切回首页：前进栈里的占位重拍成首页（静止后才退下占位）', s4['tab'] == 'home' and s4['guards'] and s4['leave'] and s4['leave']['tab'] == 'home' and s4['leave']['anim'] == 0 and s4['st'] == 'null', s4)
+    hl0 = s4['hl']
+    # —— 首页往右滑（反方向）：不跟手、不导航 ——
+    drag(140, 420, 330, 420, 'none', 6, 16); p.wait_for_timeout(60)
+    m1 = st()
+    ev("(()=>{const t=document.elementFromPoint(330,420)||document.body;const e=new Event('touchend',{bubbles:true});Object.defineProperty(e,'changedTouches',{value:[{clientX:330,clientY:420}]});Object.defineProperty(e,'touches',{value:[]});t.dispatchEvent(e)})()")
+    p.wait_for_timeout(400)
+    check('#291 首页往右滑：页面不动（无位移 / 透明度）、停在首页、history 不变', m1['vt'] == '' and m1['vo'] == '' and st()['tab'] == 'home' and st()['hl'] == hl0 and st()['st'] == 'null', [m1, st()])
+    # —— 首页往左慢慢拖一点：1:1 跟手，松手回弹 ——
+    drag(300, 420, 240, 420, 'none', 6, 60); p.wait_for_timeout(160)
+    m2 = st()
+    ev("(()=>{const t=document.elementFromPoint(240,420)||document.body;const e=new Event('touchend',{bubbles:true});Object.defineProperty(e,'changedTouches',{value:[{clientX:240,clientY:420}]});Object.defineProperty(e,'touches',{value:[]});t.dispatchEvent(e)})()")
+    p.wait_for_timeout(500)
+    import re as _re
+    mx = _re.search(r'translate3d\((-?[\d.]+)px', m2['vt'] or '')
+    check('#291 首页往左拖 60px：#view 1:1 跟手（只写 transform / opacity）；没过阈值松手回弹、停在首页', mx and abs(float(mx.group(1)) + 60) < 3 and m2['vo'] and st()['tab'] == 'home' and st()['vt'] == '', [m2['vt'], m2['vo'], st()])
+    # —— 首页往左滑过阈值：进日期页（不碰 history） ——
+    ev("window.__h291.length=0")
+    drag(330, 420, 60, 420, True, 8, 16); p.wait_for_timeout(700)
+    s5 = st()
+    nav = [x for x in ev("__h291") if x['k'] in ('pushState', 'replaceState', 'go') and x['s'] != 'guard']
+    check('#291 首页往左滑：进日期页（dock 右边那页），不登记新记录（一级页平级；只在静止后重拍前进栈占位）', s5['tab'] == 'calendar' and s5['hl'] == hl0 and s5['st'] == 'null' and not nav and s5['vt'] == '', [s5, ev("__h291")])
+    settle()
+    # —— 日期页三联分页不受影响：往右滑 = 前一天 ——
+    sel0 = ev("Modules.calendar._state.sel")
+    cy = ev("Math.round(document.querySelector('#view .cal-pager').getBoundingClientRect().top+40)")
+    drag(60, cy, 330, cy, True, 8, 16); p.wait_for_timeout(700)
+    sel1 = ev("Modules.calendar._state.sel")
+    check('#291 日期页往右滑仍是「前一天」（分页不受首页手势影响），停在日期页', st()['tab'] == 'calendar' and sel1 < sel0, [sel0, sel1, st()['tab']])
+    ev("App.showTab('home')"); settle()
+    # —— 左缘起手（iOS 系统返回区）：首页不接 ——
+    drag(10, 420, 260, 420, True, 8, 16); p.wait_for_timeout(500)
+    drag(14, 420, 0, 420, True, 4, 16); p.wait_for_timeout(300)
+    check('#291 首页左缘起手：不导航、不跟手、不出侧拉层', st()['tab'] == 'home' and st()['vt'] == '' and st()['hl'] == hl0 and not ev("document.querySelector('.side-drawer,#sideDrawer,.sd-mask')"), st())
+    # —— 竖向滑动：交给滚动 ——
+    drag(200, 600, 190, 300, True, 8, 16); p.wait_for_timeout(400)
+    check('#291 首页竖向滑：不切页', st()['tab'] == 'home' and st()['vt'] == '', st())
+    ev("scrollTo(0,0)"); p.wait_for_timeout(200)
+    # —— 面板开着：左滑不切页 ——
+    ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(500)
+    drag(330, 420, 60, 420, True, 8, 16); p.wait_for_timeout(500)
+    check('#291 ＋ 面板开着时左滑：不切页（面板之下的首页不动）', st()['tab'] == 'home' and st()['vt'] == '', st())
+    ev("App._qdClose&&App._qdClose(true)"); settle(500)
+    # —— 二级页左缘返回：仍可用；回首页静止后才清前进栈，前进去日期页 ——
+    ev("App.showTab('growth')"); settle(600)
+    ev("window.__h291.length=0")
+    drag(8, 420, 300, 420, True, 8, 16); p.wait_for_timeout(120)
+    s6 = st()
+    settle()
+    s7 = st()
+    check('#291 二级页左缘右滑返回首页；落地那一刻站上占位、不离开，静止后才离开（首页、无动画、无位移、不在跟手）',
+          s6['tab'] == 'home' and len(s6['guards']) == 1 and not s6['leave'] and s7['leave'] and s7['leave']['tab'] == 'home' and s7['leave']['anim'] == 0 and s7['leave']['vt'] == '' and not s7['leave']['hp'] and s7['st'] == 'null', [s6, s7])
+    ev("history.forward()"); p.wait_for_timeout(600)
+    check('#291 二级页返回后首页「前进」：进日期页，不回到生长页', st()['tab'] == 'calendar' and '生长' not in st()['head'], st())
+    ev("App.showTab('home')"); settle()
+    # —— 疫苗本翻页不受影响 ——
+    ev("App.showTab('vaccine')"); settle(600)
+    ev("document.querySelector('[data-vbopen]').click()"); p.wait_for_timeout(700)
+    i0 = (ev(R289_BOOK) or {}).get('idx')
+    drag(320, 400, 60, 400, True, 8, 16); p.wait_for_timeout(700)
+    i1 = (ev(R289_BOOK) or {}).get('idx')
+    check('#291 疫苗本左滑仍是翻到下一页、停在疫苗页', i0 is not None and i1 == i0 + 1 and st()['tab'] == 'vaccine', [i0, i1, st()['tab']])
+    ev("history.back()"); settle(900)
+    check('#291 合上疫苗本：回到疫苗页（不受首页手势影响）', st()['tab'] == 'vaccine' and not ev("!!document.querySelector('body > .vb-book')"), st())
+    ev("history.back()"); settle()
+    check('#291 疫苗页返回首页；离开占位在首页静止时', st()['tab'] == 'home' and st()['leave'] and st()['leave']['anim'] == 0 and st()['leave']['tab'] == 'home' and st()['st'] == 'null', st())
+    # —— 离开占位（决定前进栈快照的那一下）全部发生在静止时；页面记录的 push / replace 也不在跟手中 ——
+    H = ev("__h291")
+    bad = [x for i, x in enumerate(H) if (x['k'] == 'back' and not x['ext'] and i > 0 and H[i - 1]['k'] == 'pushState' and H[i - 1]['s'] == 'guard' and (x['vt'] or x['hp'] or x['anim']))
+           or (x['k'] in ('pushState', 'replaceState') and x['s'] != 'guard' and (x['vt'] or x['hp']))]
+    check('#291 本组离开占位都在静止时（#view 无跟手位移 / 入场动画、首页左滑不在跟手 / 收尾），页面记录不在跟手中写', not bad, bad)
+    # —— 站在占位上时用户连按两次返回（设置分组二级页 → 设置 → 首页）：第二次不被吞 ——
+    ev("App.openSettingsGroup('称呼与阶段')"); settle(700)
+    ev("window.__ext=1;history.back();window.__ext=0"); p.wait_for_timeout(120)
+    on1 = ev("[App.currentTab(),App.inSub(),App._onGuard(),JSON.stringify(history.state)]")
+    ev("window.__ext=1;history.back();window.__ext=0"); settle()
+    check('#291 退出设置二级页后立刻再返回（还站在占位上）：照常回首页，history 回到第一条、前进栈只剩静止时离开的占位', on1[0] == 'settings' and not on1[1] and on1[2]
+          and st()['tab'] == 'home' and st()['st'] == 'null' and not st()['on'] and st()['fg'], [on1, st()])
+
+    # —— ② 日期页底部快捷条删掉 ——
+    ev("App.showTab('calendar')"); settle(500)
+    cq = ev("""(()=>({bar:document.querySelectorAll('#view .cal-qbar,#view .cq-row,#view [data-qk]').length,cta:!!document.querySelector('#view .mod-cta'),hasCta:document.body.classList.contains('has-cta'),
+      qk:typeof Modules.calendar.QK,qi:typeof Modules.calendar._quickIds}))()""")
+    check('#291 日期页底部那一排快捷图标没有了（.cal-qbar / [data-qk] / Modules.calendar.QK 都不在，body 无 has-cta）', cq == {'bar': 0, 'cta': False, 'hasCta': False, 'qk': 'undefined', 'qi': 'undefined'}, cq)
+    ev("(()=>{const ks=Object.keys(Util.buildDayIndex?Util.buildDayIndex(Storage.get()):{}).sort();Modules.calendar._state.sel=ks.length?ks.reduce((a,k)=>((Util.buildDayIndex(Storage.get())[k]||[]).length>(Util.buildDayIndex(Storage.get())[a]||[]).length?k:a),ks[0]):Modules.calendar._state.sel;App.rerender()})()")
+    p.wait_for_timeout(400)
+    ev("scrollTo(0,document.documentElement.scrollHeight)"); p.wait_for_timeout(400)
+    gb = ev("[Math.round(document.querySelector('#view .cal-prev').getBoundingClientRect().bottom),Math.round(document.getElementById('tabbar').getBoundingClientRect().top)]")
+    check('#291 日期页滚到底：最后的「查看前一天」完整露在 dock 上方（去掉快捷条后底部留白仍够）', gb[0] <= gb[1] - 4, gb)
+    ev("scrollTo(0,0);App.showTab('settings')"); settle(500)
+    check('#291 设置里「日期页快捷记录」一项一起去掉', ev("!document.getElementById('sCalQuick')&&!/日期页快捷记录/.test(document.getElementById('view').textContent)"))
+    ev("App.showTab('home')"); settle(500)
+
+    # —— ③「＋」快捷记录：逐项提示文案 = 记下的类型 ——
+    ev("(()=>{window.__ts=[];const o=Util.toast;Util.toast=function(m){__ts.push(String(m));return o.apply(this,arguments)}})()")
+    ev("""(()=>{const d=Storage.get(),z=n=>String(n).padStart(2,'0'),L=t=>{const x=new Date(t);return x.getFullYear()+'-'+z(x.getMonth()+1)+'-'+z(x.getDate())+'T'+z(x.getHours())+':'+z(x.getMinutes())};
+      d.feedings.push({id:'b291',type:'breast',start:L(Date.now()-3*3600e3),durationMin:18,side:'right',amount:null,note:null});
+      d.feedings.push({id:'p291',type:'pump',start:L(Date.now()-40*60e3),durationMin:15,side:'both',amount:90,note:null});
+      d.feedings.push({id:'s291',type:'solid',start:L(Date.now()-20*60e3),dish:'米粉',note:null});
+      d.pregnancy=Object.assign(d.pregnancy||{},{lmp:L(Date.now()-200*86400e3).slice(0,10)});Storage.save();App.rerender()})()""")
+    p.wait_for_timeout(300)
+
+    def open_qd():
+        _poll(p, "!document.body.classList.contains('qd-open')&&!document.getElementById('quickDock').classList.contains('qd-closing')", 1500, 50)
+        ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(450)
+
+    def tap(i):
+        ev("window.__ts.length=0;document.getElementById('%s').click()" % i); p.wait_for_timeout(350)
+        return ev("__ts.slice()")
+    open_qd()
+    sub = ev("document.querySelector('#qdFeed small').textContent")
+    check('#291 最近一条是泵奶 / 辅食时，「喂奶」仍按上一次喂宝宝（亲喂 18 分钟 · 右侧），说明里没有泵奶 / 辅食', sub == '母乳 18 分钟 · 右侧' and '泵奶' not in sub and '辅食' not in sub, sub)
+    n0 = ev("Storage.get().feedings.length")
+    t1 = tap('qdFeed')
+    lf = ev("(()=>{const f=Storage.get().feedings;return f[f.length-1]})()")
+    check('#291 点「喂奶」：提示「已快记：母乳 18 分钟 · 右侧」，记下的是一条亲喂（不是泵奶）', t1 and t1[0].startswith('已快记：母乳 18 分钟 · 右侧') and '泵奶' not in t1[0]
+          and ev("Storage.get().feedings.length") == n0 + 1 and lf['type'] == 'breast' and lf['durationMin'] == 18 and lf['side'] == 'right', [t1, lf])
+    open_qd(); t2 = tap('qdDiaper'); ld = ev("(()=>{const a=Storage.get().diapers;return a[a.length-1].type})()")
+    check('#291 点「尿了」：提示「已快记：尿布 · 尿」，记下尿布 pee', t2 and t2[0] == '已快记：尿布 · 尿' and ld == 'pee', [t2, ld])
+    open_qd(); t3 = tap('qdPoop'); ld = ev("(()=>{const a=Storage.get().diapers;return a[a.length-1].type})()")
+    check('#291 点「拉了」：提示「已快记：尿布 · 便」，记下尿布 poop', t3 and t3[0] == '已快记：尿布 · 便' and ld == 'poop', [t3, ld])
+    open_qd(); t4 = tap('qdMeds'); lm = ev("(()=>{const a=Storage.get().meds;return a[a.length-1].name})()")
+    check('#291 点「维生素 D3」：提示「已快记：维生素 D3」，记下吃药 维生素 D3', t4 and t4[0] == '已快记：维生素 D3' and lm == '维生素 D3', [t4, lm])
+    open_qd()
+    fn0 = ev("(Storage.get().fetal||[]).length")
+    t5 = tap('qdFetal')
+    check('#291 点「胎动 +1」：提示「已记录一次胎动」，胎动 +1', t5 and t5[0] == '已记录一次胎动' and ev("(Storage.get().fetal||[]).length") == fn0 + 1, [t5, fn0])
+    # 最近喂的是瓶喂（母乳 + 配方奶）：说明最长；最近一条是辅食也不影响
+    ev("""(()=>{const d=Storage.get(),z=n=>String(n).padStart(2,'0'),L=t=>{const x=new Date(t);return x.getFullYear()+'-'+z(x.getMonth()+1)+'-'+z(x.getDate())+'T'+z(x.getHours())+':'+z(x.getMinutes())};
+      d.feedings=d.feedings.filter(f=>!(f.type==='breast'&&f.durationMin===18&&f.side==='right'));
+      d.feedings.push({id:'bt291',type:'bottle',start:L(Date.now()-5*60e3),amount:120,amountBm:80,amountFm:40,side:'left',note:null});
+      d.feedings.push({id:'s2911',type:'solid',start:L(Date.now()-60e3),dish:'南瓜泥',note:null});Storage.save();App.rerender()})()""")
+    open_qd()
+    sub2 = ev("document.querySelector('#qdFeed small').textContent")
+    t6 = tap('qdFeed'); lf = ev("(()=>{const f=Storage.get().feedings;return f[f.length-1]})()")
+    check('#291 最近喂的是瓶喂、之后又吃了辅食：「喂奶」= 奶瓶 母乳 80 · 配方奶 40 ml，记下瓶喂', sub2 == '奶瓶 母乳 80 · 配方奶 40 ml' and t6 and t6[0].startswith('已快记：奶瓶 母乳 80 · 配方奶 40 ml')
+          and lf['type'] == 'bottle' and lf['amountBm'] == 80 and lf['amountFm'] == 40, [sub2, t6, lf])
+    # 首页首屏快记（同一份默认值）
+    check('#291 首页快捷记录卡「喂奶按上次」与 ＋ 面板同源（不出现泵奶 / 辅食）', ev("(()=>{const h=document.querySelector('#view .hn-hint');return !h||(!/泵奶|辅食/.test(h.textContent))})()"))
+    check('#291 pageerror 为 0', not errs, errs)
+    ctx.close()
+    # —— 「喂奶」说明 320 宽 + 1.33 倍字号：不截断、整行在格子里（浅 / 深） ——
+    for dark in (False, True):
+        c2 = b.new_context(viewport={'width': 320, 'height': 640}, has_touch=True)
+        p2 = c2.new_page(); e2 = []
+        p2.on('pageerror', lambda e: e2.append(str(e)[:160]))
+        p2.goto(URL); p2.wait_for_timeout(600); p2.evaluate('t=>Storage.importJSON(t)', SEED_V3); p2.reload(); p2.wait_for_timeout(900)
+        p2.evaluate("""d=>{const s=Storage.get();s.settings.themeMode=d?'dark':'light';const z=n=>String(n).padStart(2,'0'),x=new Date(Date.now()-5*60e3);
+          s.feedings.push({id:'bt2912',type:'bottle',start:x.getFullYear()+'-'+z(x.getMonth()+1)+'-'+z(x.getDate())+'T'+z(x.getHours())+':'+z(x.getMinutes()),amount:150,amountBm:110,amountFm:40,side:'left',note:null});
+          Storage.save();App.applyTheme();App.setFontScale('xl');App.rerender()}""", dark); p2.wait_for_timeout(400)
+        p2.evaluate("document.querySelector('.tabbar [data-qd-toggle]').click()"); p2.wait_for_timeout(600)
+        r = p2.evaluate("""(()=>{const t=document.getElementById('qdFeed'),s=t.querySelector('small'),cs=getComputedStyle(s),R=t.getBoundingClientRect(),S=s.getBoundingClientRect(),P=document.getElementById('qdActions').getBoundingClientRect();
+          return {mul:getComputedStyle(document.body).getPropertyValue('--fs-mul').trim(),txt:s.textContent,clip:s.scrollWidth>s.clientWidth+1,ell:cs.textOverflow==='ellipsis'&&cs.whiteSpace==='nowrap',
+          inTile:S.left>=R.left-1&&S.right<=R.right+1&&S.bottom<=R.bottom+1,inPanel:R.left>=P.left-1&&R.right<=P.right+1,full:R.width>=P.width*0.7,
+          bad:[...document.querySelectorAll('#qdActions .qd-txt b,#qdActions .qd-txt small')].filter(e=>e.scrollWidth>e.clientWidth+1).map(e=>e.textContent)}})()""")
+        check('#291 320 宽 + 1.33 倍字号（%s）：「喂奶」独占一行、说明「奶瓶 母乳 110 · 配方奶 40 ml」完整显示不截断、在格子和面板里；其他格子文字也不截断' % ('深色' if dark else '浅色'),
+              r['txt'] == '奶瓶 母乳 110 · 配方奶 40 ml' and not r['clip'] and not r['ell'] and r['inTile'] and r['inPanel'] and r['full'] and not r['bad'], r)
+        check('#291 320 宽 pageerror 为 0（%s）' % ('深色' if dark else '浅色'), not e2, e2)
+        c2.close()
+
+
+R291_LIVE_SET = {
+    'wn': "s.whitenoise=Object.assign(s.whitenoise||{},{playing:true,paused:false,type:'pink',minutes:20,until:Date.now()+20*60000});",
+    'tm': "s.openSleep={id:'os291',start:(()=>{const z=n=>String(n).padStart(2,'0'),x=new Date(Date.now()-600000);return x.getFullYear()+'-'+z(x.getMonth()+1)+'-'+z(x.getDate())+'T'+z(x.getHours())+':'+z(x.getMinutes())+':'+z(x.getSeconds())})(),pausedMs:0,pauseStart:null};",
+}
+R291_LIVE_SET['both'] = R291_LIVE_SET['wn'] + R291_LIVE_SET['tm']
+R291_LIVE_M = r"""(()=>{const L=document.getElementById('dockLive'),T=document.getElementById('tabbar'),C=document.querySelector('#view .mod-cta');
+ const r=e=>{const b=e.getBoundingClientRect();return [b.left,b.top,b.right,b.bottom]};const cs=getComputedStyle(L);
+ const cv=C&&getComputedStyle(C).display!=='none'&&C.getBoundingClientRect().height>0;
+ return {tab:App.currentTab(),hid:L.hidden,op:cs.opacity,vis:cs.visibility,anim:cs.animationName,shown:L.classList.contains('dl-shown')||!L.classList.contains('dl-morph'),
+  lr:r(L),tr:r(T),cr:cv?r(C):null,W:innerWidth,txt:L.innerText.replace(/\n/g,'|'),mark:!!(L.querySelector('.dl-main')||{}).__m291,
+  side:document.body.classList.contains('dock-left')||document.body.classList.contains('dock-right'),bad:[...L.querySelectorAll('.dl-lbl,.dl-val')].filter(e=>e.scrollWidth>e.clientWidth+1&&getComputedStyle(e).textOverflow!=='ellipsis').map(e=>e.textContent)}})()"""
+
+
+def _r291_live_bad(m):
+    out = []
+    if m['hid'] or m['vis'] != 'visible' or float(m['op']) < 0.99:
+        out.append('not-shown')
+    l, t, r_, bt = m['lr']
+    if l < -0.5 or r_ > m['W'] + 0.5 or r_ - l < 120:
+        out.append('out')
+    if not m['side'] and bt > m['tr'][1] + 0.5:
+        out.append('over-dock')
+    if m['cr'] and not (m['cr'][3] <= t + 0.5 or m['cr'][1] >= bt - 0.5):
+        out.append('over-cta')
+    if m['anim'] not in ('none', ''):
+        out.append('anim:' + m['anim'])
+    if m['bad']:
+        out.append('clip')
+    return out
+
+
+def test_r291b(b):
+    """第 291 次 ④：白噪音播放 / 计时进行 / 两者同时，在每个页面（首页、日期页、每个记录页、工具页、设置、疫苗本页、搜索、白噪音页自己、睡眠页自己）
+    dock 上方的「正在进行」胶囊都显示、在屏内、不压 dock、不和底部主按钮（.mod-cta）重叠；切页不重建、不重播入场动画（不闪）；320 宽 + 1.33 倍字号同样。"""
+    for stn, W, H, fs in (('wn', 390, 844, None), ('tm', 390, 844, None), ('both', 390, 844, None), ('both', 320, 640, 'xl')):
+        ctx = b.new_context(viewport={'width': W, 'height': H}, has_touch=True)
+        p = ctx.new_page(); errs = []
+        p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+        p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+        ev = p.evaluate
+        ev("()=>{const s=Storage.get();" + R291_LIVE_SET[stn] + "Storage.save();" + ("App.setFontScale('%s');" % fs if fs else '') + "App.rerender()}")
+        _poll(p, "!document.getElementById('dockLive').hidden&&!document.getElementById('dockLive').classList.contains('dl-morph')", 2500, 50); p.wait_for_timeout(300)
+        bad = {}
+        for t in TABS:
+            ev("t=>{const m=document.querySelector('#dockLive .dl-main');if(m)m.__m291=1;App.showTab(t,{noVT:true})}", t); p.wait_for_timeout(260)
+            m = ev(R291_LIVE_M)
+            e = _r291_live_bad(m)
+            if e:
+                bad[t] = [e, m['lr'], m['cr'], m['txt']]
+        tag = {'wn': '白噪音播放中', 'tm': '睡眠计时中', 'both': '白噪音 + 睡眠计时同时'}[stn] + ('，320 宽 + 1.33 倍字号' if fs else '')
+        check('#291 %s：全部 %d 个页面胶囊都显示、在屏内、不压 dock、不和底部主按钮重叠、切页不重播入场动画' % (tag, len(TABS)), not bad, bad)
+        # 那一项自己的页：也显示（以前整颗拿掉并倒放缩回 dock 的形变）
+        own = {'wn': ('whitenoise', '粉红噪音'), 'tm': ('sleep', '睡眠'), 'both': ('whitenoise', '')}[stn]
+        ev("t=>App.showTab(t,{noVT:true})", own[0]); p.wait_for_timeout(300)
+        m = ev(R291_LIVE_M)
+        check('#291 %s：进它自己的页（%s）胶囊仍在%s，没有缩回 dock 的替身' % (tag, own[0], '（显示「%s」）' % own[1] if own[1] else ''),
+              not _r291_live_bad(m) and own[1] in m['txt'] and not ev("!!document.querySelector('.dock-live.dl-ghost')"), m)
+        # 同一项来回切：不重写胶囊（标记还在 = 没有 innerHTML 重建、封面图不重载）
+        ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(250)
+        ev("document.querySelector('#dockLive .dl-main').__m291=1;App.showTab('diaper',{noVT:true})"); p.wait_for_timeout(250)
+        ev("App.showTab('growth',{noVT:true})"); p.wait_for_timeout(250)
+        ev("App.rerender()"); p.wait_for_timeout(250)
+        m = ev(R291_LIVE_M)
+        check('#291 %s：切页 / 原地重画时胶囊不重建（同一个节点、dl-shown 不被洗掉、animation none、不透明）' % tag, m['mark'] and m['anim'] in ('none', '') and float(m['op']) >= 0.99, m)
+        if stn == 'wn' and not fs:
+            # 白噪音播放页（全屏）盖着时胶囊藏起，收起后回来
+            ev("App.showTab('whitenoise',{noVT:true})"); p.wait_for_timeout(250)
+            ev("Modules.whitenoise._open=true;App.rerender()"); p.wait_for_timeout(450)
+            hid = ev("getComputedStyle(document.getElementById('dockLive')).visibility")
+            ev("document.getElementById('wpClose').click()"); p.wait_for_timeout(500)
+            m = ev(R291_LIVE_M)
+            check('#291 白噪音全屏播放页开着时胶囊藏起（wp-lock），收起后胶囊回来、不压 dock', hid == 'hidden' and not _r291_live_bad(m), [hid, m])
+            # 暂停：胶囊原地换成「已暂停 + 继续」（内容变了才重建）
+            ev("Modules.whitenoise._pause&&Modules.whitenoise._pause()"); p.wait_for_timeout(1300)
+            pz = ev("(()=>{const L=document.getElementById('dockLive');return [L.classList.contains('is-paused'),(L.querySelector('[data-act=wn-pp]')||{}).getAttribute&&L.querySelector('[data-act=wn-pp]').getAttribute('aria-label'),L.querySelector('.dl-lbl').textContent,L.querySelector('.dl-val').textContent,getComputedStyle(L).animationName]})()")
+            check('#291 白噪音暂停：胶囊换成「粉红噪音 · 已暂停」+ 继续键（is-paused），数字一行只放「剩 N 分」，不重播入场动画', pz[0] and pz[1] == '继续播放' and pz[2] == '粉红噪音 · 已暂停' and pz[3].startswith('剩 ') and pz[4] in ('none', ''), pz)
+        check('#291 %s：pageerror 为 0' % tag, not errs, errs)
+        ctx.close()
 
 
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -4626,7 +4896,9 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r288',),
           ('test_r289',),
           ('test_r290',),
-          ('test_r290b',))  # 第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r290b',),
+          ('test_r291',),
+          ('test_r291b',))  # 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

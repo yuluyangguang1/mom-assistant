@@ -8,7 +8,7 @@
  *   - 右侧一个就近动作：睡眠「醒了」、亲喂「暂停/继续」、白噪音「暂停/停止」，
  *     其余是「›」进页面结束（结束要填量/确认的，不在胶囊里一键做掉）
  *   - 同时有几项在跑时，最左显示「1/3」，点它轮换
- *   - 已经在那个页面里，就不再重复显示那一项
+ *   - 第 291 次起每个页面都显示（包括那一项自己的页）；只有全屏播放页 / 面板盖住时临时藏起
  *
  * 第 277 次：胶囊接进 dock 的同一套折射（DockRefract.surface('live')）：直接画在 dock 那块 WebGL 画布里
  *   （画布扩到 dock ∪ 胶囊的外接矩形，两块玻璃同一个距离场），不另起上下文、不拷贝。
@@ -52,8 +52,9 @@
     if (wn && (wn.playing || wn.paused) && M.whitenoise) {
       var rm = M.whitenoise._remainingMin ? M.whitenoise._remainingMin() : null;
       out.push({ k: 'whitenoise', go: 'whitenoise', ico: 'noise',
-        label: M.whitenoise._typeName ? M.whitenoise._typeName(wn.type) : '哄睡声音',
-        val: function () { var r = M.whitenoise._remainingMin ? M.whitenoise._remainingMin() : null; return (wn.paused ? '已暂停 · ' : '') + (r != null ? '剩 ' + r + ' 分' : '不限时'); },
+        /* 第 291 次：「已暂停」挪到上面一行（和睡眠「睡眠 · 暂停」同一写法）——大字号窄屏下数字一行放不下「已暂停 · 剩 20 分」，会顶到暂停键上 */
+        label: (M.whitenoise._typeName ? M.whitenoise._typeName(wn.type) : '哄睡声音') + (wn.paused ? ' · 已暂停' : ''),
+        val: function () { var r = M.whitenoise._remainingMin ? M.whitenoise._remainingMin() : null; return r != null ? '剩 ' + r + ' 分' : '不限时'; },
         state: wn.paused ? 'paused' : 'on',
         acts: [{ k: 'wn-pp', ico: wn.paused ? 'play' : 'pause', label: wn.paused ? '继续播放' : '暂停' }, { k: 'wn-stop', ico: 'close', label: '停止' }] });
       void rm;
@@ -100,11 +101,10 @@
     return out;
   };
 
-  function current() { try { return global.App && App.currentTab ? App.currentTab() : ''; } catch (e) { return ''; } }
-  function visibleRuns() {
-    var cur = current();
-    return DL.runs().filter(function (r) { return r.go !== cur; });
-  }
+  /* 第 291 次（真机：「有些界面开着白噪音的胶囊显示不出来」）：以前进了那一项自己的页（白噪音页、睡眠页……）就把它从胶囊里拿掉，
+     胶囊在这些页上整颗消失、还倒放一遍缩回 dock 的形变（和 dock 变二级态叠在一起像框塌了）。现在每个页面都显示，
+     只有盖满全屏的层（白噪音播放页 wp-lock、＋ / 菜单面板 qd-open）在 CSS 里临时藏起来。 */
+  function visibleRuns() { return DL.runs(); }
 
   function doAct(k) {
     var M = global.Modules || {}, d = Storage.get();
@@ -157,19 +157,29 @@
     var box = ensure();
     if (!runs.length) {
       if (!box.hidden && box.innerHTML) leave(box);
-      box.hidden = true; box.innerHTML = ''; box._run = null; box._keys = '';
+      box.hidden = true; box.innerHTML = ''; box._run = null; box._keys = ''; box._sig = '';
       doc.body.classList.remove('has-live');
       return;
     }
     if (idx >= runs.length) idx = 0;
     var r = runs[idx];
     var appearing = box.hidden || !box.innerHTML;
-    var oldW = appearing ? 0 : box.getBoundingClientRect().width;
     box.hidden = false;
     doc.body.classList.add('has-live');
     box.setAttribute('data-accent', r.go);
-    var keep = ['dl-morph', 'dl-resizing', 'lg-on', 'lg-press', 'dl-fade'].filter(function (c) { return box.classList.contains(c); });
-    box.className = 'dock-live' + (r.state === 'paused' ? ' is-paused' : '') + (keep.length ? ' ' + keep.join(' ') : '');
+    /* 第 291 次：每次换页 / 原地重画都会走到这里。以前整串重写 className 把 dl-shown（形变出现过、不再补播 CSS 入场动画）和 lg-band
+       （折射边正在画）一起洗掉：每切一页胶囊都从透明重新弹一次、折射边先断再接——切页时胶囊「出不来」、框一闪一闪的根因。
+       现在只增删 is-paused；内容没变（同一项、同样的文字和按钮）就不重写 innerHTML，只更新计时数字。 */
+    box.classList.toggle('is-paused', r.state === 'paused');
+    var sig = runs.length + '|' + idx + '|' + r.k + '|' + r.label + '|' + (r.state || '') + '|' + r.acts.map(function (a) { return a.k + ':' + (a.ico || a.text || ''); }).join(',')
+      + (r.k === 'whitenoise' ? '|' + ((Storage.get().whitenoise || {}).type || '') : '');
+    if (!appearing && box._sig === sig && box.querySelector('.dl-main')) {
+      var v0 = box.querySelector('.dl-val'); if (v0) v0.textContent = r.val();
+      box._run = r;
+      box._keys = runs.map(function (x) { return x.k + (x.state || ''); }).join(',');
+      return;
+    }
+    var oldW = appearing ? 0 : box.getBoundingClientRect().width;
     var art = '';
     if (r.k === 'whitenoise') {
       var wn = Storage.get().whitenoise || {};
@@ -200,6 +210,7 @@
     var go = box.querySelector('.dl-go');
     if (go) go.addEventListener('click', function () { open(r); });
     box._run = r;
+    box._sig = sig;
     box._keys = runs.map(function (x) { return x.k + (x.state || ''); }).join(',');
     /* 第 277 次：玻璃面重新挂上（innerHTML 换掉了画布）+ 出现 / 改尺寸动画 */
     glass(box);

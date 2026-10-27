@@ -672,26 +672,6 @@
           return toCsv(['日期', '类目', '金额', '备注'], recs.map(function (r) { return [r.date, r.category, r.amount, r.note]; }));
         }
       };
-      /* 第 286 次：日期页快捷记录设置 */
-      function calQuickHTML(st) {
-        var C = global.Modules && Modules.calendar;
-        if (!C || !C.QK) return '';
-        var pref = st.settings.calQuick, mode = Array.isArray(pref) ? 'pick' : pref === 'auto' ? 'auto' : 'def';
-        var h = '<div class="seg seg-wrap2" role="radiogroup" aria-label="日期页快捷记录">'
-          + [['def', '默认'], ['auto', '按使用频率'], ['pick', '自选']].map(function (m) {
-            return '<button type="button" role="radio" aria-checked="' + (mode === m[0]) + '" class="seg-btn' + (mode === m[0] ? ' active' : '') + '" data-cq-mode="' + m[0] + '">' + m[1] + '</button>';
-          }).join('') + '</div>';
-        var ids = C._quickIds();
-        if (mode === 'pick') {
-          h += '<div class="chip-row cq-pick">' + C.QK_ORDER.map(function (k) {
-            var on = ids.indexOf(k) >= 0;
-            return '<button type="button" class="btn btn-mini' + (on ? ' active' : '') + '" aria-pressed="' + on + '" data-cq-id="' + k + '">' + C.QK[k].t + '</button>';
-          }).join('') + '</div>';
-        } else {
-          h += '<p class="hint">现在是：' + ids.map(function (k) { return C.QK[k].t; }).join(' · ') + '</p>';
-        }
-        return h;
-      }
       /* 第 286 次：CSV 导出搬到模块作用域，设置页和「数据管理」半屏共用一份 */
       function csvExport(key) {
         if (!CSV_BUILDERS[key]) return false;
@@ -1097,9 +1077,6 @@
         + '</div>';
       html += '<p class="hint">在底部「首页 / 日期记录」右侧加一个常用记录的直达按钮，选「不显示」即恢复两页签。'
         + '正常排列与左手 / 右手模式都生效。</p>';
-      /* 第 286 次：日期页底部快捷记录条——默认 5 个 / 按近 30 天使用次数 / 自选（最多 5 个） */
-      html += '<span class="lbl-text">日期页快捷记录</span><div id="sCalQuick">' + calQuickHTML(s) + '</div>';
-      html += '<p class="hint">日期页底部那一排常用记录。点一下直接打开记录面板，记到当前选的那一天。</p>';
       /* 第 54 次：天空时刻预览——不用等到对应时段，点一下就看整页在一天里怎么变色
          （天空色板 + 全页环境光 + 日轮弧线三处同步）。会话级生效不落盘：刷新即回真实时间，
          不影响任何记录的时间戳（记录永远按真实时刻存）。 */
@@ -1638,26 +1615,6 @@
         Util.toast(v === 'left' ? '已切左手模式：底栏竖排贴左侧'
           : v === 'right' ? '已切右手模式：底栏竖排贴右侧'
           : '已恢复正常排列', 'ok');
-      });
-
-      var cqBox = view.querySelector('#sCalQuick');
-      if (cqBox) cqBox.addEventListener('click', function (e) {
-        var t = e.target && e.target.closest ? e.target.closest('[data-cq-mode],[data-cq-id]') : null;
-        if (!t) return;
-        var st = Storage.get(), C = Modules.calendar;
-        if (t.hasAttribute('data-cq-mode')) {
-          var m = t.getAttribute('data-cq-mode');
-          st.settings.calQuick = m === 'def' ? null : m === 'auto' ? 'auto' : (C ? C._quickIds() : []);
-        } else {
-          var id = t.getAttribute('data-cq-id'), cur = Array.isArray(st.settings.calQuick) ? st.settings.calQuick.slice() : [];
-          var at = cur.indexOf(id);
-          if (at >= 0) { if (cur.length <= 1) { Util.toast('至少留一个', 'warn'); return; } cur.splice(at, 1); }
-          else { if (cur.length >= 5) { Util.toast('最多 5 个，先去掉一个', 'warn'); return; } cur.push(id); }
-          var ord = C ? C.QK_ORDER : cur;
-          st.settings.calQuick = ord.filter(function (k) { return cur.indexOf(k) >= 0; });
-        }
-        Storage.save();
-        cqBox.innerHTML = calQuickHTML(st);
       });
 
       /* 第 97 次：底栏快捷入口选择——落盘后即时重建底栏（槽位显隐随选随生效） */

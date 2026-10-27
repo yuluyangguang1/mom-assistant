@@ -557,6 +557,8 @@
     if (!(opts && opts.silent) && !isTopLevel && wasTopLevel) {
       pushHistory(id);
     }
+    /* 第 291 次：首页 ↔ 日期页互切时，前进栈里那条占位的快照还是上一页——切完、静止后重拍一次（不登记新记录） */
+    if (!(opts && opts.silent) && isTopLevel && wasTopLevel && prevId !== id && global.App && App._reguard) App._reguard();
     /* 第 271 次：离开某页时给它一个收尾的机会（白噪音播放页挂在 body 上，要跟着收起） */
     if (prevId && prevId !== id && Modules[prevId] && typeof Modules[prevId].leave === 'function') {
       try { Modules[prevId].leave(id); } catch (e) { /* 收尾异常不影响切页 */ }
@@ -641,6 +643,7 @@
       var dirX = '0px';
       if (prevId === 'home' && id !== 'home' && id !== 'calendar') dirX = '18px';
       else if (prevId && prevId !== 'home' && prevId !== 'calendar' && id === 'home') dirX = '-18px';
+      if (opts && opts.enterX) dirX = opts.enterX; /* 第 291 次：首页左滑去日期页——日期页从右边进来 */
       /* setProperty 是设置 CSS 自定义属性的唯一可靠途径；不支持的环境（测试桩/
          极旧内核）静默跳过——动画退化为纯上浮，不影响功能。 */
       try { view.style.setProperty('--enter-x', dirX); } catch (e) { /* 忽略 */ }
@@ -1521,6 +1524,7 @@
     _syncCta: function () { syncCta(); },
     currentTab: function () { return current; },
     _isTop: function () { return isTopTab(current) && !subExit; }, /* 首页下拉搜索只在一级页 */
+    _hpBusy: function () { return hpBusy(); }, /* 第 291 次：首页左滑跟手 / 收尾中（测试用） */
     _openBabySheet: function () { openBabySheet(); },
     /* 第 276 次：进搜索页并聚焦输入框（首页下拉、菜单面板搜索框共用）。必须在点击 / 松手的同一次事件里同步调用，iOS 才弹键盘 */
     openSearch: function () {
@@ -1587,13 +1591,16 @@
      写法上沿用喂养页的同一口径：bottle/formula 才拆两根，母乳/吸奶/辅食不拆；
      amount 仍是两者的和，供统计（feeding.js:51、home.js:105 都只读 amount，口径不变）。 */
   function fedDefaults() {
-    var last = (Storage.get().feedings || []).slice()
+    /* 第 291 次（真机：快速记录点「喂奶」提示的是泵奶）：「喂奶」只按上一次真正喂宝宝的那条（亲喂 / 瓶喂 / 配方奶）——
+       泵奶是妈妈吸奶、辅食是吃饭，都存在 feedings 里，之前不分类型取最后一条，最近泵过奶「喂奶」就成了泵奶（还会记成一条泵奶） */
+    var FEED = { breast: 1, bottle: 1, formula: 1 };
+    var last = (Storage.get().feedings || []).filter(function (r) { return r && FEED[r.type]; })
       .sort(function (a, b) { return new Date(b.start) - new Date(a.start); })[0];
     var t = (last && last.type) || 'breast';
     var side = (last && last.side) || 'left';
     var dur = (last && last.durationMin) || (t === 'breast' ? 15 : null);
     var amt = (last && last.amount) || (t !== 'breast' && t !== 'pump' ? 120 : null);
-    var name = { breast: '母乳', bottle: '奶瓶', formula: '奶粉', pump: '泵奶', solid: '辅食'}[t] || '母乳';
+    var name = { breast: '母乳', bottle: '奶瓶', formula: '奶粉' }[t] || '母乳';
     var sideT = side === 'right' ? '右侧' : (side === 'both' ? '双侧' : '左侧');
 
     /* 瓶喂沿用上次的母乳/配方奶配比；上次只有合计（旧数据或他从别处导入）时，
@@ -1619,12 +1626,9 @@
     } else {
       amtDetail = amt + ' ml';
     }
-    var detail = t === 'breast'
-      ? (dur + ' 分钟 · ' + sideT)
-      : (t === 'pump' ? ((amt ? amt + 'ml' : '') + (amt && dur ? ' · ' : '') + (dur ? dur + ' 分' : '') + ' · ' + sideT)
-        : amtDetail);
+    var detail = t === 'breast' ? (dur + ' 分钟 · ' + sideT) : amtDetail;
     return {
-      rec: { type: t, side: (t === 'solid') ? null : side, durationMin: dur,
+      rec: { type: t, side: side, durationMin: dur,
         amount: amt, amountBm: amtBm, amountFm: amtFm },
       label: name + ' ' + detail
     };
@@ -2133,6 +2137,7 @@
        绑定后 historyDepth 从 0 起，首页不响应侧滑（没有上一层），
        与 iOS「在根页面不触发侧滑」一致。 */
     bindSwipeBack();
+    bindHomePager(); /* 第 291 次：首页左滑去日期页（只有这一个方向） */
 
     /* 第 74 次（G1）：损坏自愈后的告知——此前 _corruptRecovered 只置位、无消费方。
        toast 只在恢复后的第一次启动弹出（corruptNoticeShown 设置键），
@@ -2342,8 +2347,10 @@
     if (adopt) App._navAdopt = null;
     historyDepth++;
     var op = function () {
+      if (App._dfCancel) App._dfCancel(); /* 第 291 次：push 本身就清掉了前进栈，还没做的「清前进栈」作废 */
       try {
         if (adopt && App._ovAdopt && App._ovAdopt(adopt)) global.history.replaceState({ baoma: 1, id: id }, '');
+        else if (App._guardTake && App._guardTake()) global.history.replaceState({ baoma: 1, id: id }, ''); /* 第 291 次：正站在占位上，直接改写成这一页 */
         else global.history.pushState({ baoma: 1, id: id }, '');
       } catch (e) { /* 极端内核禁pushState：侧滑降级为「只回到首页」 */ }
     };
@@ -2572,7 +2579,9 @@
       var ovEntries = [], ovPopped = false, ovPoppedLater = false;
       global.App._pushOverlay = function (closeFn, opts) {
         if (global.__yiyaRewinding || rewind > 0) return null;
-        try { global.history.pushState({ baoma: 'ov' }, ''); } catch (eO) { return null; }
+        /* 第 291 次：正站在占位上（还没退下来）→ 直接把占位改写成这条临时层记录 */
+        try { if (guardTake()) global.history.replaceState({ baoma: 'ov' }, ''); else global.history.pushState({ baoma: 'ov' }, ''); } catch (eO) { return null; }
+        dfSeq++; fwdGuard = false; /* 第 291 次：push 已清掉前进栈，排着的「清前进栈」作废 */
         var en = { close: closeFn, later: !!(opts && opts.later) };
         ovEntries.push(en);
         var release = function () {
@@ -2605,33 +2614,117 @@
           if (!idleT) idleT = setTimeout(function () { idleT = 0; flushIdle(); }, 700);
         } else fn();
       };
+      /* fwdGuard：前进栈里现在压着一条占位（它的系统快照是做 dropForward 那一刻屏幕上的画面） */
+      var fwdGuard = false;
       var dropForward = function () {
         try {
           global.history.pushState({ baoma: 'guard' }, '');
           ignorePop++;
           global.history.back();
+          fwdGuard = true;
         } catch (eG) { ignorePop = 0; }
       };
       /* 第 288 次：关掉菜单面板后清前进栈要等「干净画面」提交到屏幕之后再做——pushState 会给当前这条记录拍系统返回快照，
          紧跟着关闭同步做，拍到的是还没提交的上一帧（面板 / 遮罩还在），iOS 系统返回回到这条时会先盖上这张旧图最多 3 秒。
          两帧之后、期间没有别的 history 操作、菜单没有又打开（它的 pushState 已经清掉了前进栈）才做。 */
       var dfSeq = 0;
+      var viewAnimating = function () {
+        var v = document.getElementById('view');
+        if (!v || !document.getAnimations) return false;
+        try {
+          return document.getAnimations().some(function (a) {
+            var t = a.effect && a.effect.target;
+            if (a.playState !== 'running' || !t || !(t === v || v.contains(t))) return false;
+            var ct = a.effect.getComputedTiming ? a.effect.getComputedTiming() : null;
+            return !(ct && ct.iterations === Infinity); /* 呼吸灯之类的循环动画不算 */
+          });
+        } catch (eA) { return false; }
+      };
       var dropForwardLater = function () {
-        var my = ++dfSeq;
+        var my = ++dfSeq, dfT0 = Date.now(), wait = 0;
         var go = function () {
           if (my !== dfSeq) return;
           var qd = document.getElementById('quickDock');
           /* 面板正在收起 / 拖动：等它静止再做（静止时才写 history） */
           if (qd && (qd.classList.contains('qd-closing') || qd.classList.contains('qd-dragging'))) { setTimeout(go, 120); return; }
+          /* 第 291 次：首页左滑 / 边缘返回还在跟手或收尾：等静止（最多 1.6 秒） */
+          if ((swipeActive || hpBusy()) && Date.now() - dfT0 < 1600) { setTimeout(go, 120); return; }
           dfSeq++;
           if (document.body && document.body.classList.contains('qm-open')) return;
           if (ignorePop > 0 || rewind > 0) return;
           dropForward();
         };
         var raf = global.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
-        raf(function () { raf(function () { setTimeout(go, 0); }); });
-        setTimeout(go, 160); /* rAF 被节流时的兜底（同一个序号，只做一次） */
+        raf(function () { raf(function () { setTimeout(go, wait); }); });
+        setTimeout(go, wait + 160); /* rAF 被节流时的兜底（同一个序号，只做一次） */
       };
+      global.App._dfCancel = function () { dfSeq++; fwdGuard = false; };
+      global.App._fwdGuard = function () { return fwdGuard; };
+      /* 第 291 次（真机：打开过一个页面再回首页，首页右缘左滑会把刚才那页拉回来）：
+         根因：返回落地时 dropForward 在 popstate 里同步做「pushState 占位 + 立刻 back」，back 离开占位那一刻 iOS 给占位拍系统快照，
+         屏幕上还是刚离开的那一页（首页还没画上屏）——前进栈里唯一那条的快照就是它，右缘左滑「前进」拉出来的就是刚才那页。
+         改法：拆成两半。① 落地时（正在处理一次返回，不会有别的跳转在路上）同步 pushState 占位——前进栈立刻清空，此刻站在占位上；
+         ② 等画面静止（入场动画、天空渐入、跟手 / 收尾都走完，最多 1.6 秒）再 back 离开占位，占位的快照 = 静止的当前页。
+         不把 pushState 推迟：推迟的 pushState 会掐掉这期间用户发起、还在路上的返回（WebKit 实测第二次返回被吞）。
+         站在占位上时：用户返回（落到下面那条）= 他在当前页按了返回，照常替他退一层；进新页 / 开临时层直接改写占位，不再多一条。 */
+      var onGuard = false, gSeq = 0;
+      /* 离开占位那一下 back 不能撞上用户自己发起、还在路上的返回（两次 back 叠在一起 WebKit 会丢一次）：
+         手指按着 / 刚松手 350ms 内（系统边缘返回手势在松手时才真正跳转）、或别处刚调过 history.back / go / forward 还没等到 popstate，都先等一等 */
+      var touchOn = 0, touchT = 0, touchEndT = 0, extNavT = 0, inNav = false;
+      try {
+        document.addEventListener('touchstart', function (e) { touchOn = (e.touches && e.touches.length) || 1; touchT = Date.now(); }, { capture: true, passive: true });
+        var tEnd = function (e) { touchOn = (e.touches && e.touches.length) || 0; touchEndT = Date.now(); };
+        document.addEventListener('touchend', tEnd, { capture: true, passive: true });
+        document.addEventListener('touchcancel', tEnd, { capture: true, passive: true });
+        ['back', 'go', 'forward'].forEach(function (k) {
+          var o = global.history[k];
+          if (typeof o !== 'function') return;
+          global.history[k] = function () { if (!inNav && !(ignorePop > 0) && !(rewind > 0)) extNavT = Date.now(); return o.apply(global.history, arguments); };
+        });
+      } catch (eT) { /* 改不了 history 方法的内核：只靠触摸判断 */ }
+      var userNavSoon = function () { var n = Date.now(); return (touchOn > 0 && n - touchT < 4000) || n - touchEndT < 350 || (extNavT && n - extNavT < 1000); };
+      var guardTake = function () {
+        if (!onGuard) return false;
+        onGuard = false; gSeq++;
+        var s0 = global.history.state;
+        return !!(s0 && s0.baoma === 'guard');
+      };
+      global.App._guardTake = guardTake;
+      global.App._onGuard = function () { return onGuard; };
+      var leaveGuardLater = function () {
+        var my = ++gSeq, t0 = Date.now();
+        var go = function () {
+          if (my !== gSeq || !onGuard) return;
+          var qd = document.getElementById('quickDock');
+          var moving = qd && (qd.classList.contains('qd-closing') || qd.classList.contains('qd-dragging'));
+          if ((moving || swipeActive || hpBusy() || viewAnimating()) && Date.now() - t0 < 1600) { setTimeout(go, 120); return; }
+          if ((ignorePop > 0 || rewind > 0 || userNavSoon()) && Date.now() - t0 < 6000) { setTimeout(go, 120); return; }
+          if (ignorePop > 0 || rewind > 0) { if (Date.now() - t0 < 15000) setTimeout(go, 120); return; } /* 静默退回还在路上时绝不叠第二个 back */
+          gSeq++;
+          var s1 = global.history.state;
+          onGuard = false;
+          if (!s1 || s1.baoma !== 'guard') return;
+          ignorePop++;
+          inNav = true;
+          try { global.history.back(); fwdGuard = true; } catch (eL) { ignorePop = Math.max(0, ignorePop - 1); }
+          inNav = false;
+        };
+        var raf = global.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
+        raf(function () { raf(function () { setTimeout(go, 450); }); });
+        setTimeout(go, 610);
+      };
+      /* 清前进栈（站上占位，静止后退下来）。还有静默退回在路上时排到它落地之后（pushState 会掐掉在路上的跳转） */
+      var guardNow = function () {
+        var op = function () {
+          if (onGuard) { leaveGuardLater(); return; }
+          try { global.history.pushState({ baoma: 'guard' }, ''); } catch (eG2) { return; }
+          dfSeq++; fwdGuard = false; onGuard = true;
+          leaveGuardLater();
+        };
+        global.App._histIdle(op);
+      };
+      /* 首页 ↔ 日期页互切：前进栈里那条占位的快照还是上一页，切完重拍（不登记新记录） */
+      global.App._reguard = function () { if (fwdGuard && !onGuard) guardNow(); };
       /* 第 270 次（真机截图：抽屉开着时从左缘右滑，露出一张「深色主题 + 抽屉打开」的旧画面，像抽屉错乱）：
          那是 iOS 的系统返回手势，拉出的是 history 里上一条记录的旧快照。正常使用时首页永远落在第一条记录上，
          没有「上一条」可退；但 App 被系统回收后重新打开、或更新后自动重载时，如果当时停在某个功能页
@@ -2648,6 +2741,7 @@
         try { global.history.back(); } catch (eR) { rewind = 0; global.__yiyaRewinding = false; }
       }
       global.addEventListener('popstate', function (ev) {
+        if (!ignorePop) extNavT = 0; /* 第 291 次：别处发起的那次跳转已经落地 */
         /* 第 286 次：系统返回 / 侧滑返回时快捷面板不残留。第 290 次：菜单面板只认真正的返回（静默退回落地不关它） */
         if (global.App && App._qdClose) { try { App._qdClose(true, { fromPop: true, ignored: ignorePop > 0 || rewind > 0 }); } catch (eQ2) {} }
         if (rewind > 0) {
@@ -2665,7 +2759,7 @@
           ignorePop--;
           /* 临时层退掉自己那条记录后清掉前进栈（否则 iOS 能从右缘把它「前进」拉出来）；菜单面板推迟到干净画面之后 */
           if (!ignorePop && ovPopped && ovPoppedLater) { ovPopped = false; ovPoppedLater = false; flushIdle(); dropForwardLater(); return; }
-          if (!ignorePop && ovPopped) { ovPopped = false; dropForward(); return; }
+          if (!ignorePop && ovPopped) { ovPopped = false; flushIdle(); guardNow(); return; }
           if (!ignorePop && restoreWait && !global.__yiyaRewinding) restoreWait();
           if (!ignorePop) flushIdle();
           return;
@@ -2673,10 +2767,36 @@
         /* 第 288 次：排队中的 history 写入被真正的返回抢先了——它们是写给已经退掉的那条记录的，作废 */
         if (idleQ.length) { idleQ.splice(0); if (idleT) { clearTimeout(idleT); idleT = 0; } }
         var st = ev && ev.state;
+        /* 第 291 次：站在占位上时用户返回（落到占位下面那条，也就是当前页自己那条）＝他在当前页按了返回 */
+        if (onGuard) {
+          onGuard = false; gSeq++;
+          if (current === 'home' && historyDepth <= 0 && !subExit && !ovEntries.length) { fwdGuard = true; return; } /* 首页没有上一层：什么都不做 */
+          if (ovEntries.length || (global.Sheet && Sheet.isOpen && Sheet.isOpen()) || topFullLayer()) {
+            /* 上面盖着临时层 / 面板 / 全屏计时：只关它，留在原页，重新站上占位 */
+            if (ovEntries.length) { var oe0 = ovEntries.pop(); try { oe0.close(); } catch (eOC0) {} }
+            else if (global.Sheet && Sheet.isOpen && Sheet.isOpen()) Sheet.closeTop();
+            else collapseFullLayer(topFullLayer());
+            guardNow();
+            return;
+          }
+          /* 再替他退一层（history 回到上一页那条），界面按正常返回走 */
+          ignorePop++; try { global.history.back(); } catch (eOB0) { ignorePop = Math.max(0, ignorePop - 1); }
+          if (subExit) { historyDepth = Math.max(0, historyDepth - 1); exitSubNow(); guardNow(); return; }
+          if (current !== 'home') { historyDepth = Math.max(0, historyDepth - 1); showTab('home'); guardNow(); }
+          return;
+        }
         /* 第 278 次（审计 #30）：照片大图等最上层临时层开着 → 只关它（它登记的那条记录已被这次 back 退掉） */
-        if (ovEntries.length) { var oe = ovEntries.pop(); try { oe.close(); } catch (eOC) {} if (oe.later) dropForwardLater(); else dropForward(); return; }
+        if (ovEntries.length) { var oe = ovEntries.pop(); try { oe.close(); } catch (eOC) {} if (oe.later) dropForwardLater(); else guardNow(); return; }
         if (st && st.baoma === 'ov') { ignorePop++; try { global.history.back(); } catch (eOB) { ignorePop = 0; } return; }
-        if (st && st.baoma === 'guard') { ignorePop++; try { global.history.back(); } catch (eB) { ignorePop = 0; } return; }
+        if (st && st.baoma === 'guard') {
+          /* 被「前进」到占位上（iOS 右缘左滑 / 桌面前进键）：就站在占位上，静止后再退下来（快照换成那时的画面）。
+             在首页时这一下就是「往右边那页去」——和首页页内左滑一样进日期页（首页往日期页只有这一个方向；反方向在首页什么都不发生） */
+          var toCal = current === 'home' && historyDepth <= 0 && !subExit && !(global.Sheet && Sheet.isOpen && Sheet.isOpen()) && !topFullLayer();
+          fwdGuard = false; onGuard = true;
+          if (toCal) showTab('calendar', { noVT: true, enterX: '24px' });
+          leaveGuardLater();
+          return;
+        }
         /* 第 289 次及更早的侧拉页记录被「前进」到：和占位一样静默退回 */
         if (st && st.baoma === 'drawer') { ignorePop++; try { global.history.back(); } catch (eB0) { ignorePop = 0; } return; }
         /* 旧版本留下的前进记录：在首页、没有上一层时还收到模块记录 = 被「前进」了，静默退回 */
@@ -2694,10 +2814,108 @@
           if (subExit || current !== 'home') { try { global.history.pushState({ baoma: 1, id: current }, ''); } catch (eP2) {} }
           return;
         }
-        if (subExit) { historyDepth = Math.max(0, historyDepth - 1); exitSubNow(); dropForward(); return; }
-        if (current !== 'home') { historyDepth = Math.max(0, historyDepth - 1); showTab('home'); dropForward(); }
+        if (subExit) { historyDepth = Math.max(0, historyDepth - 1); exitSubNow(); guardNow(); return; }
+        if (current !== 'home') { historyDepth = Math.max(0, historyDepth - 1); showTab('home'); guardNow(); }
       });
     } catch (e) { /* 忽略 */ }
+  }
+
+
+  /* 第 291 次（真机：「首页右滑是 dock 右侧的日期日历那一页，左滑应该是滑不动的」）：首页横向只有一个方向——
+     手指往左滑（按 dock 顺序，日期记录在首页右边）＝跟手把首页推走、日期页从右边进来；往右滑什么都不发生（不跟手、不导航）。
+     不碰 history（首页和日期页是平级一级页）；左缘 24px 起手不接（留给 iOS 系统返回）；竖向为主交给滚动 / 下拉搜索；
+     面板、菜单、编辑布局、全屏层开着时不接；列表行左滑删除、输入框、滑杆、可横滚的容器里起手不接。
+     只写 transform / opacity；减少动态效果时不跟手，过阈值直接切页。 */
+  var hp = null, hpAnimT = 0;
+  function hpBusy() { return !!hp || !!hpAnimT; }
+  function hpReduced() { try { return !!(global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } }
+  function hpCanStart(tg) {
+    if (current !== 'home' || subExit || historyDepth > 0) return false;
+    var b = document.body.classList;
+    if (b.contains('qd-open') || b.contains('qm-open') || b.contains('sheet-open') || b.contains('ftf-open') || b.contains('ob-open') || b.contains('ps-pull')) return false;
+    if (document.documentElement.classList.contains('wp-lock') || document.documentElement.classList.contains('is-booting')) return false;
+    if (global.Sheet && Sheet.isOpen && Sheet.isOpen()) return false;
+    var mr = document.getElementById('modalRoot');
+    if (mr && mr.children.length) return false;
+    var H = Modules.home;
+    if (H && (H._edit || H._sheet)) return false;
+    if (document.querySelector('body > .ph-view, body > .vb-book, body > .ftf, body > .cal-pop-mask, #homeSheet:not([hidden])')) return false;
+    if (!tg || !tg.closest) return true;
+    if (tg.closest('input, textarea, select, [contenteditable], #tabbar, #dockOrb, #quickDock, .dock-live, [data-no-swipe], .record-grid.is-editing, li.sw-row')) return false;
+    var view = document.getElementById('view');
+    for (var n = tg; n && n !== view && n.nodeType === 1; n = n.parentNode) {
+      if (n.scrollWidth > n.clientWidth + 2) {
+        var ox = global.getComputedStyle(n).overflowX;
+        if (ox === 'auto' || ox === 'scroll') return false;
+      }
+      if (n.querySelector && n.tagName === 'LI' && n.querySelector(':scope [data-del]')) return false; /* 左滑删除的行 */
+    }
+    return true;
+  }
+  function hpPaint(x, animate) {
+    var view = document.getElementById('view');
+    if (!view) return;
+    var vw = global.innerWidth || 1;
+    view.style.transition = animate ? 'transform .26s cubic-bezier(.32,.72,0,1), opacity .26s linear' : 'none';
+    view.style.transform = x ? 'translate3d(' + x.toFixed(1) + 'px,0,0)' : '';
+    view.style.opacity = x ? String(Math.max(0.35, 1 + x / vw * 0.9).toFixed(3)) : '';
+  }
+  function hpClear() {
+    var view = document.getElementById('view');
+    if (view) { view.style.transition = ''; view.style.transform = ''; view.style.opacity = ''; }
+  }
+  function bindHomePager() {
+    try {
+      document.addEventListener('touchstart', function (e) {
+        hp = null;
+        if (hpAnimT || !e.touches || e.touches.length !== 1) return;
+        var t = e.touches[0];
+        if (t.clientX <= SWIPE_EDGE) return;               /* 左缘归 iOS 系统返回 */
+        if (!hpCanStart(e.target)) return;
+        hp = { x0: t.clientX, y0: t.clientY, lock: 0, dx: 0, s: [[Date.now(), t.clientX]] };
+      }, { passive: true });
+      document.addEventListener('touchmove', function (e) {
+        if (!hp || hp.lock < 0) return;
+        var t = e.touches && e.touches[0]; if (!t) return;
+        var dx = t.clientX - hp.x0, dy = t.clientY - hp.y0;
+        if (!hp.lock) {
+          if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+          /* 竖向为主、往右（反方向）、或这次 move 已不能取消（页面在惯性滚动）：整段手势都不接 */
+          if (Math.abs(dx) <= Math.abs(dy) * 1.15 || dx > 0 || !e.cancelable || document.body.classList.contains('ps-pull')) { hp.lock = -1; return; }
+          hp.lock = 1;
+        }
+        if (e.cancelable) e.preventDefault();
+        hp.dx = Math.min(0, dx);
+        var now = Date.now();
+        hp.s.push([now, t.clientX]);
+        while (hp.s.length > 2 && now - hp.s[0][0] > 100) hp.s.shift();
+        if (!hpReduced()) hpPaint(hp.dx, false);
+      }, { passive: false });
+      var end = function (e) {
+        var g = hp; hp = null;
+        if (!g || g.lock !== 1) return;
+        var vw = global.innerWidth || 1, v = 0, now = Date.now();
+        if (g.s.length > 1) { var a = g.s[0], z = g.s[g.s.length - 1]; if (now - z[0] < 80 && z[0] > a[0]) v = (z[1] - a[1]) / (z[0] - a[0]); }
+        var go = e.type !== 'touchcancel' && current === 'home' && (g.dx <= -vw * 0.25 || (v <= -0.35 && g.dx <= -30));
+        var red = hpReduced();
+        if (go) {
+          if (Util.haptic) Util.haptic('light');
+          if (red) { hpClear(); showTab('calendar', { noVT: true }); return; }
+          hpPaint(-vw * 0.32, true);
+          hpAnimT = setTimeout(function () {
+            hpAnimT = 0;
+            hpClear();
+            if (current === 'home') showTab('calendar', { noVT: true, enterX: '24px' });
+          }, 150);
+        } else {
+          if (red || !g.dx) { hpClear(); return; }
+          hpPaint(0, true);
+          hpAnimT = setTimeout(function () { hpAnimT = 0; hpClear(); }, 270);
+        }
+      };
+      document.addEventListener('touchend', end, { passive: true });
+      document.addEventListener('touchcancel', end, { passive: true });
+    } catch (e) { /* 没有 touch 的环境不绑 */ }
   }
 
   if (document.readyState === 'loading') {

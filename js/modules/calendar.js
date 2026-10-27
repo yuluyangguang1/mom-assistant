@@ -7,7 +7,7 @@
  * 在周条 / 内容区左右滑切换日期。回顾（周 / 月统计）挪进跳转日期半屏，成长时间轴去掉（生长 / 里程碑 / 疫苗各有自己的页）。
  * 第 286 次：① 三联分页（前一天 / 当天 / 后一天预先画好，1:1 跟手 + 方向锁定 + 按距离 / 速度翻页 + 回弹 + 未来橡皮筋），周条同理；
  *   ② 洗澡 / 游泳 / 日晒 / 黄疸 / 情绪 / 破水见红进日期页，时间轴点按修改、「…」菜单修改 / 删除（走各模块已有逻辑），记账不进；
- *   ③ 底部常用快捷记录条（默认 亲喂 / 瓶喂 / 辅食 / 生长 / 尿布，设置里可改成按使用频率或自选），记到所选日期；
+ *   ③ （第 291 次按用户要求去掉）底部常用快捷记录条——记录入口走「＋」；
  *   ④ 页头右侧宝宝头像（带切换角标）→ 从右上角弹出的宝宝切换菜单，复用 Storage.switchBaby；
  *   ⑤ 跳转日期半屏加「· 有记录」图例和「数据管理」入口（js/datamgr.js）。
  * 与首页共用 Util.buildDayIndex，确保数据聚合单一来源。
@@ -228,88 +228,6 @@
         + '</li>';
     });
     return h + '</ul>';
-  }
-
-  /* ---------- 第 286 次：底部快捷记录条 ---------- */
-  var QK = {
-    breast: { t: '亲喂', ico: 'breast', acc: 'breast', n: function (d) { return feedN(d, ['breast']); } },
-    bottle: { t: '瓶喂', ico: 'feeding', acc: 'bottle', n: function (d) { return feedN(d, ['bottle', 'formula']); } },
-    solid: { t: '辅食', ico: 'solid', acc: 'solid', n: function (d) { return feedN(d, ['solid']); } },
-    growth: { t: '生长', ico: 'growth', acc: 'growth', n: function (d) { return recentN(d.growth, 'date'); } },
-    diaper: { t: '尿布', ico: 'diaper', acc: 'diaper', n: function (d) { return recentN(d.diapers, 'time'); } },
-    sleep: { t: '睡眠', ico: 'sleep', acc: 'sleep', n: function (d) { return recentN(d.sleeps, 'start'); } },
-    pump: { t: '泵奶', ico: 'pump', acc: 'pump', n: function (d) { return feedN(d, ['pump']); } },
-    temp: { t: '体温', ico: 'temp', acc: 'temp', n: function (d) { return recentN(d.temps, 'time'); } },
-    meds: { t: '吃药', ico: 'meds', acc: 'meds', n: function (d) { return recentN(d.meds, 'time'); } },
-    water: { t: '饮水', ico: 'water', acc: 'water', n: function (d) { return recentN(d.waters, 'time'); } },
-    bath: { t: '洗澡', ico: 'bath', acc: 'bath', n: function (d) { return recentN(d.baths, 'time'); } },
-    swim: { t: '游泳', ico: 'swim', acc: 'swim', n: function (d) { return recentN(d.swims, 'time'); } },
-    sun: { t: '日晒', ico: 'sun', acc: 'sun', n: function (d) { return recentN(d.suns, 'time'); } },
-    jaundice: { t: '黄疸', ico: 'jaundice', acc: 'jaundice', n: function (d) { return recentN(d.jaundices, 'time'); } },
-    mood: { t: '情绪', ico: 'mood', acc: 'mood', n: function (d) { return recentN(d.moods, 'time'); } }
-  };
-  var QK_ORDER = ['breast', 'bottle', 'solid', 'growth', 'diaper', 'sleep', 'pump', 'temp', 'meds', 'water', 'bath', 'swim', 'sun', 'jaundice', 'mood'];
-  var QK_DEF = ['breast', 'bottle', 'solid', 'growth', 'diaper'];
-  function since30() { return Util.addDays(Util.todayISO(), -30); }
-  function recentN(arr, key) { var f = since30(); return (arr || []).filter(function (r) { return r && isoOf(r[key]) >= f; }).length; }
-  function feedN(d, types) { var f = since30(); return (d.feedings || []).filter(function (r) { return r && types.indexOf(r.type) >= 0 && isoOf(r.start) >= f; }).length; }
-  /* 设置：null = 默认 5 个；'auto' = 按近 30 天使用次数挑 5 个（不够补默认），显示顺序固定（按上面的顺序，不跟着次数跳位置）；数组 = 自选 */
-  function quickIds(d) {
-    var pref = d && d.settings ? d.settings.calQuick : null, ids;
-    if (Array.isArray(pref)) ids = QK_ORDER.filter(function (k) { return pref.indexOf(k) >= 0; }).slice(0, 5); /* 显示顺序固定 */
-    else if (pref === 'auto') {
-      var cnt = QK_ORDER.map(function (k) { return { k: k, n: QK[k].n(d) }; }).filter(function (x) { return x.n > 0; })
-        .sort(function (a, b) { return b.n - a.n || QK_ORDER.indexOf(a.k) - QK_ORDER.indexOf(b.k); }).slice(0, 5).map(function (x) { return x.k; });
-      QK_DEF.forEach(function (k) { if (cnt.length < 5 && cnt.indexOf(k) < 0) cnt.push(k); });
-      ids = QK_ORDER.filter(function (k) { return cnt.indexOf(k) >= 0; });
-    }
-    if (!ids || !ids.length) ids = QK_DEF.slice();
-    return ids;
-  }
-  function qbarHTML(d) {
-    var h = '<div class="mod-cta cal-qbar"><div class="cq-row" role="group" aria-label="快捷记录">';
-    quickIds(d).forEach(function (k) {
-      var q = QK[k];
-      h += '<button type="button" class="cq-b" data-qk="' + k + '" data-accent="' + q.acc + '" aria-label="记' + q.t + '"><span class="cq-ico">' + icon(q.ico) + '</span><span class="cq-t">' + q.t + '</span></button>';
-    });
-    return h + '</div></div>';
-  }
-  /* 面板打开后把日期挪到所选那天：保留面板自己给的钟点和相对天数（补记睡眠「入睡」是两小时前，可能是前一天） */
-  function shiftDates(iso) {
-    var today = Util.todayISO(), dd = Util.daysBetween(today, iso);
-    if (!dd) return;
-    var mr = document.getElementById('modalRoot');
-    if (!mr) return;
-    Array.prototype.forEach.call(mr.querySelectorAll('input[type=date]'), function (inp) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(inp.value)) return;
-      var v = Util.addDays(inp.value, dd);
-      if (inp.min && v < inp.min) v = inp.min;
-      if (v > today) v = today;
-      inp.value = v;
-      if (inp._paint) inp._paint();
-      try { inp.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
-    });
-    /* 过去的日子里「开始喂奶」（现在开始计时）没有意义，只留保存 */
-    Array.prototype.forEach.call(mr.querySelectorAll('[data-go]'), function (b) { b.hidden = true; });
-  }
-  var qLock = 0;
-  function openQuick(k, iso) {
-    var M = global.Modules || {}, today = Util.todayISO();
-    if (Date.now() - qLock < 450) return; /* 第 281 次同款：手指连点 / 触感层回声不开两个 */
-    qLock = Date.now();
-    if (Util.haptic) Util.haptic('light');
-    var past = iso !== today;
-    if (k === 'breast' && M.breast && M.breast._manual) { M.breast._manual(); shiftDates(iso); }
-    else if (k === 'bottle' && M.bottle && M.bottle._new) { M.bottle._new(false); if (past) shiftDates(iso); }
-    else if (k === 'solid' && M.solid && M.solid._open) M.solid._open(past ? iso : null);
-    else if (k === 'diaper' && M.diaper && M.diaper._open) M.diaper._open(past ? iso : null);
-    else if (k === 'growth' && M.growth && M.growth._open) { M.growth._open(); shiftDates(iso); }
-    else if (k === 'sleep' && M.sleep && M.sleep._manual) { M.sleep._manual(); shiftDates(iso); }
-    else if (k === 'pump' && M.pump && M.pump._manual) { M.pump._manual(); shiftDates(iso); }
-    else if (global.ModSkel) {
-      var cfg = ModSkel.cfgOf(k);
-      if (cfg) ModSkel.openSheet(cfg, Storage.get(), null, past ? iso : null);
-    }
   }
 
   /* ---------- 第 286 次：时间轴 … 菜单 / 点按修改 ---------- */
@@ -608,8 +526,6 @@
     /* 离开日期页回到今天；去补记 / 去模块页改记录再回来时停在原来那天 */
     leave: function () { if (!state.keep) state.sel = null; state.keep = false; closePop(); },
     _shape: function (iso) { var d = Storage.get(); return { nums: dayNums(d, iso, iso === Util.todayISO()), segs: sleepSegs(d, iso, iso === Util.todayISO()) }; },
-    _quickIds: function () { return quickIds(Storage.get()); },
-    QK: QK, QK_ORDER: QK_ORDER, QK_DEF: QK_DEF,
     render: function (view) {
       var today = Util.todayISO();
       if (!state.sel || Util.daysBetween(today, state.sel) > 0) state.sel = today;
@@ -623,7 +539,6 @@
         + '<button type="button" class="cal-hbtn cal-jump" data-cal-jump aria-label="跳转到日期">' + icon('calendar') + '</button></div></div>'
         + '<div class="ws-pager"><div class="ws-track"><div></div><div></div><div></div></div></div>'
         + '<div class="cal-pager"><div class="cal-track"><div></div><div></div><div></div></div></div>'
-        + qbarHTML(d)
         + '</div>';
       var title = view.querySelector('#calTitle');
       var wsRoot = view.querySelector('.ws-pager'), wsTrack = view.querySelector('.ws-track');
@@ -778,11 +693,6 @@
         }
         var li = t.closest('li[data-ti]');
         if (li) { var it = rows[+li.getAttribute('data-ti')]; if (it && (editable(it) || (it.src && GO_MOD[it.src])) && !busyUI(e)) editRec(it); }
-      });
-      view.querySelector('.cal-qbar').addEventListener('click', function (e) {
-        if (Util.hapEcho && Util.hapEcho(e)) return;
-        var b = e.target.closest && e.target.closest('[data-qk]');
-        if (b) openQuick(b.getAttribute('data-qk'), state.sel);
       });
       view.querySelector('[data-cal-jump]').addEventListener('click', function () { Modules.calendar._openJump(); });
       view.querySelector('[data-cal-baby]').addEventListener('click', function (e) {
