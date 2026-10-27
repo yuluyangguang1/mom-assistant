@@ -69,6 +69,8 @@
   }
   function lock() {
     if (unlockT) { clearTimeout(unlockT); unlockT = 0; }
+    if (root && root._tEnd) { root.removeEventListener('transitionend', root._tEnd); root._tEnd = null; }
+    if (auditT) { clearTimeout(auditT); auditT = 0; }
     if (locked) return;
     var app = appEl(); if (!app) return;
     ly = global.pageYOffset || 0;
@@ -79,12 +81,41 @@
     document.body.classList.add('sd-lock');
     if (mask && mask.parentNode !== app) app.appendChild(mask);
   }
+  /* 第 286 次（真机：「左滑再左滑页面就消失了，要不就是卡住」）：
+     根因——关闭后靠一个 440ms 定时器去掉 sd-lock，而收起过渡本身 420ms。关闭那一刻主线程很忙（history.back → popstate →
+     dropForward 再 push / back 一轮、重画），过渡的第一帧被推迟，定时器先到：sd-lock 去掉时 #app / 遮罩的过渡还没跑完，
+     WebKit 把这条「已经不再声明」的过渡停在半路——#app 停在右移 28px、遮罩停在 0.2~0.3 不透明且仍 visible（挡住点击 = 卡住；
+     再叠一次左滑 / 关闭时整页停在推开的位置 = 页面消失）。WebKit 里连续三次左滑约 1/30 能复现。
+     修法：① 解锁前把 #app / 遮罩 / 侧拉页身上还在跑的过渡全部取消，内联样式清干净；② 解锁时机改成「收起过渡真正结束（transitionend）
+     或兜底 600ms」二者先到；③ 关闭后 700ms 再自检一次，侧拉页已关就把 sd-open / sd-drag / sd-half / inert / transform 全部归零。 */
+  function killTransitions() {
+    [appEl(), mask, root].forEach(function (el) {
+      if (!el) return;
+      try { if (el.getAnimations) el.getAnimations().forEach(function (a) { try { a.cancel(); } catch (e) {} }); } catch (e) {}
+    });
+  }
   function unlock() {
     if (!locked || isOpen) return;
     locked = false;
+    killTransitions();
     document.body.classList.remove('sd-lock');
     var app = appEl(); if (app) { app.style.transform = ''; }
+    if (mask) mask.style.opacity = '';
+    if (root) { root.style.transform = ''; root.style.opacity = ''; }
     global.scrollTo(0, ly);
+  }
+  /* 关闭后自检：侧拉页处于「关」的状态时，页面必须完整可见、可点 */
+  var auditT = 0;
+  function audit() {
+    auditT = 0;
+    if (isOpen || document.body.classList.contains('sd-drag')) return;
+    var b = document.body.classList;
+    b.remove('sd-open'); b.remove('sd-half');
+    var app = appEl();
+    if (app) { try { app.inert = false; } catch (e) {} app.style.transform = ''; }
+    if (mask) mask.style.opacity = '';
+    if (root) { root.setAttribute('aria-hidden', 'true'); try { root.inert = true; } catch (e) {} }
+    if (locked) { if (unlockT) { clearTimeout(unlockT); unlockT = 0; } unlock(); }
   }
 
   function esc(s) { return (global.Util && Util.escapeHtml) ? Util.escapeHtml(s) : String(s == null ? '' : s); }
@@ -271,7 +302,19 @@
     if (was && opener && opener.isConnected && !(opts && opts.keepHist)) { try { opener.focus({ preventScroll: true }); } catch (e) {} }
     if (!(opts && opts.keepHist)) opener = null;
     if (unlockT) clearTimeout(unlockT);
-    unlockT = setTimeout(function () { unlockT = 0; unlock(); }, reducedMotion() ? 220 : 440);
+    if (root._tEnd) { root.removeEventListener('transitionend', root._tEnd); root._tEnd = null; }
+    var fin = function () {
+      if (root._tEnd) { root.removeEventListener('transitionend', root._tEnd); root._tEnd = null; }
+      if (unlockT) { clearTimeout(unlockT); unlockT = 0; }
+      unlock();
+    };
+    if (!reducedMotion()) {
+      root._tEnd = function (e) { if (e.target === root && e.propertyName === 'transform' && !isOpen) fin(); };
+      root.addEventListener('transitionend', root._tEnd);
+    }
+    unlockT = setTimeout(fin, reducedMotion() ? 220 : 600);
+    if (auditT) clearTimeout(auditT);
+    auditT = setTimeout(audit, 700);
   }
   /* 选了入口：侧拉页一边滑走一边换成新页（不再叠系统转场），回到顶部。
      进二级页时那次 pushHistory 直接复用侧拉页登记的 history 记录；没用上就退掉它。 */

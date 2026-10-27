@@ -604,7 +604,110 @@
     try { root.querySelector('#nbNick').focus(); } catch (e) {}
   }
 
+      /* ---- CSV 导出（Excel/WPS 可读，带 BOM） ---- */
+      /* 第 273 次：转义（含回车）、BOM、CRLF 统一走 Util.toCsv，和记账页同一份 */
+      function toCsv(header, rows) { return Util.toCsv(header, rows); }
+      var FEED_T = { breast: '母乳', bottle: '奶瓶', formula: '配方奶', pump: '泵奶', solid: '辅食' };
+      var SIDE_T = { left: '左', right: '右', both: '双侧' };
+      var DIAPER_T = { pee: '尿', poop: '便', both: '尿+便' };
+      var CSV_BUILDERS = {
+        feedings: function (d) {
+          /* 第 278 次（审计 #33）：量与单位分两列——辅食按勺 / 碗记的量存在 unit + qty 里（amount 为空），原来这一列空着；
+             辅食名称（dish）单独一列 */
+          var SU = { g: '克', spoon: '勺', bowl: '碗' };
+          var posN = function (v) { var n = Number(v); return isFinite(n) && n > 0 ? n : null; };
+          return toCsv(['开始时间', '类型', '侧别', '时长(分)', '量', '单位', '名称', '备注'],
+            (d.feedings || []).map(function (r) {
+              var q = '', u = '';
+              if (r.type === 'solid') {
+                if (SU[r.unit] && posN(r.qty)) { q = posN(r.qty); u = SU[r.unit]; }
+                else if (posN(r.amount)) { q = posN(r.amount); u = '克'; }
+              } else if (posN(r.amount)) { q = posN(r.amount); u = 'ml'; }
+              return [r.start, FEED_T[r.type] || r.type, SIDE_T[r.side] || '', r.durationMin || '', q, u, r.type === 'solid' && r.dish ? String(r.dish).trim() : '', r.note]; /* 第 273 次：原来读不存在的 r.duration，时长一列全空 */
+            }));
+        },
+        sleeps: function (d) {
+          return toCsv(['开始', '结束', '时长'], (d.sleeps || []).map(function (r) {
+            return [r.start, r.end || '', r.end ? Util.fmtDuration(new Date(r.end) - new Date(r.start) - (r.pausedMs || 0)) : ''];
+          }));
+        },
+        diapers: function (d) {
+          return toCsv(['时间', '类型', '备注'], (d.diapers || []).map(function (r) {
+            return [r.time, DIAPER_T[r.type] || r.type, r.note];
+          }));
+        },
+        meds: function (d) {
+          return toCsv(['时间', '名称', '备注'], (d.meds || []).map(function (r) { return [r.time, r.name, r.note]; }));
+        },
+        growth: function (d) {
+          return toCsv(['日期', '体重(kg)', '身长(cm)', '头围(cm)'], (d.growth || []).map(function (r) {
+            return [r.date, r.weightKg, r.heightCm, r.headCm];
+          }));
+        },
+        milestones: function (d) {
+          return toCsv(['日期', '里程碑', '备注'], (d.milestones || []).map(function (r) { return [r.date, r.title, r.note]; }));
+        },
+        vaccines: function (d) {
+          var rows = [];
+          var plan = (global.Modules && Modules.vaccine && typeof Modules.vaccine._plan === 'function'
+            && d.settings.baby && d.settings.baby.birthDate) ? Modules.vaccine._plan(d.settings.baby.birthDate) : [];
+          var done = (d.vaccines && d.vaccines.done) || {};
+          plan.forEach(function (it) { rows.push([it.name + it.dose, it.dueISO, done[it.key] || '未接种']); });
+          return toCsv(['疫苗剂次', '应种日期', '接种日期'], rows);
+        },
+        contractions: function (d) {
+          return toCsv(['开始', '结束'], (d.contractions || []).map(function (r) { return [r.start, r.end || '']; }));
+        },
+        periods: function (d) {
+          return toCsv(['开始', '结束'], (d.periods || []).map(function (r) { return [r.start, r.end || '']; }));
+        },
+        /* 第 280 次：营养品服用记录（时间、名称、用量、对应的服用时间、备注） */
+        supplements: function (d) {
+          return toCsv(['时间', '名称', '用量', '服用时间', '备注'], (d.supplements || []).filter(function (r) { return r && r.time; })
+            .slice().sort(function (a, b) { return String(a.time) < String(b.time) ? -1 : 1; })
+            .map(function (r) { return [r.time, r.name || '', r.dose || '', typeof r.slot === 'string' ? r.slot : '', r.note]; }));
+        },
+        finance: function (d) {
+          var recs = (d.finance && d.finance.records) || [];
+          return toCsv(['日期', '类目', '金额', '备注'], recs.map(function (r) { return [r.date, r.category, r.amount, r.note]; }));
+        }
+      };
+      /* 第 286 次：日期页快捷记录设置 */
+      function calQuickHTML(st) {
+        var C = global.Modules && Modules.calendar;
+        if (!C || !C.QK) return '';
+        var pref = st.settings.calQuick, mode = Array.isArray(pref) ? 'pick' : pref === 'auto' ? 'auto' : 'def';
+        var h = '<div class="seg seg-wrap2" role="radiogroup" aria-label="日期页快捷记录">'
+          + [['def', '默认'], ['auto', '按使用频率'], ['pick', '自选']].map(function (m) {
+            return '<button type="button" role="radio" aria-checked="' + (mode === m[0]) + '" class="seg-btn' + (mode === m[0] ? ' active' : '') + '" data-cq-mode="' + m[0] + '">' + m[1] + '</button>';
+          }).join('') + '</div>';
+        var ids = C._quickIds();
+        if (mode === 'pick') {
+          h += '<div class="chip-row cq-pick">' + C.QK_ORDER.map(function (k) {
+            var on = ids.indexOf(k) >= 0;
+            return '<button type="button" class="btn btn-mini' + (on ? ' active' : '') + '" aria-pressed="' + on + '" data-cq-id="' + k + '">' + C.QK[k].t + '</button>';
+          }).join('') + '</div>';
+        } else {
+          h += '<p class="hint">现在是：' + ids.map(function (k) { return C.QK[k].t; }).join(' · ') + '</p>';
+        }
+        return h;
+      }
+      /* 第 286 次：CSV 导出搬到模块作用域，设置页和「数据管理」半屏共用一份 */
+      function csvExport(key) {
+        if (!CSV_BUILDERS[key]) return false;
+        var csv = CSV_BUILDERS[key](Storage.get());
+        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = '咿呀记_' + key + '_' + Util.todayISO() + '.csv';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+        Util.toast('CSV 已导出', 'ok');
+        return true;
+      }
+
   Modules.settings = {
+    _csv: function (key) { return csvExport(key); },
     _babyForm: function (id) { openBabyForm(id); },
     id: 'settings',
     title: '设置',
@@ -674,6 +777,8 @@
 
       html += sgOpen('export', '数据与备份', '导出 / 导入 / CSV / 打印报告');
       html += '<div class="card"><h2>数据备份（唯一兜底手段）</h2>';
+      /* 第 286 次：「数据管理」半屏（导入预览：合并到当前宝宝 / 新建宝宝、导出、导入历史），日期页跳转日期半屏里也有 */
+      html += '<button type="button" class="btn" id="sDataMgr">' + icon('export') + '数据管理（导入 · 导出 · 导入历史）</button>';
       /* 上次备份时间：纯本地应用的生命线提示 */
       var last = s.settings.lastExportISO;
       var backupInfo = last ? ('上次备份：' + last) : '还没有备份过数据';
@@ -992,6 +1097,9 @@
         + '</div>';
       html += '<p class="hint">在底部「首页 / 日期记录」右侧加一个常用记录的直达按钮，选「不显示」即恢复两页签。'
         + '正常排列与左手 / 右手模式都生效。</p>';
+      /* 第 286 次：日期页底部快捷记录条——默认 5 个 / 按近 30 天使用次数 / 自选（最多 5 个） */
+      html += '<span class="lbl-text">日期页快捷记录</span><div id="sCalQuick">' + calQuickHTML(s) + '</div>';
+      html += '<p class="hint">日期页底部那一排常用记录。点一下直接打开记录面板，记到当前选的那一天。</p>';
       /* 第 54 次：天空时刻预览——不用等到对应时段，点一下就看整页在一天里怎么变色
          （天空色板 + 全页环境光 + 日轮弧线三处同步）。会话级生效不落盘：刷新即回真实时间，
          不影响任何记录的时间戳（记录永远按真实时刻存）。 */
@@ -1154,6 +1262,8 @@
       var sHR = view.querySelector('#sHomeReset');
       if (sHR) sHR.addEventListener('click', function () { Modules.home._editReset(); Util.toast('首页已恢复默认卡片', 'ok'); });
       view.querySelector('#sExport').addEventListener('click', function () { global.App.exportAll(); });
+      var dmB = view.querySelector('#sDataMgr');
+      if (dmB) dmB.addEventListener('click', function () { if (global.DataMgr) DataMgr.open(); });
       var exShare = view.querySelector('#sExportShare');
       if (exShare) exShare.addEventListener('click', function () { global.App.exportShare(); });
       view.querySelector('#sImport').addEventListener('click', function () { global.App.importAll(); });
@@ -1530,6 +1640,26 @@
           : '已恢复正常排列', 'ok');
       });
 
+      var cqBox = view.querySelector('#sCalQuick');
+      if (cqBox) cqBox.addEventListener('click', function (e) {
+        var t = e.target && e.target.closest ? e.target.closest('[data-cq-mode],[data-cq-id]') : null;
+        if (!t) return;
+        var st = Storage.get(), C = Modules.calendar;
+        if (t.hasAttribute('data-cq-mode')) {
+          var m = t.getAttribute('data-cq-mode');
+          st.settings.calQuick = m === 'def' ? null : m === 'auto' ? 'auto' : (C ? C._quickIds() : []);
+        } else {
+          var id = t.getAttribute('data-cq-id'), cur = Array.isArray(st.settings.calQuick) ? st.settings.calQuick.slice() : [];
+          var at = cur.indexOf(id);
+          if (at >= 0) { if (cur.length <= 1) { Util.toast('至少留一个', 'warn'); return; } cur.splice(at, 1); }
+          else { if (cur.length >= 5) { Util.toast('最多 5 个，先去掉一个', 'warn'); return; } cur.push(id); }
+          var ord = C ? C.QK_ORDER : cur;
+          st.settings.calQuick = ord.filter(function (k) { return cur.indexOf(k) >= 0; });
+        }
+        Storage.save();
+        cqBox.innerHTML = calQuickHTML(st);
+      });
+
       /* 第 97 次：底栏快捷入口选择——落盘后即时重建底栏（槽位显隐随选随生效） */
       var slotSeg = view.querySelector('#sDockSlotSeg');
       if (slotSeg) slotSeg.addEventListener('click', function (e) {
@@ -1546,84 +1676,9 @@
         Util.toast(v === '' ? '已收起底栏快捷入口' : '底栏快捷入口已设为「' + (Modules[v] ? Modules[v].title : v) + '」', 'ok');
       });
 
-      /* ---- CSV 导出（Excel/WPS 可读，带 BOM） ---- */
-      /* 第 273 次：转义（含回车）、BOM、CRLF 统一走 Util.toCsv，和记账页同一份 */
-      function toCsv(header, rows) { return Util.toCsv(header, rows); }
-      var FEED_T = { breast: '母乳', bottle: '奶瓶', formula: '配方奶', pump: '泵奶', solid: '辅食' };
-      var SIDE_T = { left: '左', right: '右', both: '双侧' };
-      var DIAPER_T = { pee: '尿', poop: '便', both: '尿+便' };
-      var CSV_BUILDERS = {
-        feedings: function (d) {
-          /* 第 278 次（审计 #33）：量与单位分两列——辅食按勺 / 碗记的量存在 unit + qty 里（amount 为空），原来这一列空着；
-             辅食名称（dish）单独一列 */
-          var SU = { g: '克', spoon: '勺', bowl: '碗' };
-          var posN = function (v) { var n = Number(v); return isFinite(n) && n > 0 ? n : null; };
-          return toCsv(['开始时间', '类型', '侧别', '时长(分)', '量', '单位', '名称', '备注'],
-            (d.feedings || []).map(function (r) {
-              var q = '', u = '';
-              if (r.type === 'solid') {
-                if (SU[r.unit] && posN(r.qty)) { q = posN(r.qty); u = SU[r.unit]; }
-                else if (posN(r.amount)) { q = posN(r.amount); u = '克'; }
-              } else if (posN(r.amount)) { q = posN(r.amount); u = 'ml'; }
-              return [r.start, FEED_T[r.type] || r.type, SIDE_T[r.side] || '', r.durationMin || '', q, u, r.type === 'solid' && r.dish ? String(r.dish).trim() : '', r.note]; /* 第 273 次：原来读不存在的 r.duration，时长一列全空 */
-            }));
-        },
-        sleeps: function (d) {
-          return toCsv(['开始', '结束', '时长'], (d.sleeps || []).map(function (r) {
-            return [r.start, r.end || '', r.end ? Util.fmtDuration(new Date(r.end) - new Date(r.start) - (r.pausedMs || 0)) : ''];
-          }));
-        },
-        diapers: function (d) {
-          return toCsv(['时间', '类型', '备注'], (d.diapers || []).map(function (r) {
-            return [r.time, DIAPER_T[r.type] || r.type, r.note];
-          }));
-        },
-        meds: function (d) {
-          return toCsv(['时间', '名称', '备注'], (d.meds || []).map(function (r) { return [r.time, r.name, r.note]; }));
-        },
-        growth: function (d) {
-          return toCsv(['日期', '体重(kg)', '身长(cm)', '头围(cm)'], (d.growth || []).map(function (r) {
-            return [r.date, r.weightKg, r.heightCm, r.headCm];
-          }));
-        },
-        milestones: function (d) {
-          return toCsv(['日期', '里程碑', '备注'], (d.milestones || []).map(function (r) { return [r.date, r.title, r.note]; }));
-        },
-        vaccines: function (d) {
-          var rows = [];
-          var plan = (global.Modules && Modules.vaccine && typeof Modules.vaccine._plan === 'function'
-            && d.settings.baby && d.settings.baby.birthDate) ? Modules.vaccine._plan(d.settings.baby.birthDate) : [];
-          var done = (d.vaccines && d.vaccines.done) || {};
-          plan.forEach(function (it) { rows.push([it.name + it.dose, it.dueISO, done[it.key] || '未接种']); });
-          return toCsv(['疫苗剂次', '应种日期', '接种日期'], rows);
-        },
-        contractions: function (d) {
-          return toCsv(['开始', '结束'], (d.contractions || []).map(function (r) { return [r.start, r.end || '']; }));
-        },
-        periods: function (d) {
-          return toCsv(['开始', '结束'], (d.periods || []).map(function (r) { return [r.start, r.end || '']; }));
-        },
-        /* 第 280 次：营养品服用记录（时间、名称、用量、对应的服用时间、备注） */
-        supplements: function (d) {
-          return toCsv(['时间', '名称', '用量', '服用时间', '备注'], (d.supplements || []).filter(function (r) { return r && r.time; })
-            .slice().sort(function (a, b) { return String(a.time) < String(b.time) ? -1 : 1; })
-            .map(function (r) { return [r.time, r.name || '', r.dose || '', typeof r.slot === 'string' ? r.slot : '', r.note]; }));
-        },
-        finance: function (d) {
-          var recs = (d.finance && d.finance.records) || [];
-          return toCsv(['日期', '类目', '金额', '备注'], recs.map(function (r) { return [r.date, r.category, r.amount, r.note]; }));
-        }
-      };
       view.querySelector('#sCsv').addEventListener('click', function () {
         var key = view.querySelector('#sCsvModule').value;
-        var csv = CSV_BUILDERS[key](Storage.get());
-        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-        var a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = '咿呀记_' + key + '_' + Util.todayISO() + '.csv';
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-        Util.toast('CSV 已导出', 'ok');
+        csvExport(key);
       });
 
       /* ---- 打印成长报告：新窗口生成一页式汇总并唤起打印 ---- */

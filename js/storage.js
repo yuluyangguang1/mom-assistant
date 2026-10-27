@@ -173,6 +173,9 @@
            设置页「底栏快捷入口」里选；渲染时校验模块存在，无效值静默忽略。
            仅「正常排列」下生效（第 100 次起左手/右手模式底栏是固定五口竖排）。 */
         dockSlot: null,
+        /* 第 286 次：日期页底部快捷记录条。null = 默认（亲喂/瓶喂/辅食/生长/尿布）；'auto' = 按近 30 天使用次数挑 5 个；
+           数组 = 自选（模块 id，最多 5 个；渲染时只认白名单） */
+        calQuick: null,
         /* 第 100 次：底栏五口集中排列——normal=居中横排（默认）/ left=左下竖排 /
            right=右下竖排。left/right 时首页、日期记录、快记加号、宝宝切换、设置
            五个入口全部收进屏幕同侧一根竖排胶囊。取代第 87 次只镜像快记钮的
@@ -407,6 +410,9 @@
       if (typeof s.keepAwake === 'boolean') base.settings.keepAwake = s.keepAwake; /* 第 194 次：计时常亮 */
       /* 第 97 次：底栏快捷槽位（字符串或 null；渲染时校验模块存在，随导入导出带走） */
       if (typeof s.dockSlot === 'string' || s.dockSlot === null) base.settings.dockSlot = s.dockSlot;
+      /* 第 286 次：日期页快捷条（'auto' 或最多 5 个 [a-z] 模块 id；其余回默认） */
+      if (s.calQuick === 'auto') base.settings.calQuick = 'auto';
+      else if (Array.isArray(s.calQuick)) base.settings.calQuick = s.calQuick.filter(function (x) { return typeof x === 'string' && /^[a-z]{2,16}$/.test(x); }).slice(0, 5);
       /* 第 100 次：底栏五口排列模式（三值枚举；旧 leftHand=true 迁移为 'left'，随导入导出带走） */
       if (s.handMode === 'left' || s.handMode === 'right' || s.handMode === 'normal') base.settings.handMode = s.handMode;
       else if (s.leftHand === true) base.settings.handMode = 'left';
@@ -1099,8 +1105,21 @@
       var curBabies = cur.babies || [];
       var curAct = cur.settings && cur.settings.activeBabyId;
       var newBabies = 0;
+      /* 第 286 次（数据管理半屏）：opts.target 指定文件里「当前宝宝」那一份记录去哪：
+         'current' = 合并进本机当前宝宝（按 id 去重）；'new' = 新建一个宝宝档案放进去。文件里的其他宝宝仍按下面的规则对应。 */
+      var tgt = opts.target === 'current' || opts.target === 'new' ? opts.target : null;
       incBabies.forEach(function (ib) {
         var src = ib._top ? pickBaby(inc) : incDataOf(ib);
+        if (tgt && (ib._top || ib.id === incAct || incBabies.length === 1)) {
+          if (tgt === 'current') { mergeBaby(cur, src); return; }
+          var fresh = { id: 'b' + Date.now().toString(36) + 'n' + newBabies, name: ib.name || '宝宝', photo: ib.photo || null,
+            birthDate: ib.birthDate || null, rec: JSON.parse(JSON.stringify(src)) };
+          curBabies.push(fresh); newBabies++;
+          var nNew = 0;
+          ARR_BABY.forEach(function (k) { if (Array.isArray(src[k])) nNew += src[k].length; });
+          bump('新宝宝档案的记录', nNew);
+          return;
+        }
         var hit = curBabies.filter(function (b) { return ib.id && b.id === ib.id; })[0]
           || curBabies.filter(function (b) { return ib.name && b.name === ib.name && b.birthDate && b.birthDate === ib.birthDate; })[0]
           || ((incBabies.length === 1 && curBabies.length <= 1) ? (curBabies[0] || { id: curAct, _top: true }) : null);

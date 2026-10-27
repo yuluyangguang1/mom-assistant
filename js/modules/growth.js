@@ -899,6 +899,7 @@
     _ref: function (std, sex, k, age) { return ref(std, sex, k, age); },
     _band: function (v, r) { return STATUS[bandOf(v, r)]; },
     _open: function (rec) { openAt = 0; openRec(Storage.get(), rec || null); },
+    _remove: function (id) { remove(Storage.get(), id); },
     _settings: openSettings,
     _enter: enterSub,
     _MET: MET

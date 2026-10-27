@@ -402,7 +402,10 @@
     plus.setAttribute('title', '快速记录');
     /* 第 141 次：＋ 去掉「快记」文字，并挪到胶囊最右（原来是 ＋ 后面还跟设置/返回） */
     plus.innerHTML = icon('dk-plus');
-    plus.addEventListener('click', function () {
+    plus.setAttribute('aria-expanded', document.body.classList.contains('qd-open') ? 'true' : 'false');
+    plus.setAttribute('aria-controls', 'qdActions');
+    plus.addEventListener('click', function (e) {
+      if (Util.hapEcho && Util.hapEcho(e)) return; /* 第 286 次：触感层回声不当第二下（否则开了马上又关） */
       var f = document.getElementById('qdFab');
       if (f && f.click) f.click();
     });
@@ -540,6 +543,8 @@
     showTabNow(id, opts);
   }
   function showTabNow(id, opts) {
+    /* 第 286 次：真正切页（不是原地重画）时快捷记录面板立即收起，不留在新页上 */
+    if (!(opts && opts.silent) && id !== current && global.App && App._qdClose) { try { App._qdClose(true); } catch (eQ) {} }
     if (!Modules[id]) return;
     /* 第 96 次（原生手感·方向性进场）：按导航语义注入水平位移变量，
        fadeUp 消费（见 styles.css）。前进=从内容深处推入（磁贴/齿轮进模块），
@@ -1655,12 +1660,39 @@
        创建包含块，留在里面就盖不住全屏），因此从 document 取。 */
     var mask = document.getElementById('qdMask');
 
-    function close() {
-      root.classList.remove('open');
+    /* 第 286 次：「＋」开合动画——＋ 弹簧转 45° 成 ×、底色略深；动作项从「＋」那里依次弹出（30ms 错开）；
+       关闭时反向：× 转回 ＋，动作项逆序快速收回（约 180ms）后才真正收起。状态只认 root 上的 open / qd-closing 两个类，
+       aria-expanded（隐藏的 #qdFab 和 dock 上的 ＋ 两处）跟着同步；切页 / 侧拉页 / 系统返回时立即收起不留残影。 */
+    var closingT = 0;
+    function syncAria(on) {
+      fab.setAttribute('aria-expanded', on ? 'true' : 'false');
+      Array.prototype.forEach.call(document.querySelectorAll('[data-qd-toggle]'), function (b) { b.setAttribute('aria-expanded', on ? 'true' : 'false'); });
+    }
+    function close(now) {
+      if (closingT) { clearTimeout(closingT); closingT = 0; }
+      var wasOpen = root.classList.contains('open');
       /* 第 135 次：遮罩可见性挂在 body.qd-open 上（它不再是 #quickDock 的子节点） */
       if (document.body && document.body.classList) document.body.classList.remove('qd-open');
-      fab.setAttribute('aria-expanded', 'false');
+      syncAria(false);
+      var rm = function () { closingT = 0; root.classList.remove('open'); root.classList.remove('qd-closing'); };
+      if (!wasOpen || now === true || prefersReduced()) { rm(); return; }
+      root.classList.add('qd-closing');
+      closingT = setTimeout(rm, 200);
     }
+    function prefersReduced() { try { return global.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
+    /* 动作项从「＋」所在位置弹出：开的时候量一次各项到「＋」的偏移，写成 CSS 变量（只在打开那一刻读布局，动画只走 transform / opacity） */
+    function aimItems() {
+      var src = document.querySelector('.tabbar [data-qd-toggle]') || fab;
+      var r0 = src && src.getBoundingClientRect ? src.getBoundingClientRect() : null;
+      if (!r0 || !r0.width) return;
+      var cx = r0.left + r0.width / 2, cy = r0.top + r0.height / 2;
+      Array.prototype.forEach.call(root.querySelectorAll('.qd-action'), function (el) {
+        var r = el.getBoundingClientRect();
+        el.style.setProperty('--qx', Math.round((cx - (r.left + r.width / 2)) * 0.35) + 'px');
+        el.style.setProperty('--qy', Math.round(Math.max(16, (cy - (r.top + r.height / 2)) * 0.35)) + 'px');
+      });
+    }
+    global.App._qdClose = function (now) { if (root.classList.contains('open')) { close(now); detachOutside(); } };
 
     /* 第 43 次：外部关闭。遮罩用真实元素 #qdMask——旧版是 ::before 伪元素，
        撑满全屏但事件 target 是宿主 #quickDock 本身，`root.contains(e.target)` 恒为
@@ -1717,10 +1749,14 @@
       close(); detachOutside(); rerender();
     }
 
-    fab.addEventListener('click', function () {
+    fab.addEventListener('click', function (ev) {
+      if (Util.hapEcho && Util.hapEcho(ev)) return; /* 第 281 次：触感层的回声 click 不算第二下 */
       /* 第 43 次修正：再点 FAB 应当「收起」，而不是重新展开。
-         此前 FAB 的 click 无条件重建动作列并 add('open')，等于永远关不掉。 */
-      if (root.classList.contains('open')) { close(); detachOutside(); return; }
+         此前 FAB 的 click 无条件重建动作列并 add('open')，等于永远关不掉。
+         第 286 次：收回动画中再点 = 重新展开（不等动画走完） */
+      if (root.classList.contains('open') && !root.classList.contains('qd-closing')) { close(); detachOutside(); return; }
+      if (closingT) { clearTimeout(closingT); closingT = 0; }
+      root.classList.remove('qd-closing');
       var d = Storage.get();
       var wk = (function () {
         var pg = d.pregnancy || {};
@@ -1745,9 +1781,13 @@
             + '<span class="qd-badge">' + (global.icon ? global.icon(a.ico, 'qd-ico') : '') + '</span>'
             + '<span class="qd-txt"><b>' + Util.escapeHtml(a.t) + '</b><small>' + Util.escapeHtml(a.s) + '</small></span></button>';
         }).join('') + '</div>';
+      var nAct = acts.length;
+      Array.prototype.forEach.call(list.querySelectorAll('.qd-action'), function (el, i) { el.style.setProperty('--j', String(nAct - 1 - i)); });
       root.classList.add('open');
       if (document.body && document.body.classList) document.body.classList.add('qd-open');
-      fab.setAttribute('aria-expanded', 'true');
+      syncAria(true);
+      if (!prefersReduced()) aimItems();
+      if (Util.haptic) Util.haptic('light');
 
       var f0 = fed.rec;
       list.querySelector('#qdFeed').addEventListener('click', function () {
@@ -2326,6 +2366,7 @@
         try { global.history.back(); } catch (eR) { rewind = 0; global.__yiyaRewinding = false; }
       }
       global.addEventListener('popstate', function (ev) {
+        if (global.App && App._qdClose) { try { App._qdClose(true); } catch (eQ2) {} } /* 第 286 次：系统返回 / 侧滑返回时快捷面板不残留 */
         if (rewind > 0) {
           var rs = ev && ev.state;
           if (rs && (rs.baoma === 1 || rs.baoma === 'guard' || rs.baoma === 'drawer' || rs.baoma === 'ov') && --rewind > 0) { try { global.history.back(); return; } catch (eR2) {} }

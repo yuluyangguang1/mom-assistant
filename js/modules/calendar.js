@@ -5,6 +5,11 @@
  *   →「一天的形状」（0–24 点细时间带：睡眠画色段、其余记录画小点；最多 3 个数字）
  *   → 当天时间轴（时间 · 图标 · 名称 · 数值）→ 补记小条 →「查看前一天」。
  * 在周条 / 内容区左右滑切换日期。回顾（周 / 月统计）挪进跳转日期半屏，成长时间轴去掉（生长 / 里程碑 / 疫苗各有自己的页）。
+ * 第 286 次：① 三联分页（前一天 / 当天 / 后一天预先画好，1:1 跟手 + 方向锁定 + 按距离 / 速度翻页 + 回弹 + 未来橡皮筋），周条同理；
+ *   ② 洗澡 / 游泳 / 日晒 / 黄疸 / 情绪 / 破水见红进日期页，时间轴点按修改、「…」菜单修改 / 删除（走各模块已有逻辑），记账不进；
+ *   ③ 底部常用快捷记录条（默认 亲喂 / 瓶喂 / 辅食 / 生长 / 尿布，设置里可改成按使用频率或自选），记到所选日期；
+ *   ④ 页头右侧宝宝头像（带切换角标）→ 从右上角弹出的宝宝切换菜单，复用 Storage.switchBaby；
+ *   ⑤ 跳转日期半屏加「· 有记录」图例和「数据管理」入口（js/datamgr.js）。
  * 与首页共用 Util.buildDayIndex，确保数据聚合单一来源。
  */
 (function (global) {
@@ -150,6 +155,31 @@
     return h + '</div>';
   }
 
+  /* ---------- 第 286 次：日期页数据（记账不进日期页） ---------- */
+  function dayIndex(d) {
+    var idx = Util.buildDayIndex(d), out = {};
+    Object.keys(idx).forEach(function (k) {
+      var arr = idx[k].filter(function (it) { return it.icon !== 'finance'; });
+      if (arr.length) out[k] = arr;
+    });
+    return out;
+  }
+
+  /* ---------- 第 286 次：时间轴条目 → 各模块已有的编辑 / 删除逻辑 ---------- */
+  var SKEL = { baths: 'bath', swims: 'swim', suns: 'sun', jaundices: 'jaundice', moods: 'mood', temps: 'temp', meds: 'meds', waters: 'water' };
+  var EDIT_SC = { sleeps: 'sleep', supplements: 'supplement', fetal: 'fetal', contractions: 'contraction', milestones: 'milestone' };
+  var GO_MOD = { laborEvents: 'contraction', periods: 'period', prenatal: 'pregnancy', vaccines: 'vaccine' };
+  function arrOf(d, src) {
+    if (src === 'prenatal') return (d.prenatal && d.prenatal.records) || [];
+    return Array.isArray(d[src]) ? d[src] : [];
+  }
+  function recOf(it) {
+    if (!it || !it.src || it.id == null) return null;
+    return arrOf(Storage.get(), it.src).filter(function (r) { return r && String(r.id) === it.id; })[0] || null;
+  }
+  /* 能就地修改 / 删除的条目才有「…」；疫苗、经期、产检、破水见红点一下去各自的页 */
+  function editable(it) { return !!(it && it.src && it.id != null && !GO_MOD[it.src]); }
+
   /* 同义第二行不显示：「游泳 / 游泳记录」「服药 / 服药」这类 */
   function valOf(it) {
     var v = String(it.val || '').trim(), l = String(it.label || '').trim();
@@ -160,7 +190,9 @@
     var h = Math.floor(min / 60), m = min % 60;
     return (h ? h + ' 小时' : '') + (m ? (h ? ' ' : '') + m + ' 分' : '');
   }
-  /* 间隔 = 这一条开始 − 上一段结束（睡眠按醒来算），≥ 3 小时才写，字更轻 */
+  var MORE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>';
+  /* 间隔 = 这一条开始 − 上一段结束（睡眠按醒来算），≥ 3 小时才写，字更轻。
+     第 286 次：行 = 时间 · 图标 · 名称 · 数值（+ 可修改的条目末尾一个「…」）；id 只给当前那一天（三联面板里另两天不带 id） */
   function timelineHTML(rows, segs) {
     var h = '<ul class="day-list day-tl">', prev = -1;
     rows.forEach(function (it, i) {
@@ -171,16 +203,385 @@
         if (it.icon === 'sleep') (segs || []).forEach(function (s) { if (s.hm === it.time) endM = Math.max(endM, Math.round((s.l + s.w) / 100 * 1440)); });
         prev = Math.max(prev, endM);
       }
-      var v = valOf(it);
-      h += '<li id="dtl' + i + '" data-ti="' + i + '" data-accent="' + esc(accOf(it)) + '">'
+      var v = valOf(it), ed = editable(it);
+      h += '<li data-ti="' + i + '" data-accent="' + esc(accOf(it)) + '"' + (ed ? ' class="dt-ed"' : (it.src && GO_MOD[it.src] ? ' class="dt-go"' : '')) + '>'
         + '<span class="dl-time">' + esc(it.time || '') + '</span>'
         + '<span class="dt-ico">' + icon(icoOf(it)) + '</span>'
         + '<span class="dt-main"><span class="dl-label">' + esc(it.label) + '</span>'
         + (it.note ? '<small class="dl-note">' + esc(it.note) + '</small>' : '') + '</span>'
         + (v ? '<span class="dt-val">' + esc(v) + '</span>' : '')
+        + (ed ? '<button type="button" class="dt-more" data-more="' + i + '" aria-haspopup="menu" aria-label="' + esc((it.time ? it.time + ' ' : '') + it.label + '：修改或删除') + '">' + MORE_SVG + '</button>' : '')
         + '</li>';
     });
     return h + '</ul>';
+  }
+
+  /* ---------- 第 286 次：底部快捷记录条 ---------- */
+  var QK = {
+    breast: { t: '亲喂', ico: 'breast', acc: 'breast', n: function (d) { return feedN(d, ['breast']); } },
+    bottle: { t: '瓶喂', ico: 'feeding', acc: 'bottle', n: function (d) { return feedN(d, ['bottle', 'formula']); } },
+    solid: { t: '辅食', ico: 'solid', acc: 'solid', n: function (d) { return feedN(d, ['solid']); } },
+    growth: { t: '生长', ico: 'growth', acc: 'growth', n: function (d) { return recentN(d.growth, 'date'); } },
+    diaper: { t: '尿布', ico: 'diaper', acc: 'diaper', n: function (d) { return recentN(d.diapers, 'time'); } },
+    sleep: { t: '睡眠', ico: 'sleep', acc: 'sleep', n: function (d) { return recentN(d.sleeps, 'start'); } },
+    pump: { t: '泵奶', ico: 'pump', acc: 'pump', n: function (d) { return feedN(d, ['pump']); } },
+    temp: { t: '体温', ico: 'temp', acc: 'temp', n: function (d) { return recentN(d.temps, 'time'); } },
+    meds: { t: '吃药', ico: 'meds', acc: 'meds', n: function (d) { return recentN(d.meds, 'time'); } },
+    water: { t: '饮水', ico: 'water', acc: 'water', n: function (d) { return recentN(d.waters, 'time'); } },
+    bath: { t: '洗澡', ico: 'bath', acc: 'bath', n: function (d) { return recentN(d.baths, 'time'); } },
+    swim: { t: '游泳', ico: 'swim', acc: 'swim', n: function (d) { return recentN(d.swims, 'time'); } },
+    sun: { t: '日晒', ico: 'sun', acc: 'sun', n: function (d) { return recentN(d.suns, 'time'); } },
+    jaundice: { t: '黄疸', ico: 'jaundice', acc: 'jaundice', n: function (d) { return recentN(d.jaundices, 'time'); } },
+    mood: { t: '情绪', ico: 'mood', acc: 'mood', n: function (d) { return recentN(d.moods, 'time'); } }
+  };
+  var QK_ORDER = ['breast', 'bottle', 'solid', 'growth', 'diaper', 'sleep', 'pump', 'temp', 'meds', 'water', 'bath', 'swim', 'sun', 'jaundice', 'mood'];
+  var QK_DEF = ['breast', 'bottle', 'solid', 'growth', 'diaper'];
+  function since30() { return Util.addDays(Util.todayISO(), -30); }
+  function recentN(arr, key) { var f = since30(); return (arr || []).filter(function (r) { return r && isoOf(r[key]) >= f; }).length; }
+  function feedN(d, types) { var f = since30(); return (d.feedings || []).filter(function (r) { return r && types.indexOf(r.type) >= 0 && isoOf(r.start) >= f; }).length; }
+  /* 设置：null = 默认 5 个；'auto' = 按近 30 天使用次数挑 5 个（不够补默认），显示顺序固定（按上面的顺序，不跟着次数跳位置）；数组 = 自选 */
+  function quickIds(d) {
+    var pref = d && d.settings ? d.settings.calQuick : null, ids;
+    if (Array.isArray(pref)) ids = QK_ORDER.filter(function (k) { return pref.indexOf(k) >= 0; }).slice(0, 5); /* 显示顺序固定 */
+    else if (pref === 'auto') {
+      var cnt = QK_ORDER.map(function (k) { return { k: k, n: QK[k].n(d) }; }).filter(function (x) { return x.n > 0; })
+        .sort(function (a, b) { return b.n - a.n || QK_ORDER.indexOf(a.k) - QK_ORDER.indexOf(b.k); }).slice(0, 5).map(function (x) { return x.k; });
+      QK_DEF.forEach(function (k) { if (cnt.length < 5 && cnt.indexOf(k) < 0) cnt.push(k); });
+      ids = QK_ORDER.filter(function (k) { return cnt.indexOf(k) >= 0; });
+    }
+    if (!ids || !ids.length) ids = QK_DEF.slice();
+    return ids;
+  }
+  function qbarHTML(d) {
+    var h = '<div class="mod-cta cal-qbar" data-no-drawer><div class="cq-row" role="group" aria-label="快捷记录">';
+    quickIds(d).forEach(function (k) {
+      var q = QK[k];
+      h += '<button type="button" class="cq-b" data-qk="' + k + '" data-accent="' + q.acc + '" aria-label="记' + q.t + '"><span class="cq-ico">' + icon(q.ico) + '</span><span class="cq-t">' + q.t + '</span></button>';
+    });
+    return h + '</div></div>';
+  }
+  /* 面板打开后把日期挪到所选那天：保留面板自己给的钟点和相对天数（补记睡眠「入睡」是两小时前，可能是前一天） */
+  function shiftDates(iso) {
+    var today = Util.todayISO(), dd = Util.daysBetween(today, iso);
+    if (!dd) return;
+    var mr = document.getElementById('modalRoot');
+    if (!mr) return;
+    Array.prototype.forEach.call(mr.querySelectorAll('input[type=date]'), function (inp) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(inp.value)) return;
+      var v = Util.addDays(inp.value, dd);
+      if (inp.min && v < inp.min) v = inp.min;
+      if (v > today) v = today;
+      inp.value = v;
+      if (inp._paint) inp._paint();
+      try { inp.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+    });
+    /* 过去的日子里「开始喂奶」（现在开始计时）没有意义，只留保存 */
+    Array.prototype.forEach.call(mr.querySelectorAll('[data-go]'), function (b) { b.hidden = true; });
+  }
+  var qLock = 0;
+  function openQuick(k, iso) {
+    var M = global.Modules || {}, today = Util.todayISO();
+    if (Date.now() - qLock < 450) return; /* 第 281 次同款：手指连点 / 触感层回声不开两个 */
+    qLock = Date.now();
+    if (Util.haptic) Util.haptic('light');
+    var past = iso !== today;
+    if (k === 'breast' && M.breast && M.breast._manual) { M.breast._manual(); shiftDates(iso); }
+    else if (k === 'bottle' && M.bottle && M.bottle._new) { M.bottle._new(false); if (past) shiftDates(iso); }
+    else if (k === 'solid' && M.solid && M.solid._open) M.solid._open(past ? iso : null);
+    else if (k === 'diaper' && M.diaper && M.diaper._open) M.diaper._open(past ? iso : null);
+    else if (k === 'growth' && M.growth && M.growth._open) { M.growth._open(); shiftDates(iso); }
+    else if (k === 'sleep' && M.sleep && M.sleep._manual) { M.sleep._manual(); shiftDates(iso); }
+    else if (k === 'pump' && M.pump && M.pump._manual) { M.pump._manual(); shiftDates(iso); }
+    else if (global.ModSkel) {
+      var cfg = ModSkel.cfgOf(k);
+      if (cfg) ModSkel.openSheet(cfg, Storage.get(), null, past ? iso : null);
+    }
+  }
+
+  /* ---------- 第 286 次：时间轴 … 菜单 / 点按修改 ---------- */
+  /* 第 281 次同款防重复：上面已经盖着面板 / 菜单时不再开；手指（isTrusted）450ms 内的第二下不算 */
+  var eLock = 0;
+  function busyUI(e) {
+    var mr = document.getElementById('modalRoot');
+    if ((mr && mr.children.length) || document.querySelector('body > .cal-pop-mask')) return true;
+    if (e && e.isTrusted && Date.now() - eLock < 450) return true;
+    eLock = Date.now();
+    return false;
+  }
+  function editRec(it) {
+    var M = global.Modules || {};
+    if (it.src && GO_MOD[it.src]) { state.keep = true; if (global.App) App.showTab(GO_MOD[it.src]); return; }
+    var rec = recOf(it);
+    if (!rec) return;
+    var d = Storage.get();
+    if (it.src === 'feedings') {
+      if (rec.type === 'solid' && M.solid && M.solid._edit) M.solid._edit(rec);
+      else if (global.RecordEdit) RecordEdit.open('feeding', rec, d.feedings);
+    } else if (it.src === 'diapers' && M.diaper && M.diaper._edit) M.diaper._edit(rec);
+    else if (it.src === 'growth' && M.growth && M.growth._open) M.growth._open(rec);
+    else if (SKEL[it.src] && global.ModSkel) {
+      var cfg = ModSkel.cfgOf(SKEL[it.src]);
+      if (cfg) ModSkel.openSheet(cfg, d, rec, null);
+    } else if (EDIT_SC[it.src] && global.RecordEdit) RecordEdit.open(EDIT_SC[it.src], rec, arrOf(d, it.src));
+  }
+  function deleteRec(it) {
+    var M = global.Modules || {}, rec = recOf(it);
+    if (!rec) return;
+    var d = Storage.get();
+    if (it.src === 'diapers' && M.diaper && M.diaper._remove) { M.diaper._remove(rec.id); return; }
+    if (it.src === 'supplements' && M.supplement && M.supplement._untake) { M.supplement._untake(rec); return; }
+    if (it.src === 'feedings' && rec.type === 'solid' && M.solid && M.solid._remove) { M.solid._remove(rec.id); return; }
+    if (it.src === 'growth' && M.growth && M.growth._remove) { M.growth._remove(rec.id); return; }
+    if (SKEL[it.src] && global.ModSkel) { var cfg = ModSkel.cfgOf(SKEL[it.src]); if (cfg) { ModSkel.remove(cfg, rec.id); return; } }
+    Util.removeWithUndo(arrOf(d, it.src), rec.id, {
+      onSave: function () { Storage.save(); }, onAfter: function () { if (global.App) App.rerender(); },
+      deletedText: '已删除' + (it.label || '') + '记录'
+    });
+  }
+  function closePop() {
+    Array.prototype.forEach.call(document.querySelectorAll('body > .cal-pop-mask'), function (m) {
+      if (m._close) m._close(true); else if (m.parentNode) m.parentNode.removeChild(m);
+    });
+  }
+  /* 从按钮那里弹出的小菜单（… 菜单、宝宝切换共用）：点外面 / Esc / 系统返回 / 滚动都关；减少动态效果时只淡入 */
+  function popMenu(anchor, html, cls, onPick) {
+    closePop();
+    var r = anchor.getBoundingClientRect(), vw = global.innerWidth || 390, vh = global.innerHeight || 800;
+    var mask = document.createElement('div');
+    mask.className = 'cal-pop-mask';
+    mask.setAttribute('data-no-drawer', '');
+    var below = r.bottom + 8 + 220 < vh || r.top < vh / 2;
+    mask.innerHTML = '<div class="cal-pop ' + cls + '" role="menu" style="right:' + Math.max(8, Math.round(vw - r.right)) + 'px;'
+      + (below ? 'top:' + Math.round(r.bottom + 6) + 'px' : 'bottom:' + Math.round(vh - r.top + 6) + 'px;transform-origin:100% 100%') + '">' + html + '</div>';
+    document.body.appendChild(mask);
+    anchor.setAttribute('aria-expanded', 'true');
+    var pop = mask.firstChild, done = false;
+    function close(now) {
+      if (done) return; done = true;
+      anchor.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('keydown', onKey, true);
+      global.removeEventListener('popstate', onPop, true);
+      global.removeEventListener('scroll', onScroll, true);
+      if (now || reduced()) { if (mask.parentNode) mask.parentNode.removeChild(mask); return; }
+      mask.classList.add('is-out');
+      setTimeout(function () { if (mask.parentNode) mask.parentNode.removeChild(mask); }, 160);
+    }
+    mask._close = close;
+    function onKey(e) { if (e.key === 'Escape') { e.stopPropagation(); close(); try { anchor.focus({ preventScroll: true }); } catch (eF) {} } }
+    function onPop() { close(true); }
+    function onScroll(e) { if (!pop.contains(e.target)) close(); }
+    document.addEventListener('keydown', onKey, true);
+    global.addEventListener('popstate', onPop, true);
+    global.addEventListener('scroll', onScroll, true);
+    mask.addEventListener('click', function (e) {
+      if (Util.hapEcho && Util.hapEcho(e)) return;
+      if (e.target === mask) { close(); return; }
+      var b = e.target.closest && e.target.closest('[data-pick]');
+      if (!b || !pop.contains(b)) return;
+      close(true);
+      onPick(b.getAttribute('data-pick'));
+    });
+    requestAnimationFrame(function () { mask.classList.add('is-in'); });
+    try { var f = pop.querySelector('[data-pick]'); if (f) f.focus({ preventScroll: true }); } catch (eF2) {}
+    return { mask: mask, close: close };
+  }
+
+  /* ---------- 第 286 次：页头宝宝头像 → 宝宝切换（复用 Storage.switchBaby，全站当前宝宝一致） ---------- */
+  var SWAP_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 9.5l4-4 4 4M8 14.5l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  function avaHTML(b) {
+    return (b && b.photo) ? '<img src="' + esc(b.photo) + '" alt="">' : (global.illo ? illo('avatar') : '');
+  }
+  function babyBtnHTML() {
+    var b = Storage.activeBaby ? Storage.activeBaby() : null;
+    var name = b && Storage.babyLabel ? Storage.babyLabel(b) : '宝宝';
+    return '<button type="button" class="cal-hbtn cal-baby" data-cal-baby aria-haspopup="menu" aria-expanded="false" aria-label="' + esc('切换宝宝（当前：' + name + '）') + '">'
+      + '<span class="cb-ava">' + avaHTML(b) + '</span><i class="cb-badge" aria-hidden="true">' + SWAP_SVG + '</i></button>';
+  }
+  function openBabyMenu(btn) {
+    /* 还没有宝宝档案（老数据只有 settings.baby）：先按现有资料播种一份，菜单里至少有当前这一个 */
+    if (Storage.activeBaby && !Storage.activeBaby() && Storage.syncBabyFromSettings) { try { Storage.syncBabyFromSettings(); Storage.save(); } catch (eS) {} }
+    var d = Storage.get(), cur = d.settings.activeBabyId, babies = d.babies || [];
+    var age = function (b) { return global.App && App._babyAge ? App._babyAge(b.birthDate) : ''; };
+    var h = '<p class="cp-h">切换宝宝</p>';
+    babies.forEach(function (b) {
+      var on = b.id === cur;
+      h += '<button type="button" class="cp-row cp-baby' + (on ? ' is-cur' : '') + '" role="menuitemradio" aria-checked="' + on + '" data-pick="b:' + esc(b.id) + '">'
+        + '<span class="cp-ava">' + avaHTML(b) + '</span><span class="cp-txt"><b>' + esc(Storage.babyLabel(b)) + '</b><small>' + esc(age(b)) + '</small></span>'
+        + '<span class="cp-chk" aria-hidden="true">' + (on ? CHECK_SVG : '') + '</span></button>';
+    });
+    h += '<div class="cp-sep" role="separator"></div>'
+      + '<button type="button" class="cp-row cp-act" role="menuitem" data-pick="edit"><span class="cp-aico">' + icon('edit') + '</span><span class="cp-txt"><b>编辑资料</b></span></button>'
+      + '<button type="button" class="cp-row cp-act" role="menuitem" data-pick="add"><span class="cp-aico">' + icon('plus') + '</span><span class="cp-txt"><b>添加宝宝</b></span></button>';
+    popMenu(btn, h, 'cal-bmenu', function (k) {
+      var S = global.Modules && Modules.settings;
+      if (k === 'edit') { if (S && S._babyForm) S._babyForm(Storage.get().settings.activeBabyId || null); return; }
+      if (k === 'add') { if (S && S._babyForm) S._babyForm(null); return; }
+      var id = k.slice(2);
+      if (id === Storage.get().settings.activeBabyId) return;
+      var nb = Storage.switchBaby(id);
+      if (!nb) return;
+      if (global.App && App.refreshHeaderAvatar) App.refreshHeaderAvatar();
+      state.swapFx = Date.now() + 500;
+      if (global.App) App.rerender();
+      Util.toast('已切换到「' + Storage.babyLabel(nb) + '」', 'ok');
+    });
+  }
+
+  /* ---------- 第 286 次：三联分页（内容区 ±1 天、周条 ±1 周），原生分页手感 ----------
+     · 前一 / 当前 / 后一 三块预先画好，拖动只改 track 的 translate3d（rAF 里写，touchmove 不读布局、不重画）；
+     · 先判方向（前 8px 位移比较 |dx| / |dy|）：竖向整段交给原生滚动；横向锁定后才 preventDefault；容器 touch-action: pan-y；
+     · 松手按距离（≥ 1/3 宽）或速度（甩动 ≥ 0.3px/ms 且同向）翻页，否则回弹；不能去的方向（未来）橡皮筋阻尼；
+     · 动画结束后把三块轮换位置（不重画当前块），只静默重画移出去的那一块；动画中再来手势先把这次直接落定再接着拖；
+     · 减少动态效果：不跟手、不滑动，松手直接换。 */
+  var FLIP_EASE = 'cubic-bezier(.22,.8,.28,1)', BACK_EASE = 'cubic-bezier(.3,1.22,.5,1)';
+  function rubber(x, w) { var c = 0.55; return (1 - 1 / (Math.abs(x) * c / w + 1)) * w * (x < 0 ? -1 : 1); }
+  function makePager(root, track, o) {
+    var panes = Array.prototype.slice.call(track.children, 0, 3); /* [prev, cur, next] */
+    var P = { panes: panes, busy: false, dragging: false, stats: { frames: 0, moves: 0 } };
+    var sx = 0, sy = 0, lock = 0, W = 0, dx = 0, off = 0, raf = 0, samples = [], vOff = 0, docTop = 0, anim = null, swallow = 0, startT = 0;
+    function place() {
+      panes[0].className = o.paneCls + ' is-prev'; panes[1].className = o.paneCls + ' is-cur'; panes[2].className = o.paneCls + ' is-next';
+      panes.forEach(function (pn, i) {
+        var side = i !== 1;
+        if (side) pn.setAttribute('aria-hidden', 'true'); else pn.removeAttribute('aria-hidden');
+        try { pn.inert = side; } catch (e) {}
+        pn.style.transform = '';
+      });
+      if (o.mark) o.mark(panes[1], panes);
+    }
+    function write() {
+      raf = 0;
+      track.style.transform = 'translate3d(' + off.toFixed(1) + 'px,0,0)';
+      P.stats.frames++;
+      if (P.onFrame) P.onFrame(off, dx);
+    }
+    function finishAnim() {
+      if (!anim) return;
+      var a = anim; anim = null;
+      clearTimeout(a.t); track.removeEventListener('transitionend', a.fn);
+      a.done();
+    }
+    function animate(to, ease, dur, done) {
+      finishAnim();
+      P.busy = true;
+      if (reduced() || dur <= 0) { off = to; done(); return; }
+      track.style.transition = 'transform ' + dur + 'ms ' + ease;
+      off = to;
+      track.style.transform = 'translate3d(' + to + 'px,0,0)';
+      var a = { done: function () { track.style.transition = ''; done(); } };
+      a.fn = function (e) { if (e.target === track && e.propertyName === 'transform' && anim === a) { anim = null; clearTimeout(a.t); track.removeEventListener('transitionend', a.fn); a.done(); } };
+      a.t = setTimeout(function () { if (anim === a) { anim = null; track.removeEventListener('transitionend', a.fn); a.done(); } }, dur + 90);
+      track.addEventListener('transitionend', a.fn);
+      anim = a;
+    }
+    function rest() {
+      track.style.transition = 'none'; track.style.transform = ''; off = 0; dx = 0;
+      root.classList.remove('is-drag'); root.style.minHeight = '';
+      panes[0].style.transform = ''; panes[2].style.transform = '';
+      P.busy = false; P.dragging = false;
+    }
+    /* dir：+1 = 后一页（左滑），-1 = 前一页（右滑） */
+    function commit(dir) {
+      if (dir > 0) panes = [panes[1], panes[2], panes[0]];
+      else panes = [panes[2], panes[0], panes[1]];
+      P.panes = panes;
+      var recycled = dir > 0 ? panes[2] : panes[0];
+      recycled.innerHTML = ''; recycled._iso = null;
+      place();
+      rest();
+      if (vOff > 0) { try { global.scrollTo({ top: docTop, behavior: 'instant' }); } catch (e) { global.scrollTo(0, docTop); } }
+      vOff = 0;
+      o.commit(dir, panes);
+      /* 移出去的那块下一帧再静默重画（下一次拖动开始前没画好就当场补上） */
+      setTimeout(function () { if (!recycled._iso && recycled.parentNode) o.fill(recycled, dir > 0 ? 1 : -1); }, 0);
+    }
+    P.flip = function (dir, v) {
+      if (!o.can(dir)) { animate(0, BACK_EASE, 0, rest); return false; }
+      ensureSides();
+      if (!W) W = root.clientWidth || 1;
+      var to = -dir * W, dist = Math.abs(to - off);
+      var dur = v ? Math.max(200, Math.min(340, dist / Math.max(Math.abs(v), 0.6) * 1.6)) : 300;
+      animate(to, FLIP_EASE, Math.round(dur), function () { commit(dir); });
+      return true;
+    };
+    P.finish = finishAnim;
+    P.place = place;
+    function ensureSides() {
+      if (!panes[0]._iso && o.wantSide(-1)) o.fill(panes[0], -1);
+      if (!panes[2]._iso && o.wantSide(1)) o.fill(panes[2], 1);
+    }
+    P.ensureSides = ensureSides;
+    function blocked() {
+      var b = document.body.classList;
+      if (b.contains('sd-open') || b.contains('sd-lock') || b.contains('qd-open') || b.contains('sheet-open')) return true;
+      var mr = document.getElementById('modalRoot');
+      return !!(mr && mr.children.length) || !!document.querySelector('body > .cal-pop-mask');
+    }
+    root.addEventListener('touchstart', function (e) {
+      lock = 0;
+      if (!e.touches || e.touches.length !== 1 || blocked()) { lock = -1; return; }
+      if (anim) finishAnim(); /* 切换中又来手势：这次先直接落定，日期不乱 */
+      var t = e.touches[0];
+      sx = t.clientX; sy = t.clientY; startT = Date.now(); samples = [[startT, sx]];
+      if (sx < 16) lock = -1; /* iOS Safari 左缘归系统返回，不接 */
+    }, { passive: true });
+    root.addEventListener('touchmove', function (e) {
+      if (lock < 0 || !e.touches || !e.touches[0]) return;
+      var t = e.touches[0], ddx = t.clientX - sx, ddy = t.clientY - sy;
+      if (!lock) {
+        if (Math.abs(ddx) < 8 && Math.abs(ddy) < 8) return;
+        if (Math.abs(ddx) <= Math.abs(ddy) * 1.15) { lock = -1; return; } /* 竖向：交给原生滚动 */
+        lock = 1;
+        /* 锁定时读一次布局：宽度、两侧块的竖向位置（滚下去时让两侧那天从它的顶部露出来） */
+        W = root.clientWidth || 1;
+        var rt = root.getBoundingClientRect();
+        vOff = o.vfollow ? Math.max(0, -rt.top + (o.topPad || 0)) : 0;
+        docTop = rt.top + (global.pageYOffset || 0) - (o.topPad || 0);
+        ensureSides();
+        if (vOff > 0) { panes[0].style.transform = 'translate3d(0,' + vOff + 'px,0)'; panes[2].style.transform = 'translate3d(0,' + vOff + 'px,0)'; }
+        /* 当天这块比旁边那天短（例如空的一天）：拖动期间把容器临时撑到能露出旁边那天的一屏，免得它被裁掉一截 */
+        if (o.vfollow) {
+          var need = vOff + Math.min(global.innerHeight || 800, Math.max(panes[0].offsetHeight, panes[2].offsetHeight));
+          if (need > rt.height) root.style.minHeight = Math.round(need) + 'px';
+        }
+        root.classList.add('is-drag');
+        track.style.transition = 'none';
+        P.dragging = true;
+      }
+      if (e.cancelable) e.preventDefault();
+      dx = ddx;
+      var now = Date.now();
+      samples.push([now, t.clientX]);
+      while (samples.length > 2 && now - samples[0][0] > 100) samples.shift();
+      P.stats.moves++;
+      if (reduced()) return;
+      var dir = dx < 0 ? 1 : -1;
+      off = o.can(dir) ? dx : rubber(dx, W);
+      if (!raf) raf = requestAnimationFrame(write);
+    }, { passive: false });
+    function end(e) {
+      if (lock !== 1) { lock = 0; return; }
+      lock = 0;
+      if (raf) { cancelAnimationFrame(raf); raf = 0; write(); }
+      swallow = Date.now() + 400;
+      var now = Date.now(), v = 0;
+      if (samples.length > 1) {
+        var a = samples[0], b = samples[samples.length - 1];
+        if (now - b[0] < 80 && b[0] > a[0]) v = (b[1] - a[1]) / (b[0] - a[0]);
+      }
+      P.lastV = v;
+      var dir = dx < 0 ? 1 : -1;
+      var go = e.type !== 'touchcancel' && Math.abs(dx) > 10 && (Math.abs(dx) >= W / 3 || (Math.abs(v) >= 0.3 && (v < 0) === (dx < 0)));
+      if (go && o.can(dir)) P.flip(dir, v);
+      else animate(0, BACK_EASE, Math.abs(off) < 2 ? 0 : 300, rest);
+    }
+    root.addEventListener('touchend', end, { passive: true });
+    root.addEventListener('touchcancel', end, { passive: true });
+    /* 横滑过的这一下不当点击（时间带小点、时间轴行） */
+    root.addEventListener('click', function (e) { if (Date.now() < swallow) { e.stopPropagation(); e.preventDefault(); } }, true);
+    place();
+    return P;
   }
 
   var state = { sel: null };
@@ -189,28 +590,37 @@
     id: 'calendar',
     title: '日期记录',
     _state: state,
-    /* 离开日期页回到今天；去补记（记喂养 / 尿布 / 吃药）再回来时停在原来那天 */
-    leave: function () { if (!state.keep) state.sel = null; state.keep = false; },
+    /* 离开日期页回到今天；去补记 / 去模块页改记录再回来时停在原来那天 */
+    leave: function () { if (!state.keep) state.sel = null; state.keep = false; closePop(); },
     _shape: function (iso) { var d = Storage.get(); return { nums: dayNums(d, iso, iso === Util.todayISO()), segs: sleepSegs(d, iso, iso === Util.todayISO()) }; },
+    _quickIds: function () { return quickIds(Storage.get()); },
+    QK: QK, QK_ORDER: QK_ORDER, QK_DEF: QK_DEF,
     render: function (view) {
       var today = Util.todayISO();
       if (!state.sel || Util.daysBetween(today, state.sel) > 0) state.sel = today;
+      closePop();
+      var d = Storage.get(), idx = dayIndex(d);
+      var swapFx = !!(state.swapFx && Date.now() < state.swapFx); /* 切宝宝后 0.5 秒内的重画都带轻转场 */
 
-      view.innerHTML = '<div class="cal-day-page">'
+      view.innerHTML = '<div class="cal-day-page' + (swapFx ? ' cal-swap' : '') + '">'
         + '<div class="page-head cal-head-row"><h1 id="calTitle" aria-live="polite"></h1>'
-        + '<button type="button" class="cal-jump" data-cal-jump aria-label="跳转到日期">' + icon('calendar') + '</button></div>'
-        + '<div class="week-strip" id="calStrip" data-no-drawer></div>'
-        + '<div class="cal-day" id="calDay" data-no-drawer></div>'
+        + '<div class="cal-acts">' + babyBtnHTML()
+        + '<button type="button" class="cal-hbtn cal-jump" data-cal-jump aria-label="跳转到日期">' + icon('calendar') + '</button></div></div>'
+        + '<div class="ws-pager" data-no-drawer><div class="ws-track"><div></div><div></div><div></div></div></div>'
+        + '<div class="cal-pager" data-no-drawer><div class="cal-track"><div></div><div></div><div></div></div></div>'
+        + qbarHTML(d)
         + '</div>';
-      var strip = view.querySelector('#calStrip'), box = view.querySelector('#calDay'), title = view.querySelector('#calTitle');
+      var title = view.querySelector('#calTitle');
+      var wsRoot = view.querySelector('.ws-pager'), wsTrack = view.querySelector('.ws-track');
+      var dRoot = view.querySelector('.cal-pager'), dTrack = view.querySelector('.cal-track');
 
-      function paintStrip(dayIdx) {
-        var sel = dObj(state.sel), mon = new Date(sel.getFullYear(), sel.getMonth(), sel.getDate() - (sel.getDay() + 6) % 7);
-        var h = '';
+      function monOf(iso) { var s = dObj(iso); return Util.fmtDate(new Date(s.getFullYear(), s.getMonth(), s.getDate() - (s.getDay() + 6) % 7)); }
+      function weekHTML(mon) {
+        var m0 = dObj(mon), h = '';
         for (var w = 0; w < 7; w++) {
-          var wd = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + w), iso = Util.fmtDate(wd);
+          var wd = new Date(m0.getFullYear(), m0.getMonth(), m0.getDate() + w), iso = Util.fmtDate(wd);
           var lbl = iso === today ? '今' : DOW[wd.getDay()];
-          var has = (dayIdx[iso] || []).length ? '<i class="ws-dot" aria-hidden="true"></i>' : '';
+          var has = (idx[iso] || []).length ? '<i class="ws-dot" aria-hidden="true"></i>' : '';
           if (Util.daysBetween(today, iso) > 0) {
             h += '<span class="ws-cell is-future"><span class="ws-dow">' + lbl + '</span><span class="ws-day">' + wd.getDate() + '</span></span>';
           } else {
@@ -219,98 +629,119 @@
               + '<span class="ws-dow">' + lbl + '</span><span class="ws-day">' + wd.getDate() + '</span>' + has + '</button>';
           }
         }
-        strip.innerHTML = h;
+        return h;
       }
-
-      function paintDay() {
-        var d = Storage.get(), dayIdx = Util.buildDayIndex(d), iso = state.sel, isToday = iso === today;
-        title.textContent = titleOf(iso);
-        paintStrip(dayIdx);
-        var rows = dayIdx[iso] || [];
-        var h = '';
+      function fillWeek(pane, k) {
+        var mon = Util.addDays(monOf(state.sel), 7 * k);
+        pane._iso = mon;
+        pane.innerHTML = weekHTML(mon);
+      }
+      function dayHTML(iso) {
+        var rows = idx[iso] || [], isT = iso === today, h = '';
         if (rows.length) {
-          h += shapeHTML(d, iso, rows, isToday);
-          h += timelineHTML(rows, sleepSegs(d, iso, isToday));
+          h += shapeHTML(d, iso, rows, isT);
+          h += timelineHTML(rows, sleepSegs(d, iso, isT));
         } else {
-          h += '<p class="day-empty">' + (isToday ? '今天还没有记录' : '这一天没有记录') + '</p>';
+          h += '<p class="day-empty">' + (isT ? '今天还没有记录' : '这一天没有记录') + '</p>';
         }
-        h += '<div class="chip-row cal-quick" id="dayBackfill">'
-          + '<button type="button" class="btn btn-mini" data-backfill="feeding">' + icon('feeding') + '记喂养</button>'
-          + '<button type="button" class="btn btn-mini" data-backfill="diaper">' + icon('diaper') + '记尿布</button>'
-          + '<button type="button" class="btn btn-mini" data-backfill="meds">' + icon('meds') + '记吃药</button></div>';
         h += '<button type="button" class="cal-prev" data-cal-prev>查看前一天</button>';
-        box.innerHTML = h;
+        return h;
+      }
+      function fillDay(pane, k) {
+        var iso = Util.addDays(state.sel, k);
+        if (Util.daysBetween(today, iso) > 0) { pane.innerHTML = ''; pane._iso = 'future'; pane._rows = []; return; }
+        pane._iso = iso; pane._rows = idx[iso] || [];
+        pane.innerHTML = dayHTML(iso);
+      }
+      function markDay(cur, all) {
+        all.forEach(function (pn) {
+          if (pn.id === 'calDay') pn.removeAttribute('id');
+          Array.prototype.forEach.call(pn.querySelectorAll('li[id]'), function (li) { li.removeAttribute('id'); });
+        });
+        cur.id = 'calDay';
+        Array.prototype.forEach.call(cur.querySelectorAll('li[data-ti]'), function (li) { li.id = 'dtl' + li.getAttribute('data-ti'); });
+      }
+      function markWeek(cur, all) {
+        all.forEach(function (pn) { if (pn.id === 'calStrip') pn.removeAttribute('id'); });
+        cur.id = 'calStrip';
       }
 
-      /* 换一天：内容从滑来的那一侧轻轻进来（减少动态效果时直接换） */
-      function go(iso, dir) {
-        if (!iso || Util.daysBetween(today, iso) > 0 || iso === state.sel) { settle(); return; }
-        state.sel = iso;
-        paintDay();
-        box.style.transition = 'none';
-        if (dir && !reduced()) {
-          box.style.transform = 'translateX(' + (dir > 0 ? 28 : -28) + 'px)';
-          box.style.opacity = '0';
-          void box.offsetWidth;
-          box.style.transition = 'transform .32s var(--ease), opacity .26s var(--ease)';
-        }
-        box.style.transform = '';
-        box.style.opacity = '';
-      }
-      function settle() {
-        box.style.transition = reduced() ? 'none' : 'transform .25s var(--ease), opacity .25s var(--ease)';
-        box.style.transform = ''; box.style.opacity = '';
-      }
-      Modules.calendar._go = function (iso) { go(iso, Util.daysBetween(state.sel, iso) < 0 ? 1 : -1); };
-
-      /* 左右滑：内容区 = 前一天 / 后一天；周条 = 上一周 / 下一周。只认横向为主的位移，不挡竖向滚动 */
-      function swipe(el, step) {
-        var sx = 0, sy = 0, on = 0, dec = 0;
-        el.addEventListener('touchstart', function (e) {
-          if (!e.touches || e.touches.length !== 1) { on = 0; return; }
-          sx = e.touches[0].clientX; sy = e.touches[0].clientY; on = 1; dec = 0;
-        }, { passive: true });
-        el.addEventListener('touchmove', function (e) {
-          if (!on || !e.touches || !e.touches[0]) return;
-          var dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
-          if (!dec) {
-            if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
-            dec = Math.abs(dx) > Math.abs(dy) * 1.3 ? 1 : -1;
-          }
-          if (dec !== 1 || step !== 1 || reduced()) return;
-          var atEnd = dx < 0 && state.sel === today;
-          var k = atEnd ? 0.12 : 0.4;
-          box.style.transition = 'none';
-          box.style.transform = 'translateX(' + (dx * k).toFixed(1) + 'px)';
-          box.style.opacity = String(Math.max(0.35, 1 - Math.abs(dx) / 520));
-        }, { passive: true });
-        function end(e) {
-          if (!on) return;
-          on = 0;
-          var t = e.changedTouches && e.changedTouches[0];
-          if (dec !== 1 || !t || e.type === 'touchcancel') { settle(); return; }
-          var dx = t.clientX - sx;
-          if (Math.abs(dx) < 50) { settle(); return; }
-          var n = Util.addDays(state.sel, dx < 0 ? step : -step);
+      var wsP = makePager(wsRoot, wsTrack, {
+        paneCls: 'week-strip ws-pane', mark: markWeek,
+        can: function (dir) { return dir < 0 || Util.daysBetween(today, Util.addDays(monOf(state.sel), 7)) <= 0; },
+        wantSide: function (k) { return true; },
+        fill: function (pane, k) { fillWeek(pane, k); },
+        commit: function (dir) {
+          var n = Util.addDays(state.sel, 7 * dir);
           if (Util.daysBetween(today, n) > 0) n = today;
-          go(n, dx < 0 ? 1 : -1);
+          state.sel = n;
+          /* 周条自己已经轮换好；当天块整组重画（跨了 7 天），淡入一下 */
+          paintWeekSel();
+          rebuildDays(true);
+          paintTitle();
         }
-        el.addEventListener('touchend', end, { passive: true });
-        el.addEventListener('touchcancel', end, { passive: true });
-      }
-      swipe(box, 1);
-      swipe(strip, 7);
-
-      strip.addEventListener('click', function (e) {
-        var b = e.target.closest && e.target.closest('[data-ws]');
-        if (b) { var iso = b.getAttribute('data-ws'); go(iso, Util.daysBetween(state.sel, iso) < 0 ? -1 : 1); }
       });
-      box.addEventListener('click', function (e) {
-        var t = e.target.closest ? e.target : null;
-        if (!t) return;
+      var dP = makePager(dRoot, dTrack, {
+        paneCls: 'cal-day cal-pane', mark: markDay, vfollow: true, topPad: 0,
+        can: function (dir) { return dir < 0 || Util.daysBetween(today, Util.addDays(state.sel, 1)) <= 0; },
+        wantSide: function (k) { return true; },
+        fill: function (pane, k) { fillDay(pane, k); },
+        commit: function (dir) {
+          var oldMon = monOf(state.sel);
+          state.sel = Util.addDays(state.sel, dir);
+          paintTitle();
+          if (monOf(state.sel) !== oldMon) rebuildWeeks(); else paintWeekSel();
+        }
+      });
+      Modules.calendar._pager = dP; Modules.calendar._wpager = wsP;
+
+      function paintTitle() { title.textContent = titleOf(state.sel); }
+      function paintWeekSel() {
+        var cur = wsP.panes[1];
+        if (cur._iso !== monOf(state.sel)) { rebuildWeeks(); return; }
+        Array.prototype.forEach.call(cur.querySelectorAll('[data-ws]'), function (b) {
+          var on = b.getAttribute('data-ws') === state.sel;
+          b.classList.toggle('is-sel', on);
+          if (on) b.setAttribute('aria-current', 'date'); else b.removeAttribute('aria-current');
+        });
+      }
+      function rebuildWeeks() {
+        wsP.finish();
+        fillWeek(wsP.panes[1], 0); fillWeek(wsP.panes[0], -1); fillWeek(wsP.panes[2], 1);
+        wsP.place();
+      }
+      function rebuildDays(fade) {
+        dP.finish();
+        fillDay(dP.panes[1], 0); fillDay(dP.panes[0], -1); fillDay(dP.panes[2], 1);
+        dP.place();
+        if (fade && !reduced()) {
+          var c = dP.panes[1];
+          c.classList.remove('dp-in'); void c.offsetWidth; c.classList.add('dp-in');
+        }
+      }
+
+      /* 换到任意一天：相邻的一天走同一套翻页动画，其余整组重画 + 淡入 */
+      function go(iso) {
+        if (!iso || Util.daysBetween(today, iso) > 0 || iso === state.sel) return;
+        var diff = Util.daysBetween(state.sel, iso);
+        if ((diff === 1 || diff === -1) && !reduced()) { dP.finish(); dP.flip(diff); return; }
+        state.sel = iso;
+        paintTitle(); rebuildWeeks(); rebuildDays(true);
+      }
+      Modules.calendar._go = go;
+
+      wsRoot.addEventListener('click', function (e) {
+        var b = e.target.closest && e.target.closest('[data-ws]');
+        if (b && wsP.panes[1].contains(b)) go(b.getAttribute('data-ws'));
+      });
+      dRoot.addEventListener('click', function (e) {
+        if (Util.hapEcho && Util.hapEcho(e)) return;
+        var t = e.target && e.target.closest ? e.target : null;
+        var cur = dP.panes[1];
+        if (!t || !cur.contains(t)) return;
         var tap = t.closest('.day-shape [data-ti]');
         if (tap) {
-          var row = box.querySelector('#dtl' + tap.getAttribute('data-ti'));
+          var row = cur.querySelector('li[data-ti="' + tap.getAttribute('data-ti') + '"]');
           if (row) {
             row.scrollIntoView({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' });
             row.classList.remove('is-flash'); void row.offsetWidth; row.classList.add('is-flash');
@@ -318,22 +749,46 @@
           }
           return;
         }
-        if (t.closest('[data-cal-prev]')) { go(Util.addDays(state.sel, -1), -1); global.scrollTo(0, 0); return; }
-        var bf = t.closest('[data-backfill]');
-        if (bf && global.App) { state.keep = true; App.pendingDate = state.sel; App.showTab(bf.getAttribute('data-backfill')); }
+        if (t.closest('[data-cal-prev]')) { go(Util.addDays(state.sel, -1)); try { global.scrollTo({ top: 0, behavior: 'instant' }); } catch (eS) { global.scrollTo(0, 0); } return; }
+        var more = t.closest('[data-more]');
+        var rows = cur._rows || [];
+        if (more) {
+          var it0 = rows[+more.getAttribute('data-more')];
+          if (!it0) return;
+          popMenu(more, '<button type="button" class="cp-row cp-act" role="menuitem" data-pick="edit"><span class="cp-aico">' + icon('edit') + '</span><span class="cp-txt"><b>修改</b></span></button>'
+            + '<button type="button" class="cp-row cp-act cp-del" role="menuitem" data-pick="del"><span class="cp-aico">' + icon('trash') + '</span><span class="cp-txt"><b>删除</b></span></button>', 'cal-rmenu', function (k) {
+            if (k === 'edit') editRec(it0); else if (k === 'del') deleteRec(it0);
+          });
+          return;
+        }
+        var li = t.closest('li[data-ti]');
+        if (li) { var it = rows[+li.getAttribute('data-ti')]; if (it && (editable(it) || (it.src && GO_MOD[it.src])) && !busyUI(e)) editRec(it); }
+      });
+      view.querySelector('.cal-qbar').addEventListener('click', function (e) {
+        if (Util.hapEcho && Util.hapEcho(e)) return;
+        var b = e.target.closest && e.target.closest('[data-qk]');
+        if (b) openQuick(b.getAttribute('data-qk'), state.sel);
       });
       view.querySelector('[data-cal-jump]').addEventListener('click', function () { Modules.calendar._openJump(); });
+      view.querySelector('[data-cal-baby]').addEventListener('click', function (e) {
+        if (Util.hapEcho && Util.hapEcho(e)) return;
+        if (document.querySelector('body > .cal-pop-mask .cal-bmenu')) { closePop(); return; }
+        openBabyMenu(e.currentTarget);
+      });
 
-      paintDay();
+      paintTitle();
+      rebuildWeeks();
+      rebuildDays(false);
     },
 
-    /* 跳转日期半屏：月历（周一起）+ 回顾。点哪天就关掉并跳到那天 */
+    /* 跳转日期半屏：月历（周一起，有记录的日子下面一个小圆点，底部「· 有记录」图例）+ 回顾 + 数据管理入口 */
     _openJump: function () {
       if (!global.FTUI) return;
       var today = Util.todayISO(), sel = state.sel || today, s0 = dObj(sel);
       var ym = { y: s0.getFullYear(), m: s0.getMonth() };
-      var d = Storage.get(), dayIdx = Util.buildDayIndex(d);
-      var api = FTUI.openSheet('', '跳转到日期', '<div class="cal-jump-body"><div id="calMonth"></div>' + reviewHTML(dayIdx, new Date()) + '</div>', null);
+      var d = Storage.get(), idx = dayIndex(d);
+      var api = FTUI.openSheet('', '跳转到日期', '<div class="cal-jump-body"><div id="calMonth"></div>' + reviewHTML(idx, new Date())
+        + '<button type="button" class="cal-dm-row" data-dm>' + icon('export') + '<span>数据管理</span><small>导入 · 导出 · 导入历史</small>' + icon('chevron-right') + '</button></div>', null);
       if (!api) return;
       var ok = api.box.querySelector('[data-ok]');
       if (ok) ok.remove();
@@ -350,11 +805,11 @@
           var iso = y + '-' + pad(m + 1) + '-' + pad(day), cls = 'cal-cell';
           if (iso === today) cls += ' is-today';
           if (iso === sel) cls += ' is-sel';
-          var dot = (dayIdx[iso] || []).length ? '<span class="cal-dots"><i class="cal-dot"></i></span>' : '';
+          var dot = (idx[iso] || []).length ? '<span class="cal-dots"><i class="cal-dot"></i></span>' : '';
           if (Util.daysBetween(today, iso) > 0) h += '<span class="' + cls + ' is-future">' + day + '</span>';
-          else h += '<button type="button" class="' + cls + '" data-day="' + iso + '"' + (iso === sel ? ' aria-current="date"' : '') + '>' + day + dot + '</button>';
+          else h += '<button type="button" class="' + cls + '" data-day="' + iso + '"' + (iso === sel ? ' aria-current="date"' : '') + (iso === today ? ' aria-label="' + day + ' 日，今天"' : '') + '>' + day + dot + '</button>';
         }
-        h += '</div>';
+        h += '</div><p class="cal-legend"><i class="cal-dot" aria-hidden="true"></i>有记录</p>';
         if (sel !== today) h += '<button type="button" class="cal-today" data-day="' + today + '">回到今天</button>';
         mBox.innerHTML = h;
       }
@@ -371,6 +826,8 @@
       });
       var ex = api.box.querySelector('#calExport');
       if (ex) ex.addEventListener('click', function () { if (global.App && typeof App.exportAll === 'function') App.exportAll(); });
+      var dm = api.box.querySelector('[data-dm]');
+      if (dm) dm.addEventListener('click', function () { api.close(); if (global.DataMgr) setTimeout(function () { DataMgr.open(); }, 0); });
       paintMonth();
       return api;
     }

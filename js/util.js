@@ -345,11 +345,14 @@
         idx[iso].push(it);
         return it;
       }
+      /* 第 286 次：条目带来源数组名 + 记录 id（日期页点按编辑 / … 菜单删除用），显示字段不变 */
+      function tag(it, src, r) { if (it) { it.src = src; if (r && r.id != null) it.id = String(r.id); } return it; }
+      function validHM(v) { return typeof v === 'string' && /^\d{2}:\d{2}$/.test(v); }
       (d.feedings || []).forEach(function (r) {
         var t = r.type === 'breast' ? '母乳' : (r.type === 'bottle' ? '奶瓶' : (r.type === 'formula' ? '奶粉' : (r.type === 'pump' ? '吸奶' : '辅食')));
         var bm = r.durationMin || r.duration;
         var v = r.type === 'breast' ? (bm ? bm + ' 分' : '') : ((r.amount ? r.amount + (r.type === 'solid' ? ' g' : ' ml') : '') + (r.type === 'pump' && r.durationMin ? ' · ' + r.durationMin + ' 分' : ''));
-        var fi = add(isoOf(r.start), 'feeding', t, v, hmOf(r.start));
+        var fi = tag(add(isoOf(r.start), 'feeding', t, v, hmOf(r.start)), 'feedings', r);
         if (fi) fi.kind = r.type; /* 第 285 次：日期页按喂养类型取模块色（亲喂 / 瓶喂 / 泵奶 / 辅食），icon 仍是 feeding */
       });
       /* 第 274 次（审计 #23）：跨午夜的睡眠按午夜切开，两天都列出、各写各自那部分（与睡眠页、首页同口径）。
@@ -361,7 +364,7 @@
         var a = new Date(r.start).getTime(), b = r.end ? new Date(r.end).getTime() : NaN;
         var d0 = isoOf(r.start);
         if (!r.end || !isFinite(a) || !isFinite(b) || b <= a || Util.fmtDate(new Date(b - 1)) === d0) {
-          add(d0, 'sleep', '睡眠', v, hmOf(r.start));
+          tag(add(d0, 'sleep', '睡眠', v, hmOf(r.start)), 'sleeps', r);
           return;
         }
         var day = d0, guard = 0;
@@ -373,34 +376,50 @@
           var dt = Util.daysBetween(d0, day), last = Util.fmtDate(new Date(b - 1)) === day;
           if (day === d0) add(day, 'sleep', '睡眠', part, hmOf(r.start));
           else add(day, 'sleep', '睡眠', part, '00:00');
-          var it = idx[day][idx[day].length - 1];
+          var it = tag(idx[day][idx[day].length - 1], 'sleeps', r);
           it.note = day === d0 ? ('跨夜 · 次日 ' + hmOf(r.end) + ' 醒，共 ' + v)
             : ('接' + (dt === 1 ? '前一天 ' : d0.slice(5).replace('-', '/') + ' ') + hmOf(r.start) + ' 入睡' + (last ? '，共 ' + v : ''));
           if (day !== d0) it.cont = true;
           day = Util.addDays(day, 1);
         }
       });
-      (d.growth || []).forEach(function (r) { add(r.date, 'growth', '生长', (r.weightKg ? r.weightKg + ' kg ' : '') + (r.heightCm ? r.heightCm + ' cm' : '')); });
+      (d.growth || []).forEach(function (r) { tag(add(r.date, 'growth', '生长', (r.weightKg ? r.weightKg + ' kg ' : '') + (r.heightCm ? r.heightCm + ' cm' : ''), validHM(r.at) ? r.at : ''), 'growth', r); });
       (d.diapers || []).forEach(function (r) {
         var t = r.type === 'pee' ? '尿' : (r.type === 'poop' ? '便' : '尿+便');
-        add(isoOf(r.time), 'diaper', '尿布', t, hmOf(r.time));
+        tag(add(isoOf(r.time), 'diaper', '尿布', t, hmOf(r.time)), 'diapers', r);
       });
       if (d.vaccines && d.vaccines.done) {
         Object.keys(d.vaccines.done).forEach(function (k) {
-          add(d.vaccines.done[k], 'vaccine', '疫苗接种', '');
+          var vi = add(d.vaccines.done[k], 'vaccine', '疫苗接种', ''); if (vi) vi.src = 'vaccines';
         });
       }
       /* 第 185 次：饮水此前不进日期记录 */
-      (d.waters || []).forEach(function (r) { add(isoOf(r.time), 'water', '饮水', r.ml ? r.ml + ' ml' : '', hmOf(r.time)); });
-      (d.meds || []).forEach(function (r) { add(isoOf(r.time), 'meds', '服药', r.name || '', hmOf(r.time)); });
+      (d.waters || []).forEach(function (r) { tag(add(isoOf(r.time), 'water', '饮水', r.ml ? r.ml + ' ml' : '', hmOf(r.time)), 'waters', r); });
+      (d.meds || []).forEach(function (r) { tag(add(isoOf(r.time), 'meds', '服药', r.name || '', hmOf(r.time)), 'meds', r); });
       /* 第 280 次：营养品服用记录进日期记录 / 回顾 */
-      (d.supplements || []).forEach(function (r) { if (r && r.time) add(isoOf(r.time), 'supplement', '营养品', [r.name || '', r.dose || ''].filter(Boolean).join(' '), hmOf(r.time)); });
-      (d.milestones || []).forEach(function (r) { add(r.date, 'milestone', '里程碑', r.title || ''); });
-      (d.periods || []).forEach(function (r) { if (r.start) add(isoOf(r.start), 'period', '经期', ''); });
-      if (d.prenatal && d.prenatal.records) d.prenatal.records.forEach(function (r) { add(r.date, 'pregnancy', '产检', r.item || ''); });
-      (d.contractions || []).forEach(function (r) { if (r.start) add(isoOf(r.start), 'contraction', '宫缩', '', hmOf(r.start)); });
-      (d.fetal || []).forEach(function (r) { add(isoOf(r.time), 'fetal', '胎动', '', hmOf(r.time)); });
-      (d.temps || []).forEach(function (r) { add(isoOf(r.time), 'temp', '体温', r.value != null ? r.value + '°C' : '', hmOf(r.time)); });
+      (d.supplements || []).forEach(function (r) { if (r && r.time) tag(add(isoOf(r.time), 'supplement', '营养品', [r.name || '', r.dose || ''].filter(Boolean).join(' '), hmOf(r.time)), 'supplements', r); });
+      (d.milestones || []).forEach(function (r) { tag(add(r.date, 'milestone', '里程碑', r.title || ''), 'milestones', r); });
+      (d.periods || []).forEach(function (r) { if (r.start) tag(add(isoOf(r.start), 'period', '经期', ''), 'periods', r); });
+      if (d.prenatal && d.prenatal.records) d.prenatal.records.forEach(function (r) { tag(add(r.date, 'pregnancy', '产检', r.item || ''), 'prenatal', r); });
+      (d.contractions || []).forEach(function (r) { if (r.start) tag(add(isoOf(r.start), 'contraction', '宫缩', '', hmOf(r.start)), 'contractions', r); });
+      (d.fetal || []).forEach(function (r) { tag(add(isoOf(r.time), 'fetal', '胎动', '', hmOf(r.time)), 'fetal', r); });
+      (d.temps || []).forEach(function (r) { tag(add(isoOf(r.time), 'temp', '体温', r.value != null ? r.value + '°C' : '', hmOf(r.time)), 'temps', r); });
+      /* 第 286 次（用户确认「补上」）：洗澡 / 游泳 / 日晒 / 黄疸 / 情绪 / 破水见红也进日期页（时间轴、时间带、有记录圆点）。
+         只取「关键数值」一项：时长 / 数值+单位 / 情绪档，部位、备注不进第二行。记账不进日期页（日期页自己过滤 icon=finance）。 */
+      var MIN = function (r) { return (typeof r.minutes === 'number' && isFinite(r.minutes) && r.minutes > 0) ? r.minutes + ' 分钟' : ''; };
+      (d.baths || []).forEach(function (r) { if (r && r.time) tag(add(isoOf(r.time), 'bath', '洗澡', MIN(r), hmOf(r.time)), 'baths', r); });
+      (d.swims || []).forEach(function (r) { if (r && r.time) tag(add(isoOf(r.time), 'swim', '游泳', MIN(r), hmOf(r.time)), 'swims', r); });
+      (d.suns || []).forEach(function (r) { if (r && r.time) tag(add(isoOf(r.time), 'sun', '日晒', MIN(r), hmOf(r.time)), 'suns', r); });
+      var JU = { mgdl: 'mg/dL', umol: 'µmol/L' };
+      (d.jaundices || []).forEach(function (r) {
+        if (!r || !r.time) return;
+        var ok = typeof r.value === 'number' && isFinite(r.value);
+        tag(add(isoOf(r.time), 'jaundice', '黄疸', ok ? r.value + ' ' + (JU[r.unit] || 'mg/dL') : '', hmOf(r.time)), 'jaundices', r);
+      });
+      var MOOD = { 1: '很低落', 2: '有点低', 3: '一般', 4: '不错', 5: '很好' };
+      (d.moods || []).forEach(function (r) { if (r && r.time) tag(add(isoOf(r.time), 'mood', '情绪', MOOD[parseInt(r.level, 10)] || '', hmOf(r.time)), 'moods', r); });
+      var LAB = { water: '破水', show: '见红' };
+      (d.laborEvents || []).forEach(function (r) { if (r && r.time && LAB[r.type]) tag(add(isoOf(r.time), 'contraction', LAB[r.type], '', hmOf(r.time)), 'laborEvents', r); });
       if (d.finance && d.finance.records) d.finance.records.forEach(function (r) { add(r.date, 'finance', '记账', Util.fmtYuan(r.amount)); });
       /* 同一天内按时间升序排（无时刻的排后面），明细即是一天的时间线 */
       Object.keys(idx).forEach(function (k) {

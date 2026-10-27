@@ -385,6 +385,7 @@
     title: '辅食',
     _open: function (dateIso) { openSheet(null, dateIso || null); },
     _edit: function (rec) { openSheet(rec, null); },
+    _remove: function (id) { removeRec(id); },
     _amtText: amtText, /* 第 273 次：搜索结果按辅食自己的单位写量 */
     _amtText: amtText,
     _subOf: subOf,

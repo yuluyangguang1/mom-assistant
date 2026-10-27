@@ -2574,8 +2574,9 @@ body .tabbar .tab-plus {
   background: linear-gradient(180deg, var(--primary-fill) 0%, var(--primary-strong) 100%);
   color: var(--on-primary);
   box-shadow: var(--shadow-card);
+  position: relative; /* 第 286 次：::before 压暗层 */
 }
-body .tabbar .tab-plus .ico { width: 22px; height: 22px; color: var(--on-primary); stroke-width: 2.3; }
+body .tabbar .tab-plus .ico { width: 22px; height: 22px; color: var(--on-primary); stroke-width: 2.3; transition: transform .32s cubic-bezier(.34, 1.56, .64, 1); /* 第 286 次：开合弹簧旋转 */ }
 body .tabbar .tab-plus > span { display: none; }   /* 圆钮里只放图标，不放文字 */
 body .tabbar .tab-plus:active { transform: scale(.9); }
 
@@ -6014,8 +6015,10 @@ body.dark .gr-pill { background: rgba(255,255,255,.08); box-shadow: none; }
    页头日期 + 日历按钮 → 周条（有记录一个小圆点）→「一天的形状」（0–24 点细时间带 + 最多 3 个数字）
    → 时间轴 → 补记小条 →「查看前一天」。没有对比、没有评价词、没有多日堆叠。
    ============================================================ */
-.page-head.cal-head-row { flex-direction: row; align-items: center; justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-sm); }
-.cal-head-row h1 { font-size: calc(22px * var(--fs-mul)); font-weight: 800; letter-spacing: .2px; font-variant-numeric: tabular-nums; }
+.page-head.cal-head-row { flex-direction: row; align-items: center; justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-sm);
+  container-type: inline-size; flex-wrap: nowrap; } /* 第 286 次：容器查询给标题收字号 */
+.cal-head-row h1 { font-size: min(calc(22px * var(--fs-mul)), 7.4cqi); font-weight: 800; letter-spacing: .2px; font-variant-numeric: tabular-nums;
+  flex: 1 1 auto; min-width: 0; white-space: nowrap; } /* 第 286 次：标题不折行、不截断（320 宽 + 1.33 倍字号也放得下） */
 .cal-jump { flex: none; width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
   border: none; border-radius: 50%; background: var(--surface); color: var(--muted); box-shadow: 0 6px 16px -12px rgba(51,48,43,.4); cursor: pointer; }
 .cal-jump .ico { width: 21px; height: 21px; }
@@ -6053,7 +6056,6 @@ body.dark .cal-jump { background: rgba(255,255,255,.08); color: var(--text); box
 
 /* 时间轴：一个容器，行间细线 */
 .day-tl { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 2px 16px; }
-.cal-quick { justify-content: center; margin: var(--space-lg) 0 0; }
 .cal-prev { display: block; margin: var(--space-sm) auto 0; min-height: 44px; padding: 0 16px; border: none; background: none; cursor: pointer;
   font-family: inherit; font-size: calc(13px * var(--fs-mul)); color: var(--muted); border-radius: var(--radius-pill); }
 .cal-prev:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
@@ -6069,3 +6071,182 @@ body.dark .cal-jump { background: rgba(255,255,255,.08); color: var(--text); box
 .cal-review .rs-lbl { margin-top: 0; }
 .cal-review p { margin: 0; font-size: calc(14px * var(--fs-mul)); }
 @media (prefers-reduced-motion: reduce) { .day-list li.is-flash { animation: none; background: color-mix(in srgb, var(--tile, var(--primary)) 14%, transparent); } }
+
+/* ============================================================
+   第 286 次 · 日期页：三联分页 / 新记录类型 / 底部快捷条 / 宝宝切换 / 数据管理
+   ============================================================ */
+/* 页头：日期标题留在左边不动；右上角 宝宝头像（带切换角标）+ 日历，两颗同尺寸同一组按钮。
+   标题不折行、不截断：容器查询按页头宽度收字号（320 宽 + 1.33 倍字号也放得下） */
+.cal-acts { flex: none; display: flex; align-items: center; gap: 8px; }
+.cal-hbtn { position: relative; flex: none; width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%; background: var(--surface); color: var(--muted); box-shadow: 0 6px 16px -12px rgba(51,48,43,.4); cursor: pointer; }
+.cal-hbtn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+body.dark .cal-hbtn { background: rgba(255,255,255,.08); color: var(--text); box-shadow: none; }
+.cb-ava { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; display: block; background: var(--surface-2); }
+.cb-ava img, .cb-ava svg { width: 100%; height: 100%; display: block; object-fit: cover; }
+.cb-badge { position: absolute; right: -2px; bottom: -2px; width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--primary-fill); color: var(--on-primary); box-shadow: 0 0 0 2px var(--surface-solid); pointer-events: none; }
+.cb-badge svg { width: 12px; height: 12px; }
+body.dark .cb-badge { box-shadow: 0 0 0 2px #1E1B18; }
+
+/* 三联分页：当前块在文档流里，前一 / 后一块绝对定位在两边；拖动只改 track 的 transform */
+.ws-pager, .cal-pager { position: relative; overflow: hidden; touch-action: pan-y; }
+.ws-pager { margin-bottom: var(--space-md); }
+.cal-day-page .ws-pager .week-strip { margin-bottom: 0; touch-action: pan-y; }
+.ws-track, .cal-track { position: relative; }
+.ws-pager.is-drag .ws-track, .cal-pager.is-drag .cal-track { will-change: transform; }
+.ws-pane.is-prev, .ws-pane.is-next, .cal-pane.is-prev, .cal-pane.is-next { position: absolute; top: 0; left: 0; width: 100%; }
+.ws-pane.is-prev, .cal-pane.is-prev { left: -100%; }
+.ws-pane.is-next, .cal-pane.is-next { left: 100%; }
+.cal-pane { box-sizing: border-box; padding: 0 1px; }
+.cal-pane.dp-in { animation: dpIn .22s var(--ease) both; }
+@keyframes dpIn { from { opacity: 0; } to { opacity: 1; } }
+/* 切换宝宝：页面的几块轻轻换一下（不动 .cal-day-page 本身：底部快捷条是 fixed，祖先不能带 transform） */
+.cal-swap > .page-head, .cal-swap > .ws-pager, .cal-swap > .cal-pager { animation: calSwap .32s var(--ease) both; }
+.cal-swap > .ws-pager { animation-delay: 30ms; }
+.cal-swap > .cal-pager { animation-delay: 60ms; }
+@keyframes calSwap { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* 时间轴：可修改的行点一下就改；末尾「…」修改 / 删除 */
+.day-list li.dt-ed, .day-list li.dt-go { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.day-list .dt-more { flex: none; width: 34px; height: 34px; margin: -6px -8px -6px -4px; padding: 0; border: none; border-radius: 50%; background: none; color: var(--muted);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.day-list .dt-more svg { width: 18px; height: 18px; fill: currentColor; }
+.day-list .dt-more:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.day-list .dt-more[aria-expanded="true"] { background: var(--surface-2); }
+.cal-pane .cal-prev { margin-top: var(--space-md); }
+
+/* 底部快捷记录条：第 282 次固定底部规则（.mod-cta：dock 上方、带底衬、页面底部按实际高度留白） */
+#view .cal-qbar { padding-top: 0; }
+.cq-row { display: flex; gap: 4px; padding: 6px; border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%);
+  box-shadow: inset 0 0 0 .5px rgba(255,255,255,.5), 0 10px 26px -16px rgba(90,74,62,.45); }
+body.dark .cq-row { background: color-mix(in srgb, var(--surface) 86%, transparent); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.1), 0 10px 26px -16px rgba(0,0,0,.7); }
+.cq-b { flex: 1 1 0; min-width: 0; min-height: 54px; padding: 6px 2px 5px; border: none; border-radius: var(--radius); background: none; cursor: pointer; font-family: inherit;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--text); }
+.cq-b:active { background: var(--tile-weak, var(--surface-2)); }
+.cq-b:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.cq-ico { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--tile-weak, var(--surface-2)); color: var(--tile-text, var(--tile)); }
+.cq-ico .ico { width: 19px; height: 19px; }
+.cq-t { font-size: calc(11.5px * var(--fs-mul)); font-weight: 600; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* 从按钮那里弹出的小菜单（宝宝切换、时间轴 …）：右上角锚定，弹簧放大 + 淡入；减少动态效果只淡入 */
+.cal-pop-mask { position: fixed; inset: 0; z-index: 2100; -webkit-tap-highlight-color: transparent; }
+.cal-pop { position: fixed; min-width: 168px; max-width: min(280px, calc(100vw - 24px)); box-sizing: border-box; padding: 6px; border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%);
+  box-shadow: inset 0 0 0 .5px rgba(255,255,255,.5), 0 18px 44px -14px rgba(60,48,40,.42);
+  transform-origin: 100% 0; opacity: 0; transform: scale(.88);
+  transition: opacity .16s var(--ease), transform .26s cubic-bezier(.34, 1.4, .64, 1); }
+.cal-pop-mask.is-in .cal-pop { opacity: 1; transform: none; }
+.cal-pop-mask.is-out .cal-pop { opacity: 0; transform: scale(.94); transition-duration: .14s; }
+body.dark .cal-pop { background: color-mix(in srgb, #2A2622 92%, transparent); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.12), 0 18px 44px -14px rgba(0,0,0,.75); }
+.cal-bmenu { width: 260px; }
+.cp-h { margin: 6px 10px 4px; font-size: calc(12px * var(--fs-mul)); font-weight: 600; color: var(--muted); }
+.cp-row { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 10px; box-sizing: border-box; border: none; border-radius: var(--radius-sm);
+  background: none; color: var(--text); font-family: inherit; text-align: left; cursor: pointer; }
+.cp-row:hover, .cp-row:focus-visible { background: var(--surface-2); outline: none; }
+.cp-ava { flex: none; width: 34px; height: 34px; border-radius: 50%; overflow: hidden; background: var(--surface-2); }
+.cp-ava img, .cp-ava svg { width: 100%; height: 100%; display: block; object-fit: cover; }
+.cp-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.cp-txt b { font-size: calc(15px * var(--fs-mul)); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-txt small { font-size: calc(12px * var(--fs-mul)); color: var(--muted); }
+.cp-chk { flex: none; width: 20px; height: 20px; color: var(--primary-text); }
+.cp-chk svg { width: 20px; height: 20px; display: block; }
+.cp-baby.is-cur .cp-txt b { color: var(--primary-text); }
+.cp-sep { height: 1px; margin: 4px 8px; background: var(--border); }
+.cp-aico { flex: none; width: 34px; display: inline-flex; justify-content: center; color: var(--muted); }
+.cp-aico .ico { width: 19px; height: 19px; }
+.cal-rmenu { min-width: 150px; }
+.cp-del, .cp-del .cp-aico { color: var(--danger); }
+body.dark .cp-del, body.dark .cp-del .cp-aico { color: #F09A8A; }
+
+/* 跳转日期半屏：「· 有记录」图例 + 数据管理入口 */
+/* 截图自查（第 286 次）：图例在半屏里会被 .modal p（0,1,1）压掉外边距和字号，贴着最后一行日期——提高一级 */
+.cal-legend, .modal .cal-legend { display: flex; align-items: center; gap: 6px; margin: 10px 4px 0; font-size: calc(12px * var(--fs-mul)); color: var(--muted); }
+.cal-legend .cal-dot { background: var(--primary); }
+.cal-dm-row { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: var(--space-md); min-height: 52px; padding: 10px 14px; box-sizing: border-box;
+  border: none; border-radius: var(--radius); background: var(--surface-2); color: var(--text); font-family: inherit; text-align: left; cursor: pointer; }
+.cal-dm-row > span { font-weight: 700; font-size: calc(15px * var(--fs-mul)); }
+.cal-dm-row small { flex: 1 1 auto; color: var(--muted); font-size: calc(12px * var(--fs-mul)); }
+.cal-dm-row .ico { width: 19px; height: 19px; color: var(--muted); flex: none; }
+body.dark .cal-dm-row { background: rgba(255,255,255,.06); }
+
+/* 数据管理半屏 */
+.dm-group { margin: 6px 0 0; padding: 2px 0; list-style: none; border-radius: var(--radius); background: var(--surface-2); overflow: hidden; }
+body.dark .dm-group { background: rgba(255,255,255,.06); }
+.dm-row, .dm-log li { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 10px 14px; box-sizing: border-box; border: none; background: none;
+  color: var(--text); font-family: inherit; text-align: left; cursor: pointer; font-size: calc(15px * var(--fs-mul)); }
+.dm-row + .dm-row, .dm-log li + li { border-top: 1px solid var(--border); }
+.dm-row > b { flex: 1 1 auto; font-weight: 600; }
+.dm-ico { flex: none; width: 22px; display: inline-flex; color: var(--muted); }
+.dm-ico .ico { width: 20px; height: 20px; }
+.dm-chev { flex: none; display: inline-flex; color: var(--muted); }
+.dm-chev .ico { width: 18px; height: 18px; }
+.dm-cnt { color: var(--muted); font-size: calc(13px * var(--fs-mul)); }
+.dm-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dm-txt b { font-weight: 600; overflow-wrap: anywhere; }
+.dm-txt small { color: var(--muted); font-size: calc(12px * var(--fs-mul)); }
+.dm-n { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dm-log li { cursor: default; }
+.dm-note { margin: 8px 6px 14px; font-size: calc(12.5px * var(--fs-mul)); color: var(--muted); line-height: 1.5; }
+.dm-msg { margin: 4px 2px 10px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--primary-weak); font-size: calc(13.5px * var(--fs-mul)); color: var(--text); }
+.dm-msg.is-warn { background: var(--warn-bg); color: var(--warn-text); }
+.dm-back { min-height: 40px; padding: 0 4px; border: none; background: none; color: var(--primary-text); font-family: inherit; font-size: calc(14px * var(--fs-mul)); font-weight: 600; cursor: pointer; }
+.dm-sub { margin: 6px 6px 4px; font-size: calc(13px * var(--fs-mul)); font-weight: 700; color: var(--muted); }
+.dm-file { margin: 0 6px 10px; font-weight: 700; overflow-wrap: anywhere; }
+.dm-seg { margin: 4px 0 12px; }
+.dm-big { margin: 6px 6px 4px; font-size: calc(14px * var(--fs-mul)); color: var(--muted); }
+.dm-big b { font-size: calc(28px * var(--fs-mul)); font-weight: 800; color: var(--text); margin-right: 4px; font-variant-numeric: tabular-nums; }
+.dm-parts { list-style: none; margin: 0 0 4px; padding: 0 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+.dm-parts li { display: flex; justify-content: space-between; gap: 8px; font-size: calc(13.5px * var(--fs-mul)); }
+.dm-parts b { font-variant-numeric: tabular-nums; }
+.dm-csv { display: flex; gap: 8px; align-items: center; padding: 10px 12px; }
+.dm-csv select { flex: 1 1 auto; min-width: 0; min-height: 40px; }
+.dm-empty { margin: 30px 0; text-align: center; color: var(--muted); }
+.dm-clear { display: block; margin: 12px auto 0; min-height: 44px; padding: 0 16px; border: none; background: none; color: var(--danger); font-family: inherit; cursor: pointer; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cal-pop { transition: opacity .16s linear !important; transform: none; }
+  .cal-pop-mask.is-out .cal-pop { transform: none; }
+  .cal-swap > .page-head, .cal-swap > .ws-pager, .cal-swap > .cal-pager { animation: dpIn .2s linear both; }
+  .cal-pane.dp-in { animation-duration: .01ms; }
+}
+
+/* 第 286 次：「＋」快捷记录开合动画（全站一处：dock 上的 ＋ 和它转发的 #quickDock 面板）
+   开：＋ 以弹簧曲线转 45° 成 ×（320ms，轻微过冲），底色略深；动作项从 ＋ 那边依次弹出（错开 30ms，scale .6→1、淡入、上移）；遮罩淡入 + 轻模糊。
+   关：× 转回 ＋，动作项逆序快速收回（≈180ms）。只动 transform / opacity；减少动态效果时只淡入淡出。 */
+body .tabbar .tab-plus::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: rgba(60, 28, 16, .18); opacity: 0; pointer-events: none;
+  transition: opacity .22s var(--ease); }
+body.qd-open .tabbar .tab-plus::before { opacity: 1; }
+body.qd-open .tabbar .tab-plus .ico { transform: rotate(45deg); }
+/* 截图自查（第 286 次）：遮罩（z 39，带 2px 模糊）原本盖在 dock 上，转成的 × 被糊掉看不清——打开时 dock 抬到遮罩上面，× 清楚可点 */
+body.qd-open .tabbar { z-index: 41; }
+#quickDock.open .qd-action, body #quickDock.open .qd-action {
+  animation: qdPop .34s cubic-bezier(.34, 1.56, .64, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+@keyframes qdPop {
+  from { opacity: 0; transform: translate(var(--qx, 0px), var(--qy, 18px)) scale(.6); }
+  to { opacity: 1; transform: none; }
+}
+#quickDock.open.qd-closing .qd-action, body #quickDock.open.qd-closing .qd-action {
+  animation: qdBack .14s cubic-bezier(.4, 0, 1, 1) forwards;
+  animation-delay: calc(var(--j, 0) * 18ms);
+}
+@keyframes qdBack {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translate(var(--qx, 0px), var(--qy, 18px)) scale(.6); }
+}
+body #quickDock.open.qd-closing .qd-actions { opacity: 0; transform: translateX(-50%) translateY(6px) scale(.97); transition: opacity .18s var(--ease) .04s, transform .18s var(--ease); }
+html body .qd-mask { transition: opacity .24s var(--ease), visibility .24s; }
+@media (prefers-reduced-motion: reduce) {
+  body .tabbar .tab-plus .ico, body.qd-open .tabbar .tab-plus .ico { transform: none; transition: none; }
+  /* 全局降级规则（* { animation / transition: none !important }）之上，只把淡入淡出放回来 */
+  #quickDock.open .qd-action, body #quickDock.open .qd-action { animation: qdFade .16s linear backwards !important; animation-delay: 0ms; }
+  #quickDock.open.qd-closing .qd-action, body #quickDock.open.qd-closing .qd-action { animation: none; }
+  body #quickDock .qd-actions, body #quickDock.open .qd-actions, body #quickDock.open.qd-closing .qd-actions { transform: translateX(-50%); transition: opacity .16s linear, visibility .16s !important; }
+  html body .qd-mask { transition: opacity .16s linear, visibility .16s !important; }
+}
+@keyframes qdFade { from { opacity: 0; } to { opacity: 1; } }

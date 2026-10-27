@@ -343,7 +343,18 @@
       if (cfg.bind) cfg.bind(view, ctx);
       if (backfill) setTimeout(function () { openSheet(cfg, d, null, backfill); }, 0);
     },
-    _optLabel: optLabel
+    _optLabel: optLabel,
+    /* 第 286 次：日期页要在不进模块页的情况下开某个简单模块的面板（新增记到所选日期 / 修改）。
+       配置写在各模块 render 里，这里临时把 ModSkel.render 换成「只收下配置」再调一次 render，不画任何东西。 */
+    cfgOf: function (modId) {
+      var M = global.Modules && global.Modules[modId];
+      if (!M || typeof M.render !== 'function') return null;
+      var got = null, orig = ModSkel.render;
+      ModSkel.render = function (v, c) { got = c; };
+      try { M.render(document.createElement('div')); } catch (e) { got = null; } finally { ModSkel.render = orig; }
+      return got;
+    },
+    remove: function (cfg, id) { remove(cfg, Storage.get(), id); }
   };
 
   global.ModSkel = ModSkel;

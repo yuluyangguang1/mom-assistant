@@ -497,6 +497,10 @@
        数据形状与页面内的 rec 完全一致（{id,type,time,note}），
        统计口径因此天然对齐——不是为了「快捷」另造一套字段。
        ============================================================ */
+    /* 第 286 次：日期页快捷条 / 时间轴直接开尿布面板（记到所选日期）、编辑、删除（库存同步退回） */
+    _open: function (dateIso) { openSheet(Storage.get(), null, dateIso || null); },
+    _edit: function (rec) { openSheet(Storage.get(), rec, null); },
+    _remove: function (id) { removeRec(Storage.get(), id); },
     _autoUse: autoUse,
     _applyUse: applyUse,
     _validUsed: validUsed,

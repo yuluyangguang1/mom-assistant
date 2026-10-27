@@ -783,6 +783,7 @@
     _slots: function (p, list) { return slotsOf(norm(p), mine(list, p)); },
     _open: function () { openWizard(null); },
     _edit: function (p) { openWizard(p); },
+    _untake: function (rec) { untake(Storage.get(), rec); }, /* 第 286 次：日期页 … 删除服用记录（库存同步退回） */
     _manage: openManage,
     PRESETS: PRESETS, FORMS: FORMS,
     /* 第 196 次：首页磁贴就地打卡（契约同 diaper._quickHTML/_quickBind）。只列今天还没吃满的前 2 个；都吃满或没有返回空串 */

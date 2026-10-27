@@ -162,6 +162,8 @@
       moved = true;
       if (pressEl) { pressUp(pressEl); pressEl = null; }
     }
+    /* 第 286 次：日期页分页（内容区 / 周条）手指一动就收起光斑、不再跟——跟着走要每帧量一次被拖动元素的位置，等于每帧强制排版 */
+    if (moved && closest(e.target, '.cal-pager, .ws-pager')) { if (glowEl) hideGlow(); return; }
     moveGlow(t.clientX, t.clientY);
   }, { passive: true, capture: true });
 

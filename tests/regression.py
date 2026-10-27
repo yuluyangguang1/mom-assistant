@@ -1202,7 +1202,7 @@ def test_r274(b):
     check('#23 日历两天都列出：昨天 22:30「1小时30分 · 跨夜…共 1小时40分」、今天 00:00「10分 · 接前一天 22:30 入睡」', 
           ['22:30', '1小时30分', '跨夜 · 次日 00:10 醒，共 1小时40分', False] in idx[1] and ['00:00', '10分', '接前一天 22:30 入睡，共 1小时40分', True] in idx[0], idx)
     go('calendar')
-    note = ev("[...document.querySelectorAll('#view .day-list .dl-note')].map(e=>e.textContent)")
+    note = ev("[...document.querySelectorAll('#calDay .day-list .dl-note')].map(e=>e.textContent)")  # 第 286 次：三联面板，只看当天那块
     check('#23 日历「今天的记录」里有跨夜那一觉的接续行（说明另起一行小字）', note == ['接前一天 22:30 入睡，共 1小时40分'], note)
     hm = ev("""(()=>{const h=document.createElement('div');Modules.home.render(h);return 1})()""")
     hs = ev("""(()=>{const d=Storage.get();d.settings.homeCards=(d.settings.homeCards||[]);return Math.round(Util.daySleep(d.sleeps,Util.dayKeyOf(new Date(),Util.dayStartHour(d)),Util.dayStartHour(d),{live:d.openSleep}).min)})()""")
@@ -1379,7 +1379,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v249（第 285 次升）', "var CACHE = 'baoma-static-v249';" in sw)
+    check('#275 SW 版本 v250（第 286 次升）', "var CACHE = 'baoma-static-v250';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -3013,8 +3013,8 @@ def test_r285(b):
 
     go('calendar', 500)
     # —— 只显示一天 ——
-    one = ev("""(()=>{const v=document.getElementById('view');return {ul:v.querySelectorAll('.day-list').length,title:document.getElementById('calTitle').textContent,
-      old:!!v.querySelector('.review-card,.timeline-card,.today-overview,.cal-toggle,.cal-grid'),txt:v.innerText,shape:v.querySelectorAll('.day-shape').length}})()""")
+    one = ev("""(()=>{const v=document.getElementById('view'),c=document.getElementById('calDay');return {ul:c.querySelectorAll('.day-list').length,title:document.getElementById('calTitle').textContent,
+      old:!!v.querySelector('.review-card,.timeline-card,.today-overview,.cal-toggle,.cal-grid'),txt:c.innerText,shape:c.querySelectorAll('.day-shape').length}})()""")  # 第 286 次：三联面板，当天那块才是页面上看到的
     t_title = ev("(()=>{const d=new Date();return (d.getMonth()+1)+' 月 '+d.getDate()+' 日 周'+'日一二三四五六'[d.getDay()]})()")
     check('#285 进页是今天：标题「' + t_title + '」，只有一条时间轴、一张「一天的形状」', one['ul'] == 1 and one['shape'] == 1 and one['title'] == t_title and sel() == T, [one['ul'], one['shape'], one['title'], sel()])
     check('#285 页面上没有多日堆叠 / 说明文字 / 回顾 / 成长时间轴 / 今日概览 / 展开整月', not one['old'] and '最多显示' not in one['txt'] and '前 6 天' not in one['txt'] and '默认只显示最近七天' not in one['txt'] and '成长时间轴' not in one['txt'], one['txt'][:200])
@@ -3029,18 +3029,22 @@ def test_r285(b):
     check('#285 周条右滑 = 上一周、左滑回来', w1 == ev(f"Util.addDays('{T}',-7)") and w2 == T, [w1, w2])
     small = ev("window.__t2nostart=false");
     r = ev("(()=>{const b=document.querySelector('#calDay').getBoundingClientRect();return [b.left+b.width/2,b.top+40]})()")
-    ev(TOUCH2_JS, [r[0], r[1], r[0] + 30, r[1] + 2, 1, 4, 12]); p.wait_for_timeout(400)
-    ev(TOUCH2_JS, [r[0], r[1], r[0] + 60, r[1] + 120, 1, 6, 12]); p.wait_for_timeout(400)
-    tf = ev("document.querySelector('#calDay').style.transform")
-    check('#285 横滑不到 50px、或竖向为主的手势不换日期，松手内容归位', sel() == T and tf in ('', 'none'), [sel(), tf])
+    # 第 286 次：改成原生分页——慢慢拖不到 1/3 宽松手回弹（快甩才按速度翻页，见 #286）
+    ev(TOUCH2_JS, [r[0], r[1], r[0] + 60, r[1] + 2, 2, 6, 40]); p.wait_for_timeout(500)
+    ev(TOUCH2_JS, [r[0], r[1], r[0] + 60, r[1] + 120, 1, 6, 12]); p.wait_for_timeout(500)
+    tf = ev("document.querySelector('.cal-track').style.transform")
+    check('#285 慢拖不到 1/3 宽、或竖向为主的手势不换日期，松手内容归位（第 286 次口径）', sel() == T and tf in ('', 'none'), [sel(), tf])
     ev(f"Modules.calendar._go('{Y}')"); p.wait_for_timeout(450)
     # 跟手中间帧：内容跟着手指走、透明度降一点；不松手时日期不变
     ev("window.__t2nostart=false")
     r = ev("(()=>{const b=document.querySelector('#calDay').getBoundingClientRect();return [b.left+b.width/2,b.top+40]})()")
     ev(TOUCH2_JS, [r[0], r[1], r[0] + 120, r[1] + 3, 'none', 6, 12]); p.wait_for_timeout(60)
-    mid = ev("(()=>{const e=document.querySelector('#calDay');return [e.style.transform,+e.style.opacity]})()")
-    ev("(()=>{const t=document.querySelector('#calDay');const e=new Event('touchcancel',{bubbles:true});Object.defineProperty(e,'changedTouches',{value:[]});t.dispatchEvent(e)})()"); p.wait_for_timeout(350)
-    check('#285 滑动中间帧：内容跟手平移（约 0.4 倍）并略淡，取消后归位、日期不变', mid[0].startswith('translateX(4') and 0.5 < mid[1] < 1 and sel() == Y and ev("document.querySelector('#calDay').style.transform") in ('', 'none'), [mid, sel()])
+    # 位移在 rAF 里写：WebKit 无头模式 rAF 偶尔晚一两帧，轮询等它写到最后一次 touchmove 的位置（最多 1 秒）
+    try: p.wait_for_function("document.querySelector('.cal-track').style.transform.indexOf('translate3d(120')===0", timeout=1000)
+    except Exception: pass
+    mid = ev("(()=>{const e=document.querySelector('.cal-track');return [e.style.transform,document.querySelector('.cal-pane.is-prev').getBoundingClientRect().right]})()")
+    ev("(()=>{const t=document.querySelector('#calDay');const e=new Event('touchcancel',{bubbles:true});Object.defineProperty(e,'changedTouches',{value:[]});t.dispatchEvent(e)})()"); p.wait_for_timeout(450)
+    check('#285 滑动中间帧：内容 1:1 跟手（第 286 次），前一天从左边露出来；取消后归位、日期不变', mid[0].startswith('translate3d(120') and abs(mid[1] - (r[0] - ev("document.querySelector('.cal-pager').getBoundingClientRect().width")/2 + 120)) <= 1.5 and sel() == Y and ev("document.querySelector('.cal-track').style.transform") in ('', 'none'), [mid, sel()])
     ok_drawer = ev("!Drawer.isOpen()")
     check('#285 在内容区右滑不会拉出侧拉页（data-no-drawer）', ok_drawer, ok_drawer)
     # —— 时间带点位 = 记录时间 ——
@@ -3091,19 +3095,19 @@ def test_r285(b):
     ev("""(()=>{const d=Storage.get();d.meds.push({id:'m285',time:__L(new Date(new Date().setHours(0,30,0,0)).getTime()),name:'服药',note:null});Storage.save()})()""")
     go('home'); go('calendar', 500)
     row = ev("""(()=>{const li=[...document.querySelectorAll('#calDay .day-list li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='服药');return li?{val:!!li.querySelector('.dt-val'),txt:li.innerText.replace(/\\s+/g,' ')}:null})()""")
-    lines = ev("[...document.querySelectorAll('#calDay .day-list li[data-ti]')].map(li=>li.children.length)")
-    check('#285 时间轴一行只有 时间 · 图标 · 名称 · 数值：「服药 / 服药」这种同义第二行不显示', row and not row['val'] and all(n <= 4 for n in lines), [row, lines])
+    lines = ev("[...document.querySelectorAll('#calDay .day-list li[data-ti]')].map(li=>[...li.children].filter(c=>!c.classList.contains('dt-more')).length)")
+    check('#285 时间轴一行只有 时间 · 图标 · 名称 · 数值（第 286 次末尾加「…」）：「服药 / 服药」这种同义第二行不显示', row and not row['val'] and all(n <= 4 for n in lines), [row, lines])
     gaps = ev("[...document.querySelectorAll('#calDay .dt-gap')].map(g=>g.textContent)")
     ev(f"Modules.calendar._go('{Y}')"); p.wait_for_timeout(400)
     gy = ev("[...document.querySelectorAll('#calDay .dt-gap')].map(g=>g.textContent)")
     check('#285 间隔按上一段结束算（睡眠按醒来）：今天夜里喂奶在睡眠里不写间隔；只有 ≥3 小时才写', gaps == [] and all('小时' in g for g in gy), [gaps, gy])
     # —— 空状态 ——
     ev(f"Modules.calendar._go('{E}')"); p.wait_for_timeout(400)
-    em = ev("(()=>{const c=document.getElementById('calDay');return {t:c.querySelector('.day-empty')&&c.querySelector('.day-empty').textContent,ps:c.querySelectorAll('p,.hint,.es-ico,svg.empty').length,shape:!!c.querySelector('.day-shape'),quick:c.querySelectorAll('[data-backfill]').length,txt:c.innerText}})()")
+    em = ev("(()=>{const c=document.getElementById('calDay');return {t:c.querySelector('.day-empty')&&c.querySelector('.day-empty').textContent,ps:c.querySelectorAll('p,.hint,.es-ico,svg.empty').length,shape:!!c.querySelector('.day-shape'),quick:document.querySelectorAll('#view .cal-qbar [data-qk]').length+c.querySelectorAll('[data-backfill]').length*100,txt:c.innerText}})()")
     ev("""(()=>{const d=Storage.get();const t=Util.todayISO();['feedings','sleeps','diapers','meds'].forEach(k=>d[k]=(d[k]||[]).filter(r=>String(r.start||r.time||'').slice(0,10)!==t&&String(r.end||'').slice(0,10)!==t));Storage.save()})()""")
     go('home'); go('calendar', 500)
     et = ev("(()=>{const c=document.getElementById('calDay');return {t:c.querySelector('.day-empty')&&c.querySelector('.day-empty').textContent,txt:c.innerText}})()")
-    check('#285 空状态只有一句：今天「今天还没有记录」、别的日子「这一天没有记录」，下面补记小条；不再有空盒子图标和重复说明', em['t'] == '这一天没有记录' and em['ps'] == 1 and not em['shape'] and em['quick'] == 3
+    check('#285 空状态只有一句：今天「今天还没有记录」、别的日子「这一天没有记录」；补记小条并进底部快捷条（第 286 次，只有一份）；不再有空盒子图标和重复说明', em['t'] == '这一天没有记录' and em['ps'] == 1 and not em['shape'] and em['quick'] == 5
           and et['t'] == '今天还没有记录' and '有记录的日期' not in et['txt'] and '暂无' not in et['txt'], [em, et])
     # —— 底部不遮挡（浅 / 深、320 宽 + 1.33 倍字号、正在进行胶囊）——
     ev(R285_SEED)
@@ -3116,14 +3120,15 @@ def test_r285(b):
         if dark: ev("document.body.classList.add('dark')")
         go('calendar', 500); ev(f"Modules.calendar._go('{Y}')"); p.wait_for_timeout(400)
         ev("scrollTo(0,document.documentElement.scrollHeight)"); p.wait_for_timeout(400)
-        g = ev("""(()=>{const pv=document.querySelector('#calDay .cal-prev').getBoundingClientRect(),q=document.querySelector('#calDay .cal-quick').getBoundingClientRect();
+        g = ev("""(()=>{const pv=document.querySelector('#calDay .cal-prev').getBoundingClientRect(),q=document.querySelector('#view .cal-qbar').getBoundingClientRect();
           const tops=['tabbar','dockLive','dockOrb'].map(i=>document.getElementById(i)).filter(e=>e&&!e.hidden&&e.getBoundingClientRect().height>0).map(e=>e.getBoundingClientRect().top);
           const top=Math.min(...tops,innerHeight);const li=[...document.querySelectorAll('#calDay .day-list li')].pop().getBoundingClientRect();
-          return {prev:pv.bottom,quick:q.bottom,last:li.bottom,dock:top}})()""")
-        if not (g['prev'] <= g['dock'] - 8 and g['quick'] < g['prev'] and g['last'] < g['quick']): badb.append([w, fs, dark, live, g])
+          return {prev:pv.bottom,quick:q.bottom,qtop:q.top,last:li.bottom,dock:top}})()""")
+        # 第 286 次：快捷条固定在 dock 上方；滚到底时最后一条和「查看前一天」都在快捷条上方
+        if not (g['quick'] <= g['dock'] - 4 and g['prev'] <= g['qtop'] - 4 and g['last'] < g['prev']): badb.append([w, fs, dark, live, g])
     ev("(()=>{const s=Storage.get();s.settings.fontScale='normal';s.openSleep=null;Storage.save()})()")
     p.set_viewport_size({'width': 393, 'height': 852}); p.reload(); p.wait_for_timeout(700); ev(R285_SEED)
-    check('#285 滚到底：最后一条、补记小条、「查看前一天」都在 dock / 正在进行胶囊上方（浅 / 深、320 宽 + 1.33 倍字号、胶囊）', not badb, badb)
+    check('#285 滚到底：最后一条、「查看前一天」在快捷条上方，快捷条在 dock / 正在进行胶囊上方（浅 / 深、320 宽 + 1.33 倍字号、胶囊）', not badb, badb)
     # —— 「查看前一天」、周条小圆点、跳转日期半屏 ——
     go('calendar', 500)
     ev("document.querySelector('#calDay [data-cal-prev]').click()"); p.wait_for_timeout(500)
@@ -3140,10 +3145,10 @@ def test_r285(b):
     # —— 离开回到今天；补记回来停在原来那天 ——
     go('home'); go('calendar', 400); s_home = sel()
     ev(f"Modules.calendar._go('{Y}')"); p.wait_for_timeout(400)
-    ev("document.querySelector('#calDay [data-backfill=diaper]').click()"); p.wait_for_timeout(400)
-    pd = ev("App.pendingDate || (document.querySelector('#view').innerText.indexOf('尿布')>=0)")
+    ev("Modules.calendar._state.keep=true;App.showTab('vaccine',{noVT:true})"); p.wait_for_timeout(400)
+    pd = ev("App.currentTab()==='vaccine'")
     go('calendar', 400); s_back = sel()
-    check('#285 离开日期页再回来是今天；去补记再回来停在原来那天', s_home == T and s_back == Y and pd, [s_home, s_back])
+    check('#285 离开日期页再回来是今天；从日期页去模块页（疫苗等）再回来停在原来那天', s_home == T and s_back == Y and pd, [s_home, s_back])
     # —— 周回顾提醒的「去看看」打开跳转日期半屏（回顾挪到那里了）——
     ev("(()=>{const s=Storage.get();s.settings.weeklyReviewEnabled=true;s.settings.lastReviewISO=Util.addDays(Util.todayISO(),-8);Storage.save()})()")
     p.reload(); p.wait_for_timeout(1200); ev(R285_SEED)
@@ -3164,9 +3169,346 @@ def test_r285(b):
     ctx.close()
 
 
+R286_SEED = r"""(()=>{const L=window.__L;const d=Storage.get();const t0=new Date();t0.setHours(0,0,0,0);const Y=t0.getTime()-864e5;
+ const at=(h,m)=>L(Y+(h*60+m)*60e3);
+ d.baths=[{id:'b286',time:at(7,0),minutes:10,note:'洗头哭了'}];d.swims=[{id:'w286',time:at(7,30),minutes:15,note:null}];
+ d.suns=[{id:'u286',time:at(10,20),minutes:8,area:'face',note:null}];d.jaundices=[{id:'j286',time:at(11,0),value:12.5,unit:'mgdl',site:'forehead',note:null}];
+ d.moods=[{id:'mo286',time:at(16,0),level:4,tags:[],note:null}];d.laborEvents=[{id:'le286',time:at(16,30),type:'water',note:null}];
+ d.supplements=[{id:'sp286',time:at(8,5),name:'维生素AD',dose:'1 粒',note:null}];d.waters=[{id:'wa286',time:at(13,0),ml:120,note:null}];
+ if(!d.finance)d.finance={records:[]};d.finance.records=[{id:'fi286',date:Util.fmtDate(new Date(Y)),category:'尿布',amount:59,note:null}];
+ Storage.save();return Util.fmtDate(new Date(Y))})()"""
+PV_JS = "window.__pv=[];if(!window.__pvOn){window.__pvOn=1;window.addEventListener('touchmove',e=>{window.__pv.push(e.defaultPrevented)},{passive:true})}"
+
+
+def test_r286(b):
+    """第 286 次：日期页原生分页手感（三联 1:1 跟手、方向锁定、距离 / 速度翻页、未来橡皮筋、连续快速翻页、减少动态效果）；
+    洗澡 / 游泳 / 日晒 / 黄疸 / 情绪 / 破水进日期页（时间轴、时间带、有记录圆点、编辑删除联动，记账不进）；底部快捷条；
+    右上角宝宝切换；跳转日期图例 + 数据管理（JSON 往返、去重、新建宝宝、导入历史、XSS 文件名）；侧拉页连续左滑；「＋」开合动画。"""
+    ctx = b.new_context(viewport={'width': 393, 'height': 852}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(700)
+    ev = p.evaluate
+    ev('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(700)
+    days = ev(R285_SEED); Y = ev(R286_SEED); T = days[1][:10]
+
+    def go(t, w=300):
+        ev(f"App.showTab('{t}',{{noVT:true}})"); p.wait_for_timeout(w)
+
+    def sel():
+        return ev("Modules.calendar._state.sel")
+
+    def center():  # 分页容器本身不动（当天那块在翻页动画里会移走），手指按在容器里
+        return ev("(()=>{const b=document.querySelector('.cal-pager').getBoundingClientRect();return [b.left+b.width/2,Math.max(b.top,0)+60]})()")
+
+    def drag(dx, steps=6, ms=12, end=1, dy=3, el='#calDay'):
+        r = center() if el == '#calDay' else ev(f"(()=>{{const b=document.querySelector('{el}').getBoundingClientRect();return [b.left+b.width/2,b.top+b.height/2]}})()")
+        ev("window.__t2nostart=false")
+        ev(TOUCH2_JS, [r[0], r[1], r[0] + dx, r[1] + dy, end, steps, ms])
+
+    go('calendar', 500); ev(f"Modules.calendar._go('{Y}')"); p.wait_for_timeout(500)
+    # —— 1. 新类型进当天时间轴 + 时间带 ——
+    rows = ev("""[...document.querySelectorAll('#calDay .day-list li[data-ti]')].map(li=>[li.querySelector('.dl-time').textContent,li.querySelector('.dl-label').textContent,(li.querySelector('.dt-val')||{}).textContent||'',li.dataset.accent,li.querySelectorAll('.dl-note').length])""")
+    want = [['07:00', '洗澡', '10 分钟', 'bath'], ['07:30', '游泳', '15 分钟', 'swim'], ['10:20', '日晒', '8 分钟', 'sun'], ['11:00', '黄疸', '12.5 mg/dL', 'jaundice'],
+            ['16:00', '情绪', '不错', 'mood'], ['16:30', '破水', '', 'contraction'], ['08:05', '营养品', '维生素AD 1 粒', 'supplement'], ['13:00', '饮水', '120 ml', 'water']]
+    got = {r[1]: r for r in rows}
+    miss = [w for w in want if w[1] not in got or got[w[1]][:4] != w]
+    check('#286 洗澡 / 游泳 / 日晒 / 黄疸 / 情绪 / 破水 / 营养品 / 饮水进当天时间轴：时间 · 名称 · 关键数值 · 模块色，没有第二行（备注不显示）', not miss and got['洗澡'][4] == 0, [miss, rows])
+    check('#286 记账不进日期页（时间轴、时间带都没有）', '记账' not in got and not ev("[...document.querySelectorAll('#calDay .dsh-dot')].some(d=>d.dataset.accent==='finance')"), list(got))
+    dots = ev("""(()=>{const out={};document.querySelectorAll('#calDay .dsh-dot').forEach(d=>{const li=document.getElementById('dtl'+d.dataset.ti);out[li.querySelector('.dl-label').textContent]=[Math.round(parseFloat(d.style.left)*14.4),d.dataset.accent===li.dataset.accent,getComputedStyle(d,'::before').backgroundColor]});return out})()""")
+    tmin = {'洗澡': 420, '游泳': 450, '日晒': 620, '黄疸': 660, '情绪': 960, '破水': 990}
+    badd = [k for k, m in tmin.items() if k not in dots or abs(dots[k][0] - m) > 1 or not dots[k][1]]
+    cols = len(set(dots[k][2] for k in ('洗澡', '游泳', '日晒', '黄疸', '情绪') if k in dots))
+    check('#286 时间带上各有一个点：位置 = 记录时间、颜色 = 各模块主色（5 种新类型 5 种颜色）', not badd and cols == 5, [badd, dots])
+    ev("scrollTo(0,0)"); ti = ev("[...document.querySelectorAll('#calDay .dsh-dot')].find(d=>document.getElementById('dtl'+d.dataset.ti).querySelector('.dl-label').textContent==='情绪').dataset.ti")
+    ev(f"document.querySelector('#calDay .dsh-dot[data-ti=\"{ti}\"]').click()"); p.wait_for_timeout(800)
+    fl = ev(f"(()=>{{const r=document.getElementById('dtl{ti}').getBoundingClientRect();return [r.top>0&&r.bottom<innerHeight,document.getElementById('dtl{ti}').classList.contains('is-flash')]}})()")
+    check('#286 点情绪那个点：滚到时间轴那一条并轻闪', fl == [True, True], fl)
+    # —— 2. 点按修改 / … 删除，走各模块已有逻辑 ——
+    ev("scrollTo(0,0)"); p.wait_for_timeout(100)
+    ev("[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='洗澡').querySelector('.dl-label').click()"); p.wait_for_timeout(400)
+    sh = ev("(()=>{const h=document.querySelector('#modalRoot h2');const i=document.querySelector('#modalRoot #sk_minutes');return [h&&h.textContent,i&&i.value,(document.querySelector('#modalRoot #skDate')||{}).value]})()")
+    ev("(()=>{const i=document.querySelector('#modalRoot #sk_minutes');i.value='25';i.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#modalRoot [data-ok].rs-save, #modalRoot .rs-save').click()})()"); p.wait_for_timeout(500)
+    v2 = ev("[...document.querySelectorAll('#calDay li[data-ti]')].filter(l=>l.querySelector('.dl-label').textContent==='洗澡').map(l=>l.querySelector('.dt-val').textContent)")
+    check('#286 点洗澡那一行：打开洗澡模块自己的修改面板（时长 10、日期是那天），改成 25 保存后时间轴跟着变', sh[0] == '修改洗澡' and sh[1] == '10' and sh[2] == Y and v2 == ['25 分钟'] and sel() == Y, [sh, v2, sel()])
+    ev("[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='游泳').querySelector('.dt-more').click()"); p.wait_for_timeout(350)
+    try: p.wait_for_selector('.cal-pop-mask [data-pick=del]', timeout=1500)  # WebKit 冷启动偶尔慢一拍：等菜单出来再点
+    except Exception: pass
+    mn = ev("(()=>{const m=document.querySelector('.cal-pop-mask .cal-rmenu');return m?[...m.querySelectorAll('[data-pick]')].map(b=>b.textContent):null})()")
+    ev("(document.querySelector('.cal-pop-mask [data-pick=del]')||{click(){}}).click()"); p.wait_for_timeout(500)
+    gone = ev("[!Storage.get().swims.length,[...document.querySelectorAll('#calDay .dl-label')].some(e=>e.textContent==='游泳'),!!document.querySelector('.cal-pop-mask')]")
+    und = ev("(()=>{const b=[...document.querySelectorAll('#toastRoot button')].find(x=>x.textContent.indexOf('撤销')>=0);if(b){b.click();return true}return false})()"); p.wait_for_timeout(400)
+    back = ev("[Storage.get().swims.length,[...document.querySelectorAll('#calDay .dl-label')].some(e=>e.textContent==='游泳')]")
+    check('#286 「…」菜单（修改 / 删除）：删除游泳 → 数据和时间轴同时没了，撤销后都回来', mn == ['修改', '删除'] and gone == [True, False, False] and und and back == [1, True], [mn, gone, und, back])
+    ev("[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='尿布').querySelector('.dt-more').click()"); p.wait_for_timeout(300)
+    nd0 = ev("Storage.get().diapers.length"); ev("document.querySelector('.cal-pop-mask [data-pick=del]').click()"); p.wait_for_timeout(400)
+    nd1 = ev("Storage.get().diapers.length")
+    ev("[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='情绪').click()"); p.wait_for_timeout(400)
+    mh = ev("(document.querySelector('#modalRoot h2')||{}).textContent"); ev("Sheet.closeTop()"); p.wait_for_timeout(300)
+    ev("[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='母乳').click()"); p.wait_for_timeout(400)
+    fh = ev("(document.querySelector('#modalRoot h2')||{}).textContent"); ev("Sheet.closeTop()"); p.wait_for_timeout(300)
+    check('#286 尿布走尿布模块的删除（少一条），情绪 / 母乳点开各自模块的修改面板', nd1 == nd0 - 1 and mh == '修改情绪' and fh == '编辑喂养记录', [nd0, nd1, mh, fh])
+    # 刚保存关掉面板就立刻点「…」：菜单照常弹出并留着（重画在保存时同步做完，不会事后把菜单关掉）
+    ev("[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='洗澡').querySelector('.dl-label').click()"); p.wait_for_timeout(400)
+    race = ev("(()=>{document.querySelector('#modalRoot .rs-save').click();const m=[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='游泳');m.querySelector('.dt-more').click();return !!document.querySelector('.cal-pop-mask .cal-rmenu')})()")
+    p.wait_for_timeout(900)
+    race2 = ev("!!document.querySelector('.cal-pop-mask .cal-rmenu')")
+    p.keyboard.press('Escape'); p.wait_for_timeout(300)
+    check('#286 刚保存关掉面板就点「…」：菜单弹出后留着；Esc 关闭', race and race2 and not ev("!!document.querySelector('.cal-pop-mask')"), [race, race2])
+    # 连点：同一行快速点两下只开一个面板
+    ev("(()=>{const l=[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='日晒');l.click();l.click()})()"); p.wait_for_timeout(300)
+    nm = ev("document.querySelectorAll('#modalRoot .modal-mask').length"); ev("Sheet.closeTop()"); p.wait_for_timeout(300)
+    check('#286 同一行连点两下只开一个修改面板（第 281 次防重复）', nm == 1, nm)
+    # —— 3. 有记录圆点（周条 + 月历）算上新类型 ——
+    E = ev("Util.addDays(Util.todayISO(),-9)")
+    ev(f"(()=>{{const d=Storage.get();d.suns.push({{id:'u2',time:'{E}T09:00:00',minutes:5,area:'all',note:null}});Storage.save()}})()")
+    go('home'); go('calendar', 400); ev(f"Modules.calendar._go('{E}')"); p.wait_for_timeout(450)
+    sdot = ev(f"!!document.querySelector('#calStrip [data-ws=\"{E}\"] .ws-dot')")
+    ev("Modules.calendar._openJump()"); p.wait_for_timeout(400)
+    jm = ev(f"""(()=>{{const m=document.querySelector('#modalRoot .cal-sheet');const c=m.querySelector('.cal-cell[data-day="{E}"]');return [!!(c&&c.querySelector('.cal-dot')),(m.querySelector('.cal-legend')||{{}}).textContent,!!m.querySelector('.cal-cell.is-today'),!!m.querySelector('[data-dm]')]}})()""")
+    check('#286 只有一条日晒的日子：周条和跳转日期月历都有「有记录」小圆点；月历底部「· 有记录」图例、今天高亮、数据管理入口', sdot and jm == [True, '有记录', True, True], [sdot, jm])
+    ev("document.querySelector('#modalRoot [data-dm]').click()"); p.wait_for_timeout(500)
+    dmo = ev("(()=>{const m=document.querySelector('#modalRoot .dm-sheet');return m?[m.querySelector('h2').textContent,[...m.querySelectorAll('.dm-row b')].map(b=>b.textContent)]:null})()")
+    ev("Sheet.closeTop()"); p.wait_for_timeout(300)
+    check('#286 数据管理半屏：导入数据 / 导出数据 / 导入历史', dmo == ['数据管理', ['导入数据', '导出数据', '导入历史']], dmo)
+    # —— 4. 分页手势 ——
+    go('home'); go('calendar', 500)
+    ev(PV_JS)
+    drag(30, steps=6, ms=12, dy=120); p.wait_for_timeout(450)
+    pv = ev("window.__pv")
+    check('#286 方向锁定：竖向为主的手势不换日期、不拦截（touchmove 一次都没 preventDefault），track 不动', sel() == T and not any(pv) and ev("document.querySelector('.cal-track').style.transform") in ('', 'none'), [sel(), pv])
+    ev(PV_JS)
+    drag(-200, steps=30, ms=8, end='none'); p.wait_for_timeout(80)
+    rb = ev("new DOMMatrix(getComputedStyle(document.querySelector('.cal-track')).transform).m41")
+    pv2 = ev("window.__pv")
+    ev("(()=>{const t=document.querySelector('#calDay');const e=new Event('touchend',{bubbles:true});Object.defineProperty(e,'changedTouches',{value:[{clientX:0,clientY:0}]});t.dispatchEvent(e)})()"); p.wait_for_timeout(500)
+    check('#286 今天往左（未来）拖 200px：橡皮筋阻尼（只走了一小段）、横向锁定后才 preventDefault；松手回弹，不能翻到未来', -110 < rb < -30 and pv2.count(True) >= 20 and not pv2[0] and sel() == T, [rb, pv2, sel()])
+    drag(60, steps=3, ms=12); p.wait_for_timeout(500); s_fl = sel()
+    drag(-60, steps=3, ms=12); p.wait_for_timeout(500); s_fl2 = sel()
+    W = ev("document.querySelector('.cal-pager').clientWidth")
+    drag(int(W * 0.25), steps=12, ms=50, end=2); p.wait_for_timeout(500); s_slow = sel()
+    drag(int(W * 0.4), steps=12, ms=50, end=2); p.wait_for_timeout(500); s_far = sel()
+    check('#286 按速度翻页：快甩 60px 就翻（右甩前一天、左甩回来）；慢拖 1/4 宽回弹，慢拖超过 1/3 宽翻页', s_fl == ev(f"Util.addDays('{T}',-1)") and s_fl2 == T and s_slow == T and s_far == ev(f"Util.addDays('{T}',-1)"), [s_fl, s_fl2, s_slow, s_far, W])
+    ev(f"Modules.calendar._go('{T}')"); p.wait_for_timeout(500)
+    for _ in range(5):
+        drag(90, steps=3, ms=10); p.wait_for_timeout(70)
+    p.wait_for_timeout(500)
+    s5 = sel()
+    for _ in range(3):
+        drag(-90, steps=3, ms=10); p.wait_for_timeout(70)
+    p.wait_for_timeout(500)
+    s2 = sel()
+    con = ev("""(()=>{const s=Modules.calendar._state.sel;const idx=Util.buildDayIndex(Storage.get())[s]||[];const n=idx.filter(i=>i.icon!=='finance').length;
+      const ps=[...document.querySelectorAll('.cal-pane')].map(p=>p.className);return [document.getElementById('calTitle').textContent,document.querySelectorAll('#calDay li[data-ti]').length,n,ps.filter(c=>c.indexOf('is-cur')>=0).length,
+      document.querySelector('#calStrip [aria-current=date]')?document.querySelector('#calStrip [aria-current=date]').dataset.ws:null]})()""")
+    tt = ev(f"(()=>{{const d=new Date(Util.addDays('{T}',-2)+'T00:00:00');return (d.getMonth()+1)+' 月 '+d.getDate()+' 日 周'+'日一二三四五六'[d.getDay()]}})()")
+    check('#286 动画中连续快速翻页：右翻 5 次 = 5 天前，再左翻 3 次 = 2 天前；标题、时间轴条数、周条选中都对得上，只有一块是当前', s5 == ev(f"Util.addDays('{T}',-5)") and s2 == ev(f"Util.addDays('{T}',-2)") and con[0] == tt and con[1] == con[2] and con[3] == 1 and con[4] == s2, [s5, s2, con, tt])
+    nd = ev("[Drawer.isOpen(),document.body.className.indexOf('sd-')>=0]")
+    check('#286 在内容区左右滑不会拉出侧拉页，也不留 sd-* 状态', nd == [False, False], nd)
+    wk0 = sel(); drag(150, steps=5, ms=12, el='#calStrip'); p.wait_for_timeout(500); wk1 = sel()
+    wsN = ev("[...document.querySelectorAll('#calStrip [data-ws]')].map(b=>b.dataset.ws)")
+    check('#286 周条同样分页：右甩 = 上一周（选中日期 −7），周条换成那一周', wk1 == ev(f"Util.addDays('{wk0}',-7)") and wk1 in wsN and len(wsN) == 7, [wk0, wk1, wsN])
+    # 减少动态效果：不跟手、松手直接换
+    p.emulate_media(reduced_motion='reduce')
+    ev(f"Modules.calendar._go('{Y}')"); p.wait_for_timeout(300)
+    drag(140, steps=6, ms=12, end='none'); p.wait_for_timeout(60)
+    rtf = ev("document.querySelector('.cal-track').style.transform")
+    ev("(()=>{const t=document.querySelector('#calDay');const e=new Event('touchend',{bubbles:true});Object.defineProperty(e,'changedTouches',{value:[{clientX:0,clientY:0}]});t.dispatchEvent(e)})()"); p.wait_for_timeout(40)
+    rs = [sel(), ev("document.querySelector('.cal-track').style.transform")]
+    p.emulate_media(reduced_motion='no-preference')
+    check('#286 减少动态效果：拖动时内容不跟手平移，松手立即换到前一天（无滑动动画）', rtf in ('', 'none') and rs[0] == ev(f"Util.addDays('{Y}',-1)") and rs[1] in ('', 'none'), [rtf, rs])
+    # —— 5. 底部快捷条 ——
+    go('home'); go('calendar', 400); ev(f"Modules.calendar._go('{Y}')"); p.wait_for_timeout(450)
+    qb = ev("[...document.querySelectorAll('#view .cal-qbar [data-qk]')].map(b=>b.textContent)")
+    check('#286 底部快捷条默认 亲喂 / 瓶喂 / 辅食 / 生长 / 尿布，是固定在 dock 上方的那一份（.mod-cta），页面里没有第二份补记小条', qb == ['亲喂', '瓶喂', '辅食', '生长', '尿布'] and ev("document.querySelectorAll('#view .mod-cta').length") == 1 and not ev("document.querySelector('[data-backfill]')"), qb)
+    ev("document.querySelector('.cal-qbar [data-qk=breast]').click()"); p.wait_for_timeout(400)
+    bd = ev("[(document.querySelector('#modalRoot h2')||{}).textContent,(document.querySelector('#modalRoot #sDate')||{}).value,(document.querySelector('#modalRoot #sTime')||{}).value]")
+    ev("(()=>{document.querySelector('#modalRoot #mL').value='7';document.querySelector('#modalRoot [data-save]').click()})()"); p.wait_for_timeout(500)
+    nb = ev(f"Storage.get().feedings.filter(r=>r.type==='breast'&&r.durationL===7).map(r=>r.start.slice(0,10))")
+    rowb = ev("[...document.querySelectorAll('#calDay .day-list li[data-ti]')].some(l=>l.querySelector('.dl-label').textContent==='母乳'&&(l.querySelector('.dt-val')||{}).textContent==='7 分')")
+    nowhm = ev("(()=>{const d=new Date();return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)})()")
+    check('#286 选昨天点「亲喂」：直接在日期页打开补记亲喂面板，日期 = 昨天、时间 = 现在的钟点（面板里可改），保存后记到昨天、昨天时间轴多一条，页面停在昨天', bd[0] == '补记亲喂' and bd[1] == Y and bd[2][:2] == nowhm[:2] and nb == [Y] and rowb and sel() == Y and ev("App.currentTab()") == 'calendar', [bd, nb, rowb, sel()])
+    ev("document.querySelector('.cal-qbar [data-qk=growth]').click()"); p.wait_for_timeout(500)
+    gd = ev("(document.querySelector('#grDate')||{}).value"); ev("Sheet.closeTop()"); p.wait_for_timeout(300)
+    p.wait_for_timeout(200)
+    ev("document.querySelector('.cal-qbar [data-qk=diaper]').click()"); p.wait_for_timeout(400)
+    dd = ev("[...document.querySelectorAll('#modalRoot input[type=date]')].map(i=>i.value)"); ev("Sheet.closeTop()"); p.wait_for_timeout(300)
+    check('#286 快捷条「生长」「尿布」打开各自模块的记录面板，日期都是所选那天', gd == Y and dd and all(x == Y for x in dd), [gd, dd])
+    ev("(()=>{const s=Storage.get();s.settings.calQuick=['bath','temp','diaper','mood','sleep'];Storage.save()})()"); go('home'); go('calendar', 400)
+    qb2 = ev("[...document.querySelectorAll('#view .cal-qbar [data-qk]')].map(b=>b.dataset.qk)")
+    ev(f"Modules.calendar._go('{Y}')"); p.wait_for_timeout(450)
+    ev("document.querySelector('.cal-qbar [data-qk=bath]').click()"); p.wait_for_timeout(400)
+    bh = ev("[(document.querySelector('#modalRoot h2')||{}).textContent,(document.querySelector('#modalRoot #skDate')||{}).value]")
+    ev("(()=>{const i=document.querySelector('#modalRoot #sk_minutes');i.value='12';document.querySelector('#modalRoot .rs-save').click()})()"); p.wait_for_timeout(500)
+    nbath = ev("Storage.get().baths.filter(r=>r.minutes===12).map(r=>r.time.slice(0,10))")
+    ev("(()=>{const s=Storage.get();s.settings.calQuick='auto';Storage.save()})()"); go('home'); go('calendar', 400)
+    qa = ev("Modules.calendar._quickIds()")
+    ev("(()=>{const s=Storage.get();s.settings.calQuick=null;Storage.save()})()")
+    check('#286 设置里自选的快捷条按固定顺序显示；点「洗澡」记到所选那天；「按使用频率」挑近 30 天用得多的 5 个（喂养 / 尿布 / 睡眠在内）', qb2 == ['diaper', 'sleep', 'temp', 'bath', 'mood'] and bh == ['记录洗澡', Y] and nbath == [Y] and len(qa) == 5 and 'diaper' in qa and 'sleep' in qa, [qb2, bh, nbath, qa])
+    # —— 6. 右上角宝宝切换 ——
+    go('home'); go('calendar', 400)
+    hd = ev("""(()=>{const t=document.getElementById('calTitle').getBoundingClientRect(),a=document.querySelector('[data-cal-baby]').getBoundingClientRect(),c=document.querySelector('[data-cal-jump]').getBoundingClientRect();
+      return {tl:t.left<a.left,adj:Math.round(c.left-a.right),same:[a.width,a.height]+''==[c.width,c.height]+'',top:Math.abs(a.top-c.top)<1,badge:!!document.querySelector('[data-cal-baby] .cb-badge'),right:Math.round(innerWidth-c.right)}})()""")
+    check('#286 页头：日期标题在左，宝宝头像（带切换角标）在右上角、紧挨日历按钮左边，两颗同尺寸同一行', hd['tl'] and 4 <= hd['adj'] <= 12 and hd['same'] and hd['top'] and hd['badge'], hd)
+    ev("document.querySelector('[data-cal-baby]').click()"); p.wait_for_timeout(350)
+    m1 = ev("""(()=>{const m=document.querySelector('.cal-pop-mask .cal-bmenu');if(!m)return null;const r=m.getBoundingClientRect(),a=document.querySelector('[data-cal-baby]').getBoundingClientRect();
+      return {rows:m.querySelectorAll('.cp-baby').length,cur:m.querySelectorAll('.cp-baby.is-cur .cp-chk svg').length,acts:[...m.querySelectorAll('.cp-act b')].map(b=>b.textContent),fromTR:r.top>=a.bottom&&Math.abs(r.right-a.right)<=2,exp:document.querySelector('[data-cal-baby]').getAttribute('aria-expanded')}})()""")
+    p.keyboard.press('Escape'); p.wait_for_timeout(300)
+    check('#286 只有一个宝宝也能点开：右上角弹出（菜单右边对齐头像、在它下面），当前宝宝打勾，下面「编辑资料」「添加宝宝」；Esc 关闭', m1 and m1['rows'] == 1 and m1['cur'] == 1 and m1['acts'] == ['编辑资料', '添加宝宝'] and m1['fromTR'] and m1['exp'] == 'true' and not ev("!!document.querySelector('.cal-pop-mask')") and ev("document.querySelector('[data-cal-baby]').getAttribute('aria-expanded')") == 'false', m1)
+    idA = ev("Storage.get().settings.activeBabyId")
+    idB = ev("Storage.addBaby({name:'<img src=x onerror=window.__x286b=1>二宝',birthDate:Util.addDays(Util.todayISO(),-40)}).id")
+    ev(f"Storage.switchBaby('{idA}')")  # addBaby 会切到新宝宝，先切回大宝
+    go('home'); go('calendar', 400); ev(f"Modules.calendar._go('{Y}')"); p.wait_for_timeout(450)
+    nA = ev("document.querySelectorAll('#calDay li[data-ti]').length")
+    ev("document.querySelector('[data-cal-baby]').click()"); p.wait_for_timeout(350)
+    xs = ev("({x:window.__x286b,img:document.querySelectorAll('.cal-pop-mask img[src=x]').length,txt:[...document.querySelectorAll('.cal-pop-mask .cp-baby b')].map(b=>b.textContent)})")
+    ev(f"document.querySelector('.cal-pop-mask [data-pick=\"b:{idB}\"]').click()"); p.wait_for_timeout(80)
+    fx = ev("!!document.querySelector('.cal-swap')"); p.wait_for_timeout(500)
+    # 情绪 / 破水是妈妈的记录（不分宝宝），换宝宝后仍在；宝宝的记录全部换成二宝的（空）
+    sw = ev("""({act:Storage.get().settings.activeBabyId,sel:Modules.calendar._state.sel,rows:[...document.querySelectorAll('#calDay li[data-ti] .dl-label')].map(e=>e.textContent).filter(t=>t!=='情绪'&&t!=='破水').length,
+      dots:[...document.querySelectorAll('#calDay .dsh-dot')].filter(d=>d.dataset.accent!=='mood'&&d.dataset.accent!=='contraction').length,
+      ws:[...document.querySelectorAll('#calStrip [data-ws]')].filter(b=>b.querySelector('.ws-dot')&&b.dataset.ws!==Modules.calendar._state.sel).length,aria:document.querySelector('[data-cal-baby]').getAttribute('aria-label')})""")
+    ev("Modules.calendar._openJump()"); p.wait_for_timeout(400)
+    sw['fx'] = fx
+    mdB = ev("[...document.querySelectorAll('#modalRoot .cal-grid .cal-cell')].filter(c=>c.querySelector('.cal-dot')&&c.dataset.day!==Modules.calendar._state.sel).length"); ev("Sheet.closeTop()"); p.wait_for_timeout(300)
+    check('#286 宝宝名里的 HTML 只当文字（菜单、头像 aria-label），不执行', not xs['x'] and xs['img'] == 0 and any('<img' in t for t in xs['txt']) and '<img' in (sw['aria'] or ''), [xs, sw['aria']])
+    check('#286 切到二宝：日期页停在原来那天、带轻转场；时间轴 / 时间带 / 周条圆点 / 月历圆点都换成二宝的（宝宝记录为空，只剩妈妈的情绪 / 破水）', sw['act'] == idB and sw['sel'] == Y and sw['rows'] == 0 and sw['dots'] == 0 and sw['ws'] == 0 and sw['fx'] and mdB == 0 and nA > 0, [sw, mdB, nA])
+    go('home', 300); hb = ev("[Storage.activeBaby().id, (document.getElementById('avatarBtn')||{}).innerHTML!==undefined]")
+    go('calendar', 400); ev(f"Modules.calendar._go('{Y}')"); p.wait_for_timeout(450)
+    ev("document.querySelector('.cal-qbar [data-qk=diaper]').click()"); p.wait_for_timeout(400)
+    ev("(()=>{const b=document.querySelector('#modalRoot [data-t=pee]');if(b)b.click()})()"); p.wait_for_timeout(100)
+    ev("(()=>{const b=document.querySelector('#modalRoot .rs-save,#modalRoot [data-ok]');if(b)b.click()})()"); p.wait_for_timeout(1000)
+    inB = ev("Storage.get().diapers.filter(r=>r.time.slice(0,10)===Modules.calendar._state.sel).length")
+    ev("document.querySelector('[data-cal-baby]').click()"); p.wait_for_timeout(350)
+    ev(f"document.querySelector('.cal-pop-mask [data-pick=\"b:{idA}\"]').click()"); p.wait_for_timeout(600)
+    back = ev("[Storage.get().settings.activeBabyId,document.querySelectorAll('#calDay li[data-ti]').length,Storage.get().babies.find(b=>b.id==='" + idB + "').rec.diapers.length]")
+    check('#286 全站当前宝宝一致（首页也是二宝）；在二宝下用快捷条记的尿布只在二宝名下；切回大宝，大宝的时间轴原样回来', hb[0] == idB and inB == 1 and back[0] == idA and back[1] == nA and back[2] == 1, [hb, inB, back, nA])
+    ev("document.querySelector('[data-cal-baby]').click()"); p.wait_for_timeout(300)
+    ev("document.querySelector('.cal-pop-mask').dispatchEvent(new MouseEvent('click',{bubbles:true}))"); p.wait_for_timeout(300)
+    check('#286 点菜单外面关闭菜单', not ev("!!document.querySelector('.cal-pop-mask')"), '')
+    # —— 7. 320 宽 + 1.33 倍字号：标题不折行、不截断 ——
+    tw = []
+    for (w, fs) in ((320, 'xl'), (320, 'normal'), (393, 'xl')):
+        p.set_viewport_size({'width': w, 'height': 700})
+        ev(f"(()=>{{const s=Storage.get();s.settings.fontScale='{fs}';Storage.save()}})()"); p.reload(); p.wait_for_timeout(700)
+        go('calendar', 400)
+        ev("Modules.calendar._go(Util.addDays(Util.todayISO(),-6))"); p.wait_for_timeout(400)  # 两位数日期也算上
+        r = ev("""(()=>{const h=document.getElementById('calTitle'),a=document.querySelector('[data-cal-baby]').getBoundingClientRect();const lh=parseFloat(getComputedStyle(h).lineHeight)||parseFloat(getComputedStyle(h).fontSize)*1.3;
+          return {sw:h.scrollWidth,cw:h.clientWidth,h:h.getBoundingClientRect().height,lh,fs:parseFloat(getComputedStyle(h).fontSize),overlap:h.getBoundingClientRect().right>a.left+0.5}})()""")
+        if not (r['sw'] <= r['cw'] + 0.5 and r['h'] < r['lh'] * 1.5 and not r['overlap'] and r['fs'] >= 16): tw.append([w, fs, r])
+    ev("(()=>{const s=Storage.get();s.settings.fontScale='normal';Storage.save()})()")
+    p.set_viewport_size({'width': 393, 'height': 852}); p.reload(); p.wait_for_timeout(700)
+    check('#286 320 宽 + 1.33 倍字号：日期标题一行放下，不折行、不截断、不压到右上角按钮（字号 ≥ 16px）', not tw, tw)
+    # —— 8. 数据管理：JSON 导出 → 导入往返一致、去重、新建宝宝、导入历史、XSS 文件名 ——
+    ev("localStorage.removeItem('yiya-import-log')")
+    snap = ev("""(()=>{const d=Storage.get();const k=['feedings','sleeps','diapers','baths','swims','suns','jaundices','moods','waters','supplements'];const o={};k.forEach(x=>o[x]=(d[x]||[]).map(r=>r.id).sort().join(','));return [Storage.exportJSON(),o]})()""")
+    ev("(()=>{Storage.reset();Storage.get().settings.privacyAccepted=true;Storage.save()})()"); p.reload(); p.wait_for_timeout(700)
+    ev("DataMgr.open()"); p.wait_for_timeout(300)
+    ok1 = ev("t=>DataMgr._preview(t,'咿呀记备份.json')", snap[0]); p.wait_for_timeout(200)
+    pvw = ev("(()=>{const m=document.querySelector('#modalRoot .dm-sheet');return [m.querySelector('.dm-big b')&&m.querySelector('.dm-big b').textContent,m.querySelectorAll('[data-tgt]').length,(m.querySelector('[data-dm=doImport]')||{}).textContent]})()")
+    ev("document.querySelector('#modalRoot [data-dm=doImport]').click()"); ev("document.querySelector('#modalRoot [data-dm=doImport]')&&document.querySelector('#modalRoot [data-dm=doImport]').click()"); p.wait_for_timeout(400)
+    rt = ev("""(()=>{const d=Storage.get();const k=['feedings','sleeps','diapers','baths','swims','suns','jaundices','moods','waters','supplements'];const o={};k.forEach(x=>o[x]=(d[x]||[]).map(r=>r.id).sort().join(','));return o})()""")
+    check('#286 导入前预览（条数 + 合并到当前宝宝 / 新建宝宝二选一）；JSON 导出再导入，各类记录 id 一一对上（往返一致）', ok1 and pvw[1] == 2 and pvw[0] and int(pvw[0]) > 0 and rt == snap[1], [ok1, pvw, [k for k in rt if rt[k] != snap[1][k]]])
+    lg1 = ev("DataMgr._log()")
+    ok2 = ev("t=>DataMgr._preview(t,'咿呀记备份.json')", snap[0]); p.wait_for_timeout(200)
+    pv2 = ev("(()=>{const m=document.querySelector('#modalRoot .dm-sheet');const b=m.querySelector('[data-dm=doImport]');return [b.disabled,m.innerText.indexOf('都已经有了')>=0]})()")
+    check('#286 同一个文件再导一次：按 id 去重，预览「都已经有了」、导入按钮不可点；连点导入只导一次（导入历史 1 条）', ok2 and pv2 == [True, True] and len(lg1) == 1 and lg1[0]['n'] == int(pvw[0]), [pv2, lg1])
+    nb0 = ev("Storage.get().babies.length")
+    ev("document.querySelector('#modalRoot [data-tgt=new]').click()"); p.wait_for_timeout(150)
+    ev("document.querySelector('#modalRoot [data-dm=doImport]').click()"); p.wait_for_timeout(400)
+    nbx = ev("(()=>{const d=Storage.get();const nb=d.babies[d.babies.length-1];return [d.babies.length,(nb.rec&&nb.rec.feedings||[]).length,d.feedings.length,d.settings.activeBabyId!==nb.id]})()")
+    check('#286 选「新建宝宝」导入：多一个宝宝档案装着文件里的记录，当前宝宝的记录不动', nbx[0] == nb0 + 1 and nbx[1] > 0 and nbx[3], [nb0, nbx])
+    ev("t=>DataMgr._preview(t,'<img src=x onerror=window.__x286f=1>.json')", snap[0]); p.wait_for_timeout(150)
+    ev("document.querySelector('#modalRoot [data-tgt=current]').click()"); p.wait_for_timeout(100)
+    ev("document.querySelector('#modalRoot [data-dm=back]').click()"); p.wait_for_timeout(100)
+    ev("(()=>{const l=JSON.parse(localStorage.getItem('yiya-import-log'));l.unshift({t:Date.now(),name:'<img src=x onerror=window.__x286f=1>.json',n:3,target:'current'});localStorage.setItem('yiya-import-log',JSON.stringify(l))})()")
+    ev("document.querySelector('#modalRoot [data-dm=log]').click()"); p.wait_for_timeout(200)
+    hx = ev("({x:window.__x286f,img:document.querySelectorAll('#modalRoot img[src=x]').length,names:[...document.querySelectorAll('#modalRoot .dm-log b')].map(b=>b.textContent),n:[...document.querySelectorAll('#modalRoot .dm-n')].map(b=>b.textContent)})")
+    check('#286 导入历史：时间 / 文件名 / 条数，只存本机（不在备份里）；文件名里的 HTML 只当文字', not hx['x'] and hx['img'] == 0 and hx['names'][0].startswith('<img') and len(hx['names']) == 3 and 'yiya-import-log' not in ev("Storage.exportJSON()") and ev("!('importLog' in Storage.get())"), hx)
+    ev("document.querySelector('#modalRoot [data-dm=back]').click()"); p.wait_for_timeout(100)
+    bad = ev("DataMgr._preview('name,time\\n喂奶,08:00','cali.csv')"); p.wait_for_timeout(100)
+    msg = ev("(document.querySelector('#modalRoot .dm-msg')||{}).textContent||''")
+    ev("Sheet.closeTop()"); p.wait_for_timeout(300)
+    check('#286 不是咿呀记备份的文件（Cali / 月芽 / PiyoLog 等）：不猜解析，提示暂不支持', bad is False and '暂不支持' in msg, msg)
+    # —— 9. 侧拉页：连续左滑 / 动画中再左滑 / touchcancel / 日期页内容区左滑 ——
+    ev("t=>Storage.importJSON(t)", SEED_V3); p.reload(); p.wait_for_timeout(1000)
+    dr = lambda *a: ev(TOUCH2_JS, list(a))
+
+    def clean():
+        s = ev(SD_ST)
+        hit = ev("(()=>{const e=document.elementFromPoint(innerWidth/2,innerHeight/2);return !!(e&&document.getElementById('app').contains(e))&&getComputedStyle(document.getElementById('sdMask')).pointerEvents!=='auto'||getComputedStyle(document.getElementById('sdMask')).visibility==='hidden'})()")
+        return (not s['open']) and s['cls'] == '' and s['appX'] == 0 and s['mask'].startswith('0.00/hidden') and not s['inert'] and s['st'] == 'null' and hit, s
+    bads = []
+    for tab in ('home', 'calendar'):
+        go(tab, 400)
+        for n in (2, 3, 5):
+            for gap in (0, 120):
+                ev("Drawer.open()"); p.wait_for_timeout(560)
+                for _ in range(n):
+                    dr(330, 300, 40, 304, True, 5, 12); p.wait_for_timeout(gap)
+                p.wait_for_timeout(800)
+                okc, s = clean()
+                if not okc: bads.append([tab, n, gap, s])
+        ev("Drawer.open()"); p.wait_for_timeout(560)
+        dr(330, 300, 40, 304, True, 5, 12); p.wait_for_timeout(90)
+        dr(300, 320, 20, 324, True, 4, 10); p.wait_for_timeout(800)
+        okc, s = clean()
+        if not okc: bads.append([tab, 'mid', s])
+        ev("Drawer.open()"); p.wait_for_timeout(560)
+        dr(330, 300, 150, 304, 'cancel', 4, 12); p.wait_for_timeout(800)
+        s = ev(SD_ST)
+        if not (s['open'] and abs(s['appX'] - 109) <= 2 and 'sd-drag' not in s['cls']):
+            ev("Drawer.close()"); p.wait_for_timeout(800)
+            bads.append([tab, 'cancel-open', s])
+        ev("Drawer.close()"); p.wait_for_timeout(800)
+        okc, s = clean()
+        if not okc: bads.append([tab, 'cancel-close', s])
+    go('calendar', 400)
+    for _ in range(3):
+        dr(300, 420, 40, 424, True, 5, 12); p.wait_for_timeout(100)
+    p.wait_for_timeout(700)
+    okc, s = clean()
+    if not okc: bads.append(['calendar-content', s])
+    check('#286 侧拉页：开着时连续左滑 2 / 3 / 5 次（紧接 / 间隔 120ms）、关闭动画中再左滑、touchcancel 中断、日期页内容区连续左滑之后——全开或全关，页面完整可见可点，无遮罩残留 / transform 残留 / inert，history 退干净', not bads, bads)
+    # —— 10. 「＋」开合动画 ——
+    go('home', 400)
+    st = lambda: ev("({open:document.getElementById('quickDock').classList.contains('open'),closing:document.getElementById('quickDock').classList.contains('qd-closing'),body:document.body.classList.contains('qd-open'),a1:document.querySelector('.tabbar [data-qd-toggle]').getAttribute('aria-expanded'),a2:document.getElementById('qdFab').getAttribute('aria-expanded')})")
+    ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(450)
+    s1 = st()
+    ROT = "(()=>{const m=new DOMMatrix(getComputedStyle(document.querySelector('.tabbar [data-qd-toggle] .ico')).transform);return Math.round(Math.atan2(m.b,m.a)*180/Math.PI)})()"
+    _poll(p, ROT + "===45", 1500, 100)  # WebKit 无头模式帧率低，过渡走得慢
+    rot = ev(ROT)
+    an = ev("[...document.querySelectorAll('#quickDock .qd-action')].map(a=>[getComputedStyle(a).animationName,parseFloat(getComputedStyle(a).animationDelay)*1000])")
+    ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(60)
+    s2 = st(); p.wait_for_timeout(300); s3 = st()
+    check('#286 「＋」打开：＋ 转 45° 成 ×、aria-expanded=true（dock 上的 ＋ 和 #qdFab 一致）、动作项依次弹出（错开 30ms）；再点收回动画后才收起', s1 == {'open': True, 'closing': False, 'body': True, 'a1': 'true', 'a2': 'true'} and rot == 45
+          and all(a[0] == 'qdPop' for a in an) and [round(a[1]) for a in an] == [i * 30 for i in range(len(an))] and s2['closing'] and s2['a1'] == 'false' and not s2['body'] and not s3['open'] and not s3['closing'], [s1, rot, an, s2, s3])
+    for _ in range(5):
+        ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(40)
+    p.wait_for_timeout(400); s5 = st()
+    ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(400); s6 = st()
+    check('#286 快速连点（含收回动画中再点）：点 5 下是开着、第 6 下是关着，状态与 aria-expanded 一致', s5 == {'open': True, 'closing': False, 'body': True, 'a1': 'true', 'a2': 'true'} and s6 == {'open': False, 'closing': False, 'body': False, 'a1': 'false', 'a2': 'false'}, [s5, s6])
+    ev("(()=>{const b=document.querySelector('.tabbar [data-qd-toggle]');const i=document.createElement('input');i.className='hap-sw';i.type='checkbox';b.appendChild(i);i.click();i.remove()})()"); p.wait_for_timeout(300)
+    se = st()
+    check('#286 触感层的回声点击（target 是 hap-sw）不算一下（第 281 次 Util.hapEcho）', se['open'] is False and se['a1'] == 'false', se)
+    ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(350)
+    ev("document.getElementById('qdMask').click()"); p.wait_for_timeout(350); sm = st()
+    ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(300)
+    go('calendar', 300); sg = st()
+    check('#286 点遮罩关闭；开着时切页立即收起，不残留', not sm['open'] and sm['a1'] == 'false' and not sg['open'] and not sg['body'] and sg['a1'] == 'false', [sm, sg])
+    p.emulate_media(reduced_motion='reduce'); go('home', 300)
+    ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(300)
+    rm = ev("[getComputedStyle(document.querySelector('.tabbar [data-qd-toggle] .ico')).transform,getComputedStyle(document.querySelector('#quickDock .qd-action')).animationName]")
+    ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(60); rmc = st()
+    p.emulate_media(reduced_motion='no-preference')
+    check('#286 减少动态效果：＋ 不旋转、动作项只淡入（qdFade），关闭立即收起', rm == ['none', 'qdFade'] and not rmc['open'], [rm, rmc])
+    check('第 286 次无报错', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -3188,7 +3530,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r281',),
           ('test_r282', 'test_r283'),
           ('test_r284',),
-          ('test_r285',))  # 第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r285',),
+          ('test_r286',))  # 第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

@@ -567,6 +567,7 @@
       if (t && fullEl) paintFull();
     },
     _openFull: openFull,
+    _manual: function () { openManualBreast(Storage.get()); }, /* 第 286 次：日期页快捷条直接开补记亲喂面板 */
     /* 第 254 次：喂养页底部「开始亲喂 | ⊕」直接调用，不再跳到亲喂页 */
     _start: function () {
       var d = Storage.get();

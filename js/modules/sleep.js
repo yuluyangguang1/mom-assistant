@@ -407,6 +407,7 @@
       if (!os && fullEl) closeFull();
     },
     _openFull: openFull,
+    _manual: openManual, /* 第 286 次：日期页快捷条 */
     _closeFull: closeFull,
     _start: startSleep,
     _end: endSleep,
