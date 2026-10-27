@@ -1380,7 +1380,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v251（第 287 次升）', "var CACHE = 'baoma-static-v251';" in sw)
+    check('#275 SW 版本 v252（第 288 次升）', "var CACHE = 'baoma-static-v252';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -1579,7 +1579,7 @@ def test_r276(b):
     # —— A：跟手拖拽 ——
     drag(6, 420, 6 + 156, 424, False, 8, 16); p.wait_for_timeout(60)
     x = ev(X)
-    check('#276 侧拉页跟手：拉到 40% 时侧拉页从左边进来、底下页右移约 11%、压暗 0.4', abs(x[0] - (-390 * 0.6 + 8 * 0)) <= 14 and abs(x[1] - 390 * 0.4 * 0.28) <= 8 and 0.3 <= x[2] <= 0.5, x)
+    check('#276 侧拉页跟手：拉到 40% 时侧拉页从左边进来、压暗 0.4（第 288 次起底下页不动）', abs(x[0] - (-390 * 0.6 + 8 * 0)) <= 14 and x[1] == 0 and 0.3 <= x[2] <= 0.5, x)
     check('#276 拖到不足一半：状态栏还是底下那页（压暗后）的颜色', tc().lower() not in ('#ffffff', '#121110'), tc())
     drag(None, 0, 162, 424, 2, 0, 0); p.wait_for_timeout(700)  # 停住再松手
     check('#276 停住后在 40% 松手：回弹收起', ev("!Drawer.isOpen()&&!document.body.classList.contains('sd-open')"))
@@ -1592,7 +1592,7 @@ def test_r276(b):
         p.wait_for_timeout(300); drag(6, 420, 6 + 90, 424, True, 2, 8); p.wait_for_timeout(700)
     check('#276 快速甩一下（只拉 22%）也能打开（速度阈值）', ev("Drawer.isOpen()"), ev(X))
     x = ev(X)
-    check('#276 打开：侧拉页整屏盖住、底下页右移 28%', x[0] == 0 and abs(x[1] - 109) <= 2, x)
+    check('#276 打开：侧拉页整屏盖住（第 288 次起覆盖式，底下页不动）', x[0] == 0 and x[1] == 0, x)
     check('#276 打开：状态栏取侧拉页底色（侧拉页进了 overlayStack）', tc().lower() == '#ffffff' and 'side-drawer' in ' '.join(ev("__statusOverlay()")), [tc(), ev("__statusOverlay()")])
     check('#276 打开：登记一条 history、页面 inert', ev("[JSON.stringify(history.state), document.getElementById('app').inert]") == ['{"baoma":"drawer"}', True])
     drag(300, 400, 80, 404, False, 6, 16); p.wait_for_timeout(50)
@@ -2162,7 +2162,7 @@ def test_r279(b):
     check('#279 面板开着时在侧拉页上左拉：侧拉页不跟手（不进入拖拽态）', s['left'] == 0 and 'sd-drag' not in s['cls'], s)
     drag(60, 204, 59, 204, True, 1, 0); p.wait_for_timeout(700)
     s = st()
-    check('#279 松手后侧拉页、面板都还开着——不会只关侧拉页、留下孤立面板', s['open'] and s['sheets'] == 1 and s['left'] == 0 and s['appX'] == 109, s)
+    check('#279 松手后侧拉页、面板都还开着——不会只关侧拉页、留下孤立面板', s['open'] and s['sheets'] == 1 and s['left'] == 0 and s['appX'] == 0, s)
     ev("Drawer.close()"); p.wait_for_timeout(900)
     s = st()
     check('#279 侧拉页关闭时盖在上面的面板一起关，history 一次退回第一条（go(-2)）', not s['open'] and clean(s) and s['st'] == 'null', s)
@@ -3462,7 +3462,7 @@ def test_r286(b):
         ev("Drawer.open()"); p.wait_for_timeout(560)
         dr(330, 300, 150, 304, 'cancel', 4, 12); p.wait_for_timeout(800)
         s = ev(SD_ST)
-        if not (s['open'] and abs(s['appX'] - 109) <= 2 and 'sd-drag' not in s['cls']):
+        if not (s['open'] and s['left'] == 0 and s['appX'] == 0 and 'sd-drag' not in s['cls']):  # 第 288 次：覆盖式，底下页不动
             ev("Drawer.close()"); p.wait_for_timeout(800)
             bads.append([tab, 'cancel-open', s])
         ev("Drawer.close()"); p.wait_for_timeout(800)
@@ -3660,7 +3660,9 @@ def test_r287(b):
     # —— 5. 胎动：+1 / 计数段 / 修改 / 删除 ——
     clear(); go('home', 200); go('fetal')
     f0 = ev("Storage.get().fetal.length")
-    p.locator('#ftAdd').tap(); p.locator('#ftAdd').tap(); p.wait_for_timeout(400)
+    # 第 288 次：防连点窗口 400 → 200ms；两下贴着点（同一个任务里连发两次触摸点按，间隔远小于 200ms）
+    _bb = p.locator('#ftAdd').bounding_box(); _cx, _cy = _bb['x'] + _bb['width'] / 2, _bb['y'] + _bb['height'] / 2
+    p.touchscreen.tap(_cx, _cy); p.touchscreen.tap(_cx, _cy); p.wait_for_timeout(400)
     f1 = ev("Storage.get().fetal.length")
     # 触感层回声（label.hap-layer > input.hap-sw 的合成 click）不算一下
     ev("(()=>{const b=document.querySelector('#ftAdd');const l=document.createElement('label');l.className='hap-layer';const i=document.createElement('input');i.type='checkbox';i.className='hap-sw';l.appendChild(i);b.appendChild(l);i.click()})()"); p.wait_for_timeout(300)
@@ -3776,9 +3778,320 @@ def test_r287(b):
     ctx.close()
 
 
+
+# 第 288 次：侧拉页重写（状态机 / 覆盖式 / 动画中不做 history 操作）+ 咿呀岛连点形变 / 原地更新 + 胎动防连点阈值
+SD288 = """(()=>{const r=document.getElementById('sideDrawer'),a=document.getElementById('app'),m=document.getElementById('sdMask');
+ const cs=m?getComputedStyle(m):null;
+ return {state:Drawer.state(),p:+Drawer.progress().toFixed(3),open:Drawer.isOpen(),cls:['sd-open','sd-lock','sd-drag','sd-half'].filter(c=>document.body.classList.contains(c)).join(','),
+  left:r?Math.round(r.getBoundingClientRect().left):null,appT:getComputedStyle(a).transform,appInl:a.style.transform,
+  mask:cs?(+cs.opacity).toFixed(2)+'/'+cs.visibility+'/'+cs.pointerEvents:'',inl:r?r.style.transform+'|'+r.style.opacity:'',
+  st:JSON.stringify(history.state),tab:App.currentTab(),inert:a.inert,scroll:getComputedStyle(document.body).overflow}})()"""
+HLOG_JS = r"""(()=>{if(window.__hlog)return;window.__hlog=[];['pushState','replaceState','back','go'].forEach(k=>{const o=history[k].bind(history);history[k]=function(...a){try{__hlog.push({k,st:Drawer.state(),p:+Drawer.progress().toFixed(3),s:a[0]&&a[0].baoma,ext:!!window.__ext})}catch(e){};return o(...a)}})})()"""
+# 每一帧采样：底下页面 transform、侧拉页位置、遮罩
+FRAMES_JS = r"""()=>{window.__fr=[];let on=true;window.__frStop=()=>{on=false};const f=()=>{const r=document.getElementById('sideDrawer'),a=document.getElementById('app'),m=document.getElementById('sdMask');
+ if(r&&m){const cs=getComputedStyle(m);__fr.push({t:performance.now(),st:Drawer.state(),p:Drawer.progress(),appT:getComputedStyle(a).transform,left:r.getBoundingClientRect().left,mo:+cs.opacity,mv:cs.visibility,mp:cs.pointerEvents})}
+ if(on)requestAnimationFrame(f)};requestAnimationFrame(f)}"""
+TOAST_SAMPLER = r"""()=>{window.__ts=[];let on=true;window.__tsStop=()=>{on=false};const f=()=>{const els=[...document.querySelectorAll('#toastRoot .toast:not(.leaving)')];const t=els[0];
+ if(t){const m=t.querySelector('.toast-msg');const lh=parseFloat(getComputedStyle(m).lineHeight)||19;const vis=t.hasAttribute('data-vis-w')?+t.getAttribute('data-vis-w'):t.offsetWidth;
+  const y=t.querySelector('.toast-yiya'),act=t.querySelector('.toast-action');let ov=false;if(y&&act){const a=y.getBoundingClientRect(),b=act.getBoundingClientRect();ov=a.right>b.left+1}
+  const rg=document.createRange();rg.selectNodeContents(m);const mcs=getComputedStyle(m);const TM=getComputedStyle(t).transform,DM=TM==='none'?null:new DOMMatrix(TM);const scaled=!!DM&&(Math.abs(DM.a-1)>1e-3||Math.abs(DM.d-1)>1e-3);const ell=!scaled&&rg.getBoundingClientRect().width+parseFloat(mcs.paddingLeft)+parseFloat(mcs.paddingRight)>m.getBoundingClientRect().width+0.02;
+  __ts.push({n:els.length,w:t.offsetWidth,vis:Math.round(vis),h:t.offsetHeight,lines:Math.round(m.scrollHeight/lh),ws:getComputedStyle(m).whiteSpace,ov:ov,ell:ell,txt:m.textContent})}
+ if(on)requestAnimationFrame(f)};requestAnimationFrame(f)}"""
+
+
+def test_r288(b):
+    """第 288 次：① 侧拉页重写——验收清单来自第 245–287 次全部侧拉页故障（见 变更记录.md 第 288 次）；
+    ② 咿呀岛连点：永不换行 / 不塌缩 / 同类原地更新 / 撤销最近一条，尿布、宫缩、营养品同样；③ 胎动防连点 200ms。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(1000)
+    ev = p.evaluate
+    drag = lambda *a: ev(TOUCH2_JS, list(a))
+    st = lambda: ev(SD288)
+    ev(HLOG_JS)
+
+    def clean(s, tab='home'):
+        return (s['state'] == 'closed' and s['cls'] == '' and s['appT'] == 'none' and s['appInl'] == '' and s['mask'] == '0.00/hidden/none'
+                and s['inl'] == '|' and not s['inert'] and s['st'] == 'null' and s['tab'] == tab and s['left'] <= -380)
+
+    def opened(s):
+        return s['state'] == 'open' and s['left'] == 0 and s['appT'] == 'none' and s['mask'] == '1.00/visible/auto' and s['inl'] == '|' and s['st'] == '{"baoma":"drawer"}'
+
+    def settle_wait(ms=1500):
+        _poll(p, "Drawer.state()==='open'||Drawer.state()==='closed'", ms, 50)
+        p.wait_for_timeout(250)
+
+    def hit_app():
+        return ev("(()=>{const e=document.elementFromPoint(innerWidth/2,innerHeight/2);return !!e&&document.getElementById('app').contains(e)})()")
+    # —— A1 基本开合 + 每帧：底下页面任何时刻 transform none；关闭落定那一帧遮罩透明、不接点击 ——
+    ev(FRAMES_JS); p.wait_for_timeout(300)  # WebKit 无头：采样循环先跑起来再动（轮询 evaluate 时 rAF 会被挤掉）
+    ev("Drawer.open()"); p.wait_for_timeout(900)
+    s1 = st()
+    ev("Drawer.close()"); p.wait_for_timeout(900)
+    s2 = st()
+    ev("__frStop()"); fr = ev("__fr")
+    moving = [f for f in fr if f['st'] in ('opening', 'closing')]
+    check('#288 覆盖式：打开 / 收起全程（逐帧）底下页面 transform 始终 none，侧拉页从左边滑进滑出（中间帧 > 4 帧）',
+          all(f['appT'] == 'none' for f in fr) and len(moving) >= 4 and any(-380 < f['left'] < -10 for f in moving), [len(fr), len(moving), [f for f in fr if f['appT'] != 'none'][:2]])
+    after = [f for f in fr if f['st'] == 'closed' and fr.index(f) > (fr.index(moving[-1]) if moving else 0)]
+    check('#288 收起落定的第一帧：遮罩透明 + visibility hidden + pointer-events none，侧拉页在屏外', bool(after) and after[0]['mo'] == 0 and after[0]['mv'] == 'hidden' and after[0]['mp'] == 'none' and after[0]['left'] <= -380, after[:1])
+    check('#288 开：全开 / 一条 drawer 记录 / 遮罩接点击 / 页面 inert；关：完全复位、history 回第一条', opened(s1) and s1['inert'] and clean(s2), [s1, s2])
+    ev("Drawer.open()"); settle_wait(); ev("Drawer.close()"); p.wait_for_timeout(120)
+    mid = st(); midhit = hit_app()
+    settle_wait()
+    check('#288 收起动画中：状态 closing、遮罩 pointer-events none、页面可点（不等动画结束）', mid['state'] == 'closing' and mid['mask'].endswith('/none') and midhit, mid)
+    # —— A2 连续开关 10 次（各种间隔，含动画中反向）——
+    bad = []
+    for gap in (0, 30, 90, 160, 260, 450, 0, 60, 200, 600):
+        ev("Drawer.open()"); p.wait_for_timeout(gap); ev("Drawer.close()"); p.wait_for_timeout(gap)
+    settle_wait(2000); p.wait_for_timeout(300)
+    s = st()
+    check('#288 连续开关 10 次（间隔 0–600ms，含动画中反向）：最后落在关，页面完全复位、history 回第一条', clean(s), s)
+    for gap in (0, 40, 120):
+        ev("Drawer.open()"); p.wait_for_timeout(gap)
+        ev("Drawer.close()"); p.wait_for_timeout(gap)
+        ev("Drawer.open()")
+        settle_wait(); p.wait_for_timeout(200)
+        s = st()
+        if not opened(s): bad.append([gap, s])
+        ev("Drawer.close()"); settle_wait(); p.wait_for_timeout(200)
+        if not clean(st()): bad.append([gap, 'c', st()])
+    check('#288 开 → 关 → 开（动画中反向两次）：落在开，只有一条 drawer 记录；再关干净', not bad, bad)
+    # —— A3 动画中反向：从当前进度接着走（不跳回端点）——
+    _poll(p, "!App._histBusy()", 1500, 30)
+    ev("Drawer.open()"); p.wait_for_timeout(140)
+    pa = ev("Drawer.progress()")
+    ev("Drawer.close()"); p.wait_for_timeout(16)
+    pb = ev("Drawer.progress()"); sb = ev("Drawer.state()")
+    settle_wait()
+    check('#288 打开动画中反向：从当前进度往回走（进度连续、不跳到 0 或 1）', 0.05 < pa < 0.98 and sb == 'closing' and abs(pb - pa) < 0.35 and pb > 0.02, [pa, pb, sb])
+    # —— A4 拖到一半松手 / 甩动 / touchcancel / 动画中再按住 ——
+    drag(6, 420, 6 + 150, 424, 2, 8, 16); settle_wait()
+    s = st()
+    check('#288 拖到 38% 停住松手：收起、复位', clean(s), s)
+    drag(6, 420, 6 + 250, 424, 2, 8, 16); settle_wait()
+    s = st()
+    check('#288 拖到 64% 停住松手：打开', opened(s), s)
+    drag(300, 400, 80, 404, 2, 8, 16); settle_wait()
+    s = st()
+    check('#288 侧拉页上左拉到 46% 停住松手：收起，history 退干净', clean(s), s)
+    _poll(p, "!App._histBusy()", 1000, 10); p.wait_for_timeout(60)
+    nh = ev("__hlog.length")
+    drag(6, 420, 6 + 160, 424, 'cancel', 8, 16); p.wait_for_timeout(30)
+    s = st()
+    _poll(p, "!App._histBusy()", 1000, 10); p.wait_for_timeout(60)
+    s2 = st()
+    check('#288 拉开 41% 时 touchcancel：立即落到关（不播动画）', s['state'] == 'closed' and s['inl'] == '|' and s['mask'] == '0.00/hidden/none' and clean(s2)
+          and ev("n=>__hlog.slice(n).some(h=>h.k==='pushState'&&h.s==='drawer')", nh), [s, s2])
+    # 上一次关闭的 back / 清前进栈（约 5–50ms）落地之前，横拉不接管（设计如此：新记录不能压在马上要退掉的那条上）；等它落地再拉
+    _poll(p, "!App._histBusy()", 1000, 10); p.wait_for_timeout(60)
+    drag(6, 420, 6 + 260, 424, 'cancel', 8, 16); p.wait_for_timeout(30)
+    s = st()
+    check('#288 拉开 67% 时 touchcancel：立即落到开', opened(s), s)
+    ev("Drawer.close()"); p.wait_for_timeout(100)
+    pc = ev("Drawer.progress()")
+    drag(200, 400, 260, 404, 'none', 6, 16); p.wait_for_timeout(30)
+    s = st()
+    check('#288 收起动画中再按住拖：接管为拖动，从当前进度起步（不跳回全开、不先落到关）', s['state'] == 'dragging' and 0.6 * 52 / 390 < s['p'] < pc + 52 / 390 + 0.05 and s['st'] == '{"baoma":"drawer"}', [pc, s])  # 并发负载下按住前动画还会再走一段，只断言「接着当前进度」
+    drag(260, 404, 261, 404, True, 1, 0); settle_wait()
+    ev("Drawer.isOpen()&&Drawer.close()"); settle_wait()
+    drag(6, 420, 6 + 120, 424, 'none', 8, 16); p.wait_for_timeout(30)
+    ev("window.__t2nostart=false"); drag(200, 300, 201, 300, True, 1, 0); settle_wait()
+    s = st()
+    check('#288 上一次拖拽没收到 touchend 就来了新触摸：先按位置落定（31% → 关）', clean(s), s)
+    # —— A5 切后台 / pagehide / 旋转（宽度变化）——
+    HIDE = "(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));delete document.hidden})()"
+    ev("Drawer.open()"); p.wait_for_timeout(90); ev(HIDE); p.wait_for_timeout(20)
+    s = st()
+    check('#288 打开动画中切后台：立即落到目标（开）', opened(s), s)
+    ev("Drawer.close()"); p.wait_for_timeout(90); ev(HIDE); p.wait_for_timeout(20)
+    s = st()
+    check('#288 收起动画中切后台：立即落到关，history 退干净', s['state'] == 'closed' and s['appT'] == 'none' and s['mask'] == '0.00/hidden/none', s)
+    p.wait_for_timeout(300)
+    drag(6, 420, 6 + 230, 424, 'none', 8, 16); p.wait_for_timeout(30); ev(HIDE); p.wait_for_timeout(20)
+    s = st()
+    check('#288 拖动中切后台：按位置落定（59% → 开）', opened(s), s)
+    ev("Drawer.close()"); p.wait_for_timeout(80); ev("window.dispatchEvent(new Event('pagehide'))"); p.wait_for_timeout(20)
+    s = st()
+    check('#288 收起动画中 pagehide：立即落到关', s['state'] == 'closed' and s['mask'] == '0.00/hidden/none', s)
+    p.wait_for_timeout(300)
+    ev("Drawer.open()"); p.wait_for_timeout(100)
+    p.set_viewport_size({'width': 844, 'height': 390}); p.wait_for_timeout(120)
+    s = st()
+    check('#288 打开动画中旋转（宽度变化）：立即落到开、侧拉页贴左整屏宽', opened(s) and ev("document.getElementById('sideDrawer').offsetWidth===innerWidth"), s)
+    p.set_viewport_size({'width': 390, 'height': 844}); p.wait_for_timeout(200)
+    s = st()
+    check('#288 开着时转回竖屏：仍是全开、无残留内联位移', opened(s), s)
+    ev("Drawer.close()"); settle_wait()
+    p.set_viewport_size({'width': 390, 'height': 700}); p.wait_for_timeout(150)
+    ev("Drawer.open()"); p.wait_for_timeout(80); p.set_viewport_size({'width': 390, 'height': 844}); p.wait_for_timeout(40)
+    s = st()
+    check('#288 只有高度变化（键盘收起）不打断动画', s['state'] in ('opening', 'open'), s)
+    settle_wait(); ev("Drawer.close()"); settle_wait()
+    # —— A6 系统返回（popstate）——
+    ev("Drawer.open()"); settle_wait()
+    ev("window.__ext=1;history.back();window.__ext=0"); _poll(p, "Drawer.state()==='closed'", 800, 16)
+    s = st(); p.wait_for_timeout(400); s2 = st()
+    check('#288 开着时系统返回：popstate 到达即落定为关（不再播收起动画——系统手势已经播过），页面复位、history 回第一条',
+          s['state'] == 'closed' and s['inl'] == '|' and s['mask'] == '0.00/hidden/none' and clean(s2), [s, s2])
+    ev("Drawer.close()"); p.wait_for_timeout(1)
+    ev("Drawer.open()"); p.wait_for_timeout(150); ev("window.__ext=1;history.back();window.__ext=0"); _poll(p, "Drawer.state()==='closed'", 800, 16); p.wait_for_timeout(400)
+    check('#288 打开动画中系统返回：落定为关、history 回第一条', clean(st()), st())
+    ev("Drawer.open()"); settle_wait(); ev("Drawer.close()"); p.wait_for_timeout(100); ev("window.__ext=1;history.back();window.__ext=0"); p.wait_for_timeout(700)
+    s = st()
+    check('#288 收起动画中系统返回：落定为关，留在首页、history 回第一条（不会多退一层）', clean(s), s)
+    drag(6, 420, 6 + 200, 424, 'none', 8, 16); p.wait_for_timeout(30); ev("window.__ext=1;history.back();window.__ext=0"); p.wait_for_timeout(700)
+    s = st()
+    check('#288 拖动中系统返回：拖拽落定并按返回关掉', clean(s), s)
+    # —— A7 点遮罩 / 返回钮 / Esc / 点当前页菜单项 ——
+    ev("Drawer.open()"); p.wait_for_timeout(120)
+    ev("document.getElementById('sdMask').click()"); settle_wait()
+    check('#288 打开动画中点遮罩：反向收起', clean(st()), st())
+    ev("Drawer.open()"); settle_wait(); ev("document.querySelector('#sideDrawer .sd-back').click()"); settle_wait()
+    check('#288 返回钮关闭', clean(st()), st())
+    ev("Drawer.open()"); settle_wait(); p.keyboard.press('Escape'); settle_wait()
+    check('#288 Esc 关闭', clean(st()), st())
+    ev("Drawer.open()"); settle_wait(); ev("document.querySelector('#sideDrawer [data-sd-go=home]').click()"); settle_wait()
+    check('#288 在首页点「首页」：收起、留在首页、history 回第一条', clean(st()), st())
+    # —— A8 点菜单项跳转：新页先画在底下，侧拉页滑走；返回回首页 ——
+    ev("Drawer.open()"); settle_wait()
+    ev("document.querySelector('#sideDrawer [data-sd-go=growth]').click()")
+    s0 = st()
+    settle_wait()
+    s = st()
+    check('#288 点菜单项（生长）：同一次点击里新页已画好（侧拉页还在收起）、落定后侧拉页那条记录被改写成生长页',
+          s0['tab'] == 'growth' and s0['state'] == 'closing' and s['state'] == 'closed' and s['st'] == '{"baoma":1,"id":"growth"}' and s['mask'] == '0.00/hidden/none', [s0, s])
+    ev("window.__ext=1;history.back();window.__ext=0"); _poll(p, "App.currentTab()==='home'&&history.state===null", 2000, 100); p.wait_for_timeout(300)
+    s = st()
+    check('#288 生长页返回：回首页，侧拉页不再冒出来', clean(s), s)
+    ev("Drawer.open()"); settle_wait(); ev("document.querySelector('#sideDrawer [data-sd-go=calendar]').click()"); settle_wait(); p.wait_for_timeout(300)
+    s = st()
+    check('#288 点一级页（日期记录）：切过去、侧拉页那条记录退掉（不留 drawer / guard）', s['tab'] == 'calendar' and s['state'] == 'closed' and s['st'] == 'null' and s['mask'] == '0.00/hidden/none', s)
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(400)
+    # —— A9 关闭后紧接着再开（history.back 还没落地）——
+    ev("Drawer.open()"); settle_wait(); ev("Drawer.close()"); settle_wait(); ev("Drawer.open()"); settle_wait(); p.wait_for_timeout(300)
+    s = st()
+    check('#288 收起落定后立刻再开（上一条记录的 back 还没落地）：等 popstate 后再开，只有一条 drawer 记录', opened(s) and ev("history.length") <= 4, [s, ev("history.length")])
+    ev("Drawer.close()"); settle_wait(); p.wait_for_timeout(300)
+    ev("Drawer.open()"); settle_wait(); ev("Drawer.close()"); settle_wait()
+    ev("Drawer.open();Drawer.close()"); p.wait_for_timeout(900)
+    check('#288 关闭落定后「开 → 立刻关」（开还在等上一次 back 落地）：关闭作废排队的打开，最后是关', clean(st()), st())
+    # —— A9b 从侧拉页进「宝宝资料」（设置分组二级页）：改写 + 进二级两次 history 写入都排到收起落定之后 ——
+    ev("Drawer.open()"); settle_wait()
+    ev("document.querySelector('#sideDrawer [data-sd=baby]').click()"); settle_wait(); p.wait_for_timeout(400)
+    s = st()
+    check('#288 侧拉页「宝宝资料」：进设置分组二级页、侧拉页收起，history 只剩设置 + 二级两条（写入在落定之后）',
+          s['tab'] == 'settings' and s['state'] == 'closed' and ev("App.inSub()") and s['st'] == '{"baoma":1,"id":"__sub"}' and s['mask'] == '0.00/hidden/none', s)
+    ev("window.__ext=1;history.back();window.__ext=0"); p.wait_for_timeout(600); ev("window.__ext=1;history.back();window.__ext=0")
+    _poll(p, "App.currentTab()==='home'&&history.state===null", 2000, 100); p.wait_for_timeout(300)
+    check('#288 接着返回两次回首页、history 回第一条', clean(st()), st())
+    # —— A10 根因锁：任何 history 写入都不发生在侧拉页动画 / 拖动中途（WebKit 在这一刻给当前记录拍系统返回快照） ——
+    hl = ev("__hlog")
+    badh = [h for h in hl if h['k'] != 'replaceState' and not h.get('ext') and not (h['st'] in ('open', 'closed') or (h['k'] == 'pushState' and h['p'] == 0))]
+    check('#288 本组所有 pushState / back / go 都发生在侧拉页静止时（全开 / 全关，或打开前 p=0），没有一次在动画 / 拖动中途', not badh and len(hl) > 10, [len(hl), badh[:4]])
+    # —— A11 减少动态效果 ——
+    p.emulate_media(reduced_motion='reduce')
+    ev("Drawer.open()"); _poll(p, "+(document.getElementById('sideDrawer').style.opacity||0)>0", 600, 20)
+    rm = ev("[getComputedStyle(document.getElementById('sideDrawer')).transform, document.getElementById('sideDrawer').style.opacity, getComputedStyle(document.getElementById('app')).transform]")
+    settle_wait(); ev("Drawer.close()"); settle_wait()
+    s = st()
+    check('#288 减少动态效果：侧拉页不平移、按进度淡入，底下页不动；关后复位', rm[0] == 'none' and rm[2] == 'none' and 0 < float(rm[1] or 0) < 1 and s['state'] == 'closed' and s['mask'] == '0.00/hidden/none' and s['st'] == 'null' and ev("getComputedStyle(document.getElementById('sideDrawer')).visibility") == 'hidden', [rm, s])
+    p.emulate_media(reduced_motion='no-preference')
+    # —— B 咿呀岛连点 ——
+    ev("App.showTab('fetal')"); p.wait_for_timeout(700)
+    ev("Storage.get().fetal=[];Storage.save();App.rerender()"); p.wait_for_timeout(300)
+    ev(TOAST_SAMPLER)
+    for gap in (120, 180, 250, 90, 300, 150, 200, 130, 260, 170):
+        ev("document.querySelector('#ftAdd').click()"); p.wait_for_timeout(gap)
+    p.wait_for_timeout(450); ev("__tsStop()"); ts = ev("__ts")
+    MINW = 148
+    check('#288 胎动连点 10 次（90–300ms 间隔）：每一帧提示都只有一颗、单行不换行（nowrap）、可见宽度 ≥ 最小宽、高度不变、小咿呀不压撤销',
+          ts and all(x['n'] == 1 and x['lines'] == 1 and x['ws'] == 'nowrap' and x['vis'] >= MINW and x['h'] <= 52 and not x['ov'] for x in ts),
+          [len(ts), min([x['vis'] for x in ts] or [0]), max([x['lines'] for x in ts] or [0]), [x for x in ts if x['vis'] < MINW or x['lines'] > 1][:2]])
+    check('#288 连点后文案是最新一次（今天第 10 次）', bool(ts) and '今天第 10 次' in ts[-1]['txt'], ts[-1:] if ts else None)
+    # 原地更新：同一类提示不重建内容（小咿呀节点不换、不加 swap）、数字跳一下
+    ev("window.__yy=document.querySelector('#toastRoot .toast .toast-yiya img')")
+    ev("document.querySelector('#ftAdd').click()"); p.wait_for_timeout(60)
+    inp = ev("(()=>{const t=document.querySelector('#toastRoot .toast');return {same:t.querySelector('.toast-yiya img')===window.__yy,swap:t.classList.contains('swap'),tick:!!t.querySelector('.toast-num.tick'),txt:t.querySelector('.toast-msg').textContent}})()")
+    check('#288 同类提示显示期间再来：原地更新文案（数字跳一下），不重播出现动画、小咿呀不重建', inp['same'] and not inp['swap'] and inp['tick'] and '第 11 次' in inp['txt'], inp)
+    ids = ev("Storage.get().fetal.map(r=>r.id)")
+    ev("document.querySelector('#toastRoot .toast .toast-action').click()"); p.wait_for_timeout(300)
+    ids2 = ev("Storage.get().fetal.map(r=>r.id)")
+    check('#288 撤销 = 撤销最近一条（第 11 次那条），其余 10 条保留', len(ids2) == len(ids) - 1 and ids[-1] not in ids2 and ids2 == ids[:-1], [len(ids), len(ids2)])
+    # 高分屏（DPR 2，真机 3）下 offsetWidth 取整会比真实宽度少零点几像素：「第 9 → 10 次」变宽的形变中不能出省略号
+    ctx2 = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True, device_scale_factor=2)
+    p2 = ctx2.new_page(); p2.goto(URL); p2.wait_for_timeout(600); p2.evaluate('t=>Storage.importJSON(t)', SEED_V3); p2.reload(); p2.wait_for_timeout(1000)
+    p2.evaluate("App.showTab('fetal')"); p2.wait_for_timeout(700)
+    p2.evaluate("Storage.get().fetal=[];Storage.save();App.rerender()"); p2.wait_for_timeout(300)
+    p2.evaluate(TOAST_SAMPLER)
+    for gap in (150, 150, 150, 150, 150, 150, 150, 150, 150, 400):
+        p2.evaluate("document.querySelector('#ftAdd').click()"); p2.wait_for_timeout(gap)
+    p2.evaluate("__tsStop()"); ts2 = p2.evaluate("__ts"); ctx2.close()
+    check('#288 高分屏连点到「第 10 次」：形变中文字从不被截成省略号（布局宽度取整后留 1px 余量）', bool(ts2) and '第 10 次' in ts2[-1]['txt'] and not [x for x in ts2 if x['ell']], [len(ts2), [x for x in ts2 if x['ell']][:2]])
+    p.wait_for_timeout(3200)
+    # 不同类提示在出现动画中途顶替：从当前宽度过渡，不塌缩
+    ev(TOAST_SAMPLER)
+    ev("Util.toast('已记录一次胎动（今天第 3 次）','ok',{label:'撤销',onClick(){}})"); p.wait_for_timeout(90)
+    ev("Util.toast('已保存','ok')"); p.wait_for_timeout(70)
+    ev("Util.toast('这是一条特别特别长的提示文字，用来确认放不下时只显示一行并以省略号结尾，不会换行','warn')"); p.wait_for_timeout(110)
+    ev("Util.toast('已撤销','ok')"); p.wait_for_timeout(500)
+    ev("__tsStop()"); ts = ev("__ts")
+    rw = ev("(()=>{const r=document.getElementById('toastRoot');return Math.round(parseFloat(getComputedStyle(r).maxWidth)||420)})()")
+    check('#288 不同类提示在出现 / 形变途中接连顶替（含超长文案）：每帧单行、宽度在 [最小宽, 屏宽上限] 内，不塌成竖条',
+          ts and all(x['lines'] == 1 and MINW <= x['vis'] <= min(rw, 390) + 1 and x['n'] == 1 for x in ts), [len(ts), min([x['vis'] for x in ts] or [0]), max([x['vis'] for x in ts] or [0]), [x for x in ts if x['lines'] > 1 or x['vis'] < MINW][:2]])
+    ev("Util.toast('这是一条特别特别长的提示文字，用来确认放不下时只显示一行并以省略号结尾，不会换行。再加一些字确保一定超出屏幕宽度。','warn')"); p.wait_for_timeout(400)
+    el = ev("(()=>{const m=document.querySelector('#toastRoot .toast:not(.leaving) .toast-msg');return [m.scrollWidth>m.clientWidth,getComputedStyle(m).textOverflow,Math.round(m.scrollHeight)<=30]})()")
+    check('#288 超长文案一行省略', el == [True, 'ellipsis', True], el)
+    # XSS：原地更新路径同样转义
+    ev("Util.toast('已记录 <img src=x onerror=window.__pwn288=1> 第 1 次','ok')"); p.wait_for_timeout(80)
+    ev("Util.toast('已记录 <img src=x onerror=window.__pwn288=1> 第 2 次','ok')"); p.wait_for_timeout(200)
+    check('#288 原地更新文案走转义（不插入标签、不执行）', ev("!window.__pwn288&&!document.querySelector('#toastRoot img[src=x]')&&/第 2 次/.test(document.querySelector('#toastRoot .toast:not(.leaving) .toast-msg').textContent)"))
+    p.wait_for_timeout(3000)
+    # 其他高频记录：首页「尿了」连点、宫缩开始 / 结束连按、营养品打卡式提示
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(600)
+    ev(TOAST_SAMPLER)
+    for _ in range(10):
+        ev("(document.querySelector('.hn-q[data-hnq=pee]')||document.body).click()"); p.wait_for_timeout(140)
+    p.wait_for_timeout(400); ev("__tsStop()"); t1 = ev("__ts")
+    ev("App.showTab('contraction')"); p.wait_for_timeout(600)
+    ev(TOAST_SAMPLER)
+    for _ in range(5):
+        ev("(document.querySelector('#cStart')||document.body).click()"); p.wait_for_timeout(120)
+        ev("(document.querySelector('#cEnd')||document.body).click()"); p.wait_for_timeout(120)
+    p.wait_for_timeout(400); ev("__tsStop()"); t2 = ev("__ts")
+    ev("App.showTab('supplement')"); p.wait_for_timeout(500)
+    ev(TOAST_SAMPLER)
+    for i in range(8):
+        ev("n=>Util.toast('已记录 维生素AD 1粒（今天还差 '+n+' 次）','ok',{label:'撤销',onClick(){}})", 8 - i); p.wait_for_timeout(110 + (i % 3) * 60)
+    p.wait_for_timeout(400); ev("__tsStop()"); t3 = ev("__ts")
+    okk = lambda ts: bool(ts) and all(x['lines'] == 1 and x['vis'] >= MINW and x['n'] == 1 for x in ts)
+    check('#288 尿布 / 宫缩 / 营养品连点：提示每帧单行、不塌缩、同屏一颗', okk(t1) and okk(t2) and okk(t3),
+          [[len(t), min([x['vis'] for x in t] or [0]), max([x['lines'] for x in t] or [0])] for t in (t1, t2, t3)])
+    # 减少动态效果：不形变（无 clip-path）、数字不跳
+    p.emulate_media(reduced_motion='reduce')
+    ev("Util.toast('已记录一次胎动（今天第 3 次）','ok')"); p.wait_for_timeout(60)
+    ev("Util.toast('已保存修改','ok')"); p.wait_for_timeout(30)
+    rmt = ev("(()=>{const t=document.querySelector('#toastRoot .toast:not(.leaving)');return [t.style.clipPath||'',t.classList.contains('morphing')]})()")
+    check('#288 减少动态效果：替换时不做宽度形变（直接换）', rmt == ['', False], rmt)
+    p.emulate_media(reduced_motion='no-preference')
+    p.wait_for_timeout(3000)
+    # —— C 胎动防连点阈值 ——
+    ev("App.showTab('fetal')"); p.wait_for_timeout(600)
+    gapv = ev("Modules.fetal._addGap()")
+    bb = p.locator('#ftAdd').bounding_box(); cx, cy = bb['x'] + bb['width'] / 2, bb['y'] + bb['height'] / 2
+    n0 = ev("Storage.get().fetal.length")
+    p.touchscreen.tap(cx, cy); p.touchscreen.tap(cx, cy); p.wait_for_timeout(300)
+    n1 = ev("Storage.get().fetal.length")
+    p.touchscreen.tap(cx, cy); p.wait_for_timeout(260); p.touchscreen.tap(cx, cy); p.wait_for_timeout(300)
+    n2 = ev("Storage.get().fetal.length")
+    check('#288 胎动防连点 200ms：手指贴着点两下（误触连击）只记一次；间隔 260ms 的两下各记一次', gapv == 200 and n1 == n0 + 1 and n2 == n1 + 2, [gapv, n0, n1, n2])
+    check('#288 pageerror 为 0', not errs, errs)
+    ctx.close()
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -3802,7 +4115,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r284',),
           ('test_r285',),
           ('test_r286',),
-          ('test_r287',))  # 第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r287',),
+          ('test_r288',))  # 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

@@ -1248,7 +1248,76 @@
     if (el._glassOn && DR.kick) DR.kick(700);
   }
   Util.toastGlass = function () { if (TST.el && TST.el.isConnected && !TST.leaving) toastGlass(TST.el); };
-  function toastShow(e, ms) {
+  /* 第 288 次（真机录屏：连点「+1 动了一下」时胶囊被压成一条竖条、文字一字一行、撤销和小咿呀叠在中间）：
+     根因——原来替换时用 getBoundingClientRect() 量宽度，入场动画 island-in 正在把胶囊从 scale(.34,.62) 放大，量到的是**缩放后**的宽度
+     （真实宽度的三分之一左右）；再把它写成 style.width 当过渡起点，布局宽度真的被压到一百来像素，文字（overflow-wrap:anywhere）一字一行竖排，
+     而且下一次替换又在上一段宽度过渡中途量，越量越窄。改成：
+       ① 文字永不换行（nowrap + 省略号），胶囊有最小宽度；
+       ② 宽度一律量布局宽度（offsetWidth，不受 transform 影响）；正在形变时从「当前看到的宽度」接着走（形变状态记在 el._mo 里，随时可读）；
+       ③ 形变不再过渡 width：布局宽度直接取新旧两者较大值（文字永远有足够空间），看到的形状用 clip-path 圆角 inset 从旧宽度走到新宽度
+          （与「正在进行」胶囊 dock-live 的形变同一做法，只重绘不重排），结束后撤掉内联宽度和裁切；
+       ④ 同一类提示（只差数字，如「今天第 N 次」）在显示期间再来，原地更新文案、数字跳一下，不重播出现动画、小咿呀不重跳。 */
+  var MO_DUR = 300;
+  var moEase = function (t) { return 1 - Math.pow(1 - t, 3); };
+  function toastVisW(el) {
+    var mo = el._mo;
+    if (mo) { var k = Math.min(1, (performance.now() - mo.t0) / mo.dur); return mo.from + (mo.to - mo.from) * moEase(k); }
+    return el.offsetWidth;
+  }
+  function toastMorphEnd(el) {
+    var mo = el._mo; if (!mo) return;
+    if (mo.raf) cancelAnimationFrame(mo.raf);
+    el._mo = null;
+    el.style.width = ''; el.style.clipPath = ''; el.style.webkitClipPath = '';
+    el.classList.remove('morphing');
+    el.removeAttribute('data-vis-w');
+  }
+  /* 从当前看到的宽度 fromW 形变到内容的自然宽度 */
+  function toastMorph(el, fromW) {
+    toastMorphEnd(el);
+    var toW = el.offsetWidth; /* 内联宽度 / 裁切已撤，这是新内容的自然宽度（nowrap，受 max-width 约束） */
+    if (!fromW || Math.abs(toW - fromW) < 1.5 || toastReduced()) return;
+    /* offsetWidth 是取整的，真实宽度可能多零点几像素：布局宽度留 1px 余量，否则形变期间文字被判溢出、末尾出省略号（「第 10 …」） */
+    var W = Math.ceil(Math.max(fromW, toW)) + 1;
+    var mo = el._mo = { from: fromW, to: toW, W: W, t0: performance.now(), dur: MO_DUR, raf: 0 };
+    el.classList.add('morphing');
+    el.style.width = W + 'px';
+    var apply = function () {
+      if (el._mo !== mo) return;
+      var w = toastVisW(el), ins = Math.max(0, (W - w) / 2);
+      var cp = 'inset(0px ' + ins.toFixed(2) + 'px round 999px)';
+      el.style.clipPath = cp; el.style.webkitClipPath = cp;
+      el.setAttribute('data-vis-w', w.toFixed(1));
+      if (performance.now() - mo.t0 >= mo.dur) { toastMorphEnd(el); return; }
+      mo.raf = requestAnimationFrame(apply);
+    };
+    apply();
+    /* rAF 被节流时也要收尾（同一个形变令牌） */
+    setTimeout(function () { if (el._mo === mo) toastMorphEnd(el); }, MO_DUR + 200);
+  }
+  /* 原地更新：只换文案里的数字（变了的数字跳一下）和「×N」，按钮沿用（点击时读 e.action，永远是最近一条） */
+  function toastMsgHtml(msg, prev) {
+    var a = String(msg).split(/(\d+)/), b = prev == null ? null : String(prev).split(/(\d+)/);
+    return a.map(function (tok, i) {
+      if (!tok) return '';
+      if (/^\d+$/.test(tok)) {
+        var changed = !b || b[i] !== tok;
+        return '<span class="toast-num' + (changed ? ' tick' : '') + '">' + Util.escapeHtml(tok) + '</span>';
+      }
+      return Util.escapeHtml(tok);
+    }).join('');
+  }
+  function toastUpdate(el, e, prevMsg) {
+    var m = el.querySelector('.toast-msg');
+    if (m) m.innerHTML = toastMsgHtml(e.msg, prevMsg);
+    var c = el.querySelector('.toast-count');
+    if (c) {
+      if (e.count > 1) { c.hidden = false; c.textContent = '×' + e.count; c.classList.remove('tick'); void c.offsetWidth; c.classList.add('tick'); }
+      else { c.hidden = true; c.textContent = ''; }
+    }
+    el._toastMsg = e.msg; el._toastAt = e.at; el._toastEntry = e;
+  }
+  function toastShow(e, ms, opt) {
     var root = toastRoot();
     var el = TST.el;
     var swap = !!(el && el.isConnected && !TST.leaving);
@@ -1257,25 +1326,26 @@
       el = TST.el = document.createElement('div');
       el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); el.setAttribute('aria-atomic', 'true');
       el._toastDismiss = function () { toastDismissAll(); };
+      el._mo = null;
       toastSwipe(el);
       TST.leaving = false;
     }
-    var oldW = swap ? el.getBoundingClientRect().width : 0;
+    var fromW = swap ? toastVisW(el) : 0;
+    if (swap) toastMorphEnd(el);
+    var inplace = swap && opt && opt.inplace && TST.cur === e && el._toastEntry === e;
     TST.cur = e;
-    toastFill(el, e);
+    if (inplace) toastUpdate(el, e, opt.prev);
+    else toastFill(el, e);
     if (!swap) { root.appendChild(el); toastGlass(el); if (el._glassOn) el.classList.add('lg-on'); }
-    Util.placeToasts();
     if (!swap) {
+      Util.placeToasts();
       requestAnimationFrame(function () { if (TST.el === el && !TST.leaving) el.classList.add('show'); });
     } else {
       /* swap 留着不摘：摘掉会让「首次出现」的内容淡入动画再播一遍（内容会闪没）；下次替换时子节点是新的，动画自然重播 */
-      el.classList.add('show', 'swap');
-      var newW = el.getBoundingClientRect().width;
-      if (oldW && Math.abs(newW - oldW) > 2 && !toastReduced() && el.animate) {
-        el.style.width = oldW + 'px'; void el.offsetWidth;
-        el.classList.add('resizing'); el.style.width = newW + 'px';
-        clearTimeout(el._rzT); el._rzT = setTimeout(function () { el.style.width = ''; el.classList.remove('resizing'); }, 360);
-      }
+      el.classList.add('show');
+      if (!inplace) el.classList.add('swap');
+      toastMorph(el, fromW);
+      Util.placeToasts();
       if (global.DockRefract && DockRefract.kick) DockRefract.kick(520);
     }
     toastArm(ms || e.dur);
@@ -1339,9 +1409,19 @@
     if (cur && TST.el && !TST.leaving) {
       /* 同一句：合并成「×N」，计时重来，轻弹一下 */
       if (cur.msg === e.msg && !cur.action === !e.action) {
-        cur.count++; cur.at = e.at; if (e.action) cur.action = e.action;
+        cur.count++; cur.at = e.at; if (e.action) { cur.action = e.action; cur.acted = false; }
         cur.route = route || cur.route;
-        toastShow(cur, cur.dur);
+        toastShow(cur, cur.dur, { inplace: true, prev: cur.msg });
+        return;
+      }
+      /* 第 288 次：同一类提示（同类型、同页、同样带 / 不带撤销，文案只差数字，如「今天第 N 次」）原地更新——数字跳一下、计时重来，
+         不重播出现动画；「撤销」换成最近这一条的（文案说的就是最近这一条：撤销后回到第 N−1 次）。 */
+      if (cur.kind === e.kind && cur.type === e.type && cur.route === route && !cur.action === !e.action && !cur.acted
+          && cur.msg.replace(/\d+/g, '#') === e.msg.replace(/\d+/g, '#')) {
+        var prev = cur.msg;
+        cur.msg = e.msg; cur.at = e.at; cur.count = 1;
+        if (e.action) cur.action = e.action;
+        toastShow(cur, cur.dur, { inplace: true, prev: prev });
         return;
       }
       if (cur.action && !e.action && !cur.acted) { toastPause(); cur.left = TST.left; TST.base = cur; }

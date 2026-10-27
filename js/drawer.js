@@ -1,44 +1,66 @@
 /**
- * drawer.js —— 第 245 次：首页左侧功能抽屉（「全部功能」半页）
+ * drawer.js —— 左侧整屏侧拉页（全部功能 + 设置入口 + 顶部搜索框）
  *
- * 用户：把全部功能做成首页左拉的功能半页，dock 上的设置入口也移到这里（参考截图：
- * 顶部宝宝头像 + 小名 + 月龄 / 身高 / 体重，下面一组单色入口，再下面一列彩色功能）。
+ * 第 288 次：整体重写（用户：「侧拉页从一开始就问题不断、反复修，不要再打补丁」）。
  *
- * 打开方式：
- *   ① 点 dock 左边的宝宝圆钮（左右手竖排时是胶囊里的头像）；
- *   ② 一级页（首页 / 日期记录 / 搜索）从屏幕左边缘向右拉，抽屉跟手出来。
- * 关闭：点右侧遮罩、向左拉、按 Esc、选了任意入口。
- * 宝宝切换：头像右边的 ⇅ 按钮（原来点圆钮直接弹的宝宝面板）。
+ * 旧实现（第 245–286 次）为什么一直出问题：
+ *   ① 「推整页」结构要同步的东西太多：侧拉页、#app（锁成 fixed + 滚动量写成顶栏负 margin）、遮罩（挂在 #app 里）、dock（在 #app 里跟着走）、
+ *      body 锁定、状态栏取色，六样东西各有各的 CSS 过渡，由 sd-lock / sd-open / sd-drag / sd-half 四个 class 组合驱动；
+ *   ② 落定靠多个互相独立的计时器各自清理：440ms 解锁、600ms 兜底、transitionend、700ms 自检、1.2 秒拖拽看门狗……
+ *      谁先到谁说了算，WebKit 主线程一忙就会把「已经不再声明」的过渡停在半路（第 286 次）；
+ *   ③ history 操作发生在动画中途：关闭一开始就 history.back()，popstate 里再 dropForward（pushState + back）。
+ *      WebKit 在每次 pushState / back 时都会给「当前这条记录」拍一张系统返回手势用的快照（WebBackForwardList::addItem /
+ *      goToItem → recordAutomaticNavigationSnapshot），动画中途拍下的就是「首页右移 + 压暗」的半路画面；
+ *      之后用户系统返回（左缘右滑）回到这条记录时，iOS 先盖上这张旧快照，等页面「重绘 / 滚动位置恢复」等事件，
+ *      等不齐就要到 3 秒看门狗（ViewGestureController swipeSnapshotRemovalWatchdogDuration = 3s）才淡出——
+ *      这就是第 288 次录屏里「右移约 55px + 灰遮罩，2 秒多后突然弹回（淡出时有两层叠影）」的来源：那 2.8 秒是一张静止截图，不是页面本身。
  *
- * 第 246 次（用户录屏参考）：改成「整页向右推开」——页面变成圆角卡片滑到右边、微微变暗，
- * 抽屉在页面底下，带一点视差从左边滑出来。
- * 推 #app 之前先把它锁成一屏高的 fixed 容器（滚动位置挪进 #app.scrollTop），
- * 否则 #app 带 transform 后里面 fixed 的 dock 会改成相对整页定位、跑到页面最底下。
- *
- * 第 276 次（用户同意重做）：浮起的圆角卡片 + 缩放在网页里阴影边缘硬切、圆角难看。
- * 改成和 iOS 导航推入一样的整屏页：侧拉页宽 100%、无圆角无投影，从左边滑进来盖住屏幕；
- * 底下的当前页同步向右平移 28% 并轻微变暗（视差）。全程跟手：一级页向右拉打开，
- * 在侧拉页上向左拉或点左上「返回」关闭，松手按位置 + 速度决定打开还是回弹。
- * 顶部放搜索框（点了直接进搜索页并弹出键盘）。打开时登记一条 history，系统返回 / popstate 先关它。
- * 减少动态效果时不平移，直接淡入淡出。
- *
- * 第 279 次（真机录屏：侧拉页上开着「宝宝资料」面板时划走侧拉页 → 面板跟着侧拉页被拖成一张圆角卡片、
- * 底下露出一张「侧拉页残留一条 + 首页右移压暗」的半开画面；再关侧拉页后面板孤零零留在首页上）：
- *   ① 那张跟着走的圆角卡片和底下的半开画面都是 iOS 系统返回手势的快照（WebKit 在 pushState 那一刻给当前画面拍照，
- *      拖开侧拉页时是松手才登记 history，拍下的正是拖到一半的样子）。改成拖拽一判定就先登记 history、再动画面，
- *      快照永远是没推开的首页；盖在侧拉页上的面板登记自己那条（App._pushOverlay），系统返回只退一层，
- *      不再「关面板再补推侧拉页记录」（补推时拍的是面板还在的画面）。
- *   ② 侧拉页上盖着面板 / 照片大图时，侧拉页自己的左拉不接管（面板下拉照旧）。
- *   ③ 侧拉页以任何方式关闭（左拉、返回、点底页、Esc、切页）都连同盖在它上面的面板、大图一起关，history 一次退干净。
- *   ④ 拖拽兜底：touchcancel / 系统返回 / 切后台 / 1.2 秒没有新的 touchmove（系统手势吞掉了 touchend）都按当前位置落到全开或全关。
+ * 新结构：
+ *   - 覆盖式：侧拉页从左边滑进来盖在页面上，底下页面（#app、dock、WebGL 折射层）完全不动，只多一层压暗遮罩。
+ *     要同步的元素从六样减到两样（侧拉页 transform、遮罩 opacity）。侧拉页本来就是 100% 宽，全开时外观与原来一致。
+ *   - 单一状态机：closed / dragging / opening / open / closing，任何时刻只有 state + 进度 p 两个权威值；
+ *     页面上的一切（侧拉页位移、遮罩透明度、pointer-events、body 锁定、inert / aria、状态栏）都只由 paint() 按 state + p 一次写出。
+ *   - 动画由 rAF 自驱（不靠 CSS 过渡；每帧最多前进 34ms，首帧卡顿不跳变），随时可以取消并从当前进度接着走（动画中反向 / 动画中再按住拖）；
+ *     结束时统一进 settle()。rAF 被节流时同一个动画令牌的兜底计时器也只会调 settle()，不另做清理。
+ *   - touchcancel / 拖拽中来了系统返回：按位置落到最近的稳定态；visibilitychange / pagehide / 宽度变化：拖拽按位置、动画按目标，立即落定。
+ *   - history：打开时只登记一条 {baoma:'drawer'}，而且在画面开始变化之前登记（快照永远是没打开的页面）；
+ *     关闭（左拉 / 点遮罩 / 返回钮 / Esc / 点当前页）先播收起动画，**落定之后**才 history.back()——动画中途不做任何 history 操作，
+ *     所以动画中反向不需要补推记录、也不会把半路画面拍进快照；这条记录以 popstate 到达为准才算退掉（app.js ignorePop），
+ *     那之前再打开会排到 popstate 之后（App._histIdle）。系统返回走 popstate：直接落定为关（系统手势本身已经播过转场，
+ *     页面要和系统快照一致），清前进栈（dropForward）推迟到干净画面提交之后。
+ *   - 入口（宝宝圆钮 / 一级页任意位置右滑 / 菜单项跳转 / 搜索框）与外观不变；菜单项跳转时新页先在底下画好，侧拉页再滑走。
  */
 (function (global) {
   'use strict';
 
   var root = null, panel = null, mask = null;
-  var isOpen = false, locked = false, ly = 0, unlockT = 0;
+  var state = 'closed';   /* closed | dragging | opening | open | closing */
+  var p = 0;              /* 0 = 收起，1 = 全开 */
+  var anim = null;        /* { raf, guard, target } —— 当前动画令牌 */
+  var closeOpts = null;   /* 这次收起的来由：{ keepHist } / { fromPop } / null */
+  var opener = null;
+  var pendingOpen = false; /* 上一次关闭的 back 还没落地时的打开请求（落地后执行；期间关闭则作废） */
+  var DUR = 420;          /* 与 iOS 推入一致 */
+  var SLOW = 1;           /* Drawer._slow(n)：放慢 n 倍方便逐帧截图（同 DockLive._slow） */
   function appEl() { return document.getElementById('app'); }
-  /* 第 279 次：盖在侧拉页上面的层（面板 / 确认框 / 照片大图） */
+  function reducedMotion() { try { return !!(global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } }
+  function width() { return global.innerWidth || (root ? root.getBoundingClientRect().width : 0) || 390; }
+
+  /* cubic-bezier(.32,.72,0,1)（iOS 推入曲线） */
+  var ease = (function (x1, y1, x2, y2) {
+    function bx(t) { return ((1 - 3 * x2 + 3 * x1) * t + (3 * x2 - 6 * x1)) * t * t + 3 * x1 * t; }
+    function by(t) { return ((1 - 3 * y2 + 3 * y1) * t + (3 * y2 - 6 * y1)) * t * t + 3 * y1 * t; }
+    function dbx(t) { return 3 * (1 - 3 * x2 + 3 * x1) * t * t + 2 * (3 * x2 - 6 * x1) * t + 3 * x1; }
+    return function (x) {
+      if (x <= 0) return 0; if (x >= 1) return 1;
+      var t = x;
+      for (var i = 0; i < 8; i++) { var d = bx(t) - x; if (Math.abs(d) < 1e-5) break; var s = dbx(t); if (Math.abs(s) < 1e-6) break; t -= d / s; }
+      t = Math.max(0, Math.min(1, t));
+      return by(t);
+    };
+  })(0.32, 0.72, 0, 1);
+
+  /* ———— 盖在侧拉页上面的层（第 279 次：面板 / 确认框 / 照片大图） ———— */
   function modalMasks() {
     var mr = document.getElementById('modalRoot'); if (!mr) return [];
     return Array.prototype.filter.call(mr.children, function (m) { return !m.classList.contains('sheet-leaving') && !m.classList.contains('sheet-ghost'); });
@@ -62,61 +84,158 @@
     if (!mr || typeof MutationObserver === 'undefined') return;
     new MutationObserver(function () {
       var has = modalMasks().length > 0;
-      if (isOpen && has && !ovRel && global.App && App._pushOverlay) {
+      if (isOpen() && has && !ovRel && global.App && App._pushOverlay) {
         ovRel = App._pushOverlay(function () { ovRel = null; closeChildren(); });
       } else if (!has && ovRel) { var r = ovRel; ovRel = null; r(); }
     }).observe(mr, { childList: true });
   }
-  function lock() {
-    if (unlockT) { clearTimeout(unlockT); unlockT = 0; }
-    if (root && root._tEnd) { root.removeEventListener('transitionend', root._tEnd); root._tEnd = null; }
-    if (auditT) { clearTimeout(auditT); auditT = 0; }
-    if (locked) return;
-    var app = appEl(); if (!app) return;
-    ly = global.pageYOffset || 0;
-    locked = true;
-    /* 滚动量写成顶栏的负 margin（不用 #app.scrollTop：#app 带 transform 后里面 fixed 的 dock
-       等同 absolute，会跟着 scrollTop 一起被卷上去） */
-    document.documentElement.style.setProperty('--sd-ly', ly + 'px');
-    document.body.classList.add('sd-lock');
-    if (mask && mask.parentNode !== app) app.appendChild(mask);
-  }
-  /* 第 286 次（真机：「左滑再左滑页面就消失了，要不就是卡住」）：
-     根因——关闭后靠一个 440ms 定时器去掉 sd-lock，而收起过渡本身 420ms。关闭那一刻主线程很忙（history.back → popstate →
-     dropForward 再 push / back 一轮、重画），过渡的第一帧被推迟，定时器先到：sd-lock 去掉时 #app / 遮罩的过渡还没跑完，
-     WebKit 把这条「已经不再声明」的过渡停在半路——#app 停在右移 28px、遮罩停在 0.2~0.3 不透明且仍 visible（挡住点击 = 卡住；
-     再叠一次左滑 / 关闭时整页停在推开的位置 = 页面消失）。WebKit 里连续三次左滑约 1/30 能复现。
-     修法：① 解锁前把 #app / 遮罩 / 侧拉页身上还在跑的过渡全部取消，内联样式清干净；② 解锁时机改成「收起过渡真正结束（transitionend）
-     或兜底 600ms」二者先到；③ 关闭后 700ms 再自检一次，侧拉页已关就把 sd-open / sd-drag / sd-half / inert / transform 全部归零。 */
-  function killTransitions() {
-    [appEl(), mask, root].forEach(function (el) {
-      if (!el) return;
-      try { if (el.getAnimations) el.getAnimations().forEach(function (a) { try { a.cancel(); } catch (e) {} }); } catch (e) {}
-    });
-  }
-  function unlock() {
-    if (!locked || isOpen) return;
-    locked = false;
-    killTransitions();
-    document.body.classList.remove('sd-lock');
-    var app = appEl(); if (app) { app.style.transform = ''; }
-    if (mask) mask.style.opacity = '';
-    if (root) { root.style.transform = ''; root.style.opacity = ''; }
-    global.scrollTo(0, ly);
-  }
-  /* 关闭后自检：侧拉页处于「关」的状态时，页面必须完整可见、可点 */
-  var auditT = 0;
-  function audit() {
-    auditT = 0;
-    if (isOpen || document.body.classList.contains('sd-drag')) return;
+
+  /* ———— 唯一的「写画面」函数 ———— */
+  function tog(cl, c, on) { if (on) cl.add(c); else cl.remove(c); }
+  function paint() {
+    if (!root) return;
     var b = document.body.classList;
-    b.remove('sd-open'); b.remove('sd-half');
-    var app = appEl();
-    if (app) { try { app.inert = false; } catch (e) {} app.style.transform = ''; }
-    if (mask) mask.style.opacity = '';
-    if (root) { root.setAttribute('aria-hidden', 'true'); try { root.inert = true; } catch (e) {} }
-    if (locked) { if (unlockT) { clearTimeout(unlockT); unlockT = 0; } unlock(); }
+    var vis = state !== 'closed';
+    var settled = state === 'open' || state === 'closed';
+    var interactive = state === 'open' || state === 'opening';
+    tog(b, 'sd-lock', vis);                 /* 侧拉页在屏幕上（含动画 / 拖动）：body 不滚动；其他模块据此让路 */
+    tog(b, 'sd-open', interactive);         /* 目标是「开」：遮罩接点击 */
+    tog(b, 'sd-drag', state === 'dragging');
+    tog(b, 'sd-half', vis && !settled && p >= 0.5);
+    if (settled) {
+      root.style.transform = ''; root.style.opacity = ''; mask.style.opacity = '';
+    } else if (reducedMotion()) {
+      root.style.transform = 'none'; root.style.opacity = String(p); mask.style.opacity = String(p);
+    } else {
+      root.style.transform = 'translate3d(' + ((p - 1) * 100).toFixed(3) + '%,0,0)'; root.style.opacity = ''; mask.style.opacity = String(p);
+    }
+    var on = state === 'open' || state === 'opening' || state === 'dragging';
+    root.setAttribute('aria-hidden', on ? 'false' : 'true');
+    try { root.inert = !on; } catch (e) {}
+    var app = appEl(); if (app) { try { app.inert = interactive; } catch (e) {} }
+    if (global.syncStatusColor) global.syncStatusColor();
   }
+
+  function cancelAnim() {
+    if (!anim) return;
+    if (anim.raf) { try { global.cancelAnimationFrame(anim.raf); } catch (e) {} }
+    if (anim.guard) clearTimeout(anim.guard);
+    anim = null;
+  }
+  /* 从当前进度走到 target（0 / 1）。vel：松手速度 px/ms（带方向），甩得快就走得快 */
+  function animateTo(target, vel) {
+    cancelAnim();
+    state = target ? 'opening' : 'closing';
+    var from = p, dist = Math.abs(target - from);
+    var rm = reducedMotion();
+    var dur = rm ? 200 * dist : Math.max(160, DUR * Math.sqrt(dist));
+    if (!rm && vel && (target ? vel > 0 : vel < 0)) {
+      var byVel = dist * width() / Math.abs(vel) * 1.6;
+      dur = Math.max(140, Math.min(dur, byVel));
+    }
+    dur *= SLOW;
+    paint();
+    if (dist < 0.002 || dur < 1) { settle(target); return; }
+    var tok = { target: target, raf: 0, guard: 0 }, last = -1, el = 0;
+    var frame = function (ts) {
+      if (anim !== tok) return;
+      /* 每帧最多前进 34ms：第一帧要排版整张侧拉页、主线程偶尔卡一下时，画面不会从 0 一下跳到 0.9（宁可慢一点也不跳） */
+      if (last >= 0) el += Math.min(34, Math.max(0, ts - last));
+      last = ts;
+      var k = Math.min(1, el / dur);
+      if (k >= 1) { settle(target); return; }
+      p = from + (target - from) * (rm ? k : ease(k));
+      paint();
+      tok.raf = global.requestAnimationFrame(frame);
+    };
+    tok.raf = global.requestAnimationFrame(frame);
+    /* rAF 被节流（后台 / 无头浏览器偶发）时也必须落定：同一个令牌，只调 settle */
+    tok.guard = setTimeout(function () { if (anim === tok) settle(target); }, dur * 2 + 300);
+    anim = tok;
+  }
+  /* 唯一的落定点 */
+  function settle(target) {
+    cancelAnim();
+    p = target ? 1 : 0;
+    state = target ? 'open' : 'closed';
+    paint();
+    if (target) {
+      closeOpts = null;
+      if (global.App && App._histFlush) App._histFlush();
+      setTimeout(function () { if (state === 'open' && root && !root.contains(document.activeElement)) { try { root.focus({ preventScroll: true }); } catch (e) {} } }, 60);
+      return;
+    }
+    var o = closeOpts || {}; closeOpts = null;
+    closeChildren();
+    /* 退掉侧拉页那条记录（连同盖在上面的面板记录）；系统返回已经退掉了，切页时由 pushHistory 改写复用或 showTabNow 自己退 */
+    if (!o.fromPop && global.App && App._drawerHist) App._drawerHist.closed();
+    /* 动画中排队的 history 写入（菜单项进二级页的改写 / 进设置分组）现在放行——画面已经静止 */
+    if (global.App && App._histFlush) App._histFlush();
+    if (opener && opener.isConnected && !o.keepHist) { try { opener.focus({ preventScroll: true }); } catch (e) {} }
+    opener = null;
+  }
+  /* 立即落到最近的稳定态（touchcancel / 切后台 / 宽度变化 / 拖拽中的系统返回） */
+  function settleNearest() {
+    if (state === 'dragging') { drag.reset(); settle(p >= 0.5 ? 1 : 0); return; }
+    if (anim) settle(anim.target);
+  }
+
+  /* ———— 打开 / 关闭 ———— */
+  function isOpen() { return state === 'open' || state === 'opening' || (state === 'dragging' && drag.fromOpen); }
+  function histBusy() { return !!(global.App && App._histBusy && App._histBusy()); }
+  /* 侧拉页那条记录：画面开始变化之前登记 */
+  function ensureEntry() {
+    if (global.App && App._drawerHist && !App._drawerHist._entry()) App._drawerHist.open();
+  }
+  function beginOpen() {
+    var ae = document.activeElement;
+    /* 键盘开着（例如日期记录页的输入框）先收起，不让它顶着侧拉页 */
+    if (ae && ae !== document.body && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) { try { ae.blur(); } catch (e) {} }
+    if (!opener || !opener.isConnected) opener = (ae && ae !== document.body) ? ae : null;
+    ensureEntry();
+    render(); syncW();
+  }
+  function open() {
+    build();
+    if (state === 'open' || state === 'opening') return;
+    /* 菜单项切页后正在收起（记录已被新页改写）：不倒回去，先落定再按「从关开始」打开 */
+    if (state === 'closing' && closeOpts && closeOpts.keepHist) settle(0);
+    /* 上一次关闭的 history.back() 还没落地：等 popstate 到了再开（否则新记录会压在马上要被退掉的那条上） */
+    if (state === 'closed' && histBusy()) {
+      if (!pendingOpen) { pendingOpen = true; App._histIdle(function () { if (pendingOpen && state === 'closed') { pendingOpen = false; open(); } pendingOpen = false; }); }
+      return;
+    }
+    pendingOpen = false;
+    var wasClosed = state === 'closed';
+    closeOpts = null;
+    if (state === 'dragging') drag.reset();
+    if (wasClosed) beginOpen();
+    if (wasClosed && global.Util && Util.haptic) Util.haptic('light');
+    animateTo(1, 0);
+    /* 焦点移进侧拉页（对话框本身，不画焦点环）；键盘用户接着 Tab 就是「返回」 */
+    if (wasClosed) setTimeout(function () { if (isOpen() && root && !root.contains(document.activeElement)) { try { root.focus({ preventScroll: true }); } catch (e) {} } }, 60);
+  }
+  /* opts.keepHist：切页（history 由切页处理：进二级页改写复用侧拉页那条，否则 showTabNow 自己退）
+     opts.fromPop：系统返回已经退掉了那条记录——直接落定（系统手势已经播过转场） */
+  function close(opts) {
+    pendingOpen = false; /* 排队等 popstate 的打开一并取消 */
+    if (!root || state === 'closed') return;
+    opts = opts || {};
+    if (state === 'dragging') drag.reset();
+    if (opts.fromPop) { closeOpts = { fromPop: true }; settle(0); return; }
+    closeOpts = { keepHist: !!opts.keepHist };
+    if (state === 'closing') return;
+    animateTo(0, opts.vel || 0);
+  }
+  /* 选了入口：先开始收起，再在同一个任务里画新页——新页在第一帧之前就画好在底下，侧拉页滑走时露出的就是新页。
+     先收起再切页，showTabNow 就不会把它当成「侧拉页开着时被别处切页」；进二级页时 pushHistory 改写复用侧拉页那条记录，
+     没复用（首页 / 日期记录这类一级页）就在落定时退掉（settle → closed()，没有记录时是空操作）。 */
+  function navigate(fn) {
+    opener = null;
+    if (state !== 'closed') close({ keepHist: true });
+    try { fn(); } catch (e) {}
+  }
+  function syncW() { try { document.documentElement.style.setProperty('--sd-w', width() + 'px'); } catch (e) {} }
 
   function esc(s) { return (global.Util && Util.escapeHtml) ? Util.escapeHtml(s) : String(s == null ? '' : s); }
   function ic(k) { return (global.icon && global.icon(k)) || ''; }
@@ -181,10 +300,11 @@
     panel.innerHTML = top + '<div class="sd-scroll"><div class="sd-inner">' + h + '</div></div>';
   }
 
+
   function build() {
     if (root) return;
     mask = document.createElement('div');
-    mask.className = 'sd-mask'; mask.id = 'sdMask'; /* 挂在 #app 里：随页面一起推开，盖住页面接点击 */
+    mask.className = 'sd-mask'; mask.id = 'sdMask'; /* 第 288 次：挂在 body 上、页面之上侧拉页之下；页面本身不再移动 */
     root = document.createElement('aside');
     root.id = 'sideDrawer'; root.className = 'side-drawer';
     root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', '全部功能');
@@ -193,11 +313,14 @@
     try { root.inert = true; } catch (e) {}
     panel = document.createElement('div'); panel.className = 'sd-panel';
     root.appendChild(panel);
-    (appEl() || document.body).appendChild(mask);
+    document.body.appendChild(mask);
     document.body.appendChild(root);
     watchOverlays();
-    mask.addEventListener('click', function () { close(); });
+    /* 冒泡阶段的点击委托（触感层的回声点击见 Util.hapEcho；这里只在开着时响应，收起中 / 已关的点击一律不算） */
+    mask.addEventListener('click', function () { if (isOpen()) close(); });
     root.addEventListener('click', function (e) {
+      if (state !== 'open' && state !== 'opening') return;
+      if (global.Util && Util.hapEcho && Util.hapEcho(e)) return;
       var t = e.target && e.target.closest ? e.target.closest('[data-sd-go],[data-sd]') : null;
       if (!t) return;
       var go = t.getAttribute('data-sd-go'), act = t.getAttribute('data-sd');
@@ -207,7 +330,7 @@
         navigate(function () { if (App.openSearch) App.openSearch(); else App.showTab('search', { noVT: true }); });
         return;
       }
-      if (act === 'swap') { if (App._openBabySheet) App._openBabySheet(); return; } /* 面板盖在抽屉上，选完回到抽屉 */
+      if (act === 'swap') { if (App._openBabySheet) App._openBabySheet(); return; } /* 面板盖在侧拉页上，选完回到侧拉页 */
       if (act === 'baby') { navigate(function () { if (App.openSettingsGroup) App.openSettingsGroup('称呼与阶段'); }); return; }
       if (!go) return;
       if (go === '__edit') {
@@ -221,219 +344,118 @@
       navigate(function () { App.showTab(go, { noVT: true }); });
     });
   }
-  document.addEventListener('keydown', function (e) { if (isOpen && e.key === 'Escape') close(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && isOpen() && !overlayOpen()) close(); });
 
-  /* 第 276 次：整屏宽；底下的页跟着推 28%（iOS 导航推入的视差比例） */
-  var PAR = 0.28;
-  var prog = 0, opener = null;
-  function width() { return global.innerWidth || (root ? root.getBoundingClientRect().width : 0) || 390; }
-  function reducedMotion() { try { return !!(global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } }
-  function setProgress(p, dragging) {
-    /* p: 0 = 收起，1 = 全开；拖动中写内联样式，松手交给 CSS 过渡 */
-    p = Math.max(0, Math.min(1, p));
-    prog = p;
-    var app = appEl();
-    if (dragging) document.body.classList.add('sd-drag'); else document.body.classList.remove('sd-drag');
-    if (dragging) {
-      if (reducedMotion()) {
-        /* 减少动态效果：不平移，只按进度淡入 */
-        root.style.transform = 'none'; root.style.opacity = String(p);
-        if (app) app.style.transform = '';
+  /* ———— 跟手 ————
+     一级页任意位置向右横拉打开（第 246 次：最左边缘归 Safari「后退」，不必贴边）；侧拉页开着时向左拉关闭；
+     动画进行中按住可以接着拖（从当前进度起步）。松手看位置和速度（≥0.35px/ms 视为甩动）。 */
+  var drag = {
+    mode: null, decided: false, fromOpen: false, sx: 0, sy: 0, p0: 0, lx: 0, lt: 0, vel: 0, panAny: false, dogT: 0,
+    reset: function () { this.mode = null; this.decided = false; this.fromOpen = false; if (this.dogT) { clearTimeout(this.dogT); this.dogT = 0; } }
+  };
+  function canEdgeOpen() {
+    if (!global.App || !App._isTop || !App._isTop()) return false;
+    var b = document.body.classList;
+    if (b.contains('qd-open') || b.contains('ob-open') || b.contains('ftf-open') || b.contains('ps-pull') || document.documentElement.classList.contains('wp-lock')) return false; /* 第 271 次：白噪音播放页开着时不拉 */
+    var mr = document.getElementById('modalRoot');
+    if (mr && mr.children.length) return false;
+    if (overlayOpen()) return false;
+    return !(App.inSub && App.inSub());
+  }
+  var NO_PAN = 'input, textarea, select, .sw-row, .record-grid.is-editing, #tabbar, #dockOrb, #quickDock, .qd-mask, [data-no-drawer], .week-strip, .cal-grid, input[type=range]';
+  function hScrollAncestor(el) {
+    for (var n = el; n && n !== document.body && n.nodeType === 1; n = n.parentNode) {
+      if (n.scrollWidth > n.clientWidth + 2) {
+        var ox = global.getComputedStyle(n).overflowX;
+        if (ox === 'auto' || ox === 'scroll') return true;
+      }
+    }
+    return false;
+  }
+  function armDog() {
+    /* 第 279 次：系统手势（返回 / 控制中心 / 切 App）可能把 touchend、touchcancel 都吞掉：1.2 秒没有新的 touchmove 就按位置落定 */
+    if (drag.dogT) clearTimeout(drag.dogT);
+    drag.dogT = setTimeout(function () { drag.dogT = 0; if (state === 'dragging') settleNearest(); }, 1200);
+  }
+  document.addEventListener('touchstart', function (e) {
+    /* 上一次拖拽没收到 touchend（被系统手势吞掉）就来了新的触摸：先按位置落定 */
+    if (state === 'dragging') settleNearest();
+    drag.reset();
+    if (!e.touches || e.touches.length !== 1) return;
+    var t = e.touches[0];
+    drag.panAny = false; drag.vel = 0;
+    if (state === 'open' || state === 'opening' || (state === 'closing' && !(closeOpts && closeOpts.keepHist))) {
+      if (!overlayOpen()) { drag.mode = 'grab'; drag.fromOpen = state !== 'closing'; } /* 第 279 次：上面盖着面板 / 大图时不拖侧拉页 */
+    } else if (state === 'closed' && canEdgeOpen()) {
+      var tg = e.target;
+      if (t.clientX <= 24) drag.mode = 'open';
+      else if (!(tg && tg.closest && tg.closest(NO_PAN)) && !hScrollAncestor(tg)) { drag.mode = 'open'; drag.panAny = true; }
+      if (drag.mode) build();
+    }
+    if (!drag.mode) return;
+    drag.sx = t.clientX; drag.sy = t.clientY; drag.lx = drag.sx; drag.lt = Date.now();
+  }, { passive: true });
+  document.addEventListener('touchmove', function (e) {
+    if (!drag.mode || !e.touches || !e.touches.length) return;
+    var t = e.touches[0], dx = t.clientX - drag.sx, dy = t.clientY - drag.sy;
+    if (!drag.decided) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      if (Math.abs(dy) > Math.abs(dx)) { drag.reset(); return; }
+      if (drag.mode === 'grab' && state === 'open' && dx > 0) { drag.reset(); return; } /* 全开时向右拉没有意义，留给内容 */
+      if (drag.mode === 'open' && (dx < 0 || (drag.panAny && Math.abs(dx) < Math.abs(dy) * 1.4))) { drag.reset(); return; }
+      if (drag.mode === 'open') {
+        if (histBusy()) { drag.reset(); return; } /* 上一次关闭的 history 还没落地，这一下不接管 */
+        beginOpen(); /* 先登记 history 再动画面：WebKit 在 pushState 时给当前画面拍系统返回用的快照 */
+        drag.p0 = 0;
       } else {
-        root.style.transform = 'translate3d(' + ((p - 1) * 100).toFixed(3) + '%,0,0)';
-        root.style.opacity = '';
-        if (app) app.style.transform = 'translate3d(' + (p * PAR * width()).toFixed(1) + 'px,0,0)';
+        drag.p0 = p;
       }
-      mask.style.opacity = String(p);
-    } else {
-      if (app) app.style.transform = '';
-      root.style.transform = ''; root.style.opacity = ''; mask.style.opacity = '';
+      cancelAnim();
+      drag.decided = true;
+      state = 'dragging';
     }
-    /* 第 266 次：状态栏跟着侧拉页走（盖过一半就换成侧拉页底色）；第 276 次起由 syncStatusColor 按 Drawer.progress() 判定 */
-    var half = dragging ? p >= 0.5 : null;
-    if (half) document.body.classList.add('sd-half'); else document.body.classList.remove('sd-half');
-    if (global.syncStatusColor) global.syncStatusColor();
+    var now = Date.now(), dtm = Math.max(1, now - drag.lt);
+    drag.vel = drag.vel * 0.4 + ((t.clientX - drag.lx) / dtm) * 0.6; /* px/ms，平滑一下 */
+    drag.lx = t.clientX; drag.lt = now;
+    var off = dx + (dx > 0 ? -8 : 8); /* 起步判定吃掉的那 8px 不算，免得一判定就跳一下 */
+    if (drag.mode === 'open' && !drag.panAny) off = dx; /* 贴边起手不吃 */
+    p = Math.max(0, Math.min(1, drag.p0 + off / width()));
+    paint();
+    armDog();
+    if (e.cancelable) e.preventDefault();
+  }, { passive: false });
+  function endDrag(cancelled) {
+    if (!drag.mode) return;
+    var decided = drag.decided, vel = drag.vel;
+    if (Date.now() - drag.lt > 120) vel = 0; /* 停住再松手不算甩 */
+    drag.reset();
+    if (!decided || state !== 'dragging') return;
+    if (cancelled) { settle(p >= 0.5 ? 1 : 0); return; } /* 第 279 次：被打断不算甩，只看位置，直接落定 */
+    var FLING = 0.35;
+    var target = vel <= -FLING ? 0 : (vel >= FLING ? 1 : (p >= 0.5 ? 1 : 0));
+    if (!target) closeOpts = { keepHist: false };
+    animateTo(target, vel);
   }
-  function syncW() { try { document.documentElement.style.setProperty('--sd-w', width() + 'px'); } catch (e) {} }
+  document.addEventListener('touchend', function () { endDrag(false); }, { passive: true });
+  document.addEventListener('touchcancel', function () { endDrag(true); }, { passive: true });
+  /* 拖拽中来了系统返回：先按位置落定，再交给 app.js 的 popstate（侧拉页开着就关） */
+  global.addEventListener('popstate', function () { if (state === 'dragging') settleNearest(); }, true);
+  global.addEventListener('blur', function () { if (state === 'dragging') settleNearest(); });
+  global.addEventListener('pagehide', settleNearest);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) settleNearest(); });
+  var lastW = global.innerWidth;
+  global.addEventListener('resize', function () {
+    if (global.innerWidth === lastW) return; /* 只认宽度变化（旋转 / 分屏），键盘收起的高度变化不算 */
+    lastW = global.innerWidth; syncW(); settleNearest();
+  });
 
-  function open() {
-    build();
-    render();
-    lock();
-    syncW();
-    var was = isOpen;
-    isOpen = true;
-    if (!was) {
-      opener = document.activeElement;
-      /* 键盘开着（例如日期记录页的输入框）先收起，不让它顶着侧拉页 */
-      var ae = document.activeElement;
-      if (ae && ae !== document.body && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) { try { ae.blur(); } catch (e) {} }
-      if (global.App && App._drawerHist) App._drawerHist.open();
-    }
-    root.setAttribute('aria-hidden', 'false');
-    try { root.inert = false; } catch (e) {}
-    var app = appEl(); if (app) { try { app.inert = true; } catch (e) {} } /* 页面不再能被 Tab / 读屏走到 */
-    setProgress(1, false);
-    document.body.classList.add('sd-open');
-    if (global.syncStatusColor) global.syncStatusColor();
-    if (!was) {
-      if (global.Util && Util.haptic) Util.haptic('light');
-      /* 焦点移进侧拉页（对话框本身，不画焦点环）；键盘用户接着 Tab 就是「返回」 */
-      setTimeout(function () { if (isOpen) { try { root.focus({ preventScroll: true }); } catch (e) {} } }, 60);
-    }
-  }
-  /* opts.keepHist：由 navigate() 调用，history 的处理留给切页（它会复用侧拉页那条记录）；
-     opts.fromPop：系统返回已经退掉了那条记录 */
-  function close(opts) {
-    if (!root) return;
-    if (opts && opts.keepHist && isOpen) { ly = 0; document.documentElement.style.setProperty('--sd-ly', '0px'); } /* 切页：新页从顶部开始 */
-    var was = isOpen;
-    isOpen = false;
-    setProgress(0, false);
-    document.body.classList.remove('sd-open');
-    if (global.syncStatusColor) global.syncStatusColor();
-    root.setAttribute('aria-hidden', 'true');
-    try { root.inert = true; } catch (e) {}
-    var app = appEl(); if (app) { try { app.inert = false; } catch (e) {} }
-    /* 第 279 次：拖开途中就登记了 history（was 还是 false），所以只要不是切页 / 系统返回，有记录就退；
-       closed() 连同盖在上面的面板记录一次退干净，再关掉这些层 */
-    if (!(opts && (opts.keepHist || opts.fromPop)) && global.App && App._drawerHist) App._drawerHist.closed();
-    closeChildren();
-    if (was && opener && opener.isConnected && !(opts && opts.keepHist)) { try { opener.focus({ preventScroll: true }); } catch (e) {} }
-    if (!(opts && opts.keepHist)) opener = null;
-    if (unlockT) clearTimeout(unlockT);
-    if (root._tEnd) { root.removeEventListener('transitionend', root._tEnd); root._tEnd = null; }
-    var fin = function () {
-      if (root._tEnd) { root.removeEventListener('transitionend', root._tEnd); root._tEnd = null; }
-      if (unlockT) { clearTimeout(unlockT); unlockT = 0; }
-      unlock();
-    };
-    if (!reducedMotion()) {
-      root._tEnd = function (e) { if (e.target === root && e.propertyName === 'transform' && !isOpen) fin(); };
-      root.addEventListener('transitionend', root._tEnd);
-    }
-    unlockT = setTimeout(fin, reducedMotion() ? 220 : 600);
-    if (auditT) clearTimeout(auditT);
-    auditT = setTimeout(audit, 700);
-  }
-  /* 选了入口：侧拉页一边滑走一边换成新页（不再叠系统转场），回到顶部。
-     进二级页时那次 pushHistory 直接复用侧拉页登记的 history 记录；没用上就退掉它。 */
-  function navigate(fn) {
-    ly = 0;
-    document.documentElement.style.setProperty('--sd-ly', '0px');
-    close({ keepHist: true });
-    opener = null;
-    try { fn(); } catch (e) {}
-    if (global.App && App._drawerHist) App._drawerHist.closed();
-  }
-
-  /* 跟手：一级页向右拉打开；侧拉页开着时向左拉关闭。松手看位置和速度（≥0.35px/ms 视为甩动）。 */
-  function bindDrag() {
-    var sx = 0, sy = 0, mode = null, decided = false, lastP = 0, lx = 0, lt = 0, vel = 0;
-    function canEdgeOpen() {
-      if (!global.App || !App._isTop || !App._isTop()) return false;
-      if (document.body.classList.contains('qd-open') || document.body.classList.contains('ob-open') || document.body.classList.contains('ftf-open') || document.body.classList.contains('ps-pull') || document.documentElement.classList.contains('wp-lock')) return false; /* 第 271 次：白噪音播放页开着时不拉抽屉 */
-      var mr = document.getElementById('modalRoot');
-      if (mr && mr.children.length) return false;
-      if (overlayOpen()) return false;
-      return !(App.inSub && App.inSub());
-    }
-    /* 第 246 次（真机录屏）：iPhone Safari 里从屏幕最左边缘右滑会被浏览器拿去做「后退」，
-       露出上一条历史的截图（黑底、深色页、抽屉残影）。所以一级页上**任意位置向右横滑**都能拉出抽屉，
-       不必贴边；只有会自己横向滑动的地方（横向滚动区、左滑删除行、输入框、编辑排序中的卡片、dock）不接管。 */
-    var NO_PAN = 'input, textarea, select, .sw-row, .record-grid.is-editing, #tabbar, #dockOrb, #quickDock, .qd-mask, [data-no-drawer], .week-strip, .cal-grid, input[type=range]';
-    function hScrollAncestor(el) {
-      for (var n = el; n && n !== document.body && n.nodeType === 1; n = n.parentNode) {
-        if (n.scrollWidth > n.clientWidth + 2) {
-          var ox = global.getComputedStyle(n).overflowX;
-          if (ox === 'auto' || ox === 'scroll') return true;
-        }
-      }
-      return false;
-    }
-    var panAny = false;
-    /* 第 279 次：上一次拖拽没收到 touchend / touchcancel（被系统手势吞掉）就又来了新的一次触摸——
-       先把上一次按当前位置落定，否则 mode 被清掉后内联位移、sd-drag 永远留着，停在半开（真机录屏里的那一条） */
-    function settleStray() {
-      if (mode && decided) { vel = 0; end(); return; }
-      mode = null;
-      if (document.body.classList.contains('sd-drag')) {
-        document.body.classList.remove('sd-drag');
-        if (prog >= 0.5) open(); else { setProgress(0, false); close(); }
-      }
-    }
-    document.addEventListener('touchstart', function (e) {
-      settleStray();
-      if (!e.touches || e.touches.length !== 1) return;
-      var t = e.touches[0];
-      mode = null; decided = false; panAny = false; vel = 0;
-      if (isOpen) { if (!overlayOpen()) mode = 'close'; } /* 第 279 次：上面盖着面板 / 大图时不拖侧拉页 */
-      else if (canEdgeOpen()) {
-        var tg = e.target;
-        if (t.clientX <= 24) { mode = 'open'; build(); }
-        else if (!(tg && tg.closest && tg.closest(NO_PAN)) && !hScrollAncestor(tg)) { mode = 'open'; panAny = true; build(); }
-      }
-      if (!mode) return;
-      sx = t.clientX; sy = t.clientY; lx = sx; lt = Date.now();
-    }, { passive: true });
-    document.addEventListener('touchmove', function (e) {
-      if (!mode) return;
-      var t = e.touches[0], dx = t.clientX - sx, dy = t.clientY - sy;
-      if (!decided) {
-        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-        if (Math.abs(dy) > Math.abs(dx) || (mode === 'close' && dx > 0)) { mode = null; return; }
-        if (mode === 'open' && (dx < 0 || (panAny && Math.abs(dx) < Math.abs(dy) * 1.4))) { mode = null; return; }
-        decided = true;
-        if (mode === 'open') {
-          /* 第 279 次：先登记 history 再动画面——WebKit 在 pushState 时给当前画面拍系统返回用的快照 */
-          if (global.App && App._drawerHist) App._drawerHist.open();
-          render(); lock(); syncW();
-        }
-        else { var app0 = appEl(); if (app0) { try { app0.inert = false; } catch (eI) {} } }
-      }
-      var now = Date.now(), dtm = Math.max(1, now - lt);
-      vel = vel * 0.4 + ((t.clientX - lx) / dtm) * 0.6; /* px/ms，平滑一下 */
-      lx = t.clientX; lt = now;
-      var w = width();
-      if (panAny) dx -= 8; /* 起步判定吃掉的那 8px 不算，免得一判定就跳一下 */
-      lastP = mode === 'open' ? dx / w : 1 + dx / w;
-      setProgress(lastP, true);
-      arm();
-      if (e.cancelable) e.preventDefault();
-    }, { passive: false });
-    /* 第 279 次：系统手势（返回 / 控制中心 / 切 App）可能把 touchend、touchcancel 都吞掉，
-       1.2 秒没有新的 touchmove 就按当前位置落定，绝不停在半开 */
-    var dogT = 0;
-    function arm() { if (dogT) clearTimeout(dogT); dogT = setTimeout(function () { dogT = 0; settleStray(); }, 1200); }
-    function end() {
-      if (dogT) { clearTimeout(dogT); dogT = 0; }
-      if (!mode) return;
-      var m = mode; mode = null;
-      if (!decided) return;
-      if (Date.now() - lt > 120) vel = 0; /* 停住再松手不算甩 */
-      document.body.classList.remove('sd-drag');
-      var FLING = 0.35;
-      if (m === 'open') {
-        if (vel <= -FLING) { setProgress(0, false); close(); }
-        else if (lastP > 0.5 || vel >= FLING) open();
-        else { setProgress(0, false); close(); }
-      } else {
-        if (vel <= -FLING || (lastP < 0.5 && vel < FLING)) close();
-        else open();
-      }
-    }
-    document.addEventListener('touchend', end, { passive: true });
-    document.addEventListener('touchcancel', function () { vel = 0; end(); }, { passive: true }); /* 第 279 次：被打断不算甩，只看位置 */
-    settle = settleStray;
-    global.addEventListener('popstate', function () { settle(); }, true);
-    global.addEventListener('blur', function () { settle(); });
-    global.addEventListener('pagehide', function () { settle(); });
-    document.addEventListener('visibilitychange', function () { if (document.hidden) settle(); });
-  }
-  var settle = function () {};
-
-  bindDrag(); /* 边缘拉出要在抽屉第一次建出来之前就能用 */
-  global.Drawer = { open: open, close: close, isOpen: function () { return isOpen; }, _render: render, _settle: function () { settle(); },
-    /* 第 276 次：0 = 收起，1 = 全开（拖动中是实时进度）；状态栏取色用 */
-    progress: function () { return document.body.classList.contains('sd-lock') ? (document.body.classList.contains('sd-drag') ? prog : (isOpen ? 1 : 0)) : 0; } };
+  global.Drawer = {
+    open: open, close: close, isOpen: isOpen, _render: render, _settle: settleNearest,
+    /* 第 288 次：侧拉页是否还在屏幕上（含收起动画）；状态机当前状态 */
+    visible: function () { return state !== 'closed'; },
+    state: function () { return state; },
+    _slow: function (n) { SLOW = n > 0 ? n : 1; },
+    /* 0 = 收起，1 = 全开（拖动 / 动画中是实时进度）；状态栏取色用 */
+    progress: function () { return state === 'closed' ? 0 : p; }
+  };
 })(window);

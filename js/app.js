@@ -573,7 +573,7 @@
     if (!(opts && opts.silent) && !isTopLevel && wasTopLevel) {
       pushHistory(id);
     }
-    if (drNav && global.App._drawerHist) global.App._drawerHist.closed(); /* 第 279 次：没被 pushHistory 复用就退掉 */
+    /* 第 288 次：侧拉页那条记录没被 pushHistory 复用时，由侧拉页收起动画落定后自己退（动画中途不做 history 操作） */
     /* 第 271 次：离开某页时给它一个收尾的机会（白噪音播放页挂在 body 上，要跟着收起） */
     if (prevId && prevId !== id && Modules[prevId] && typeof Modules[prevId].leave === 'function') {
       try { Modules[prevId].leave(id); } catch (e) { /* 收尾异常不影响切页 */ }
@@ -2338,10 +2338,21 @@
         if (idleT) { clearTimeout(idleT); idleT = 0; }
         var q = idleQ.splice(0); q.forEach(function (f) { try { f(); } catch (eQ) {} });
       };
+      /* 第 288 次：还有静默退回没落地（侧拉页关闭后的 back / 启动回卷） */
+      global.App._histBusy = function () { return ignorePop > 0 || rewind > 0; };
+      /* 第 288 次：侧拉页正在动画 / 拖动时也排队——这时 pushState 会把半路画面拍进系统返回快照（从侧拉页「宝宝资料」进设置分组时
+         改写 + 进二级两次写入就落在收起动画里）。侧拉页落定时调 App._histFlush() 放行 */
+      var drawerMoving = function () { var s = global.Drawer && Drawer.state ? Drawer.state() : 'closed'; return s !== 'closed' && s !== 'open'; };
+      global.App._histFlush = function () { if (!(ignorePop > 0 || rewind > 0 || drawerMoving())) flushIdle(); };
+      /* 兜底：popstate 迟迟不来时 700ms 后照样放行；但侧拉页还在动（WebKit 主线程忙时收起动画会拖过 700ms）就再等——
+         侧拉页落定时自己会调 _histFlush，而且它有自己的兜底落定，不会一直动下去 */
+      var armIdle = function (ms) {
+        idleT = setTimeout(function () { idleT = 0; if (drawerMoving()) armIdle(120); else flushIdle(); }, ms);
+      };
       global.App._histIdle = function (fn) {
-        if (ignorePop > 0 || rewind > 0) {
+        if (ignorePop > 0 || rewind > 0 || drawerMoving() || idleQ.length) {
           idleQ.push(fn);
-          if (!idleT) idleT = setTimeout(function () { idleT = 0; flushIdle(); }, 700);
+          if (!idleT) armIdle(700);
         } else fn();
       };
       var dropForward = function () {
@@ -2350,6 +2361,22 @@
           ignorePop++;
           global.history.back();
         } catch (eG) { ignorePop = 0; }
+      };
+      /* 第 288 次：侧拉页关闭后清前进栈要等「干净画面」提交到屏幕之后再做——pushState 会给当前这条记录拍系统返回快照，
+         紧跟着关闭同步做，拍到的是还没提交的上一帧（侧拉页 / 压暗还在），iOS 系统返回回到这条时会先盖上这张旧图最多 3 秒。
+         两帧之后、侧拉页仍是关的、期间没有别的 history 操作才做。 */
+      var dfSeq = 0;
+      var dropForwardLater = function () {
+        var my = ++dfSeq;
+        var go = function () {
+          if (my !== dfSeq) return; dfSeq++;
+          if (global.Drawer && Drawer.visible && Drawer.visible()) return;
+          if (ignorePop > 0 || rewind > 0) return;
+          dropForward();
+        };
+        var raf = global.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
+        raf(function () { raf(function () { setTimeout(go, 0); }); });
+        setTimeout(go, 160); /* rAF 被节流时的兜底（同一个序号，只做一次） */
       };
       /* 第 270 次（真机截图：抽屉开着时从左缘右滑，露出一张「深色主题 + 抽屉打开」的旧画面，像抽屉错乱）：
          那是 iOS 的系统返回手势，拉出的是 history 里上一条记录的旧快照。正常使用时首页永远落在第一条记录上，
@@ -2381,12 +2408,14 @@
         if (ignorePop > 0) {
           ignorePop--;
           /* 第 276 次：关侧拉页退掉它那条记录后，再清掉前进栈（否则 iOS 能从右缘把侧拉页「前进」拉出来） */
-          if (!ignorePop && drawerPopped) { drawerPopped = false; dropForward(); return; }
+          if (!ignorePop && drawerPopped) { drawerPopped = false; dropForwardLater(); if (!drawerMoving()) flushIdle(); return; }
           if (!ignorePop && ovPopped) { ovPopped = false; dropForward(); return; }
           if (!ignorePop && restoreWait && !global.__yiyaRewinding) restoreWait();
-          if (!ignorePop) flushIdle();
+          if (!ignorePop && !drawerMoving()) flushIdle();
           return;
         }
+        /* 第 288 次：排队中的 history 写入（侧拉页收起中进了某页）被真正的返回抢先了——它们是写给已经退掉的那条记录的，作废 */
+        if (idleQ.length) { idleQ.splice(0); if (idleT) { clearTimeout(idleT); idleT = 0; } }
         var st = ev && ev.state;
         /* 第 278 次（审计 #30）：照片大图等最上层临时层开着 → 只关它（它登记的那条记录已被这次 back 退掉） */
         if (ovEntries.length) { var oe = ovEntries.pop(); try { oe.close(); } catch (eOC) {} dropForward(); return; }
@@ -2394,15 +2423,16 @@
         if (st && st.baoma === 'guard') { ignorePop++; try { global.history.back(); } catch (eB) { ignorePop = 0; } return; }
         /* 第 276 次：系统返回 / popstate 时侧拉页开着 → 先关它、留在原页。
            侧拉页上面还盖着面板（切换宝宝）时先关面板，把侧拉页那条记录补回来。 */
-        if (global.Drawer && Drawer.isOpen()) {
-          if (global.Sheet && Sheet.isOpen && Sheet.isOpen()) {
+        /* 第 288 次：侧拉页在屏幕上、且退掉的正是它那条记录（或它开着）——直接落定为关（系统手势已经播过转场），清前进栈推迟 */
+        if (global.Drawer && Drawer.visible && Drawer.visible() && (drawerEntry || Drawer.isOpen())) {
+          if (Drawer.isOpen() && global.Sheet && Sheet.isOpen && Sheet.isOpen()) {
             Sheet.closeTop();
             try { global.history.pushState({ baoma: 'drawer' }, ''); drawerEntry = true; } catch (eP0) { drawerEntry = false; }
             return;
           }
           drawerEntry = false;
           Drawer.close({ fromPop: true });
-          dropForward();
+          dropForwardLater();
           return;
         }
         drawerEntry = false;

@@ -29,10 +29,13 @@
   }
 
   /* ---------- 计数：+1 / 开始 / 结束 / 取消 ---------- */
-  var addLock = 0;
+  var addLock = 0, ADD_GAP = 200;
   function add(d, trusted) {
-    /* 一下胎动只记一次：手指 400ms 内的第二下当作连点（触感层回声在委托里已滤掉），脚本派发的不受影响 */
-    if (trusted && Date.now() - addLock < 400) return;
+    /* 一下胎动只记一次：手指 ADD_GAP 内的第二下当作误触连击（触感层回声在委托里已滤掉），脚本派发的不受影响。
+       第 288 次：400ms → 200ms。录屏里页面计数逐次 +1（约 0.5–1 秒一下），提示里「5→5、8→8」是同一条提示被连续看到两次，
+       不是点按被吞；但两次真实胎动可以在 1 秒内接连出现，手快的人连点约 150–250ms 一下，400ms 会吞掉其中一部分。
+       手指一下点出两下（抖动 / 触感层之外的重复派发）间隔在 100ms 以内，200ms 挡住它又不吞有意的点按。 */
+    if (trusted && Date.now() - addLock < ADD_GAP) return;
     addLock = Date.now();
     var DS = Util.dayStartHour(d), dayNow = Util.dayKeyOf(new Date(), DS);
     var rec = { id: Util.uid(), time: Util.nowLocal() };
@@ -258,6 +261,7 @@
     _edit: function (rec) { openTap(Storage.get(), rec); },
     _remove: function (id) { removeTap(Storage.get(), id); },
     _editSession: function (rec) { openSess(Storage.get(), rec); },
-    _add: function () { add(Storage.get(), false); }
+    _add: function () { add(Storage.get(), false); },
+    _addGap: function () { return ADD_GAP; }
   };
 })(window);

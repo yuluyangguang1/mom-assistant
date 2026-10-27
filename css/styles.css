@@ -4971,44 +4971,31 @@ body.dark .toast-action { background: rgba(255, 255, 255, .9); color: #2a2622; }
 /* ============================================================
    第 245 次：左侧功能抽屉（全部功能 + 设置），首页左边缘拉出 / 点宝宝圆钮
    ============================================================ */
-/* 第 276 次：改成 iOS 导航推入式的整屏侧拉页（用户同意）。
-   侧拉页宽 100%、无圆角无投影，从左边滑进来盖住屏幕；底下的当前页（#app）同步右移 28% 并轻微压暗。
-   曲线与时长和 iOS 推入一致（.42s，cubic-bezier(.32,.72,0,1)）；拖动中由 drawer.js 写内联样式、不走过渡。 */
+/* 第 288 次：重写为覆盖式（drawer.js 状态机）。侧拉页宽 100%、无圆角无投影，从左边滑进来盖在页面上；
+   底下的页面（#app、dock、WebGL 折射层）完全不动，只多一层压暗遮罩（浅 .16 / 深 .34）。
+   位移 / 透明度全部由 drawer.js 的 paint() 按「状态 + 进度」写内联样式、rAF 自驱，这里没有任何过渡：
+   落定时内联样式清空，由下面几条 class 规则给出两个稳定态（关 = 隐藏在左边、遮罩透明不接点击；开 = 归位、遮罩接点击）。
+   sd-lock = 侧拉页在屏幕上（含拖动 / 动画），sd-open = 目标是开，sd-drag = 拖动中。 */
 .sd-mask {
-  position: fixed; inset: 0; z-index: 2000; background: rgba(20, 16, 12, .16);
-  opacity: 0; visibility: hidden; transition: opacity .42s cubic-bezier(.32, .72, 0, 1), visibility .42s;
+  position: fixed; inset: 0; z-index: 79; background: rgba(20, 16, 12, .16);
+  opacity: 0; visibility: hidden; pointer-events: none; transition: none;
+  -webkit-tap-highlight-color: transparent;
 }
-body.sd-open .sd-mask, body.sd-drag .sd-mask { visibility: visible; }
-body.sd-open .sd-mask { opacity: 1; }
+body.sd-lock .sd-mask { visibility: visible; }
+body.sd-open .sd-mask { opacity: 1; pointer-events: auto; }
 body.dark .sd-mask { background: rgba(0, 0, 0, .34); }
-/* 第 246 次：#app 锁成一屏高的 fixed 容器再平移，里面 fixed 的顶栏 / dock 跟着走 */
 body.sd-lock { overflow: hidden; }
-body.sd-lock #app > .app-header { margin-top: calc(-1 * var(--sd-ly, 0px)); }
-body.sd-lock #app {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 5; overflow: hidden;
-  background:
-    linear-gradient(180deg,
-      rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1))),
-      rgba(var(--sky-ambient-bottom, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1)))),
-    var(--bg-grad), var(--vt-paper, #FDF9F4);
-  transition: transform .42s cubic-bezier(.32, .72, 0, 1);
-  will-change: transform;
-}
-body.sd-open #app { transform: translate3d(28%, 0, 0); }
 .side-drawer {
-  position: fixed; top: 0; bottom: 0; left: 0; z-index: 50;
+  position: fixed; top: 0; bottom: 0; left: 0; z-index: 80;
   width: 100%; box-sizing: border-box;
   background: var(--surface); color: var(--text);
-  transform: translate3d(-100%, 0, 0); visibility: hidden;
-  transition: transform .42s cubic-bezier(.32, .72, 0, 1), opacity .2s linear, visibility 0s linear .42s;
-  will-change: transform;
+  transform: translate3d(-100%, 0, 0); visibility: hidden; pointer-events: none;
+  transition: none; will-change: transform;
 }
-body.sd-lock .side-drawer { visibility: visible; transition: transform .42s cubic-bezier(.32, .72, 0, 1), opacity .2s linear, visibility 0s; }
-/* 第 246 次：解锁后（#app 回到普通流、没有 z-index）侧拉页必须立刻消失 */
-body:not(.sd-lock) .side-drawer { visibility: hidden; transition: none; }
+body.sd-lock .side-drawer { visibility: visible; }
+body.sd-open .side-drawer, body.sd-drag .side-drawer { pointer-events: auto; }
 body.dark .side-drawer { background: #121110; }
 body.sd-open .side-drawer { transform: none; }
-body.sd-drag .side-drawer, body.sd-drag .sd-mask, body.sd-drag #app { transition: none; }
 .sd-panel { height: 100%; display: flex; flex-direction: column; }
 /* 顶部：返回 + 搜索框（不 sticky：整个侧拉页本身就是 fixed 层，这一行只是它的第一行） */
 .sd-top { flex: none; display: flex; align-items: center; gap: 10px;
@@ -5051,12 +5038,9 @@ body.sd-drag .side-drawer, body.sd-drag .sd-mask, body.sd-drag #app { transition
 .side-drawer .sd-mono .sd-ico .ico { color: var(--text); opacity: .78; }
 .sd-mono .sd-row { font-weight: 700; }
 @media (prefers-reduced-motion: reduce) {
-  /* 减少动态效果：不平移，侧拉页直接淡入，底下的页不动 */
+  /* 减少动态效果：不平移，侧拉页按进度淡入淡出（drawer.js 写 opacity，约 200ms 线性） */
   .side-drawer, body.sd-open .side-drawer { transform: none; opacity: 0; }
   body.sd-open .side-drawer { opacity: 1; }
-  body.sd-lock .side-drawer { transition: opacity .2s linear, visibility 0s; }
-  body.sd-open #app { transform: none; }
-  .sd-mask, body.sd-lock #app { transition: none; }
 }
 
 /* 快捷记录：横条 / 小卡 */
@@ -5462,7 +5446,7 @@ body.hc .toast > canvas.lg-gl2 { display: none; }
 body .toast.toast-island {
   position: relative; isolation: isolate;
   display: inline-flex; align-items: center; gap: 10px;
-  min-height: 48px; padding: 6px 8px 6px 6px; box-sizing: border-box; max-width: 100%;
+  min-height: 48px; min-width: 148px; padding: 6px 8px 6px 6px; box-sizing: border-box; max-width: 100%;
   border: 0; border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--surface) 72%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(190%) brightness(1.04);
@@ -5505,13 +5489,21 @@ html.lg-gl body.dark .toast.toast-island.lg-on { background: color-mix(in srgb, 
 @keyframes island-content { from { opacity: 0; transform: scale(.9); } }
 .toast.toast-island.show.swap > .toast-msg, .toast.toast-island.show.swap > .toast-action, .toast.toast-island.show.swap > .toast-count { animation: island-swap .26s var(--ease) both; }
 @keyframes island-swap { from { opacity: 0; transform: translateY(4px); } }
-.toast.toast-island.resizing { overflow: hidden; transition: width .3s cubic-bezier(.34, 1.25, .64, 1), translate .32s cubic-bezier(.34, 1.4, .64, 1); }
+/* 第 288 次：替换时的宽度形变不再过渡 width（会重排、被打断时量到缩放后的宽度就塌成竖条）。
+   util.js 把布局宽度定为新旧较大值，看到的形状用 clip-path 圆角 inset 逐帧从旧宽度收 / 放到新宽度；内容居中，正好落在可见区里。 */
+.toast.toast-island.morphing { justify-content: center; }
 .toast.toast-island.dragging { transition: none; }
 .toast.toast-island.leaving { animation: island-out .24s var(--ease) both; }
 @keyframes island-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-10px) scale(.5, .72); } }
 .toast.toast-island.leaving-up { animation: island-up .24s var(--ease) both; }
 @keyframes island-up { from { opacity: 1; } to { opacity: 0; transform: translateY(-46px) scale(.9); } }
-.toast-island .toast-msg { padding: 0 2px; min-width: 0; overflow-wrap: anywhere; }
+/* 第 288 次：提示文字永不换行，放不下就省略号；胶囊有最小宽度，任何时刻不会塌成竖条 */
+.toast-island .toast-msg { padding: 0 2px; flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toast-island .toast-yiya, .toast-island .toast-action, .toast-island .toast-count { flex: none; white-space: nowrap; }
+/* 同一类提示原地更新：变了的数字（今天第 N 次）跳一下；×N 同理 */
+.toast-island .toast-num { display: inline-block; font-variant-numeric: tabular-nums; }
+.toast-island .toast-num.tick, .toast-island .toast-count.tick { animation: toast-tick .34s cubic-bezier(.34, 1.56, .64, 1) both; }
+@keyframes toast-tick { 0% { opacity: 0; transform: translateY(55%) scale(.8); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
 .toast-island:not(:has(.toast-action)) .toast-msg { padding-right: 8px; }
 .toast-island .toast-count { flex: none; font-size: calc(12px * var(--fs-mul)); font-weight: 800; color: var(--tile-text, var(--primary-text)); font-variant-numeric: tabular-nums; margin-left: -4px; padding-right: 6px; }
 .toast-island .toast-count[hidden] { display: none; }
@@ -5575,6 +5567,7 @@ body.dark .toast-island[data-kind="ok"] .ty-badge, body.dark .toast-island[data-
   .toast.toast-island.show > :not(canvas), .toast.toast-island.show.swap > * { animation: none; }
   .toast-island.show .toast-yiya img, .toast-island.show .ty-badge, .toast-island.show .ty-fx, .toast-island.show .ty-fx::before, .toast-island.show .ty-fx::after { animation: none !important; }
   #toastRoot { transition: none; }
+  .toast-island .toast-num.tick, .toast-island .toast-count.tick { animation: none !important; }
 }
 @keyframes island-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes island-fade-out { to { opacity: 0; } }
