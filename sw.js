@@ -13,7 +13,7 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v253';
+var CACHE = 'baoma-static-v254';
 var REVALIDATED = {}; /* 第 270 次：图片缓存优先，后台校验过的 URL */
 /* v90（第 129 次）：首屏降噪——对标 Cali 首屏设计（HomeWidgetSnapshot 无 reminder 字段，
    逾期只以 VaccineReminderPlan.pendingCount 计数存在）。疫苗逾期 / 儿保过参考时间 /
@@ -198,7 +198,6 @@ var ASSETS = [
   'js/modules/supplies.js',
   'js/modules/mood.js',
   'js/modules/alltools.js',
-  'js/drawer.js',
   'js/pull-search.js',
   'js/touchfx.js',
   'js/modules/search.js'

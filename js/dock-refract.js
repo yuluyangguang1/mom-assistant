@@ -568,14 +568,14 @@
   /* ---------- 玻璃面（第 277 次） ---------- */
   function boxOf(r) { return { x: r.left, y: r.top, w: r.width, h: r.height }; }
   function surfDpr() { return quality >= 2 ? Math.min(global.devicePixelRatio || 1, 2) : 1; }
-  /* 盖在顶部提示岛下面的层（面板、全屏计时、侧拉页、快记、看图、引导）：快照里没有它们，提示岛就只用 CSS 毛玻璃 */
+  /* 盖在顶部提示岛下面的层（面板、全屏计时、快记 / 菜单面板、看图、引导）：快照里没有它们，提示岛就只用 CSS 毛玻璃 */
   var OVL = '.ftf, #modalRoot > .modal-mask, #view .modal-mask:not([hidden]), .home-sheet, .qd-mask, .ph-view';
   var blkCache = { t: 0, v: false };
   function blockedTop(b) {
     var now = Date.now();
     if (now - blkCache.t < 200) return blkCache.v;
     var v = false, body = doc.body;
-    if (body.classList.contains('sd-lock') || body.classList.contains('ob-open')) v = true;
+    if (body.classList.contains('ob-open')) v = true;
     else {
       var list = doc.querySelectorAll(OVL);
       for (var i = 0; i < list.length && !v; i++) {

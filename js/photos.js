@@ -216,7 +216,7 @@
           if (!fromPop && release) release();
           if (global.queueStatusColor) global.queueStatusColor();
         }
-        el._phClose = function (fromPop) { close(!!fromPop); }; /* 第 279 次：侧拉页一并关它时 history 由侧拉页一次退掉 */
+        el._phClose = function (fromPop) { close(!!fromPop); }; /* 第 279 次：fromPop = 它那条 history 已被系统返回退掉 */
         el._phIndex = function () { return idx; };
         function show(i) {
           if (i < 0 || i >= ids.length) { img.style.transform = ''; return false; }

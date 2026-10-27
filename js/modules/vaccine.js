@@ -690,7 +690,7 @@
       else { var best = -1, bd = ''; pages.forEach(function (p, i2) { if (p.date && p.date >= bd) { bd = p.date; best = i2; } }); if (best >= 0) idx = best; }
       var SV = (global.FTUI && FTUI.SV) || {};
       el = document.createElement('div');
-      el.className = 'vb-book'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', '疫苗本'); el.setAttribute('data-no-drawer', '');
+      el.className = 'vb-book'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', '疫苗本');
       el.setAttribute('data-accent', 'vaccine');
       el.innerHTML = '<div class="vb-in"><div class="vb-top"><button type="button" class="vb-btn" data-vbx aria-label="合上疫苗本">' + icon('close') + '</button><b>疫苗本</b>'
         + '<button type="button" class="vb-btn" data-vbmore aria-label="修改这一页">' + (SV.more || '…') + '</button></div>'
@@ -890,7 +890,7 @@
     id: 'vaccine',
     title: '疫苗',
     noHero: true, /* 第 289 次：封面就是这一页的主角，不再叠页头大插画 */
-    /* 第 183 次：给页头插画 / 侧拉页用的接种进度 */
+    /* 第 183 次：给页头插画用的接种进度 */
     progress: function (d) {
       var b = (d.settings && d.settings.baby) || {};
       if (!b.birthDate) return null;

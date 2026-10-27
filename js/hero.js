@@ -263,7 +263,7 @@
   /* 第 276 次（内存审计：58 张全部预解码常驻约 56 MB，切到后台也不放，是后台被系统回收的主要原因之一）：
      改成按需：
        · 启动后只预热「首页上能点进去的模块」的页头插画（最多 8 张，取首页卡片的 data-go，没有就按阶段给默认）；
-       · 页头插画另有一个最多 12 张的 LRU，手指按到任何入口（data-go / data-tab / 侧拉页行）时立刻预热那一页，
+       · 页头插画另有一个最多 12 张的 LRU，手指按到任何入口（data-go / data-tab / 菜单面板格子）时立刻预热那一页，
          按下到松手之间就解码好了（480px webp 解码约几毫秒）；
        · 尿布类型图 / 辅食卡图 / 声音画卡只在进入（或按到）对应页面时载入，离开就放掉；
        · 切到后台（visibilitychange → hidden）全部放掉引用，回前台再按当前页重新预热。
@@ -353,9 +353,9 @@
   }
   /* 手指按到入口：立刻预热要去的那页（插画 + 图组） */
   function pressWarm(e) {
-    var t = e.target && e.target.closest ? e.target.closest('[data-go],[data-tab],[data-sd-go]') : null;
+    var t = e.target && e.target.closest ? e.target.closest('[data-go],[data-tab],[data-qm-go]') : null;
     if (!t) return;
-    var id = t.getAttribute('data-go') || t.getAttribute('data-tab') || t.getAttribute('data-sd-go');
+    var id = t.getAttribute('data-go') || t.getAttribute('data-tab') || t.getAttribute('data-qm-go');
     if (!id) return;
     warmHero(id); addSet(id);
   }

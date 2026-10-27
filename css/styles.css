@@ -4959,81 +4959,6 @@ body.dark .toast-action { background: rgba(255, 255, 255, .9); color: #2a2622; }
 /* 第 244 次：哄睡声音卡与其他小组件同款浅色卡；播放中把副文案点亮 */
 .hw-wn2.is-on .hl2-gap { color: var(--tile-text); font-weight: 700; }
 
-/* ============================================================
-   第 245 次：左侧功能抽屉（全部功能 + 设置），首页左边缘拉出 / 点宝宝圆钮
-   ============================================================ */
-/* 第 288 次：重写为覆盖式（drawer.js 状态机）。侧拉页宽 100%、无圆角无投影，从左边滑进来盖在页面上；
-   底下的页面（#app、dock、WebGL 折射层）完全不动，只多一层压暗遮罩（浅 .16 / 深 .34）。
-   位移 / 透明度全部由 drawer.js 的 paint() 按「状态 + 进度」写内联样式、rAF 自驱，这里没有任何过渡：
-   落定时内联样式清空，由下面几条 class 规则给出两个稳定态（关 = 隐藏在左边、遮罩透明不接点击；开 = 归位、遮罩接点击）。
-   sd-lock = 侧拉页在屏幕上（含拖动 / 动画），sd-open = 目标是开，sd-drag = 拖动中。 */
-.sd-mask {
-  position: fixed; inset: 0; z-index: 79; background: rgba(20, 16, 12, .16);
-  opacity: 0; visibility: hidden; pointer-events: none; transition: none;
-  -webkit-tap-highlight-color: transparent;
-}
-body.sd-lock .sd-mask { visibility: visible; }
-body.sd-open .sd-mask { opacity: 1; pointer-events: auto; }
-body.dark .sd-mask { background: rgba(0, 0, 0, .34); }
-body.sd-lock { overflow: hidden; }
-.side-drawer {
-  position: fixed; top: 0; bottom: 0; left: 0; z-index: 80;
-  width: 100%; box-sizing: border-box;
-  background: var(--surface); color: var(--text);
-  transform: translate3d(-100%, 0, 0); visibility: hidden; pointer-events: none;
-  transition: none; will-change: transform;
-}
-body.sd-lock .side-drawer { visibility: visible; }
-body.sd-open .side-drawer, body.sd-drag .side-drawer { pointer-events: auto; }
-body.dark .side-drawer { background: #121110; }
-body.sd-open .side-drawer { transform: none; }
-.sd-panel { height: 100%; display: flex; flex-direction: column; }
-/* 顶部：返回 + 搜索框（不 sticky：整个侧拉页本身就是 fixed 层，这一行只是它的第一行） */
-.sd-top { flex: none; display: flex; align-items: center; gap: 10px;
-  padding: calc(env(safe-area-inset-top) + 10px) 16px 8px 12px; width: 100%; max-width: 640px; margin: 0 auto; box-sizing: border-box; }
-.sd-back { flex: none; width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center; background: var(--surface-2); color: var(--text); }
-.sd-back .ico { width: 22px; height: 22px; color: inherit; }
-.sd-back:active { transform: scale(.94); }
-.sd-search { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 14px;
-  border: 0; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--muted);
-  font-family: inherit; font-size: var(--fs-body); text-align: left; cursor: pointer; }
-.sd-search > span:last-child { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sd-search .si-ico { flex: none; display: inline-flex; }
-.sd-search .si-ico .ico { width: 19px; height: 19px; color: var(--muted); }
-.sd-search:active { background: var(--border); }
-.sd-back:focus-visible, .sd-search:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.sd-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
-  padding: 14px 20px calc(env(safe-area-inset-bottom) + 28px) 22px; box-sizing: border-box; }
-.sd-inner { max-width: 600px; margin: 0 auto; }
-.sd-baby { padding-bottom: 18px; margin-bottom: 8px; border-bottom: 1px solid var(--border); }
-.sd-baby-top { display: flex; align-items: center; justify-content: space-between; }
-.sd-ava { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; border: 0; padding: 0; cursor: pointer; background: #F6D5D5; flex: none; }
-.sd-ava img, .sd-ava svg { width: 100%; height: 100%; object-fit: cover; display: block; }
-.sd-swap { width: 44px; height: 44px; border-radius: 50%; border: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
-  background: var(--surface-2); color: var(--text); }
-.sd-swap .ico { width: 20px; height: 20px; }
-.sd-name { display: block; text-decoration: none; margin-top: 12px; font-size: calc(20px * var(--fs-mul, 1)); font-weight: 800; }
-.sd-meta { margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
-.sd-sec { display: flex; flex-direction: column; padding: 6px 0 10px; }
-.sd-sec + .sd-sec { border-top: 1px solid var(--border); padding-top: 12px; }
-.sd-gh { margin: 2px 0 4px; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .04em; }
-.sd-row { display: flex; align-items: center; gap: 14px; min-height: 48px; padding: 0 10px; margin: 0 -10px; border: 0; background: none; cursor: pointer;
-  font-family: inherit; font-size: calc(16px * var(--fs-mul, 1)); font-weight: 700; color: var(--text); text-align: left; border-radius: var(--radius-sm);
-  transition: background .15s var(--ease); }
-.sd-row:active { background: var(--surface-2); }
-.sd-row.on { background: var(--surface-2); }
-.sd-ico { width: 30px; height: 30px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
-.sd-ico .ico { width: 24px; height: 24px; }
-.side-drawer .sd-color .sd-ico .ico { color: var(--tile, var(--primary)); }
-.side-drawer .sd-mono .sd-ico .ico { color: var(--text); opacity: .78; }
-.sd-mono .sd-row { font-weight: 700; }
-@media (prefers-reduced-motion: reduce) {
-  /* 减少动态效果：不平移，侧拉页按进度淡入淡出（drawer.js 写 opacity，约 200ms 线性） */
-  .side-drawer, body.sd-open .side-drawer { transform: none; opacity: 0; }
-  body.sd-open .side-drawer { opacity: 1; }
-}
-
 /* 快捷记录：横条 / 小卡 */
 .hq-card { padding: 10px; }
 .hq-card .hq-b { flex: 1 1 0; min-width: 0; border: 0; cursor: pointer; font-family: inherit; color: var(--tile-text, var(--text));
@@ -5086,7 +5011,7 @@ body.home-dragging { -webkit-user-select: none; user-select: none; }
 }
 .touch-glow.on { opacity: 1; transition-duration: .08s; }
 body.dark .touch-glow { background: radial-gradient(circle 140px at var(--gx, 50%) var(--gy, 50%), rgba(255, 255, 255, .13), rgba(255, 255, 255, .04) 45%, transparent 72%); }
-body.sd-open .touch-glow, body.qd-open .touch-glow { display: none; }
+body.qd-open .touch-glow { display: none; }
 
 /* 第 249 次：iOS 触感层（touchfx.js）——透明 label 盖满按钮，内含隐藏 switch；手指真实点到它才有系统触感 */
 .hap-layer { position: absolute; inset: 0; z-index: 3; border-radius: inherit; -webkit-tap-highlight-color: transparent; touch-action: manipulation; cursor: inherit; }
@@ -5368,7 +5293,6 @@ body:not(.in-home) .pull-search { display: none; }
 body.dark .pull-search { background: color-mix(in srgb, var(--surface) 88%, transparent); }
 @media (prefers-reduced-transparency: reduce) { .pull-search { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 body.hc .pull-search { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
-.side-drawer:focus { outline: none; }
 /* 第 276 次：页头插画还没解码好时先透明，解码完淡入（hero.js 兜底，正常从入口点进来时已预热、不会出现） */
 .mod-hero img.hero-pending { opacity: 0; }
 .mod-hero img { transition: opacity .12s linear; }
@@ -6409,4 +6333,88 @@ body.dark .vac-page, body.dark .vb-book, body.dark .vac-toc { --vb-cover: #7C413
 }
 @media (prefers-reduced-motion: reduce) {
   .vb-book, .vb-book .vb-in, .vb-cover { transition: none; }
+}
+
+/* ============================================================
+   第 290 次：菜单面板（取代左侧侧拉页）
+   和「＋」快捷记录是同一个面板：#quickDock / #qdActions / #qdMask，同一套 open / qd-closing 类、玻璃底、qdPop 入场、遮罩淡入；
+   菜单只是内容不同（#quickDock.qd-menu，body.qm-open）。下拉关闭（--qd-dy）两种内容共用。只动 transform / opacity。
+   ============================================================ */
+/* 往下拉：面板跟手（拖动中不过渡），松手弹回走面板自己的过渡；拉过阈值收起时继续往下走再淡出 */
+body #quickDock.open:not(.qd-closing) .qd-actions { transform: translateX(-50%) translateY(var(--qd-dy, 0px)); }
+body #quickDock.qd-dragging .qd-actions { transition: none !important; }
+body.qd-drag .qd-mask { transition: none !important; }
+body #quickDock.open.qd-closing.qd-dragged .qd-actions { opacity: 0; transform: translateX(-50%) translateY(calc(var(--qd-dy, 0px) + 48px)); transition: opacity .18s var(--ease), transform .2s var(--ease); }
+#quickDock.qd-dragged .qd-action { animation: none !important; }
+/* 菜单在 ＋ 上不转成 ×（× 只属于快捷记录） */
+body.qm-open .tabbar .tab-plus .ico { transform: none; }
+body.qm-open .tabbar .tab-plus::before { opacity: 0; }
+body.qm-open .qd-mask { touch-action: none; }
+/* 收起动画中遮罩已不接点击（还在淡出），点到的就是页面——不等动画结束（＋ 和菜单同一条） */
+body:not(.qd-open) .qd-mask { pointer-events: none; }
+/* 立即收起（切页 / 系统返回 / 换内容）：不走淡出，下一帧就没有面板和遮罩 */
+body.qd-now .qd-mask, body.qd-now #quickDock .qd-actions { transition: none !important; }
+body.qd-now #quickDock .qd-action { animation: none !important; }
+
+/* 面板本体：比快捷记录高，内容区自己滚动；顶上一根把手（往下拉关闭的提示） */
+body #quickDock.qd-menu .qd-actions {
+  display: flex; flex-direction: column; padding: 0; overflow: hidden;
+  max-height: calc(100vh - 76px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 24px);
+  max-height: calc(100dvh - 76px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 24px);
+}
+body #quickDock.qd-menu .qd-actions:focus { outline: none; }
+.qd-grab { flex: none; display: flex; justify-content: center; padding: 8px 0 2px; cursor: grab; touch-action: none; }
+.qd-grab i { width: 36px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--text) 22%, transparent); }
+.qm-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 4px 10px 12px; }
+/* 宝宝：头像 + 名字 / 月龄身高体重（整块点开宝宝资料）+ 右边「切换」 */
+.qm-head { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+.qm-baby { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 4px; margin: 0; border: 0; border-radius: var(--radius); background: none;
+  color: var(--text); font-family: inherit; text-align: left; cursor: pointer; }
+.qm-baby:active { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.qm-ava { flex: none; width: 44px; height: 44px; border-radius: 50%; overflow: hidden; background: #F6D5D5; }
+.qm-ava img, .qm-ava svg { width: 100%; height: 100%; object-fit: cover; display: block; }
+.qm-bt { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.qm-name { font-size: calc(17px * var(--fs-mul, 1)); font-weight: 800; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qm-meta { display: flex; flex-wrap: wrap; gap: 0 10px; font-size: calc(12px * var(--fs-mul, 1)); color: var(--muted); line-height: 1.4; }
+.qm-meta span { white-space: nowrap; }
+.qm-swap { flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 12px 0 9px; border: 0; border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text); font-family: inherit; font-size: calc(14px * var(--fs-mul, 1)); font-weight: 700; white-space: nowrap; cursor: pointer; }
+.qm-swap .ico { width: 18px; height: 18px; }
+.qm-swap:active { transform: scale(.95); }
+/* 搜索：一整条药丸 */
+.qm-search { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin: 0 0 12px; padding: 0 14px; border: 0; border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--muted); font-family: inherit; font-size: calc(15px * var(--fs-mul, 1)); text-align: left; white-space: nowrap; cursor: pointer; }
+.qm-search .si-ico { flex: none; display: inline-flex; }
+.qm-search .si-ico .ico { width: 18px; height: 18px; color: var(--muted); }
+.qm-search:active { background: color-mix(in srgb, var(--text) 10%, transparent); }
+/* 分组网格：图标在上、名字在下；最小列宽按这一组最长的名字算（--qm-ch 个字宽），窄屏 / 大字号自动少一列，名字不折行不截断 */
+.qm-sec { margin: 0; padding: 0; }
+.qm-sec + .qm-sec { margin-top: 8px; padding-top: 8px; border-top: 1px solid color-mix(in srgb, var(--text) 9%, transparent); }
+.qm-gh { margin: 2px 4px 6px; font-size: calc(12px * var(--fs-mul, 1)); font-weight: 700; color: var(--muted); letter-spacing: .04em; }
+.qm-grid { display: grid; gap: 2px; font-size: calc(13px * var(--fs-mul, 1));
+  grid-template-columns: repeat(auto-fill, minmax(max(calc(var(--qm-ch, 4) * 1em + 8px), 52px), 1fr)); }
+body #quickDock .qd-action.qm-it { flex-direction: column; justify-content: flex-start; gap: 5px; min-height: 0; padding: 8px 2px 7px; border-radius: var(--radius);
+  background: transparent; text-align: center; font-size: 1em; }
+body #quickDock .qd-action.qm-it:hover { background: color-mix(in srgb, var(--text) 5%, transparent); filter: none; }
+body #quickDock .qd-action.qm-it.on { background: color-mix(in srgb, var(--text) 7%, transparent); }
+body #quickDock .qm-it .qd-badge { width: 40px; height: 40px; background: var(--tile-weak, color-mix(in srgb, var(--text) 7%, transparent)); }
+body #quickDock .qm-it.qm-mono .qd-badge { background: color-mix(in srgb, var(--text) 7%, transparent); }
+body #quickDock .qm-it.qm-mono .qd-ico { color: var(--text); opacity: .8; }
+body.dark #quickDock .qm-it .qd-badge { background: color-mix(in srgb, var(--tile, #fff) 20%, transparent); }
+body.dark #quickDock .qm-it.qm-mono .qd-badge { background: rgba(255, 255, 255, .09); }
+.qm-n { display: block; font-size: 1em; font-weight: 600; line-height: 1.3; color: var(--text); white-space: nowrap; }
+/* 菜单的格子多：入场错开更紧（≤12 格之后同时到），收起只走面板淡出，不逐格倒放 */
+#quickDock.qd-menu.open .qd-action, body #quickDock.qd-menu.open .qd-action { animation-delay: calc(var(--i, 0) * 14ms); }
+#quickDock.qd-menu.open.qd-closing .qd-action, body #quickDock.qd-menu.open.qd-closing .qd-action { animation: none; }
+/* 左右手竖排 dock：快捷记录从竖排胶囊上方展开，菜单太高放不下——菜单居中贴底，竖排胶囊退到遮罩下面 */
+body.dock-left #quickDock.qd-menu, body.dock-right #quickDock.qd-menu { left: 50%; right: auto; bottom: calc(10px + env(safe-area-inset-bottom)); }
+body.dock-left #quickDock.qd-menu .qd-actions, body.dock-right #quickDock.qd-menu .qd-actions {
+  max-width: none; flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: flex-start;
+  max-height: calc(100vh - 10px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 24px);
+  max-height: calc(100dvh - 10px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 24px);
+}
+body.qm-open.dock-left .tabbar, body.qm-open.dock-right .tabbar { z-index: 10; }
+@media (prefers-reduced-motion: reduce) {
+  body #quickDock.open.qd-closing.qd-dragged .qd-actions { transform: translateX(-50%); }
+  body #quickDock.open:not(.qd-closing) .qd-actions { transform: translateX(-50%) translateY(var(--qd-dy, 0px)); }
 }

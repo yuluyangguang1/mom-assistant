@@ -7,7 +7,7 @@
  *
  * 不和系统冲突：只有「起手时页面已在最顶、手指向下、竖向为主、这次 touchmove 还能取消」才接管，
  * 接管后 preventDefault，Safari 标签页的下拉刷新 / 橡皮筋不会同时出现；iOS 主屏应用本来就没有系统刷新。
- * 页面正在惯性滚动（touchmove 不可取消）时不接管。横向手势留给侧拉页（drawer.js）。
+ * 页面正在惯性滚动（touchmove 不可取消）时不接管。横向手势不接管。
  * 减少动态效果：不跟手平移，只淡入搜索栏，松手不回弹。
  */
 (function (global) {
@@ -35,7 +35,7 @@
     var b = doc.body, A = global.App;
     if (!A || !A.currentTab || A.currentTab() !== 'home' || !A._isTop || !A._isTop()) return false;
     if ((global.pageYOffset || doc.documentElement.scrollTop || 0) > 0) return false;
-    if (b.classList.contains('sd-lock') || b.classList.contains('qd-open') || b.classList.contains('ob-open') || b.classList.contains('ftf-open') || b.classList.contains('sheet-open')) return false;
+    if (b.classList.contains('qd-open') || b.classList.contains('ob-open') || b.classList.contains('ftf-open') || b.classList.contains('sheet-open')) return false;
     if (doc.documentElement.classList.contains('wp-lock') || doc.documentElement.classList.contains('is-booting')) return false;
     var mr = doc.getElementById('modalRoot');
     if (mr && mr.children.length) return false;

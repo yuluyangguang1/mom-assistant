@@ -267,7 +267,7 @@
     return ids;
   }
   function qbarHTML(d) {
-    var h = '<div class="mod-cta cal-qbar" data-no-drawer><div class="cq-row" role="group" aria-label="快捷记录">';
+    var h = '<div class="mod-cta cal-qbar"><div class="cq-row" role="group" aria-label="快捷记录">';
     quickIds(d).forEach(function (k) {
       var q = QK[k];
       h += '<button type="button" class="cq-b" data-qk="' + k + '" data-accent="' + q.acc + '" aria-label="记' + q.t + '"><span class="cq-ico">' + icon(q.ico) + '</span><span class="cq-t">' + q.t + '</span></button>';
@@ -365,7 +365,6 @@
     var r = anchor.getBoundingClientRect(), vw = global.innerWidth || 390, vh = global.innerHeight || 800;
     var mask = document.createElement('div');
     mask.className = 'cal-pop-mask';
-    mask.setAttribute('data-no-drawer', '');
     var below = r.bottom + 8 + 220 < vh || r.top < vh / 2;
     mask.innerHTML = '<div class="cal-pop ' + cls + '" role="menu" style="right:' + Math.max(8, Math.round(vw - r.right)) + 'px;'
       + (below ? 'top:' + Math.round(r.bottom + 6) + 'px' : 'bottom:' + Math.round(vh - r.top + 6) + 'px;transform-origin:100% 100%') + '">' + html + '</div>';
@@ -530,7 +529,7 @@
     P.ensureSides = ensureSides;
     function blocked() {
       var b = document.body.classList;
-      if (b.contains('sd-open') || b.contains('sd-lock') || b.contains('qd-open') || b.contains('sheet-open')) return true;
+      if (b.contains('qd-open') || b.contains('sheet-open')) return true;
       var mr = document.getElementById('modalRoot');
       return !!(mr && mr.children.length) || !!document.querySelector('body > .cal-pop-mask');
     }
@@ -622,8 +621,8 @@
         + '<div class="page-head cal-head-row"><h1 id="calTitle" aria-live="polite"></h1>'
         + '<div class="cal-acts">' + babyBtnHTML()
         + '<button type="button" class="cal-hbtn cal-jump" data-cal-jump aria-label="跳转到日期">' + icon('calendar') + '</button></div></div>'
-        + '<div class="ws-pager" data-no-drawer><div class="ws-track"><div></div><div></div><div></div></div></div>'
-        + '<div class="cal-pager" data-no-drawer><div class="cal-track"><div></div><div></div><div></div></div></div>'
+        + '<div class="ws-pager"><div class="ws-track"><div></div><div></div><div></div></div></div>'
+        + '<div class="cal-pager"><div class="cal-track"><div></div><div></div><div></div></div></div>'
         + qbarHTML(d)
         + '</div>';
       var title = view.querySelector('#calTitle');

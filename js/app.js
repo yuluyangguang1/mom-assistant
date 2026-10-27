@@ -16,8 +16,8 @@
     { id: 'calendar', title: '日期记录', ico: 'dk-cal' }
   ];
   /* 第 276 次（用户同意）：搜索移出 dock（一级、二级都去掉）。入口改成：首页到顶后继续下拉（pull-search.js）、
-     侧拉页顶部搜索框、「全部功能」页搜索框。搜索页路由保留，改算二级页（有返回、侧滑回首页）。 */
-  /* 第 245 次：设置移进左侧抽屉（drawer.js），dock 只剩 首页 / 日期记录 / 搜索；设置改成二级页（有返回、能侧滑回来） */
+     菜单面板顶部搜索框（第 290 次起；原侧拉页）、「全部功能」页搜索框。搜索页路由保留，改算二级页（有返回、侧滑回首页）。 */
+  /* 第 245 次：设置改成二级页（有返回、能侧滑回来）；第 290 次起设置入口在菜单面板（宝宝圆钮弹出）里 */
   function isTopTab(id) { return id === 'home' || id === 'calendar'; }
 
   var current = 'home';
@@ -145,7 +145,7 @@
     return paintEl(dst, root, r, '::after');
   }
   function overlayStack() {
-    var list = Array.prototype.filter.call(document.querySelectorAll('.wn-player.open, .ftf, .modal-mask, .home-sheet, .qd-mask, .ph-view, .vb-book, .side-drawer'), function (el) {
+    var list = Array.prototype.filter.call(document.querySelectorAll('.wn-player.open, .ftf, .modal-mask, .home-sheet, .qd-mask, .ph-view, .vb-book'), function (el) {
       if (el.classList.contains('sheet-ghost') || el.classList.contains('sheet-leaving') || el.hidden) return false;
       if (!el.getClientRects().length) return false;
       var cs = global.getComputedStyle(el);
@@ -203,14 +203,7 @@
       var b = document.body; if (!b) return;
       var c = '';
       var ovl = overlayStack();
-      /* 第 266 次：抽屉打开（或拖过一半）时，状态栏下面是抽屉，取抽屉底色。
-         第 276 次：侧拉页改成从左边滑进来的整屏页——盖住视口顶行一半以上就取它的底色
-         （全盖住时它也在 overlayStack 里，按层合成）；不到一半取底下那页的颜色，再叠上压暗遮罩当前的透明度。 */
-      var sdEl = document.querySelector('.side-drawer');
-      var sdP = (global.Drawer && Drawer.progress) ? Drawer.progress() : 0;
-      var sdOn = !!sdEl && b.classList.contains('sd-lock') && sdP >= 0.5;
-      var sdDim = (!sdOn && sdP > 0) ? document.getElementById('sdMask') : null;
-      var sky = !sdOn && b.classList.contains('in-home') && document.querySelector('.home-sky');
+      var sky = b.classList.contains('in-home') && document.querySelector('.home-sky');
       var cv = sky && sky.querySelector('.sky-canvas');
       var r = cv && cv.getBoundingClientRect();
       if (cv && r.height && r.top <= 0 && r.bottom > 80 && cv.width && cv.height) {
@@ -242,17 +235,10 @@
         var capY = Math.max(0, -(r.top + (global.pageYOffset || 0)));
         if (capY !== sky._capY) { sky._capY = capY; sky.style.setProperty('--sky-cap-y', capY + 'px'); }
         if (c !== sky._capC) { sky._capC = c; sky.style.setProperty('--sky-cap', c); }
-      } else if (sdOn) {
-        var sc = parseRgba(global.getComputedStyle(sdEl).backgroundColor);
-        c = sc ? '#' + [sc[0], sc[1], sc[2]].map(hex2).join('') : bodyEdgeColor(b, false);
       } else {
         /* 其他页：顶上是 body 的底色 + 渐变层（环境光染色 rgba(天空色, .11) 叠在暖底渐变上）。
            按层从下往上合成每层的首个色标 = 视口第 0 行的真实颜色（Chromium 对拍误差 ≤1）。 */
         c = bodyEdgeColor(b, false);
-      }
-      if (sdDim) {
-        var mk = parseRgba(global.getComputedStyle(sdDim).backgroundColor);
-        if (mk) { mk[3] *= sdP; c = rgbHex(over(parseRgba(c.replace(/^#(..)(..)(..)$/, function (m0, x, y, z) { return 'rgb(' + parseInt(x, 16) + ',' + parseInt(y, 16) + ',' + parseInt(z, 16) + ')'; })) || [253, 249, 244], mk)); }
       }
       if (ovl.length) {
         var baseC = c;
@@ -483,8 +469,8 @@
     var list = document.querySelectorAll('body > .ftf');
     return list.length ? list[list.length - 1] : null;
   }
-  /* 第 278 次（审计 #30 / #41）：Esc 按层由上到下关——照片大图 → 面板（含盖在侧拉页上的切换宝宝面板）→ 其余交给各层自己
-     （侧拉页、快记、白噪音播放页）。window 捕获阶段先于各面板挂在 document 上的 Esc，一次只关最上面一层。 */
+  /* 第 278 次（审计 #30 / #41）：Esc 按层由上到下关——照片大图 → 面板 → 其余交给各层自己
+     （快记 / 菜单面板、白噪音播放页）。window 捕获阶段先于各面板挂在 document 上的 Esc，一次只关最上面一层。 */
   try {
     global.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape' && e.key !== 'Esc') return;
@@ -553,10 +539,6 @@
        返回=从左收回（模块页回首页），底栏页签互切与平级跳转纯上浮。
        只动 transform+opacity；reduced-motion 下全局禁动画自动降级。 */
     var prevId = current;
-    /* 第 279 次：侧拉页开着时被别的入口切页（例如侧拉页上「宝宝资料」面板里的「宝宝设置」）：侧拉页连同面板一起收起，
-       它登记的 history 在切页完成后一次退掉（进二级页时由 pushHistory 改写复用）。侧拉页自己的入口走 Drawer.navigate，那时已经关了 */
-    var drNav = !(opts && opts.silent) && global.Drawer && Drawer.isOpen && Drawer.isOpen();
-    if (drNav) { try { Drawer.close({ keepHist: true }); } catch (eDN) {} }
     /* 第 182 次：页内二级（设置分组）只在原地重绘（silent）时保留；真正切页就作废，
        那条 history 记录仍在 historyDepth 里，之后返回会按普通规则回首页。 */
     if (!(opts && opts.silent) && subExit) subExit = null;
@@ -575,7 +557,6 @@
     if (!(opts && opts.silent) && !isTopLevel && wasTopLevel) {
       pushHistory(id);
     }
-    /* 第 288 次：侧拉页那条记录没被 pushHistory 复用时，由侧拉页收起动画落定后自己退（动画中途不做 history 操作） */
     /* 第 271 次：离开某页时给它一个收尾的机会（白噪音播放页挂在 body 上，要跟着收起） */
     if (prevId && prevId !== id && Modules[prevId] && typeof Modules[prevId].leave === 'function') {
       try { Modules[prevId].leave(id); } catch (e) { /* 收尾异常不影响切页 */ }
@@ -932,7 +913,6 @@
     } else {
       av.innerHTML = (global.illo ? illo('avatar') : '');
     }
-    if (global.Drawer && Drawer.isOpen()) Drawer._render(); /* 第 246 次：抽屉里切换宝宝后头像 / 名字跟着变 */
   }
 
   /* 第 82 次（用户反馈：左上角不该进设置）：底部宝宝切换面板。
@@ -1540,9 +1520,9 @@
     rerender: rerender,
     _syncCta: function () { syncCta(); },
     currentTab: function () { return current; },
-    _isTop: function () { return isTopTab(current) && !subExit; }, /* 第 245 次：抽屉边缘拉出只在一级页 */
+    _isTop: function () { return isTopTab(current) && !subExit; }, /* 首页下拉搜索只在一级页 */
     _openBabySheet: function () { openBabySheet(); },
-    /* 第 276 次：进搜索页并聚焦输入框（首页下拉、侧拉页搜索框共用）。必须在点击 / 松手的同一次事件里同步调用，iOS 才弹键盘 */
+    /* 第 276 次：进搜索页并聚焦输入框（首页下拉、菜单面板搜索框共用）。必须在点击 / 松手的同一次事件里同步调用，iOS 才弹键盘 */
     openSearch: function () {
       if (current !== 'search') showTab('search', { noVT: true });
       var inp = document.getElementById('searchInput');
@@ -1650,6 +1630,12 @@
     };
   }
 
+  /* 第 290 次：「＋」快捷记录面板和「菜单」面板是同一个面板（#quickDock / #qdActions / #qdMask，同一套开合类与动画），
+     只是内容不同（mode = quick | menu）。左侧侧拉页整个删掉，原来打开它的宝宝圆钮改为弹出菜单面板。
+     两种内容共用：遮罩点按 / 点外面 / Esc / 系统返回关闭、从面板往下拉关闭（跟手，只写 transform / opacity）、
+     打开时页面（顶栏 + #view）inert、焦点移进面板、关上后焦点回到打开它的按钮。
+     菜单面板另外登记一条 history（{baoma:'ov'}，在画面开始变化之前推）：系统返回只关面板；自己关掉时等收起落定后才退掉；
+     点入口进二级页时由 pushHistory 直接改写复用这条（replaceState，不拍快照），进一级页时切完再退。 */
   function buildQuickDock() {
     var root = document.getElementById('quickDock');
     if (!root) return;
@@ -1661,30 +1647,90 @@
     /* 第 135 次：遮罩已移到 #app 之外（胶囊的 backdrop-filter 会为 fixed 子元素
        创建包含块，留在里面就盖不住全屏），因此从 document 取。 */
     var mask = document.getElementById('qdMask');
+    var list = root.querySelector('#qdActions');
 
     /* 第 286 次：「＋」开合动画——＋ 弹簧转 45° 成 ×、底色略深；动作项从「＋」那里依次弹出（30ms 错开）；
        关闭时反向：× 转回 ＋，动作项逆序快速收回（约 180ms）后才真正收起。状态只认 root 上的 open / qd-closing 两个类，
-       aria-expanded（隐藏的 #qdFab 和 dock 上的 ＋ 两处）跟着同步；切页 / 侧拉页 / 系统返回时立即收起不留残影。 */
-    var closingT = 0;
+       aria-expanded（隐藏的 #qdFab 和 dock 上的 ＋ 两处）跟着同步；切页 / 系统返回时立即收起不留残影。 */
+    var closingT = 0, pendingRm = null;
+    var mode = 'quick';
+    var menuRel = null;   /* 菜单面板那条 history 的 release（App._pushOverlay 返回） */
+    var opener = null;    /* 打开面板前的焦点（关上后还回去） */
+    var inertEls = [];
+    var waitOpen = false; /* 上一次的静默退回还没落地时的打开请求 */
     function syncAria(on) {
-      fab.setAttribute('aria-expanded', on ? 'true' : 'false');
-      Array.prototype.forEach.call(document.querySelectorAll('[data-qd-toggle]'), function (b) { b.setAttribute('aria-expanded', on ? 'true' : 'false'); });
+      var q = on && mode === 'quick', m = on && mode === 'menu';
+      fab.setAttribute('aria-expanded', q ? 'true' : 'false');
+      Array.prototype.forEach.call(document.querySelectorAll('[data-qd-toggle]'), function (b) { b.setAttribute('aria-expanded', q ? 'true' : 'false'); });
+      Array.prototype.forEach.call(document.querySelectorAll('[data-qm-toggle]'), function (b) { b.setAttribute('aria-expanded', m ? 'true' : 'false'); });
+      if (m) { list.setAttribute('role', 'dialog'); list.setAttribute('aria-modal', 'true'); list.setAttribute('aria-label', '菜单'); }
+      else { list.removeAttribute('role'); list.removeAttribute('aria-modal'); list.removeAttribute('aria-label'); }
     }
-    function close(now) {
-      if (closingT) { clearTimeout(closingT); closingT = 0; }
-      var wasOpen = root.classList.contains('open');
-      /* 第 135 次：遮罩可见性挂在 body.qd-open 上（它不再是 #quickDock 的子节点） */
-      if (document.body && document.body.classList) document.body.classList.remove('qd-open');
-      syncAria(false);
-      var rm = function () { closingT = 0; root.classList.remove('open'); root.classList.remove('qd-closing'); };
-      if (!wasOpen || now === true || prefersReduced()) { rm(); return; }
-      root.classList.add('qd-closing');
-      closingT = setTimeout(rm, 200);
+    /* 打开时页面本身不可聚焦 / 不可点（dock 留着：× 和宝宝圆钮要能再点一下收起） */
+    function setInert(on) {
+      inertEls.forEach(function (el) { try { el.inert = false; } catch (e) {} el.removeAttribute('data-qd-inert'); });
+      inertEls = [];
+      if (!on) return;
+      Array.prototype.forEach.call(document.querySelectorAll('#app > .app-header, #view'), function (el) {
+        try { el.inert = true; } catch (e) {} el.setAttribute('data-qd-inert', ''); inertEls.push(el);
+      });
     }
     function prefersReduced() { try { return global.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
-    /* 动作项从「＋」所在位置弹出：开的时候量一次各项到「＋」的偏移，写成 CSS 变量（只在打开那一刻读布局，动画只走 transform / opacity） */
-    function aimItems() {
-      var src = document.querySelector('.tabbar [data-qd-toggle]') || fab;
+    function bodyCls(c, on) { if (document.body && document.body.classList) { if (on) document.body.classList.add(c); else document.body.classList.remove(c); } }
+    /* opts.fromPop：系统返回已经退掉了菜单那条记录；opts.nav：点了入口要切页（焦点不还给按钮） */
+    function close(now, opts) {
+      opts = opts || {};
+      var wasOpen = root.classList.contains('open');
+      if (closingT) { clearTimeout(closingT); closingT = 0; }
+      var prev = pendingRm; pendingRm = null;
+      /* 第 135 次：遮罩可见性挂在 body.qd-open 上（它不再是 #quickDock 的子节点） */
+      bodyCls('qd-open', false); bodyCls('qm-open', false); bodyCls('qd-drag', false);
+      syncAria(false);
+      setInert(false);
+      dragReset();
+      var m = mode;
+      var rm = function () {
+        closingT = 0; pendingRm = null;
+        root.classList.remove('open'); root.classList.remove('qd-closing'); root.classList.remove('qd-dragged'); root.classList.remove('qd-dragging');
+        list.style.removeProperty('--qd-dy'); if (mask) mask.style.opacity = '';
+        if (m === 'menu') menuSettled(opts);
+      };
+      if (!wasOpen) { if (prev) prev(); return; }
+      if (now === true || prefersReduced()) { instant(); rm(); return; }
+      root.classList.add('qd-closing');
+      pendingRm = rm;
+      closingT = setTimeout(rm, 200);
+    }
+    /* 立即收起（切页 / 系统返回 / 换内容）：这一下面板和遮罩都不走淡出过渡，下一帧画面里就没有它们（不留半透明遮罩盖在新页上） */
+    var nowRaf = 0;
+    function instant() {
+      bodyCls('qd-now', true);
+      if (nowRaf) return;
+      var raf = global.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
+      nowRaf = raf(function () { raf(function () { nowRaf = 0; bodyCls('qd-now', false); }); });
+    }
+    /* 菜单面板收起落定：这时才退掉它那条 history（画面已经静止），焦点还给宝宝圆钮 */
+    function menuSettled(opts) {
+      var r = menuRel; menuRel = null;
+      if (r && !opts.fromPop) r();
+      var o = opener; opener = null;
+      if (!opts.nav && o && o.isConnected) { try { o.focus({ preventScroll: true }); } catch (e) {} }
+    }
+    /* 收回动画还没走完就要开另一种内容：先把收起落定（菜单那条记录在这里退掉） */
+    function flushClosing() { if (pendingRm) { clearTimeout(closingT); closingT = 0; var f = pendingRm; pendingRm = null; f(); } }
+    function showOpen(src) {
+      root.classList.add('open');
+      bodyCls('qd-open', true);
+      bodyCls('qm-open', mode === 'menu');
+      syncAria(true);
+      setInert(true);
+      if (!prefersReduced()) aimItems(src);
+      if (Util.haptic) Util.haptic('light');
+      attachOutside();
+    }
+    /* 动作项从打开它的按钮那里弹出：开的时候量一次各项到按钮的偏移，写成 CSS 变量（只在打开那一刻读布局，动画只走 transform / opacity） */
+    function aimItems(src) {
+      src = src || document.querySelector('.tabbar [data-qd-toggle]') || fab;
       var r0 = src && src.getBoundingClientRect ? src.getBoundingClientRect() : null;
       if (!r0 || !r0.width) return;
       var cx = r0.left + r0.width / 2, cy = r0.top + r0.height / 2;
@@ -1694,7 +1740,13 @@
         el.style.setProperty('--qy', Math.round(Math.max(16, (cy - (r.top + r.height / 2)) * 0.35)) + 'px');
       });
     }
-    global.App._qdClose = function (now) { if (root.classList.contains('open')) { close(now); detachOutside(); } };
+    global.App._qdClose = function (now, opts) {
+      opts = opts || {};
+      if (!root.classList.contains('open')) return;
+      /* 静默退回落地（popstate 被 ignorePop 吃掉，例如菜单换成 ＋ 时退掉菜单那条记录）不是用户的返回，不关面板 */
+      if (opts.ignored) return;
+      close(now, opts); detachOutside();
+    };
 
     /* 第 43 次：外部关闭。遮罩用真实元素 #qdMask——旧版是 ::before 伪元素，
        撑满全屏但事件 target 是宿主 #quickDock 本身，`root.contains(e.target)` 恒为
@@ -1710,11 +1762,17 @@
       if (root.contains(e.target)) return;
       /* 第 100 次：竖排 dock 模式下「＋」在底栏里（#qdFab 已隐藏但不在 root 内）。
          点它时不先关——否则 pointerdown 先 close、click 再 open，永远合不上；
-         转发的 click 自带开/合判断，这里放行即可。 */
-      if (e.target && e.target.closest && e.target.closest('[data-qd-toggle]')) return;
+         转发的 click 自带开/合判断，这里放行即可。第 290 次：宝宝圆钮（菜单）同理。 */
+      if (e.target && e.target.closest && e.target.closest('[data-qd-toggle],[data-qm-toggle]')) return;
+      /* 盖在面板上面的层（确认框等）里的点按不算「点外面」 */
+      if (e.target && e.target.closest && e.target.closest('#modalRoot, .ph-view')) return;
       close(); detachOutside();
     }
-    function onKey(e) { if (e.key === 'Escape') { close(); detachOutside(); } }
+    function onKey(e) {
+      if (e.key !== 'Escape' && e.key !== 'Esc') return;
+      if (!root.classList.contains('open') || root.classList.contains('qd-closing')) return;
+      close(); detachOutside();
+    }
     function attachOutside() {
       document.addEventListener('pointerdown', onDocDown, true);
       document.addEventListener('keydown', onKey, true);
@@ -1725,6 +1783,65 @@
         document.removeEventListener('keydown', onKey, true);
       }
     }
+
+    /* ———— 往下拉关闭（两种内容共用）————
+       面板内容在顶部（或按在把手上）时向下拉：面板跟手下移、遮罩跟着变淡；松手过 1/4 高度或下甩 ≥ 0.5px/ms 就关，否则弹回。
+       只写 transform（--qd-dy）和遮罩 opacity；往上拉 / 横向拉不接管（交给面板里的滚动）。 */
+    var dr = null, swallowT = 0;
+    function dragReset() { dr = null; root.classList.remove('qd-dragging'); bodyCls('qd-drag', false); }
+    list.addEventListener('touchstart', function (e) {
+      dr = null;
+      if (!root.classList.contains('open') || root.classList.contains('qd-closing')) return;
+      if (!e.touches || e.touches.length !== 1) return;
+      var sc = list.querySelector('.qm-scroll');
+      var onGrab = !!(e.target && e.target.closest && e.target.closest('.qd-grab'));
+      if (!onGrab && sc && sc.scrollTop > 0) return;
+      var t = e.touches[0];
+      dr = { x0: t.clientX, y0: t.clientY, ly: t.clientY, lt: Date.now(), vel: 0, on: false, off: 0, h: list.offsetHeight || 300 };
+    }, { passive: true });
+    /* move / end 挂在 document 上（只在按下点在面板里、dr 存在时才处理）：手指拖出面板也照样跟手、松手照样落定 */
+    document.addEventListener('touchmove', function (e) {
+      if (!dr || !e.touches || !e.touches.length) return;
+      var t = e.touches[0], dx = t.clientX - dr.x0, dy = t.clientY - dr.y0;
+      if (!dr.on) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        if (dy <= 0 || Math.abs(dx) > Math.abs(dy)) { dr = null; return; }
+        dr.on = true; root.classList.add('qd-dragging'); bodyCls('qd-drag', true);
+      }
+      var now = Date.now(), dtm = Math.max(1, now - dr.lt);
+      dr.vel = dr.vel * 0.4 + ((t.clientY - dr.ly) / dtm) * 0.6;
+      dr.ly = t.clientY; dr.lt = now;
+      dr.off = Math.max(0, dy - 8);
+      list.style.setProperty('--qd-dy', dr.off.toFixed(1) + 'px');
+      if (mask) mask.style.opacity = String(Math.max(0, 1 - dr.off / dr.h).toFixed(3));
+      if (e.cancelable) e.preventDefault();
+    }, { passive: false });
+    function dragEnd(cancelled) {
+      if (!dr) return;
+      var d = dr; dr = null;
+      if (!d.on) return;
+      /* 拖过之后手指抬起时的那次 click 不算点了入口 */
+      swallowT = Date.now() + 350;
+      var vel = (Date.now() - d.lt > 120) ? 0 : d.vel;
+      if (!cancelled && (d.off > d.h * 0.25 || vel >= 0.5)) {
+        root.classList.remove('qd-dragging'); bodyCls('qd-drag', false);
+        root.classList.add('qd-dragged');
+        close(); detachOutside();
+        return;
+      }
+      root.classList.remove('qd-dragging'); bodyCls('qd-drag', false);
+      list.style.setProperty('--qd-dy', '0px');
+      if (mask) mask.style.opacity = '';
+    }
+    document.addEventListener('touchend', function () { dragEnd(false); }, { passive: true });
+    document.addEventListener('touchcancel', function () { dragEnd(true); }, { passive: true });
+    /* 系统手势吞掉了 touchend（又来一次新触摸 / 切后台 / 失焦）：弹回原位，不停在半路 */
+    document.addEventListener('touchstart', function () { if (dr && dr.on) dragEnd(true); }, { capture: true, passive: true });
+    global.addEventListener('blur', function () { dragEnd(true); });
+    global.addEventListener('pagehide', function () { dragEnd(true); });
+    document.addEventListener('visibilitychange', function () { if (document.hidden) dragEnd(true); });
+    list.addEventListener('click', function (e) { if (Date.now() < swallowT) { e.stopPropagation(); e.preventDefault(); } }, true);
+
     function saveFetal() {
       var d = Storage.get();
       var rec = { id: Util.uid(), time: Util.nowLocal() };
@@ -1756,9 +1873,13 @@
       /* 第 43 次修正：再点 FAB 应当「收起」，而不是重新展开。
          此前 FAB 的 click 无条件重建动作列并 add('open')，等于永远关不掉。
          第 286 次：收回动画中再点 = 重新展开（不等动画走完） */
-      if (root.classList.contains('open') && !root.classList.contains('qd-closing')) { close(); detachOutside(); return; }
-      if (closingT) { clearTimeout(closingT); closingT = 0; }
-      root.classList.remove('qd-closing');
+      if (mode === 'quick' && root.classList.contains('open') && !root.classList.contains('qd-closing')) { close(); detachOutside(); return; }
+      /* 第 290 次：菜单开着时点 ＋ = 换成快捷记录（菜单那条记录先退掉） */
+      if (mode === 'menu') { if (root.classList.contains('open') && !root.classList.contains('qd-closing')) { close(true, { nav: true }); detachOutside(); } else flushClosing(); }
+      if (closingT) { clearTimeout(closingT); closingT = 0; pendingRm = null; }
+      root.classList.remove('qd-closing'); root.classList.remove('qd-dragged');
+      list.style.removeProperty('--qd-dy');
+      mode = 'quick'; root.classList.remove('qd-menu');
       var d = Storage.get();
       var wk = (function () {
         var pg = d.pregnancy || {};
@@ -1776,7 +1897,6 @@
         { id: 'qdMeds', ico: 'meds', acc: 'meds', t: '维生素 D3', s: '吃药 · 1 次' }
       ];
       if (wk !== null) acts.push({ id: 'qdFetal', ico: 'fetal', acc: 'fetal', t: '胎动 +1', s: '孕 ' + wk + ' 周' });
-      var list = root.querySelector('#qdActions');
       list.innerHTML = '<p class="qd-head">快速记录<small>点一下就记好，可再去页面里改</small></p><div class="qd-grid">'
         + acts.map(function (a, i) {
           return '<button type="button" class="qd-action" id="' + a.id + '" data-accent="' + a.acc + '" style="--i:' + i + '">'
@@ -1785,11 +1905,7 @@
         }).join('') + '</div>';
       var nAct = acts.length;
       Array.prototype.forEach.call(list.querySelectorAll('.qd-action'), function (el, i) { el.style.setProperty('--j', String(nAct - 1 - i)); });
-      root.classList.add('open');
-      if (document.body && document.body.classList) document.body.classList.add('qd-open');
-      syncAria(true);
-      if (!prefersReduced()) aimItems();
-      if (Util.haptic) Util.haptic('light');
+      showOpen(null);
 
       var f0 = fed.rec;
       list.querySelector('#qdFeed').addEventListener('click', function () {
@@ -1811,9 +1927,158 @@
       });
       var qdF = list.querySelector('#qdFetal');
       if (qdF) qdF.addEventListener('click', function () { close(); detachOutside(); saveFetal(); });
-
-      attachOutside();
     });
+
+    /* ———— 菜单面板（第 290 次，取代左侧侧拉页；入口一个不少） ———— */
+    var MENU_TOP = [
+      { go: 'home', ico: 'dk-home', name: '首页' },
+      { go: 'calendar', ico: 'calendar', name: '日期记录' },
+      { go: 'whitenoise', ico: 'noise', name: '哄睡声音' },
+      { go: '__edit', ico: 'edit', name: '编辑首页' },
+      { go: 'settings', ico: 'settings', name: '设置' }
+    ];
+    var SWAP_SVG = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 9.5l4-4 4 4M8 14.5l4 4 4-4"/></svg>';
+    function esc(s) { return Util.escapeHtml(s == null ? '' : String(s)); }
+    /* 一格里最长的名字有几个「字宽」（汉字 1，ASCII 0.6）：网格最小列宽按它算，320 宽 + 大字号时自动少一列，名字不折行、不截断 */
+    function chW(s) { var n = 0; for (var i = 0; i < s.length; i++) n += s.charCodeAt(i) > 255 ? 1 : 0.6; return n; }
+    function menuTile(it, i, cur, mono) {
+      return '<button type="button" class="qd-action qm-it' + (mono ? ' qm-mono' : '') + (cur === it.go ? ' on' : '') + '"'
+        + (mono ? '' : ' data-accent="' + esc(it.acc || it.go) + '"')
+        + ' data-qm-go="' + esc(it.go) + '"' + (cur === it.go ? ' aria-current="page"' : '') + ' style="--i:' + Math.min(i, 12) + '">'
+        + '<span class="qd-badge">' + (global.icon ? global.icon(it.ico, 'qd-ico') : '') + '</span>'
+        + '<span class="qm-n">' + esc(it.name) + '</span></button>';
+    }
+    /* 各组同一个列宽（按全部格子里最长的名字），上下几组的格子对齐 */
+    function menuGrid(items, cur, mono, start, w) {
+      return '<div class="qm-grid" style="--qm-ch:' + w.toFixed(1) + '">' + items.map(function (it, k) { return menuTile(it, start + k, cur, mono); }).join('') + '</div>';
+    }
+    function renderMenu() {
+      var d = Storage.get();
+      var b = Storage.activeBaby ? Storage.activeBaby() : null;
+      var name = (Storage.babyLabel && b) ? Storage.babyLabel(b) : ((d.settings.baby && (d.settings.baby.nickname || d.settings.baby.name)) || '宝宝');
+      var bd = (b && b.birthDate) || (d.settings.baby && d.settings.baby.birthDate) || null;
+      var gr = (d.growth || []).slice().sort(function (x, y) { return (String(y.date || '') + (y.at || '')).localeCompare(String(x.date || '') + (x.at || '')); }); /* 第 284 次：同一天按测量时刻 */
+      var hh = null, ww = null;
+      gr.forEach(function (r) { if (hh == null && r.heightCm != null) hh = r.heightCm; if (ww == null && r.weightKg != null) ww = r.weightKg; });
+      var meta = [babyAge(bd), hh != null ? hh + 'cm' : '', ww != null ? ww + 'kg' : ''].filter(Boolean).map(function (x) { return '<span>' + esc(x) + '</span>'; }).join('');
+      var ava = (b && b.photo) ? '<img src="' + esc(b.photo) + '" alt="">' : (global.illo ? illo('avatar') : '');
+      var cur = current;
+      var h = '<div class="qd-grab" aria-hidden="true"><i></i></div><div class="qm-scroll">'
+        + '<div class="qm-head">'
+        + '<button type="button" class="qm-baby" data-qm="baby" aria-label="' + esc('宝宝资料：' + name) + '"><span class="qm-ava">' + ava + '</span>'
+        + '<span class="qm-bt"><b class="qm-name">' + esc(name) + '</b>' + (meta ? '<small class="qm-meta">' + meta + '</small>' : '') + '</span></button>'
+        + '<button type="button" class="qm-swap" data-qm="swap" aria-label="切换宝宝">' + SWAP_SVG + '<span>切换</span></button></div>'
+        + '<button type="button" class="qm-search" data-qm="search" aria-label="搜索记录、里程碑、用品"><span class="si-ico">' + (global.icon ? icon('search') : '') + '</span><span>搜索全部记录</span></button>';
+      var groups = ((global.Modules && Modules.alltools && Modules.alltools._groups) || []).filter(function (g) { return g.key !== 'tools'; });
+      if (App.stageOf && App.stageOf(d) === 'pregnancy') groups = groups.slice().sort(function (x, y) { return x.key === 'pregnancy' ? -1 : (y.key === 'pregnancy' ? 1 : 0); });
+      var secs = groups.map(function (g) {
+        return { t: g.title === '通用' ? '全部功能' : g.title,
+          items: g.items.filter(function (it) { return it.id !== 'whitenoise'; }) /* 上面「哄睡声音」已有 */
+            .map(function (it) { return { go: it.id, ico: it.id, name: it.name }; }) };
+      });
+      var w = 2;
+      MENU_TOP.concat.apply(MENU_TOP, secs.map(function (x) { return x.items; })).forEach(function (it) { w = Math.max(w, chW(it.name)); });
+      var n = 0;
+      h += '<nav class="qm-sec" aria-label="常用">' + menuGrid(MENU_TOP, cur, true, n, w) + '</nav>'; n += MENU_TOP.length;
+      secs.forEach(function (x) {
+        h += '<nav class="qm-sec" aria-label="' + esc(x.t) + '"><h3 class="qm-gh">' + esc(x.t) + '</h3>' + menuGrid(x.items, cur, false, n, w) + '</nav>';
+        n += x.items.length;
+      });
+      h += '</div>';
+      list.innerHTML = h;
+      list.setAttribute('tabindex', '-1');
+    }
+    function openMenu() {
+      if (mode === 'menu' && root.classList.contains('open') && !root.classList.contains('qd-closing')) return;
+      /* 菜单收回动画中再点 = 重新展开（它那条记录还没退，接着用） */
+      if (mode === 'menu' && pendingRm && menuRel) {
+        clearTimeout(closingT); closingT = 0; pendingRm = null;
+        root.classList.remove('qd-closing'); root.classList.remove('qd-dragged'); list.style.removeProperty('--qd-dy');
+        if (mask) mask.style.opacity = '';
+        showOpen(document.getElementById('avatarBtn'));
+        return;
+      }
+      /* ＋ 开着 / 正在收：立即收起，换成菜单 */
+      if (root.classList.contains('open')) { close(true); detachOutside(); }
+      /* 上一次关闭的 history.back() 还没落地：等它落地再开（否则新记录压在马上要被退掉的那条上） */
+      if (App._histBusy && App._histBusy()) {
+        if (!waitOpen) { waitOpen = true; App._histIdle(function () { if (waitOpen) { waitOpen = false; openMenu(); } }); }
+        return;
+      }
+      waitOpen = false;
+      var ae = document.activeElement;
+      /* 键盘开着（日期记录页的输入框等）先收起 */
+      if (ae && ae !== document.body && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) { try { ae.blur(); } catch (e) {} ae = null; }
+      opener = (ae && ae !== document.body) ? ae : document.getElementById('avatarBtn');
+      mode = 'menu'; root.classList.add('qd-menu');
+      root.classList.remove('qd-closing'); root.classList.remove('qd-dragged'); list.style.removeProperty('--qd-dy');
+      renderMenu();
+      /* 画面开始变化之前登记（WebKit 在 pushState 时给当前画面拍系统返回用的快照，拍到的是没开面板的页面） */
+      var rel = App._pushOverlay ? App._pushOverlay(function () { if (menuRel === rel) { close(true, { fromPop: true }); detachOutside(); } }, { later: true }) : null;
+      menuRel = rel;
+      showOpen(document.getElementById('avatarBtn'));
+      setTimeout(function () {
+        if (mode === 'menu' && root.classList.contains('open') && !list.contains(document.activeElement)) { try { list.focus({ preventScroll: true }); } catch (e) {} }
+      }, 60);
+    }
+    function closeMenu(now) { waitOpen = false; if (mode === 'menu' && root.classList.contains('open')) { close(now === true); detachOutside(); } }
+    /* 选了入口：先关面板（立即，不留遮罩），再在同一个任务里切页——新页在下一帧前已经画好。
+       进二级页时 pushHistory 把菜单那条记录改写成这一页（App._navAdopt）；没被改写（首页 / 日期记录 / 原地重画）就切完再退掉。 */
+    function menuGo(fn) {
+      var rel = menuRel; menuRel = null;
+      opener = null;
+      close(true, { nav: true }); detachOutside();
+      App._navAdopt = rel;
+      try { fn(); } catch (e) {}
+      if (App._navAdopt === rel) App._navAdopt = null;
+      if (rel) rel(); /* 已被改写复用时是空操作 */
+    }
+    list.addEventListener('click', function (e) {
+      if (mode !== 'menu' || !root.classList.contains('open') || root.classList.contains('qd-closing')) return;
+      if (Util.hapEcho && Util.hapEcho(e)) return;
+      var t = e.target && e.target.closest ? e.target.closest('[data-qm-go],[data-qm]') : null;
+      if (!t || !list.contains(t)) return;
+      var go = t.getAttribute('data-qm-go'), act = t.getAttribute('data-qm');
+      if (act === 'search') { menuGo(function () { if (App.openSearch) App.openSearch(); else showTab('search', { noVT: true }); }); return; } /* 同一次点击里聚焦，iOS 才弹键盘 */
+      if (act === 'swap') { menuGo(function () { openBabySheet(); }); return; }
+      if (act === 'baby') { menuGo(function () { App.openSettingsGroup('称呼与阶段'); }); return; }
+      if (!go) return;
+      if (go === '__edit') {
+        menuGo(function () {
+          if (global.Modules && Modules.home) Modules.home._edit = true;
+          if (current === 'home') rerender(); else showTab('home', { noVT: true });
+        });
+        return;
+      }
+      if (go === current) { close(); detachOutside(); return; }
+      menuGo(function () { showTab(go, { noVT: true }); });
+    });
+    /* 菜单面板上不叠别的面板：菜单开着时 #modalRoot 弹出了面板（别处代码打开的切换宝宝 / 确认框），菜单立即收起、退掉它那条记录，
+       面板自己按原规则开合（菜单里自己的入口都是先关菜单再开面板，不会走到这里） */
+    var mr = document.getElementById('modalRoot');
+    if (mr && global.MutationObserver) {
+      new MutationObserver(function () {
+        if (mode !== 'menu' || !root.classList.contains('open')) return;
+        var has = Array.prototype.some.call(mr.children, function (m) { return !m.classList.contains('sheet-leaving') && !m.classList.contains('sheet-ghost'); });
+        if (has) { close(true, { nav: true }); detachOutside(); }
+      }).observe(mr, { childList: true });
+    }
+    global.App.openMenu = openMenu;
+    global.App.closeMenu = closeMenu;
+    global.App.menuOpen = function () { return mode === 'menu' && root.classList.contains('open') && !root.classList.contains('qd-closing'); };
+    /* 宝宝圆钮：开 / 关菜单（点按委托在按钮上，回声过滤） */
+    var av = document.getElementById('avatarBtn');
+    if (av && !av._qmBound) {
+      av._qmBound = true;
+      av.setAttribute('data-qm-toggle', '1');
+      av.setAttribute('aria-haspopup', 'dialog');
+      av.setAttribute('aria-controls', 'qdActions');
+      av.setAttribute('aria-expanded', 'false');
+      av.addEventListener('click', function (e) {
+        if (Util.hapEcho && Util.hapEcho(e)) return;
+        if (global.App.menuOpen()) closeMenu(); else openMenu();
+      });
+    }
   }
 
   /* 第 274 次（审计 #25）：SW 接管后的自动重载会落回首页，回前台时像 App 自己跳回首页。
@@ -1922,12 +2187,11 @@
        右上角新增设置齿轮——旧版右上角是天空大日期（已并入问候卡日期行）。 */
     var av = document.getElementById('avatarBtn');
     if (av) {
-      av.setAttribute('aria-label', '宝宝与全部功能');
+      av.setAttribute('aria-label', '菜单：宝宝与全部功能');
       /* 第 82 次（用户反馈：左上角右上角都进设置，冗余）：左上角专司宝宝切换——
          点按打开底部宝宝面板（列表点选切换 + 管理入口），不再直接进设置。
          呈现语义：短打断 → 半高底部面板（sheet），不是整页跳转。 */
-      /* 第 245 次：宝宝圆钮改为打开左侧功能抽屉；切换宝宝在抽屉头像旁的 ⇅ */
-      av.addEventListener('click', function () { if (global.Drawer) Drawer.open(); else openBabySheet(); });
+      /* 第 245 次：宝宝圆钮打开功能入口；第 290 次起弹出菜单面板（点按绑定在 buildQuickDock 里），切换宝宝在面板顶部的「切换」 */
       refreshHeaderAvatar();
     }
     /* 右上角设置齿轮（第 80 次）：只在首页显示（模块页右上角是返回按钮，
@@ -2071,21 +2335,20 @@
       popstate 触发时回到上一层，浏览器的前进/后退也随之可用。 */
   function pushHistory(id) {
     if (!global.history || !global.history.pushState) return;
-    /* 第 276 次：从侧拉页进二级页时，侧拉页打开时登记的那条 history 直接改写成这一页（同步完成，
-       不必先异步 back 再 push —— 那样搜索框点下去就不能在同一次点击里弹出键盘了） */
-    /* 第 279 次：还有静默退回没落地时（例如刚关掉侧拉页上的面板、它那条记录正在退），push / replace 排到它落地之后再做，
-       否则会改写 / 压在马上要被退掉的那条上。
-       侧拉页上还压着面板记录（iOS 上 showTab 同步执行，面板那条还没来得及退）时，改写的是最上面那条，
-       侧拉页那条留在下面成了旧记录——popstate 退到它时按「离开这一页」处理再静默跳过（见下面 baoma==='drawer' 分支） */
-    var reuse = drawerEntry; drawerEntry = false;
+    /* 第 290 次：从菜单面板进二级页时，面板打开时登记的那条 history（App._navAdopt）直接改写成这一页（replaceState 同步完成、不拍快照，
+       搜索框点下去才能在同一次点击里弹出键盘；不必先异步 back 再 push）。 */
+    /* 第 279 次：还有静默退回没落地时，push 排到它落地之后再做，否则会压在马上要被退掉的那条上。 */
+    var adopt = (global.App && App._navAdopt) || null;
+    if (adopt) App._navAdopt = null;
     historyDepth++;
     var op = function () {
       try {
-        if (reuse) { if (global.App && App._ovDrop) App._ovDrop(); global.history.replaceState({ baoma: 1, id: id }, ''); }
+        if (adopt && App._ovAdopt && App._ovAdopt(adopt)) global.history.replaceState({ baoma: 1, id: id }, '');
         else global.history.pushState({ baoma: 1, id: id }, '');
       } catch (e) { /* 极端内核禁pushState：侧滑降级为「只回到首页」 */ }
     };
-    if (global.App && App._histIdle) App._histIdle(op); else op();
+    if (adopt && !(App._histBusy && App._histBusy())) op();
+    else if (global.App && App._histIdle) App._histIdle(op); else op();
   }
 
   /** 退出当前模块：把 historyDepth 减到 0，并回退一条 history。
@@ -2094,7 +2357,6 @@
      ① 登记一条 history，让侧滑 / 系统返回 / 底栏返回钮都能退回上一层；
      ② 底栏切成二级态（返回 + ＋）；③ 返回时回调模块的 onExit 收起二级内容。 */
   var subExit = null;
-  var drawerEntry = false; /* 第 276 次：侧拉页打开时登记了一条 history（{baoma:'drawer'}），还没退掉 */
   /* 第 282 次：底部主按钮（#view .mod-cta）是 position: fixed（styles.css 末尾「底部主按钮」一节）。
      这里维护 body.has-cta（页面底部留白）和 --cta-h（按钮实际高度：字号档位、计时条、喂养双行都会变）。
      模块自己局部重画按钮（计时开始 / 结束）也要跟上：#view 子树变动后下一帧再查一次。 */
@@ -2218,6 +2480,7 @@
     if (document.querySelector('body > .ph-view')) return; /* 第 278 次：照片大图上的横滑是换张 */
     if (document.querySelector('body > .vb-book')) return; /* 第 289 次：疫苗本上的横滑是翻页，返回走 history */
     if (global.Sheet && Sheet.isOpen && Sheet.isOpen()) return; /* 第 272 次：面板开着时左缘拖动交给面板（下拉关闭），不拖底下的页 */
+    if (document.body.classList.contains('qm-open')) return; /* 第 290 次：菜单面板开着时不拖底下的页（返回只关面板） */
     if (swipeActive) return;
     var t = e.touches && e.touches[0];
     if (!t) return;
@@ -2302,60 +2565,44 @@
          拉出那页的系统快照（App 并没有真的进去，松手后又弹回首页）。
          修法：每次返回落地后清掉前进栈——pushState 一个占位（会丢弃所有前进记录），
          再静默 back 回到当前层；前进栈里只剩这个占位，万一被拉到占位上也立刻静默退回。 */
-      var ignorePop = 0, drawerPopped = false;
-      /* 第 276 次：侧拉页的 history（drawer.js 打开 / 关闭时调用） */
-      global.App._drawerHist = {
-        open: function () {
-          if (drawerEntry || global.__yiyaRewinding || rewind > 0) return;
-          try { global.history.pushState({ baoma: 'drawer' }, ''); drawerEntry = true; } catch (eD) { drawerEntry = false; }
-        },
-        /* 第 279 次：侧拉页上面还压着面板 / 大图登记的记录时，一次 go(-(n+1)) 全部退掉（连发几次 back 会互相打架），再关这些层 */
-        closed: function () {
-          if (!drawerEntry) return;
-          var above = ovEntries.splice(0);
-          drawerEntry = false; drawerPopped = true; ignorePop++;
-          try { if (above.length) global.history.go(-(above.length + 1)); else global.history.back(); } catch (eD2) { ignorePop = Math.max(0, ignorePop - 1); drawerPopped = false; }
-          above.reverse().forEach(function (en) { try { en.close(); } catch (eC) {} });
-        },
-        _entry: function () { return drawerEntry; }
-      };
-      /* 第 278 次（审计 #30）：盖在面板上面的临时层（照片大图）登记自己的 history。
-         系统返回 / popstate 先关最上面这一层、留在面板里；它自己关掉（点一下 / Esc）时调返回的 release，静默退掉这条记录。 */
-      var ovEntries = [], ovPopped = false;
-      global.App._pushOverlay = function (closeFn) {
+      var ignorePop = 0;
+      /* 第 278 次（审计 #30）：盖在页面 / 面板上面的临时层（照片大图、第 290 次起的菜单面板）登记自己的 history。
+         系统返回 / popstate 先关最上面这一层；它自己关掉（点一下 / Esc）时调返回的 release，静默退掉这条记录。
+         opts.later（菜单面板）：这条记录退掉之后清前进栈推迟到干净画面提交之后（dropForwardLater），不把面板拍进快照。 */
+      var ovEntries = [], ovPopped = false, ovPoppedLater = false;
+      global.App._pushOverlay = function (closeFn, opts) {
         if (global.__yiyaRewinding || rewind > 0) return null;
         try { global.history.pushState({ baoma: 'ov' }, ''); } catch (eO) { return null; }
-        var en = { close: closeFn };
+        var en = { close: closeFn, later: !!(opts && opts.later) };
         ovEntries.push(en);
-        return function release() {
+        var release = function () {
           var i = ovEntries.indexOf(en); if (i < 0) return;
-          ovEntries.splice(i, 1); ovPopped = true; ignorePop++;
+          ovEntries.splice(i, 1); ovPopped = true; ovPoppedLater = en.later; ignorePop++;
           try { global.history.back(); } catch (eO2) { ignorePop = Math.max(0, ignorePop - 1); ovPopped = false; }
         };
+        release._en = en;
+        return release;
       };
       global.App._ovDepth = function () { return ovEntries.length; };
-      global.App._ovDrop = function () { return ovEntries.splice(0).length; };
-      /* 第 279 次：等静默退回（ignorePop / 启动回卷）全部落地再执行 fn；兜底 700ms */
+      /* 第 290 次：pushHistory 把这条记录改写成新页（replaceState）——它不再是临时层，release 之后是空操作 */
+      global.App._ovAdopt = function (rel) {
+        var en = rel && rel._en, i = en ? ovEntries.indexOf(en) : -1;
+        if (i < 0 || i !== ovEntries.length - 1) return false;
+        ovEntries.splice(i, 1);
+        return true;
+      };
+      /* 第 279 次：等静默退回（ignorePop / 启动回卷）全部落地再执行 fn；popstate 迟迟不来时 700ms 兜底放行 */
       var idleQ = [], idleT = 0;
       var flushIdle = function () {
         if (idleT) { clearTimeout(idleT); idleT = 0; }
         var q = idleQ.splice(0); q.forEach(function (f) { try { f(); } catch (eQ) {} });
       };
-      /* 第 288 次：还有静默退回没落地（侧拉页关闭后的 back / 启动回卷） */
+      /* 还有静默退回没落地（关闭临时层后的 back / 启动回卷） */
       global.App._histBusy = function () { return ignorePop > 0 || rewind > 0; };
-      /* 第 288 次：侧拉页正在动画 / 拖动时也排队——这时 pushState 会把半路画面拍进系统返回快照（从侧拉页「宝宝资料」进设置分组时
-         改写 + 进二级两次写入就落在收起动画里）。侧拉页落定时调 App._histFlush() 放行 */
-      var drawerMoving = function () { var s = global.Drawer && Drawer.state ? Drawer.state() : 'closed'; return s !== 'closed' && s !== 'open'; };
-      global.App._histFlush = function () { if (!(ignorePop > 0 || rewind > 0 || drawerMoving())) flushIdle(); };
-      /* 兜底：popstate 迟迟不来时 700ms 后照样放行；但侧拉页还在动（WebKit 主线程忙时收起动画会拖过 700ms）就再等——
-         侧拉页落定时自己会调 _histFlush，而且它有自己的兜底落定，不会一直动下去 */
-      var armIdle = function (ms) {
-        idleT = setTimeout(function () { idleT = 0; if (drawerMoving()) armIdle(120); else flushIdle(); }, ms);
-      };
       global.App._histIdle = function (fn) {
-        if (ignorePop > 0 || rewind > 0 || drawerMoving() || idleQ.length) {
+        if (ignorePop > 0 || rewind > 0 || idleQ.length) {
           idleQ.push(fn);
-          if (!idleT) armIdle(700);
+          if (!idleT) idleT = setTimeout(function () { idleT = 0; flushIdle(); }, 700);
         } else fn();
       };
       var dropForward = function () {
@@ -2365,15 +2612,19 @@
           global.history.back();
         } catch (eG) { ignorePop = 0; }
       };
-      /* 第 288 次：侧拉页关闭后清前进栈要等「干净画面」提交到屏幕之后再做——pushState 会给当前这条记录拍系统返回快照，
-         紧跟着关闭同步做，拍到的是还没提交的上一帧（侧拉页 / 压暗还在），iOS 系统返回回到这条时会先盖上这张旧图最多 3 秒。
-         两帧之后、侧拉页仍是关的、期间没有别的 history 操作才做。 */
+      /* 第 288 次：关掉菜单面板后清前进栈要等「干净画面」提交到屏幕之后再做——pushState 会给当前这条记录拍系统返回快照，
+         紧跟着关闭同步做，拍到的是还没提交的上一帧（面板 / 遮罩还在），iOS 系统返回回到这条时会先盖上这张旧图最多 3 秒。
+         两帧之后、期间没有别的 history 操作、菜单没有又打开（它的 pushState 已经清掉了前进栈）才做。 */
       var dfSeq = 0;
       var dropForwardLater = function () {
         var my = ++dfSeq;
         var go = function () {
-          if (my !== dfSeq) return; dfSeq++;
-          if (global.Drawer && Drawer.visible && Drawer.visible()) return;
+          if (my !== dfSeq) return;
+          var qd = document.getElementById('quickDock');
+          /* 面板正在收起 / 拖动：等它静止再做（静止时才写 history） */
+          if (qd && (qd.classList.contains('qd-closing') || qd.classList.contains('qd-dragging'))) { setTimeout(go, 120); return; }
+          dfSeq++;
+          if (document.body && document.body.classList.contains('qm-open')) return;
           if (ignorePop > 0 || rewind > 0) return;
           dropForward();
         };
@@ -2389,6 +2640,7 @@
          万一退回时浏览器要重新载入文档，先写 swReload 让启动动画跳过（第 267 次同一机制）。 */
       var rewind = 0;
       var st0 = global.history.state;
+      /* 'drawer'：第 289 次及更早的侧拉页记录，更新后重载时可能还压在 history 里，按占位一样退掉 */
       if (st0 && (st0.baoma === 1 || st0.baoma === 'guard' || st0.baoma === 'drawer' || st0.baoma === 'ov')) {
         rewind = 12;
         global.__yiyaRewinding = true;
@@ -2396,7 +2648,8 @@
         try { global.history.back(); } catch (eR) { rewind = 0; global.__yiyaRewinding = false; }
       }
       global.addEventListener('popstate', function (ev) {
-        if (global.App && App._qdClose) { try { App._qdClose(true); } catch (eQ2) {} } /* 第 286 次：系统返回 / 侧滑返回时快捷面板不残留 */
+        /* 第 286 次：系统返回 / 侧滑返回时快捷面板不残留。第 290 次：菜单面板只认真正的返回（静默退回落地不关它） */
+        if (global.App && App._qdClose) { try { App._qdClose(true, { fromPop: true, ignored: ignorePop > 0 || rewind > 0 }); } catch (eQ2) {} }
         if (rewind > 0) {
           var rs = ev && ev.state;
           if (rs && (rs.baoma === 1 || rs.baoma === 'guard' || rs.baoma === 'drawer' || rs.baoma === 'ov') && --rewind > 0) { try { global.history.back(); return; } catch (eR2) {} }
@@ -2410,46 +2663,22 @@
         }
         if (ignorePop > 0) {
           ignorePop--;
-          /* 第 276 次：关侧拉页退掉它那条记录后，再清掉前进栈（否则 iOS 能从右缘把侧拉页「前进」拉出来） */
-          if (!ignorePop && drawerPopped) { drawerPopped = false; dropForwardLater(); if (!drawerMoving()) flushIdle(); return; }
+          /* 临时层退掉自己那条记录后清掉前进栈（否则 iOS 能从右缘把它「前进」拉出来）；菜单面板推迟到干净画面之后 */
+          if (!ignorePop && ovPopped && ovPoppedLater) { ovPopped = false; ovPoppedLater = false; flushIdle(); dropForwardLater(); return; }
           if (!ignorePop && ovPopped) { ovPopped = false; dropForward(); return; }
           if (!ignorePop && restoreWait && !global.__yiyaRewinding) restoreWait();
-          if (!ignorePop && !drawerMoving()) flushIdle();
+          if (!ignorePop) flushIdle();
           return;
         }
-        /* 第 288 次：排队中的 history 写入（侧拉页收起中进了某页）被真正的返回抢先了——它们是写给已经退掉的那条记录的，作废 */
+        /* 第 288 次：排队中的 history 写入被真正的返回抢先了——它们是写给已经退掉的那条记录的，作废 */
         if (idleQ.length) { idleQ.splice(0); if (idleT) { clearTimeout(idleT); idleT = 0; } }
         var st = ev && ev.state;
         /* 第 278 次（审计 #30）：照片大图等最上层临时层开着 → 只关它（它登记的那条记录已被这次 back 退掉） */
-        if (ovEntries.length) { var oe = ovEntries.pop(); try { oe.close(); } catch (eOC) {} dropForward(); return; }
+        if (ovEntries.length) { var oe = ovEntries.pop(); try { oe.close(); } catch (eOC) {} if (oe.later) dropForwardLater(); else dropForward(); return; }
         if (st && st.baoma === 'ov') { ignorePop++; try { global.history.back(); } catch (eOB) { ignorePop = 0; } return; }
         if (st && st.baoma === 'guard') { ignorePop++; try { global.history.back(); } catch (eB) { ignorePop = 0; } return; }
-        /* 第 276 次：系统返回 / popstate 时侧拉页开着 → 先关它、留在原页。
-           侧拉页上面还盖着面板（切换宝宝）时先关面板，把侧拉页那条记录补回来。 */
-        /* 第 288 次：侧拉页在屏幕上、且退掉的正是它那条记录（或它开着）——直接落定为关（系统手势已经播过转场），清前进栈推迟 */
-        if (global.Drawer && Drawer.visible && Drawer.visible() && (drawerEntry || Drawer.isOpen())) {
-          if (Drawer.isOpen() && global.Sheet && Sheet.isOpen && Sheet.isOpen()) {
-            Sheet.closeTop();
-            try { global.history.pushState({ baoma: 'drawer' }, ''); drawerEntry = true; } catch (eP0) { drawerEntry = false; }
-            return;
-          }
-          drawerEntry = false;
-          Drawer.close({ fromPop: true });
-          dropForwardLater();
-          return;
-        }
-        drawerEntry = false;
-        /* 侧拉页已经关了却被「前进」到它那条记录上：静默退回 */
-        if (st && st.baoma === 'drawer') {
-          /* 第 279 次：从侧拉页上的面板直接进了某一页，侧拉页那条旧记录压在这一页下面：先按返回离开这一页，再静默跳过它 */
-          if (subExit || current !== 'home') {
-            historyDepth = Math.max(0, historyDepth - 1);
-            if (subExit) exitSubNow();
-            if (current !== 'home') showTab('home');
-            drawerPopped = true;
-          }
-          ignorePop++; try { global.history.back(); } catch (eB0) { ignorePop = 0; drawerPopped = false; } return;
-        }
+        /* 第 289 次及更早的侧拉页记录被「前进」到：和占位一样静默退回 */
+        if (st && st.baoma === 'drawer') { ignorePop++; try { global.history.back(); } catch (eB0) { ignorePop = 0; } return; }
         /* 旧版本留下的前进记录：在首页、没有上一层时还收到模块记录 = 被「前进」了，静默退回 */
         if (st && st.baoma === 1 && current === 'home' && historyDepth <= 0 && !subExit) { ignorePop++; try { global.history.back(); } catch (eB2) { ignorePop = 0; } return; }
         /* 第 272 次（审计 #2）：面板开着时返回 = 先关面板、留在原页。这次 back 已经退掉一条记录，补推回来，层级不变 */

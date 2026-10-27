@@ -525,12 +525,13 @@ def test_feeding_sheet(b):
     check('宝宝切换是 dock 左侧独立圆钮且不贴着 dock', ev("(()=>{const o=document.getElementById('dockOrb'),b=document.getElementById('tabbar');if(!o||o.hidden||!o.contains(document.getElementById('avatarBtn')))return false;const r=o.getBoundingClientRect(),q=b.getBoundingClientRect();return q.left-r.right>=6&&r.left>=8})()"))
     check('dock 一级页不用 transform 位移（iOS 转场快照会重复算 -50%），左缘紧挨圆钮', ev("(()=>{const b=document.getElementById('tabbar'),o=document.getElementById('dockOrb');const t=getComputedStyle(b).transform;const g=b.getBoundingClientRect().left-o.getBoundingClientRect().right;return (t==='none')&&g>=6&&g<=12})()"))
     check('dock 按下缩放左右对称（不再右缘不动、左缘缩进）', ev("(()=>{const b=document.getElementById('tabbar');const r0=b.getBoundingClientRect();b.style.transition='none';b.classList.add('lg-press');const r1=b.getBoundingClientRect();b.classList.remove('lg-press');b.style.transition='';return Math.abs((r1.left-r0.left)-(r0.right-r1.right))<1.5})()"))
-    check('dock 一级页：首页/日期两个页签（搜索移出 dock，设置在侧拉页）', ev("Array.from(document.querySelectorAll('#tabbar .tab[data-tab]')).filter(e=>e.offsetParent).map(e=>e.dataset.tab).slice(0,4).join()") == 'home,calendar')
+    check('dock 一级页：首页/日期两个页签（搜索移出 dock，设置在菜单面板）', ev("Array.from(document.querySelectorAll('#tabbar .tab[data-tab]')).filter(e=>e.offsetParent).map(e=>e.dataset.tab).slice(0,4).join()") == 'home,calendar')
     ev("document.getElementById('avatarBtn').click()"); p.wait_for_timeout(500)
-    _poll(p, "document.getElementById('sideDrawer').getBoundingClientRect().left>=-1", 1500)
-    check('点宝宝圆钮打开左侧抽屉：头像、宝宝名、设置、全部功能', ev("(()=>{const r=document.getElementById('sideDrawer');if(!r||!document.body.classList.contains('sd-open'))return false;const x=r.getBoundingClientRect();return x.left>=-1&&!!r.querySelector('.sd-ava')&&!!r.querySelector('[data-sd-go=settings]')&&r.querySelectorAll('.sd-color').length>=20})()"))
-    ev("document.querySelector('#sideDrawer [data-sd-go=settings]').click()"); p.wait_for_timeout(600)
-    check('抽屉进设置：抽屉收起、设置是二级页（有返回）', ev("App.currentTab()=='settings'&&!document.body.classList.contains('sd-open')&&!document.getElementById('backBtn').hidden"))
+    _poll(p, "App.menuOpen()", 1500)
+    # 第 290 次：侧拉页删掉，宝宝圆钮弹出菜单面板
+    check('点宝宝圆钮弹出菜单面板：头像、宝宝名、设置、全部功能', ev("(()=>{const l=document.getElementById('qdActions');return App.menuOpen()&&document.body.classList.contains('qm-open')&&!!l.querySelector('.qm-ava')&&!!l.querySelector('.qm-name').textContent&&!!l.querySelector('[data-qm-go=settings]')&&l.querySelectorAll('.qm-it:not(.qm-mono)').length>=20})()"))
+    ev("document.querySelector('#qdActions [data-qm-go=settings]').click()"); p.wait_for_timeout(600)
+    check('菜单进设置：面板收起、设置是二级页（有返回）', ev("App.currentTab()=='settings'&&!document.body.classList.contains('qd-open')&&!document.getElementById('backBtn').hidden"))
     ev("App.showTab('home')"); p.wait_for_timeout(400)
     ev("(()=>{Modules.home._edit=true;Modules.home._sheet=true;App.rerender()})()"); p.wait_for_timeout(400)
     cats = ev("Array.from(document.querySelectorAll('.sc-cat')).map(e=>e.dataset.cat)")
@@ -665,8 +666,8 @@ def test_r270(b):
     p.wait_for_timeout(450)
     check('关面板：替身动画后移除', ev("!document.querySelector('.sheet-ghost')"))
     check('打开面板：遮罩不再整体淡入（面板不半透明）', ev("(()=>{const m=document.createElement('div');m.className='modal-mask as-sheet';document.body.appendChild(m);const a=getComputedStyle(m).animationName;m.remove();return a})()") == 'sheetMaskIn')
-    # 第 276 次：侧拉页改整屏推入（不再缩放），原「底色多铺」断言换成整屏 / 无圆角无投影
-    check('侧拉页：整屏宽、无圆角无投影', ev("(()=>{Drawer.open();const r=document.querySelector('.side-drawer'),cs=getComputedStyle(r),a=getComputedStyle(document.getElementById('app'));const o=[r.offsetWidth===innerWidth,cs.borderRadius,cs.boxShadow,a.borderTopLeftRadius,a.boxShadow];Drawer.close();return o})()") == [True, '0px', 'none', '0px', 'none'])
+    # 第 276 次：侧拉页改整屏推入；第 290 次侧拉页删掉，换成菜单面板：圆角玻璃卡片（不整屏），#app 本身仍无圆角无投影
+    check('菜单面板：圆角卡片不整屏，#app 无圆角无投影', ev("(()=>{App.openMenu();const l=document.getElementById('qdActions'),cs=getComputedStyle(l),a=getComputedStyle(document.getElementById('app'));const o=[l.offsetWidth<innerWidth,parseFloat(cs.borderTopLeftRadius)>=12,a.borderTopLeftRadius,a.boxShadow];App.closeMenu(true);return o})()") == [True, True, '0px', 'none'])
     p.wait_for_timeout(500)
     ev("App.showTab('feeding')"); p.wait_for_timeout(250)
     p.reload(); p.wait_for_timeout(900)
@@ -1380,7 +1381,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v253（第 289 次升）', "var CACHE = 'baoma-static-v253';" in sw)
+    check('#275 SW 版本 v254（第 290 次升）', "var CACHE = 'baoma-static-v254';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -1575,68 +1576,82 @@ def test_r276(b):
     ev = p.evaluate
     drag = lambda *a: ev(TOUCH_JS, list(a))
     tc = lambda: ev("document.querySelector('meta[name=theme-color]').content")
-    X = "(()=>{const r=document.getElementById('sideDrawer'),a=document.getElementById('app');return [Math.round(r.getBoundingClientRect().left),Math.round(new DOMMatrix(getComputedStyle(a).transform).m41),+(+getComputedStyle(document.getElementById('sdMask')).opacity).toFixed(2)]})()"
-    # —— A：跟手拖拽 ——
+    # 第 290 次：侧拉页删掉（宝宝圆钮弹出菜单面板，和「＋」快捷记录同一个面板）。A 组原来断言侧拉页跟手 / 速度 / history / 状态栏，
+    # 现在逐条改成断言菜单面板的同类行为：右滑不再打开任何东西；面板的下拉跟手 / 速度阈值、history、状态栏、返回 / Esc、键盘。
+    X = "(()=>{const l=document.getElementById('qdActions'),m=document.getElementById('qdMask');return [App.menuOpen(), l.style.getPropertyValue('--qd-dy'), +(+getComputedStyle(m).opacity).toFixed(2), Math.round(new DOMMatrix(getComputedStyle(document.getElementById('app')).transform).m41)]})()"
+    # —— A：跟手（菜单面板往下拉） ——
     drag(6, 420, 6 + 156, 424, False, 8, 16); p.wait_for_timeout(60)
     x = ev(X)
-    check('#276 侧拉页跟手：拉到 40% 时侧拉页从左边进来、压暗 0.4（第 288 次起底下页不动）', abs(x[0] - (-390 * 0.6 + 8 * 0)) <= 14 and x[1] == 0 and 0.3 <= x[2] <= 0.5, x)
-    check('#276 拖到不足一半：状态栏还是底下那页（压暗后）的颜色', tc().lower() not in ('#ffffff', '#121110'), tc())
-    drag(None, 0, 162, 424, 2, 0, 0); p.wait_for_timeout(700)  # 停住再松手
-    check('#276 停住后在 40% 松手：回弹收起', ev("!Drawer.isOpen()&&!document.body.classList.contains('sd-open')"))
-    p.wait_for_timeout(500)
-    drag(6, 420, 6 + 90, 424, True, 3, 12); p.wait_for_timeout(700)
-    # 第 277 次：八组并行时 setTimeout 步距被拉长、甩动速度不够，最多再甩两次（断言不变）
-    for _i in range(2):
-        if ev("Drawer.isOpen()"):
-            break
-        p.wait_for_timeout(300); drag(6, 420, 6 + 90, 424, True, 2, 8); p.wait_for_timeout(700)
-    check('#276 快速甩一下（只拉 22%）也能打开（速度阈值）', ev("Drawer.isOpen()"), ev(X))
+    check('#276 首页左缘右拉：不再拉出侧拉页（第 290 次删掉），页面不动、什么都不打开', x[0] is False and x[3] == 0 and ev("!document.querySelector('.side-drawer,#sideDrawer')"), x)
+    drag(None, 0, 162, 424, 2, 0, 0); p.wait_for_timeout(500)
+    tc_home = tc()
+    ev("App.openMenu()"); p.wait_for_timeout(500)
+    g = ev("(()=>{const e=document.querySelector('#qdActions .qd-grab').getBoundingClientRect();return [Math.round(e.left+e.width/2),Math.round(e.top+e.height/2)]})()")
+    drag(g[0], g[1], g[0], g[1] + 120, False, 8, 16); p.wait_for_timeout(60)
     x = ev(X)
-    check('#276 打开：侧拉页整屏盖住（第 288 次起覆盖式，底下页不动）', x[0] == 0 and x[1] == 0, x)
-    check('#276 打开：状态栏取侧拉页底色（侧拉页进了 overlayStack）', tc().lower() == '#ffffff' and 'side-drawer' in ' '.join(ev("__statusOverlay()")), [tc(), ev("__statusOverlay()")])
-    check('#276 打开：登记一条 history、页面 inert', ev("[JSON.stringify(history.state), document.getElementById('app').inert]") == ['{"baoma":"drawer"}', True])
-    drag(300, 400, 80, 404, False, 6, 16); p.wait_for_timeout(50)
-    xm = ev(X)
-    check('#276 在侧拉页上左拉：跟手往左收', -230 <= xm[0] <= -190, xm)
-    drag(None, 0, 80, 404, 2, 0, 0); p.wait_for_timeout(800)
-    check('#276 左拉过半松手：收起，history 退回、页面可点', ev("[Drawer.isOpen(), history.state===null||history.state.baoma!=='drawer', document.getElementById('app').inert]") == [False, True, False])
-    # 返回键 / 系统返回 / Esc
-    ev("Drawer.open()"); p.wait_for_timeout(500)
-    ev("document.querySelector('#sideDrawer .sd-back').click()"); p.wait_for_timeout(600)
-    check('#276 侧拉页左上「返回」关闭', ev("!Drawer.isOpen()&&App.currentTab()=='home'"))
-    ev("Drawer.open()"); p.wait_for_timeout(500)
+    check('#276 菜单面板往下拉：跟手下移（--qd-dy）、遮罩跟着变淡、底下页面不动', x[0] and 95 <= float(x[1][:-2] or 0) <= 125 and 0 < x[2] < 1 and x[3] == 0, [x, ev("document.getElementById('quickDock').className+'|'+document.body.className")])
+    check('#276 拖动中：状态栏仍是底下那页叠遮罩的颜色（不变白）', tc().lower() not in ('#ffffff', '#121110'), tc())
+    drag(None, 0, g[0], g[1] + 120, 2, 0, 0); p.wait_for_timeout(700)  # 停住再松手
+    check('#276 停住后松手（没过 1/4 高度）：弹回、仍开着', ev(X)[0] and ev(X)[1] in ('0px', ''), ev(X))
+    drag(g[0], g[1], g[0], g[1] + 90, True, 3, 12); p.wait_for_timeout(700)
+    for _i in range(2):
+        if not ev("App.menuOpen()"):
+            break
+        p.wait_for_timeout(300); drag(g[0], g[1], g[0], g[1] + 90, True, 2, 8); p.wait_for_timeout(700)
+    check('#276 快速下甩一下（只拉 90px）也能收起（速度阈值）', not ev("App.menuOpen()"), ev(X))
+    _poll(p, "!App._histBusy()", 1500, 30); p.wait_for_timeout(200)
+    ev("App.openMenu()"); p.wait_for_timeout(500)
+    x = ev(X)
+    check('#276 打开：菜单面板在、遮罩全显，底下页不动', x[0] and x[2] == 1 and x[3] == 0, x)
+    check('#276 打开：状态栏取「底下那页 + 遮罩」的颜色（遮罩进了 overlayStack）', tc().lower() != tc_home.lower() and 'qd-mask' in ' '.join(ev("__statusOverlay()")), [tc(), tc_home, ev("__statusOverlay()")])
+    check('#276 打开：登记一条 history、页面 inert', ev("[JSON.stringify(history.state), document.getElementById('view').inert]") == ['{"baoma":"ov"}', True])
+    drag(g[0], g[1], g[0], g[1] + 260, True, 6, 16); p.wait_for_timeout(800)
+    check('#276 下拉过 1/4 松手：收起，history 退回、页面可点', ev("[App.menuOpen(), history.state===null||history.state.baoma!=='ov', document.getElementById('view').inert]") == [False, True, False])
+    # 遮罩 / 系统返回 / Esc
+    _poll(p, "!App._histBusy()", 1500, 30)
+    ev("App.openMenu()"); p.wait_for_timeout(500)
+    ev("document.getElementById('qdMask').click()"); p.wait_for_timeout(600)
+    check('#276 点遮罩关闭', ev("!App.menuOpen()&&App.currentTab()=='home'"))
+    _poll(p, "!App._histBusy()", 1500, 30)
+    ev("App.openMenu()"); p.wait_for_timeout(500)
     ev("history.back()"); p.wait_for_timeout(600)
-    check('#276 系统返回（popstate）先关侧拉页，留在首页', ev("[Drawer.isOpen(), App.currentTab()]") == [False, 'home'])
-    ev("Drawer.open()"); p.wait_for_timeout(400); ev("App._openBabySheet()"); p.wait_for_timeout(400)
-    ev("history.back()"); p.wait_for_timeout(600)
-    check('#276 侧拉页上盖着切换宝宝面板时返回：先关面板，侧拉页还开着', ev("[Drawer.isOpen(), !!document.querySelector('#modalRoot .modal-mask:not(.sheet-leaving)')]") == [True, False])
+    check('#276 系统返回（popstate）先关菜单面板，留在首页', ev("[App.menuOpen(), App.currentTab()]") == [False, 'home'])
+    _poll(p, "!App._histBusy()", 1500, 30)
+    ev("App.openMenu()"); p.wait_for_timeout(400); ev("App._openBabySheet()"); p.wait_for_timeout(400)
+    check('#276 菜单面板开着时弹出切换宝宝面板：菜单让位收起（不叠两层）、面板在', ev("[App.menuOpen(), !!document.querySelector('#modalRoot .modal-mask:not(.sheet-leaving)')]") == [False, True])
     p.keyboard.press('Escape'); p.wait_for_timeout(600)
-    check('#276 Esc 关闭侧拉页', ev("!Drawer.isOpen()"))
+    _poll(p, "!App._histBusy()", 1500, 30)
+    ev("App.openMenu()"); p.wait_for_timeout(450)
+    p.keyboard.press('Escape'); p.wait_for_timeout(600)
+    check('#276 Esc 关闭菜单面板', ev("!App.menuOpen()&&!document.querySelector('#modalRoot .modal-mask:not(.sheet-leaving)')"))
     hl = ev("history.length")
     for _ in range(3):
-        ev("Drawer.open()"); p.wait_for_timeout(450); ev("Drawer.close()"); p.wait_for_timeout(450)
-    check('#276 反复开关侧拉页 history 不增长（前进栈清掉）', ev("history.length") <= hl + 1, [hl, ev("history.length")])
+        _poll(p, "!App._histBusy()", 1500, 30)
+        ev("App.openMenu()"); p.wait_for_timeout(450); ev("App.closeMenu()"); p.wait_for_timeout(450)
+    check('#276 反复开关菜单面板 history 不增长（前进栈清掉）', ev("history.length") <= hl + 1, [hl, ev("history.length")])
     # 搜索框：进搜索页并聚焦
-    ev("Drawer.open()"); p.wait_for_timeout(450)
-    ev("document.querySelector('#sideDrawer .sd-search').click()"); p.wait_for_timeout(500)
-    check('#276 侧拉页搜索框：进搜索页、输入框聚焦、侧拉页那条 history 改写成搜索页', ev("[App.currentTab(), document.activeElement&&document.activeElement.id, Drawer.isOpen(), history.state&&history.state.id]") == ['search', 'searchInput', False, 'search'])
+    _poll(p, "!App._histBusy()", 1500, 30)
+    ev("App.openMenu()"); p.wait_for_timeout(450)
+    ev("document.querySelector('#qdActions .qm-search').click()"); p.wait_for_timeout(500)
+    check('#276 菜单面板搜索框：进搜索页、输入框聚焦、菜单那条 history 改写成搜索页', ev("[App.currentTab(), document.activeElement&&document.activeElement.id, App.menuOpen(), history.state&&history.state.id]") == ['search', 'searchInput', False, 'search'])
     check('#276 搜索页改为二级页：dock 只有 返回 + ＋', ev("(()=>{const b=document.getElementById('tabbar');return [...b.children].filter(e=>e.offsetParent&&e.offsetWidth).map(e=>e.id||e.className.split(' ')[0])})()") == ['backBtn', 'tab'], ev("(()=>{const b=document.getElementById('tabbar');return [...b.children].filter(e=>e.offsetParent&&e.offsetWidth).map(e=>e.id||e.className)})()"))
     ev("document.getElementById('backBtn').click()"); p.wait_for_timeout(600)
     check('#276 搜索页返回首页', ev("App.currentTab()") == 'home')
     # 深色 + 左手竖排
     ev("(()=>{const s=Storage.get().settings;s.themeMode='dark';s.handMode='left';Storage.save();App.applyTheme();App.buildTabbar()})()"); p.wait_for_timeout(300)
-    ev("Drawer.open()"); p.wait_for_timeout(600)
-    _poll(p, "document.getElementById('sideDrawer').getBoundingClientRect().left===0", 2000)
-    dk = ev("(()=>{const r=document.getElementById('sideDrawer').getBoundingClientRect(),t=document.getElementById('tabbar');const e=document.elementFromPoint(40,700);return [getComputedStyle(document.getElementById('sideDrawer')).backgroundColor, Math.round(r.left), Math.round(r.width), !!e&&!t.contains(e)]})()")
-    check('#276 深色 + 左手竖排：侧拉页深底整屏、盖住竖排 dock', dk[0] == 'rgb(18, 17, 16)' and dk[1] == 0 and dk[2] == 390 and dk[3], dk)
-    check('#276 深色：状态栏取侧拉页深底', tc().lower() == '#121110', tc())
-    ev("Drawer.close()"); p.wait_for_timeout(500)
+    _poll(p, "!App._histBusy()", 1500, 30)
+    ev("App.openMenu()"); p.wait_for_timeout(600)
+    dk = ev("(()=>{const r=document.getElementById('qdActions').getBoundingClientRect(),t=document.getElementById('tabbar').getBoundingClientRect();const e=document.elementFromPoint(t.left+t.width/2,t.top+30);return [getComputedStyle(document.getElementById('qdActions')).backgroundColor, Math.round(r.left), Math.round(innerWidth-r.right), !!e&&!document.getElementById('tabbar').contains(e)]})()")
+    check('#276 深色 + 左手竖排：菜单面板深色玻璃、居中、盖住竖排 dock', (dk[0].startswith('rgba(') or dk[0].startswith('color(')) and abs(dk[1] - dk[2]) <= 1 and dk[3], dk)
+    check('#276 深色：状态栏取深色底叠遮罩（不是浅色）', tc().lower() not in ('#ffffff', '#fdf9f4'), tc())
+    ev("App.closeMenu()"); p.wait_for_timeout(500)
     ev("(()=>{const s=Storage.get().settings;s.themeMode='light';s.handMode='normal';Storage.save();App.applyTheme();App.buildTabbar()})()"); p.wait_for_timeout(300)
-    # 键盘：输入框聚焦时打开侧拉页 → 收起键盘
+    # 键盘：输入框聚焦时打开菜单面板 → 收起键盘
     ev("(()=>{const i=document.createElement('input');i.id='tmpI';document.getElementById('view').appendChild(i);i.focus()})()")
-    ev("Drawer.open()"); p.wait_for_timeout(400)
-    check('#276 打开侧拉页时收起键盘（输入框失焦）、焦点进侧拉页', ev("[document.activeElement.id!=='tmpI', document.getElementById('sideDrawer').contains(document.activeElement)]") == [True, True])
-    ev("Drawer.close();document.getElementById('tmpI').remove()"); p.wait_for_timeout(500)
+    _poll(p, "!App._histBusy()", 1500, 30)
+    ev("App.openMenu()"); p.wait_for_timeout(400)
+    check('#276 打开菜单面板时收起键盘（输入框失焦）、焦点进面板', ev("[document.activeElement.id!=='tmpI', document.getElementById('qdActions').contains(document.activeElement)]") == [True, True])
+    ev("App.closeMenu();document.getElementById('tmpI').remove()"); p.wait_for_timeout(500)
     # —— B：dock 与首页下拉 ——
     check('#276 dock 一级页：宝宝 + 首页 / 日期 + ＋，选中水滴在首页', ev("(()=>{const b=document.getElementById('tabbar');const tabs=[...b.querySelectorAll('.tab[data-tab]')].filter(e=>e.offsetParent).map(e=>e.dataset.tab);const th=b.querySelector('.lg-thumb'),a=b.querySelector('.tab.active');return [tabs.join(), !!th&&Math.abs(th.getBoundingClientRect().left-a.getBoundingClientRect().left)<2]})()") == ['home,calendar', True])
     ev("window.scrollTo(0,0)"); p.wait_for_timeout(100)
@@ -1715,10 +1730,10 @@ def test_r276(b):
     # —— 减少动态效果 ——
     p.emulate_media(reduced_motion='reduce')
     ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(200)
-    ev("Drawer.open()"); p.wait_for_timeout(300)
-    rm = ev("[getComputedStyle(document.getElementById('sideDrawer')).transform, getComputedStyle(document.getElementById('app')).transform, getComputedStyle(document.getElementById('sideDrawer')).opacity]")
-    check('#276 减少动态效果：侧拉页直接淡入，不平移', rm == ['none', 'none', '1'], rm)
-    ev("Drawer.close()"); p.wait_for_timeout(300)
+    ev("App.openMenu()"); p.wait_for_timeout(300)
+    rm = ev("[getComputedStyle(document.getElementById('qdActions')).transform, getComputedStyle(document.getElementById('app')).transform, getComputedStyle(document.getElementById('qdActions')).opacity]")
+    check('#276 减少动态效果：菜单面板直接淡入，不位移（第 290 次起侧拉页换成菜单面板）', rm[0] in ('none', 'matrix(1, 0, 0, 1, -175, 0)') and rm[1] == 'none' and rm[2] == '1', rm)
+    ev("App.closeMenu()"); p.wait_for_timeout(300)
     check('#276 无报错', not errs, errs)
     ctx.close()
 
@@ -1877,13 +1892,13 @@ def test_r277(b):
     up = ev("(()=>{const t=document.querySelector('#toastRoot .toast');return t?[t.classList.contains('leaving-up'),t.style.translate]:['gone']})()")
     p.wait_for_timeout(400)
     check('#277 上滑关闭：跟手上移、松手收起', up[0] is True and ev("!document.querySelector('#toastRoot .toast')"), up)
-    # 让开顶部控件：侧拉页（返回 + 搜索框）、全屏计时（收起 / 删除）、面板顶满（✕ ✓）
+    # 让开顶部控件：全屏计时（收起 / 删除）、面板顶满（✕ ✓）；第 290 次菜单面板贴底，提示岛照常在顶部、不压住面板
     ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(600)
-    ev("Drawer.open()"); p.wait_for_timeout(900)
+    ev("App.openMenu()"); p.wait_for_timeout(900)
     ev("Util.toast('已切换到豆豆','ok')"); p.wait_for_timeout(650)
-    dv = ev(f"""(()=>{{const t={TOAST_EL}.getBoundingClientRect();const bs=[...document.querySelectorAll('.side-drawer button, .side-drawer input')].map(e=>e.getBoundingClientRect()).filter(r=>r.width&&r.height<=60&&r.top<t.bottom&&r.bottom>t.top&&r.left<t.right&&r.right>t.left);return [Math.round(t.top),bs.length]}})()""")
-    check('#277 侧拉页打开：提示岛下移到返回 / 搜索框下面，不压住它们', dv[0] > 50 and dv[1] == 0, dv)
-    ev("document.querySelector('#toastRoot .toast')._toastDismiss();Drawer.close()"); p.wait_for_timeout(800)
+    dv = ev(f"""(()=>{{const t={TOAST_EL}.getBoundingClientRect();const bs=[...document.querySelectorAll('#qdActions button')].map(e=>e.getBoundingClientRect()).filter(r=>r.width&&r.height<=60&&r.top<t.bottom&&r.bottom>t.top&&r.left<t.right&&r.right>t.left);return [Math.round(t.top),bs.length]}})()""")
+    check('#277 菜单面板打开：提示岛在顶部，不压住面板里的按钮', dv[0] >= 0 and dv[1] == 0, dv)
+    ev("document.querySelector('#toastRoot .toast')._toastDismiss();App.closeMenu()"); p.wait_for_timeout(800)
     ev("App.showTab('sleep',{noVT:true})"); p.wait_for_timeout(500)
     ev("Modules.sleep._openFull&&Modules.sleep._openFull()"); p.wait_for_timeout(800)
     tc0 = ev("document.querySelector('meta[name=theme-color]').content")
@@ -2093,14 +2108,17 @@ def test_r278(b):
     ev("document.querySelector('[data-toggle=b]').click()"); p.wait_for_timeout(300); ev("document.querySelector('[data-toggle=a]').click()"); p.wait_for_timeout(300)
     check('#40 补剂：停用新的那条后，旧的可以正常启用', ev("Storage.get().supplementPlans.map(x=>[x.id,x.active])") == [['a', True], ['b', False]])
     ev("Sheet.closeAll()"); p.wait_for_timeout(300)
-    # —— #41 Esc 由上到下：侧拉页上盖着切换宝宝面板 ——
-    go('feeding')
-    ev("Drawer.open()"); p.wait_for_timeout(500); ev("App._openBabySheet()"); p.wait_for_timeout(500)
+    # —— #41 Esc 由上到下：第 290 次起侧拉页换成菜单面板，菜单上不叠面板——菜单开着时弹出切换宝宝面板，菜单立即收起（记录退掉），
+    #      Esc 关面板；之后再按 Esc 什么都不剩 ——
+    go('home')
+    st41 = ev("JSON.stringify(history.state)")
+    ev("App.openMenu()"); p.wait_for_timeout(500); ev("App._openBabySheet()"); p.wait_for_timeout(500)
+    e0 = ev("[App.menuOpen(), Sheet.isOpen(), document.body.classList.contains('qd-open'), JSON.stringify(history.state)]")
     p.keyboard.press('Escape'); p.wait_for_timeout(500)
-    e1 = ev("[Drawer.isOpen(), Sheet.isOpen()]")
+    e1 = ev("[App.menuOpen(), Sheet.isOpen()]")
     p.keyboard.press('Escape'); p.wait_for_timeout(600)
-    e2 = ev("[Drawer.isOpen(), Sheet.isOpen()]")
-    check('#41 Esc：先关切换宝宝面板（侧拉页还开着），再按关侧拉页', e1 == [True, False] and e2 == [False, False], [e1, e2])
+    e2 = ev("[App.menuOpen(), Sheet.isOpen(), document.body.classList.contains('qd-open'), JSON.stringify(history.state)]")
+    check('#41 Esc：菜单开着时弹出切换宝宝面板 → 菜单让位收起；Esc 关面板，再按无残留', e0 == [False, True, False, st41] and e1 == [False, False] and e2 == [False, False, False, st41], [st41, e0, e1, e2])
     # —— 白噪音：暂停中改音量后到点，提示写设定的分钟数 ——
     go('home')
     ev(FAKE_AUDIO)
@@ -2129,18 +2147,19 @@ TOUCH2_JS = r"""([x0,y0,x1,y1,end,steps,ms])=>new Promise(res=>{const t=document
  if(!window.__t2nostart)fire('touchstart',x0,y0);window.__t2nostart=false;const n=Math.max(1,steps);let i=0;
  const step=()=>{i++;fire('touchmove',x0+(x1-x0)*i/n,y0+(y1-y0)*i/n);if(i<n)setTimeout(step,ms);else{if(end==='cancel')setTimeout(()=>{fire('touchcancel',x1,y1);res(1)},0);else if(end==='none')res(1);else setTimeout(()=>{fire('touchend',x1,y1);res(1)},end===2?150:0)}};
  setTimeout(step,ms)})"""
-SD_ST = """(()=>{const r=document.getElementById('sideDrawer'),a=document.getElementById('app'),m=document.getElementById('sdMask');
+# 第 290 次：侧拉页删掉，原 SD_ST（侧拉页状态）改成菜单面板状态（字段名沿用，方便老断言对照）
+SD_ST = """(()=>{const r=document.getElementById('quickDock'),a=document.getElementById('app'),m=document.getElementById('qdMask'),l=document.getElementById('qdActions');
  const mk=[...document.querySelectorAll('#modalRoot > .modal-mask')].filter(x=>!x.classList.contains('sheet-leaving')).length;
- return {open:Drawer.isOpen(),cls:['sd-open','sd-lock','sd-drag'].filter(c=>document.body.classList.contains(c)).join(','),
-  left:r?Math.round(r.getBoundingClientRect().left):null,appX:Math.round(new DOMMatrix(getComputedStyle(a).transform).m41),
-  inl:(r?r.style.transform:'')+'|'+a.style.transform,mask:m?(+getComputedStyle(m).opacity).toFixed(2)+'/'+getComputedStyle(m).visibility:'',sheets:mk,
-  st:JSON.stringify(history.state),tab:App.currentTab(),rad:r?getComputedStyle(r).borderRadius+'/'+getComputedStyle(r).boxShadow:'',
-  inert:a.inert,ph:document.querySelectorAll('body > .ph-view').length}})()"""
+ return {open:App.menuOpen(),cls:['qd-open','qm-open','qd-drag'].filter(c=>document.body.classList.contains(c)).join(','),
+  appX:Math.round(new DOMMatrix(getComputedStyle(a).transform).m41),dy:l.style.getPropertyValue('--qd-dy'),drag:r.classList.contains('qd-dragging'),
+  inl:a.style.transform+'|'+(m.style.opacity||''),mask:(+getComputedStyle(m).opacity).toFixed(2)+'/'+getComputedStyle(m).visibility,sheets:mk,
+  st:JSON.stringify(history.state),tab:App.currentTab(),rad:getComputedStyle(a).borderTopLeftRadius+'/'+getComputedStyle(a).boxShadow,
+  inert:document.getElementById('view').inert,ph:document.querySelectorAll('body > .ph-view').length,sd:!!document.querySelector('.side-drawer,#sideDrawer,.sd-mask')}})()"""
 
 
 def test_r279(b):
-    """第 279 次（真机录屏）：侧拉页 + 盖在上面的「宝宝资料」面板——拖拽不接管、一起关、history 不残留、拖拽必定落定、
-    系统返回快照取未推开的首页；其他叠层组合（搜索 / 设置页面板 / 照片大图 / 咿呀岛）。"""
+    """第 279 次（真机录屏）：侧拉页 + 盖在上面的「宝宝资料」面板 / 拖拽落定 / 叠层组合。
+    第 290 次侧拉页删掉，逐条改成菜单面板（与「＋」同一个面板）的同类场景：面板叠层、下拉必定落定、history 不残留、其他叠层组合。"""
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
     p = ctx.new_page(); errs = []
     p.on('pageerror', lambda e: errs.append(str(e)[:160]))
@@ -2148,123 +2167,114 @@ def test_r279(b):
     ev = p.evaluate
     drag = lambda *a: ev(TOUCH2_JS, list(a))
     st = lambda: ev(SD_ST)
-    clean = lambda s: s['cls'] == '' and s['appX'] == 0 and s['inl'] == '|' and s['mask'].startswith('0.00/') and not s['inert'] and s['sheets'] == 0
+    clean = lambda s: s['cls'] == '' and s['appX'] == 0 and s['inl'] == '|' and s['mask'].startswith('0.00/') and not s['inert'] and s['sheets'] == 0 and s['dy'] == '' and not s['sd']
+
+    def idle():
+        _poll(p, "!App._histBusy()&&!document.getElementById('quickDock').classList.contains('qd-closing')&&(document.getElementById('quickDock').classList.contains('open')?getComputedStyle(document.getElementById('qdMask')).opacity==='1':getComputedStyle(document.getElementById('qdMask')).visibility==='hidden')", 1500, 20); p.wait_for_timeout(200)
+
+    def menu():
+        idle(); ev("App.openMenu()"); p.wait_for_timeout(500)
 
     def swap():
-        ev("Drawer.open()"); p.wait_for_timeout(550)
-        ev("document.querySelector('#sideDrawer [data-sd=swap]').click()"); p.wait_for_timeout(450)
-    # —— A：面板盖在侧拉页上 ——
+        menu(); ev("document.querySelector('#qdActions [data-qm=swap]').click()"); p.wait_for_timeout(450)
+    # —— A：面板和菜单不叠层 ——
     swap()
     s = st()
-    check('#279 侧拉页上的切换宝宝面板登记自己的 history（ov），不再靠「关面板再补推侧拉页记录」', s['open'] and s['sheets'] == 1 and s['st'] == '{"baoma":"ov"}', s)
-    drag(330, 200, 60, 204, False, 8, 16); p.wait_for_timeout(40)
+    check('#279 菜单里点「切换」：菜单先收起（记录退掉），切换宝宝面板单独一层', not s['open'] and s['sheets'] == 1 and s['cls'] == '' and s['st'] == 'null', s)
+    drag(330, 200, 60, 204, True, 8, 16); p.wait_for_timeout(500)
     s = st()
-    check('#279 面板开着时在侧拉页上左拉：侧拉页不跟手（不进入拖拽态）', s['left'] == 0 and 'sd-drag' not in s['cls'], s)
-    drag(60, 204, 59, 204, True, 1, 0); p.wait_for_timeout(700)
-    s = st()
-    check('#279 松手后侧拉页、面板都还开着——不会只关侧拉页、留下孤立面板', s['open'] and s['sheets'] == 1 and s['left'] == 0 and s['appX'] == 0, s)
-    ev("Drawer.close()"); p.wait_for_timeout(900)
-    s = st()
-    check('#279 侧拉页关闭时盖在上面的面板一起关，history 一次退回第一条（go(-2)）', not s['open'] and clean(s) and s['st'] == 'null', s)
-    swap()
-    p.keyboard.press('Escape'); p.wait_for_timeout(500)
-    s = st()
-    check('#279 Esc 第一次只关面板（history 退到侧拉页那条）', s['open'] and s['sheets'] == 0 and s['st'] == '{"baoma":"drawer"}', s)
-    p.keyboard.press('Escape'); p.wait_for_timeout(800)
-    s = st()
-    check('#279 Esc 第二次关侧拉页，首页复位', not s['open'] and clean(s) and s['st'] == 'null', s)
+    check('#279 面板开着时横拉：不会拉出任何东西（无侧拉页），面板还在', s['sheets'] == 1 and not s['sd'] and s['appX'] == 0, s)
+    p.keyboard.press('Escape'); p.wait_for_timeout(600)
+    check('#279 Esc 关面板，首页复位', clean(st()) and st()['st'] == 'null', st())
     swap()
     ev("document.querySelector('#modalRoot .modal-mask').click()"); p.wait_for_timeout(600)
+    check('#279 点面板外的遮罩关面板，无残留', clean(st()) and st()['st'] == 'null', st())
+    menu(); ev("App._openBabySheet()"); p.wait_for_timeout(500)
     s = st()
-    check('#279 点面板外的遮罩只关面板，侧拉页留着、history 站在侧拉页那条', s['open'] and s['sheets'] == 0 and s['st'] == '{"baoma":"drawer"}', s)
-    ev("Drawer.close()"); p.wait_for_timeout(800)
-    swap()
-    ev("history.back()"); p.wait_for_timeout(700)
-    s1 = st()
-    ev("history.back()"); p.wait_for_timeout(900)
-    s2 = st()
-    check('#279 系统返回两次：先关面板（侧拉页留着），再关侧拉页、首页复位', s1['open'] and s1['sheets'] == 0 and s1['st'] == '{"baoma":"drawer"}' and not s2['open'] and clean(s2) and s2['st'] == 'null', [s1, s2])
+    check('#279 菜单开着时别处弹出面板：菜单让位收起（不叠两层、记录退掉）', not s['open'] and s['sheets'] == 1 and s['st'] == 'null', s)
+    p.wait_for_timeout(400)
+    s = st()
+    check('#279 菜单让位后 history 回到第一条（不多留一条记录让系统返回白退一次）', s['tab'] == 'home' and s['st'] == 'null' and ev("App._ovDepth()") == 0, s)
+    ev("Sheet.closeAll()"); p.wait_for_timeout(500)
     swap()
     ev("document.querySelector('#modalRoot #sheetAdd').click()"); p.wait_for_timeout(600)
     s = st()
-    check('#279 面板里换成宝宝资料表单：还算同一层（一条 ov），侧拉页仍开着', s['open'] and s['sheets'] == 1 and s['st'] == '{"baoma":"ov"}', s)
-    ev("Drawer.close()"); p.wait_for_timeout(900)
-    check('#279 关侧拉页：表单一起关、history 退干净', clean(st()) and st()['st'] == 'null', st())
-    # 面板里「宝宝设置」切到设置页：侧拉页连同面板收起（同步切页 = iOS 上 showTab 不走 View Transition）
+    check('#279 面板里换成宝宝资料表单：一层面板，菜单不在', not s['open'] and s['sheets'] == 1 and s['cls'] == '', s)
+    ev("Sheet.closeAll()"); p.wait_for_timeout(600)
+    check('#279 关掉表单：无残留、history 回第一条', clean(st()) and st()['st'] == 'null', st())
+    # 面板里「宝宝设置」切到设置页（同步切页 = iOS 上 showTab 不走 View Transition）
     for sync in (False, True):
         tag = '（iOS 同步切页）' if sync else '（转场切页）'
         if sync:
             ev("document.startViewTransition=undefined")
         swap()
-        ev("document.querySelector('#sheetManage').click()"); p.wait_for_timeout(1500)
+        ev("document.querySelector('#sheetManage').click()"); p.wait_for_timeout(600)
+        _poll(p, "App.currentTab()==='settings'&&!App._histBusy()", 3000, 50); p.wait_for_timeout(300)  # WebKit 转场切页偏慢
         s = st()
-        check('#279 面板里「宝宝设置」进设置页：侧拉页、面板一起收起，history 不留侧拉页 / 面板记录' + tag,
+        check('#279 菜单 → 切换宝宝面板 → 「宝宝设置」进设置页：面板收起，history 不留 ov / guard 记录' + tag,
               s['tab'] == 'settings' and not s['open'] and clean(s) and all(k not in s['st'] for k in ('"drawer"', '"ov"', '"guard"')), s)
         ev("history.back()"); p.wait_for_timeout(700); ev("history.back()"); p.wait_for_timeout(900)
+        _poll(p, "App.currentTab()==='home'&&history.state===null", 2500, 50)
         s = st()
         check('#279 接着返回两次回到首页、history 回到第一条' + tag, s['tab'] == 'home' and not s['open'] and s['st'] == 'null' and clean(s), s)
         if sync:
             ev("delete document.startViewTransition")
         if ev("App.currentTab()") != 'home':
             ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(500)
-    # —— B：拖拽必定落定 ——
-    drag(6, 420, 6 + 150, 424, 'cancel', 8, 16); p.wait_for_timeout(900)
+    # —— B：下拉必定落定 ——
+    menu()
+    g = ev("(()=>{const e=document.querySelector('#qdActions .qd-grab').getBoundingClientRect();return [Math.round(e.left+e.width/2),Math.round(e.top+e.height/2)]})()")
+    drag(g[0], g[1], g[0], g[1] + 150, 'cancel', 8, 16); p.wait_for_timeout(600)
     s = st()
-    check('#279 拉开途中 touchcancel：按位置落到全关（38%），无内联位移、history 退干净', not s['open'] and clean(s) and s['st'] == 'null', s)
-    drag(6, 420, 6 + 260, 424, 'cancel', 8, 16); p.wait_for_timeout(900)
+    check('#279 下拉途中 touchcancel：弹回原位（仍开着、无内联位移、遮罩复原）', s['open'] and s['dy'] in ('0px', '') and not s['drag'] and s['inl'] == '|' and s['st'] == '{"baoma":"ov"}', s)
+    drag(g[0], g[1], g[0], g[1] + 200, 'none', 8, 16); p.wait_for_timeout(30)
     s = st()
-    check('#279 拉过半时 touchcancel：落到全开', s['open'] and s['left'] == 0 and 'sd-drag' not in s['cls'] and s['inl'] == '|' and s['st'] == '{"baoma":"drawer"}', s)
-    ev("Drawer.close()"); p.wait_for_timeout(800)
-    drag(6, 420, 6 + 200, 424, 'none', 8, 16); p.wait_for_timeout(30)
+    check('#279 下拉中：跟手、记录还在（拖动中不做任何 history 操作）', s['drag'] and s['st'] == '{"baoma":"ov"}' and 'qd-drag' in s['cls'], s)
+    drag(200, 760, 201, 760, True, 1, 0); p.wait_for_timeout(600)
     s = st()
-    check('#279 拉开一判定就先登记 history（WebKit 在 pushState 时拍系统返回快照，拍到的是没推开的首页）', s['st'] == '{"baoma":"drawer"}' and 'sd-drag' in s['cls'], s)
-    p.wait_for_timeout(1500)
+    check('#279 上一次下拉没收到 touchend 就来了新的触摸（面板外）：先弹回，不停在半路', s['open'] and not s['drag'] and s['dy'] in ('0px', '') and s['inl'] == '|', s)
+    drag(g[0], g[1], g[0], g[1] + 200, 'none', 8, 16); p.wait_for_timeout(30)
+    HIDE = "(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));delete document.hidden})()"
+    ev(HIDE); p.wait_for_timeout(500)
     s = st()
-    check('#279 手指停在半路、touchend 被系统手势吞掉：1.2 秒后兜底落定（不停在半开）', 'sd-drag' not in s['cls'] and s['inl'] == '|' and (s['open'] and abs(s['left']) <= 2 or clean(s)), s)
-    ev("Drawer.isOpen()&&Drawer.close()"); p.wait_for_timeout(800)
-    drag(6, 420, 6 + 120, 424, 'none', 8, 16); p.wait_for_timeout(30)
-    drag(200, 300, 201, 300, True, 1, 0); p.wait_for_timeout(900)
-    s = st()
-    check('#279 上一次拖拽没收到 touchend 就来了新的触摸：先按位置落定（29% → 全关），不留 sd-drag / 内联位移（真机「停在半开」）', clean(s) and not s['open'] and s['st'] == 'null', s)
-    drag(6, 420, 6 + 200, 424, 'none', 8, 16); p.wait_for_timeout(30)
+    check('#279 下拉中切后台：弹回原位', s['open'] and not s['drag'] and s['dy'] in ('0px', ''), s)
+    drag(g[0], g[1], g[0], g[1] + 200, 'none', 8, 16); p.wait_for_timeout(30)
     ev("history.back()"); p.wait_for_timeout(900)
     s = st()
-    check('#279 拖拽中途来了系统返回（popstate）：拖拽立即落定并按返回关掉侧拉页', 'sd-drag' not in s['cls'] and not s['open'] and clean(s) and s['st'] == 'null', s)
-    ev("Drawer.isOpen()&&Drawer.close()"); p.wait_for_timeout(900)
+    check('#279 下拉中途来了系统返回（popstate）：立即关掉菜单、拖动状态清掉', not s['open'] and not s['drag'] and clean(s) and s['st'] == 'null', s)
+    idle()
     s = st()
-    check('#279 全部关闭后首页完全复位（无位移、无压暗、无锁、页面可点、history 回到第一条）', clean(s) and s['st'] == 'null', s)
-    drag(6, 420, 6 + 150, 424, 'none', 8, 16); p.wait_for_timeout(40)
+    check('#279 全部关闭后首页完全复位（无位移、无压暗、页面可点、history 回到第一条）', clean(s) and s['st'] == 'null', s)
+    menu()
+    drag(g[0], g[1], g[0], g[1] + 150, 'none', 8, 16); p.wait_for_timeout(40)
     s = st()
-    check('#279 拖动中侧拉页、底下页都无圆角无投影', s['rad'] == '0px/none' and ev("(()=>{const a=getComputedStyle(document.getElementById('app'));return a.borderTopLeftRadius+'/'+a.boxShadow+'/'+a.clipPath})()") == '0px/none/none', s)
-    drag(156, 424, 120, 424, True, 2, 16); p.wait_for_timeout(900)
-    # 侧拉页开着时左拉关闭：history 退干净
-    ev("Drawer.open()"); p.wait_for_timeout(550)
-    drag(300, 400, 40, 404, True, 6, 16); p.wait_for_timeout(900)
+    check('#279 下拉中底下页无圆角无投影、不位移', s['rad'] == '0px/none' and s['appX'] == 0 and ev("getComputedStyle(document.getElementById('app')).clipPath") == 'none', s)
+    drag(g[0], g[1] + 150, g[0], g[1] + 400, True, 4, 16); p.wait_for_timeout(900)
     s = st()
-    check('#279 侧拉页上左拉关闭：首页复位、history 回到第一条', not s['open'] and clean(s) and s['st'] == 'null', s)
+    check('#279 拉过 1/4 松手关闭：首页复位、history 回到第一条', not s['open'] and clean(s) and s['st'] == 'null', s)
     # —— C：其他叠层组合 ——
-    ev("Drawer.open()"); p.wait_for_timeout(550)
-    ev("document.querySelector('#sideDrawer .sd-search').click()"); p.wait_for_timeout(700)
+    menu()
+    ev("document.querySelector('#qdActions .qm-search').click()"); p.wait_for_timeout(700)
     s = st()
-    check('#279 侧拉页 → 搜索：侧拉页收起、底页复位，history 只剩搜索页一条', s['tab'] == 'search' and not s['open'] and clean(s) and s['st'] == '{"baoma":1,"id":"search"}', s)
+    check('#279 菜单 → 搜索：面板收起、底页复位，history 只剩搜索页一条', s['tab'] == 'search' and not s['open'] and clean(s) and s['st'] == '{"baoma":1,"id":"search"}', s)
     ev("history.back()"); p.wait_for_timeout(800)
     s = st()
-    check('#279 搜索页返回：回首页、侧拉页不再冒出来', s['tab'] == 'home' and not s['open'] and s['st'] == 'null' and clean(s), s)
-    ev("Drawer.open()"); p.wait_for_timeout(550)
-    ev("document.querySelector('#sideDrawer [data-sd-go=growth]').click()"); p.wait_for_timeout(700)
+    check('#279 搜索页返回：回首页、菜单不再冒出来', s['tab'] == 'home' and not s['open'] and s['st'] == 'null' and clean(s), s)
+    menu()
+    ev("document.querySelector('#qdActions [data-qm-go=growth]').click()"); p.wait_for_timeout(700)
     ev("Modules.growth&&document.querySelector('#view [data-add], #view .fab, #view .btn-primary')&&document.querySelector('#view [data-add], #view .fab, #view .btn-primary').click()"); p.wait_for_timeout(600)
     s1 = st()
     ev("history.back()"); p.wait_for_timeout(700)
     s2 = st()
-    check('#279 侧拉页 → 功能页 → 页内面板：返回先关面板、留在功能页，侧拉页不出现', s1['tab'] == 'growth' and not s1['open'] and (s1['sheets'] == 0 or (s2['sheets'] == 0 and s2['tab'] == 'growth')) and not s2['open'] and s2['cls'] == '', [s1, s2])
+    check('#279 菜单 → 功能页 → 页内面板：返回先关面板、留在功能页，菜单不出现', s1['tab'] == 'growth' and not s1['open'] and (s1['sheets'] == 0 or (s2['sheets'] == 0 and s2['tab'] == 'growth')) and not s2['open'] and s2['cls'] == '', [s1, s2])
     if ev("App.currentTab()") != 'home':
         ev("history.back()"); p.wait_for_timeout(800)
-    # 咿呀岛：侧拉页开着 / 拖动中提示出现在屏幕顶部居中，不跟着底页右移
-    ev("Drawer.open()"); p.wait_for_timeout(550)
+    # 咿呀岛：菜单开着时提示出现在屏幕顶部居中、盖在面板 / 遮罩上
+    menu()
     ev("Util.toast('测试提示','ok')"); p.wait_for_timeout(500)
-    tr = ev("(()=>{const t=document.querySelector('#toastRoot .toast, #toastRoot > *');if(!t)return null;const r=t.getBoundingClientRect();return [Math.round(r.left+r.width/2),Math.round(r.top),getComputedStyle(document.getElementById('toastRoot')).zIndex]})()")
-    check('#279 侧拉页开着时的提示岛：屏幕顶部居中（不随底页右移）、盖在侧拉页上', tr is not None and abs(tr[0] - 195) <= 3 and tr[1] < 140, tr)
-    ev("Drawer.close()"); p.wait_for_timeout(800)
+    tr = ev("(()=>{const t=document.querySelector('#toastRoot .toast, #toastRoot > *');if(!t)return null;const r=t.getBoundingClientRect();return [Math.round(r.left+r.width/2),Math.round(r.top),+getComputedStyle(document.getElementById('toastRoot')).zIndex]})()")
+    check('#279 菜单开着时的提示岛：屏幕顶部居中、在面板之上', tr is not None and abs(tr[0] - 195) <= 3 and tr[1] < 140 and tr[2] > 41, tr)
+    ev("App.closeMenu()"); p.wait_for_timeout(800)
     check('#279 pageerror 为 0', not errs, errs)
     ctx.close()
 
@@ -3050,8 +3060,8 @@ def test_r285(b):
     mid = ev("(()=>{const e=document.querySelector('.cal-track');return [e.style.transform,document.querySelector('.cal-pane.is-prev').getBoundingClientRect().right]})()")
     ev("(()=>{const t=document.querySelector('#calDay');const e=new Event('touchcancel',{bubbles:true});Object.defineProperty(e,'changedTouches',{value:[]});t.dispatchEvent(e)})()"); p.wait_for_timeout(450)
     check('#285 滑动中间帧：内容 1:1 跟手（第 286 次），前一天从左边露出来；取消后归位、日期不变', mid[0].startswith('translate3d(120') and abs(mid[1] - (r[0] - ev("document.querySelector('.cal-pager').getBoundingClientRect().width")/2 + 120)) <= 1.5 and sel() == Y and ev("document.querySelector('.cal-track').style.transform") in ('', 'none'), [mid, sel()])
-    ok_drawer = ev("!Drawer.isOpen()")
-    check('#285 在内容区右滑不会拉出侧拉页（data-no-drawer）', ok_drawer, ok_drawer)
+    ok_drawer = ev("!document.querySelector('.side-drawer,#sideDrawer')&&!document.body.classList.contains('qd-open')&&![...document.body.classList].some(c=>/^sd-/.test(c))")
+    check('#285 在内容区右滑不会拉出任何层（第 290 次侧拉页已删除）', ok_drawer, ok_drawer)
     # —— 时间带点位 = 记录时间 ——
     pos = ev("""(()=>{const rows=[...document.querySelectorAll('#calDay .day-list li[data-ti]')];const mm=t=>{const m=/^(\\d\\d):(\\d\\d)/.exec(t);return m?+m[1]*60+ +m[2]:-1};
       const dots=[...document.querySelectorAll('#calDay .dsh-dot')].map(d=>{const li=document.getElementById('dtl'+d.dataset.ti);return [parseFloat(d.style.left)*14.4,mm(li.querySelector('.dl-time').textContent),li.dataset.accent===d.dataset.accent]});
@@ -3308,8 +3318,8 @@ def test_r286(b):
       document.querySelector('#calStrip [aria-current=date]')?document.querySelector('#calStrip [aria-current=date]').dataset.ws:null]})()""")
     tt = ev(f"(()=>{{const d=new Date(Util.addDays('{T}',-2)+'T00:00:00');return (d.getMonth()+1)+' 月 '+d.getDate()+' 日 周'+'日一二三四五六'[d.getDay()]}})()")
     check('#286 动画中连续快速翻页：右翻 5 次 = 5 天前，再左翻 3 次 = 2 天前；标题、时间轴条数、周条选中都对得上，只有一块是当前', s5 == ev(f"Util.addDays('{T}',-5)") and s2 == ev(f"Util.addDays('{T}',-2)") and con[0] == tt and con[1] == con[2] and con[3] == 1 and con[4] == s2, [s5, s2, con, tt])
-    nd = ev("[Drawer.isOpen(),document.body.className.indexOf('sd-')>=0]")
-    check('#286 在内容区左右滑不会拉出侧拉页，也不留 sd-* 状态', nd == [False, False], nd)
+    nd = ev("[!!document.querySelector('.side-drawer,#sideDrawer')||document.body.classList.contains('qd-open'),/(^| )sd-/.test(document.body.className)]")
+    check('#286 在内容区左右滑不会拉出任何层（第 290 次侧拉页已删除），也不留 sd-* 状态', nd == [False, False], nd)
     wk0 = sel(); drag(150, steps=5, ms=12, el='#calStrip'); p.wait_for_timeout(500); wk1 = sel()
     wsN = ev("[...document.querySelectorAll('#calStrip [data-ws]')].map(b=>b.dataset.ws)")
     check('#286 周条同样分页：右甩 = 上一周（选中日期 −7），周条换成那一周', wk1 == ev(f"Util.addDays('{wk0}',-7)") and wk1 in wsN and len(wsN) == 7, [wk0, wk1, wsN])
@@ -3436,45 +3446,57 @@ def test_r286(b):
     ev("Sheet.closeTop()"); p.wait_for_timeout(300)
     check('#286 不是咿呀记备份的文件（Cali / 月芽 / PiyoLog 等）：不猜解析，提示暂不支持', bad is False and '暂不支持' in msg, msg)
     # —— 9. 侧拉页：连续左滑 / 动画中再左滑 / touchcancel / 日期页内容区左滑 ——
+    # 第 290 次：侧拉页换成菜单面板，同一组手势改在菜单面板上做：开着时连续横滑、收起动画中再滑、下拉中 touchcancel、日期页内容区连续横滑
     ev("t=>Storage.importJSON(t)", SEED_V3); p.reload(); p.wait_for_timeout(1000)
     dr = lambda *a: ev(TOUCH2_JS, list(a))
 
     def clean():
         s = ev(SD_ST)
-        hit = ev("(()=>{const e=document.elementFromPoint(innerWidth/2,innerHeight/2);return !!(e&&document.getElementById('app').contains(e))&&getComputedStyle(document.getElementById('sdMask')).pointerEvents!=='auto'||getComputedStyle(document.getElementById('sdMask')).visibility==='hidden'})()")
-        return (not s['open']) and s['cls'] == '' and s['appX'] == 0 and s['mask'].startswith('0.00/hidden') and not s['inert'] and s['st'] == 'null' and hit, s
+        hit = ev("(()=>{const e=document.elementFromPoint(innerWidth/2,innerHeight/2);return !!(e&&document.getElementById('app').contains(e))})()")
+        return (not s['open']) and s['cls'] == '' and s['appX'] == 0 and s['mask'].startswith('0.00/hidden') and not s['inert'] and s['dy'] == '' and not s['sd'] and hit, s
+
+    def stable_open():
+        s = ev(SD_ST)
+        return s['open'] and not s['drag'] and s['dy'] in ('', '0px') and s['appX'] == 0 and s['mask'].startswith('1.00/visible') and s['st'] == '{"baoma":"ov"}', s
+
+    def idle():
+        _poll(p, "!App._histBusy()&&!document.getElementById('quickDock').classList.contains('qd-closing')&&(document.getElementById('quickDock').classList.contains('open')?getComputedStyle(document.getElementById('qdMask')).opacity==='1':getComputedStyle(document.getElementById('qdMask')).visibility==='hidden')", 1500, 20); p.wait_for_timeout(150)
     bads = []
     for tab in ('home', 'calendar'):
         go(tab, 400)
+        st0 = ev("JSON.stringify(history.state)")
         for n in (2, 3, 5):
             for gap in (0, 120):
-                ev("Drawer.open()"); p.wait_for_timeout(560)
+                idle(); ev("App.openMenu()"); p.wait_for_timeout(500)
                 for _ in range(n):
                     dr(330, 300, 40, 304, True, 5, 12); p.wait_for_timeout(gap)
-                p.wait_for_timeout(800)
+                p.wait_for_timeout(500); idle()
+                oko, s = stable_open()
+                if not oko: bads.append([tab, n, gap, 'open', s])
+                ev("App.closeMenu()"); idle()
                 okc, s = clean()
-                if not okc: bads.append([tab, n, gap, s])
-        ev("Drawer.open()"); p.wait_for_timeout(560)
+                if not okc or s['st'] != st0: bads.append([tab, n, gap, s])
+        idle(); ev("App.openMenu()"); p.wait_for_timeout(500)
+        ev("App.closeMenu()"); p.wait_for_timeout(60)
         dr(330, 300, 40, 304, True, 5, 12); p.wait_for_timeout(90)
-        dr(300, 320, 20, 324, True, 4, 10); p.wait_for_timeout(800)
+        dr(300, 320, 20, 324, True, 4, 10); p.wait_for_timeout(600); idle()
         okc, s = clean()
-        if not okc: bads.append([tab, 'mid', s])
-        ev("Drawer.open()"); p.wait_for_timeout(560)
-        dr(330, 300, 150, 304, 'cancel', 4, 12); p.wait_for_timeout(800)
-        s = ev(SD_ST)
-        if not (s['open'] and s['left'] == 0 and s['appX'] == 0 and 'sd-drag' not in s['cls']):  # 第 288 次：覆盖式，底下页不动
-            ev("Drawer.close()"); p.wait_for_timeout(800)
-            bads.append([tab, 'cancel-open', s])
-        ev("Drawer.close()"); p.wait_for_timeout(800)
+        if not okc or s['st'] != st0: bads.append([tab, 'mid', s])
+        idle(); ev("App.openMenu()"); p.wait_for_timeout(500)
+        g = ev("(()=>{const e=document.querySelector('#qdActions .qd-grab').getBoundingClientRect();return [Math.round(e.left+e.width/2),Math.round(e.top+e.height/2)]})()")
+        dr(g[0], g[1], g[0] + 4, g[1] + 150, 'cancel', 4, 12); p.wait_for_timeout(600); idle()
+        oko, s = stable_open()
+        if not oko: bads.append([tab, 'cancel-open', s])
+        ev("App.closeMenu()"); idle()
         okc, s = clean()
-        if not okc: bads.append([tab, 'cancel-close', s])
+        if not okc or s['st'] != st0: bads.append([tab, 'cancel-close', s])
     go('calendar', 400)
     for _ in range(3):
         dr(300, 420, 40, 424, True, 5, 12); p.wait_for_timeout(100)
     p.wait_for_timeout(700)
     okc, s = clean()
     if not okc: bads.append(['calendar-content', s])
-    check('#286 侧拉页：开着时连续左滑 2 / 3 / 5 次（紧接 / 间隔 120ms）、关闭动画中再左滑、touchcancel 中断、日期页内容区连续左滑之后——全开或全关，页面完整可见可点，无遮罩残留 / transform 残留 / inert，history 退干净', not bads, bads)
+    check('#286 菜单面板（原侧拉页）：开着时连续横滑 2 / 3 / 5 次（紧接 / 间隔 120ms）、收起动画中再滑、下拉中 touchcancel、日期页内容区连续横滑之后——全开或全关，页面完整可见可点，无遮罩残留 / transform 残留 / inert，history 退干净', not bads, bads)
     # —— 10. 「＋」开合动画 ——
     go('home', 400)
     st = lambda: ev("({open:document.getElementById('quickDock').classList.contains('open'),closing:document.getElementById('quickDock').classList.contains('qd-closing'),body:document.body.classList.contains('qd-open'),a1:document.querySelector('.tabbar [data-qd-toggle]').getAttribute('aria-expanded'),a2:document.getElementById('qdFab').getAttribute('aria-expanded')})")
@@ -3780,16 +3802,17 @@ def test_r287(b):
 
 
 # 第 288 次：侧拉页重写（状态机 / 覆盖式 / 动画中不做 history 操作）+ 咿呀岛连点形变 / 原地更新 + 胎动防连点阈值
-SD288 = """(()=>{const r=document.getElementById('sideDrawer'),a=document.getElementById('app'),m=document.getElementById('sdMask');
- const cs=m?getComputedStyle(m):null;
- return {state:Drawer.state(),p:+Drawer.progress().toFixed(3),open:Drawer.isOpen(),cls:['sd-open','sd-lock','sd-drag','sd-half'].filter(c=>document.body.classList.contains(c)).join(','),
-  left:r?Math.round(r.getBoundingClientRect().left):null,appT:getComputedStyle(a).transform,appInl:a.style.transform,
-  mask:cs?(+cs.opacity).toFixed(2)+'/'+cs.visibility+'/'+cs.pointerEvents:'',inl:r?r.style.transform+'|'+r.style.opacity:'',
-  st:JSON.stringify(history.state),tab:App.currentTab(),inert:a.inert,scroll:getComputedStyle(document.body).overflow}})()"""
-HLOG_JS = r"""(()=>{if(window.__hlog)return;window.__hlog=[];['pushState','replaceState','back','go'].forEach(k=>{const o=history[k].bind(history);history[k]=function(...a){try{__hlog.push({k,st:Drawer.state(),p:+Drawer.progress().toFixed(3),s:a[0]&&a[0].baoma,ext:!!window.__ext})}catch(e){};return o(...a)}})})()"""
-# 每一帧采样：底下页面 transform、侧拉页位置、遮罩
-FRAMES_JS = r"""()=>{window.__fr=[];let on=true;window.__frStop=()=>{on=false};const f=()=>{const r=document.getElementById('sideDrawer'),a=document.getElementById('app'),m=document.getElementById('sdMask');
- if(r&&m){const cs=getComputedStyle(m);__fr.push({t:performance.now(),st:Drawer.state(),p:Drawer.progress(),appT:getComputedStyle(a).transform,left:r.getBoundingClientRect().left,mo:+cs.opacity,mv:cs.visibility,mp:cs.pointerEvents})}
+# 第 290 次：侧拉页删掉，第 288 次 A 组（侧拉页状态机）改成菜单面板（和「＋」同一个面板）的同类验收；以下三个探针换成菜单面板版
+SD288 = """(()=>{const r=document.getElementById('quickDock'),a=document.getElementById('app'),m=document.getElementById('qdMask'),l=document.getElementById('qdActions');const cs=getComputedStyle(m);
+ const state=!r.classList.contains('open')?'closed':(r.classList.contains('qd-closing')?'closing':(r.classList.contains('qd-dragging')?'dragging':'open'));
+ return {state,menu:r.classList.contains('qd-menu'),cls:['qd-open','qm-open','qd-drag'].filter(c=>document.body.classList.contains(c)).join(','),sd:[...document.body.classList].filter(c=>/^sd-/.test(c)).join(','),
+  appT:getComputedStyle(a).transform,appInl:a.style.cssText,mask:(+cs.opacity).toFixed(2)+'/'+cs.visibility+'/'+cs.pointerEvents,dy:l.style.getPropertyValue('--qd-dy'),mInl:m.style.opacity,
+  inert:document.getElementById('view').inert,st:JSON.stringify(history.state),tab:App.currentTab(),ov:App._ovDepth()}})()"""
+# history 打桩：记下每次写入时面板是否在动（收起动画 / 拖动中）
+HLOG_JS = r"""(()=>{if(window.__hlog)return;window.__hlog=[];['pushState','replaceState','back','go'].forEach(k=>{const o=history[k].bind(history);history[k]=function(...a){try{const r=document.getElementById('quickDock');__hlog.push({k,moving:r.classList.contains('qd-closing')||r.classList.contains('qd-dragging'),open:r.classList.contains('open'),s:a[0]&&a[0].baoma,ext:!!window.__ext})}catch(e){};return o(...a)}})})()"""
+# 每一帧采样：底下页面 transform、面板透明度、遮罩
+FRAMES_JS = r"""()=>{window.__fr=[];let on=true;window.__frStop=()=>{on=false};const f=()=>{const r=document.getElementById('quickDock'),a=document.getElementById('app'),m=document.getElementById('qdMask'),l=document.getElementById('qdActions');
+ const cs=getComputedStyle(m);__fr.push({t:performance.now(),open:r.classList.contains('open'),closing:r.classList.contains('qd-closing'),appT:getComputedStyle(a).transform,po:+getComputedStyle(l).opacity,mo:+cs.opacity,mv:cs.visibility,mp:cs.pointerEvents});
  if(on)requestAnimationFrame(f)};requestAnimationFrame(f)}"""
 TOAST_SAMPLER = r"""()=>{window.__ts=[];let on=true;window.__tsStop=()=>{on=false};const f=()=>{const els=[...document.querySelectorAll('#toastRoot .toast:not(.leaving)')];const t=els[0];
  if(t){const m=t.querySelector('.toast-msg');const lh=parseFloat(getComputedStyle(m).lineHeight)||19;const vis=t.hasAttribute('data-vis-w')?+t.getAttribute('data-vis-w'):t.offsetWidth;
@@ -3800,7 +3823,7 @@ TOAST_SAMPLER = r"""()=>{window.__ts=[];let on=true;window.__tsStop=()=>{on=fals
 
 
 def test_r288(b):
-    """第 288 次：① 侧拉页重写——验收清单来自第 245–287 次全部侧拉页故障（见 变更记录.md 第 288 次）；
+    """第 288 次：① 侧拉页重写——验收清单来自第 245–287 次全部侧拉页故障（见 变更记录.md 第 288 次）；第 290 次侧拉页删掉，A 组逐条改成菜单面板的同类验收；
     ② 咿呀岛连点：永不换行 / 不塌缩 / 同类原地更新 / 撤销最近一条，尿布、宫缩、营养品同样；③ 胎动防连点 200ms。"""
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
     p = ctx.new_page(); errs = []
@@ -3812,191 +3835,174 @@ def test_r288(b):
     ev(HLOG_JS)
 
     def clean(s, tab='home'):
-        return (s['state'] == 'closed' and s['cls'] == '' and s['appT'] == 'none' and s['appInl'] == '' and s['mask'] == '0.00/hidden/none'
-                and s['inl'] == '|' and not s['inert'] and s['st'] == 'null' and s['tab'] == tab and s['left'] <= -380)
+        return (s['state'] == 'closed' and s['cls'] == '' and s['sd'] == '' and s['appT'] == 'none' and s['appInl'] == '' and s['mask'] == '0.00/hidden/none'
+                and s['dy'] == '' and s['mInl'] == '' and not s['inert'] and s['st'] == 'null' and s['tab'] == tab and s['ov'] == 0)
 
     def opened(s):
-        return s['state'] == 'open' and s['left'] == 0 and s['appT'] == 'none' and s['mask'] == '1.00/visible/auto' and s['inl'] == '|' and s['st'] == '{"baoma":"drawer"}'
+        return s['state'] == 'open' and s['menu'] and s['appT'] == 'none' and s['mask'].startswith('1.00/visible/') and s['dy'] in ('', '0px') and s['st'] == '{"baoma":"ov"}' and s['ov'] == 1
 
     def settle_wait(ms=1500):
-        _poll(p, "Drawer.state()==='open'||Drawer.state()==='closed'", ms, 50)
+        _poll(p, "!App._histBusy()&&!document.getElementById('quickDock').classList.contains('qd-closing')&&(document.getElementById('quickDock').classList.contains('open')?getComputedStyle(document.getElementById('qdMask')).opacity==='1':getComputedStyle(document.getElementById('qdMask')).visibility==='hidden')", max(ms, 2500), 30)
         p.wait_for_timeout(250)
 
     def hit_app():
         return ev("(()=>{const e=document.elementFromPoint(innerWidth/2,innerHeight/2);return !!e&&document.getElementById('app').contains(e)})()")
-    # —— A1 基本开合 + 每帧：底下页面任何时刻 transform none；关闭落定那一帧遮罩透明、不接点击 ——
-    ev(FRAMES_JS); p.wait_for_timeout(300)  # WebKit 无头：采样循环先跑起来再动（轮询 evaluate 时 rAF 会被挤掉）
-    ev("Drawer.open()"); p.wait_for_timeout(900)
+
+    def grab():
+        return ev("(()=>{const e=document.querySelector('#qdActions .qd-grab').getBoundingClientRect();return [Math.round(e.left+e.width/2),Math.round(e.top+e.height/2)]})()")
+    # —— A1 基本开合 + 每帧：底下页面任何时刻 transform none；收起落定后遮罩透明、不接点击 ——
+    ev(FRAMES_JS); p.wait_for_timeout(300)
+    ev("App.openMenu()"); p.wait_for_timeout(900); settle_wait()
     s1 = st()
-    ev("Drawer.close()"); p.wait_for_timeout(900)
+    ev("App.closeMenu()"); p.wait_for_timeout(900)
     s2 = st()
     ev("__frStop()"); fr = ev("__fr")
-    moving = [f for f in fr if f['st'] in ('opening', 'closing')]
-    check('#288 覆盖式：打开 / 收起全程（逐帧）底下页面 transform 始终 none，侧拉页从左边滑进滑出（中间帧 > 4 帧）',
-          all(f['appT'] == 'none' for f in fr) and len(moving) >= 4 and any(-380 < f['left'] < -10 for f in moving), [len(fr), len(moving), [f for f in fr if f['appT'] != 'none'][:2]])
-    after = [f for f in fr if f['st'] == 'closed' and fr.index(f) > (fr.index(moving[-1]) if moving else 0)]
-    check('#288 收起落定的第一帧：遮罩透明 + visibility hidden + pointer-events none，侧拉页在屏外', bool(after) and after[0]['mo'] == 0 and after[0]['mv'] == 'hidden' and after[0]['mp'] == 'none' and after[0]['left'] <= -380, after[:1])
-    check('#288 开：全开 / 一条 drawer 记录 / 遮罩接点击 / 页面 inert；关：完全复位、history 回第一条', opened(s1) and s1['inert'] and clean(s2), [s1, s2])
-    ev("Drawer.open()"); settle_wait(); ev("Drawer.close()"); p.wait_for_timeout(120)
+    moving = [f for f in fr if f['open'] and 0.02 < f['po'] < 0.98]
+    check('#288 菜单面板（原侧拉页）打开 / 收起全程（逐帧）：底下页面 transform 始终 none，面板淡入淡出有中间帧',
+          all(f['appT'] == 'none' for f in fr) and len(moving) >= 1, [len(fr), len(moving), [f for f in fr if f['appT'] != 'none'][:2]])
+    after = [f for f in fr if not f['open']]
+    check('#288 收起落定后：遮罩透明 + visibility hidden + pointer-events none', bool(after) and after[-1]['mo'] == 0 and after[-1]['mv'] == 'hidden' and after[-1]['mp'] == 'none', after[-1:])
+    check('#288 开：一条 ov 记录 / 遮罩接点击 / 页面 inert；关：完全复位、history 回第一条', opened(s1) and s1['inert'] and s1['mask'].endswith('/auto') and clean(s2), [s1, s2])
+    ev("App.openMenu()"); settle_wait(); ev("App.closeMenu()"); p.wait_for_timeout(60)
     mid = st(); midhit = hit_app()
     settle_wait()
     check('#288 收起动画中：状态 closing、遮罩 pointer-events none、页面可点（不等动画结束）', mid['state'] == 'closing' and mid['mask'].endswith('/none') and midhit, mid)
     # —— A2 连续开关 10 次（各种间隔，含动画中反向）——
     bad = []
     for gap in (0, 30, 90, 160, 260, 450, 0, 60, 200, 600):
-        ev("Drawer.open()"); p.wait_for_timeout(gap); ev("Drawer.close()"); p.wait_for_timeout(gap)
+        ev("App.openMenu()"); p.wait_for_timeout(gap); ev("App.closeMenu()"); p.wait_for_timeout(gap)
     settle_wait(2000); p.wait_for_timeout(300)
     s = st()
     check('#288 连续开关 10 次（间隔 0–600ms，含动画中反向）：最后落在关，页面完全复位、history 回第一条', clean(s), s)
     for gap in (0, 40, 120):
-        ev("Drawer.open()"); p.wait_for_timeout(gap)
-        ev("Drawer.close()"); p.wait_for_timeout(gap)
-        ev("Drawer.open()")
+        ev("App.openMenu()"); p.wait_for_timeout(gap)
+        ev("App.closeMenu()"); p.wait_for_timeout(gap)
+        ev("App.openMenu()")
         settle_wait(); p.wait_for_timeout(200)
         s = st()
         if not opened(s): bad.append([gap, s])
-        ev("Drawer.close()"); settle_wait(); p.wait_for_timeout(200)
+        ev("App.closeMenu()"); settle_wait(); p.wait_for_timeout(200)
         if not clean(st()): bad.append([gap, 'c', st()])
-    check('#288 开 → 关 → 开（动画中反向两次）：落在开，只有一条 drawer 记录；再关干净', not bad, bad)
-    # —— A3 动画中反向：从当前进度接着走（不跳回端点）——
-    _poll(p, "!App._histBusy()", 1500, 30)
-    ev("Drawer.open()"); p.wait_for_timeout(140)
-    pa = ev("Drawer.progress()")
-    ev("Drawer.close()"); p.wait_for_timeout(16)
-    pb = ev("Drawer.progress()"); sb = ev("Drawer.state()")
+    check('#288 开 → 关 → 开（动画中反向两次）：落在开，只有一条 ov 记录；再关干净', not bad, bad)
+    # —— A3 收起动画中反向：重新展开（不先落到关、不另推记录）——
     settle_wait()
-    check('#288 打开动画中反向：从当前进度往回走（进度连续、不跳到 0 或 1）', 0.05 < pa < 0.98 and sb == 'closing' and abs(pb - pa) < 0.35 and pb > 0.02, [pa, pb, sb])
-    # —— A4 拖到一半松手 / 甩动 / touchcancel / 动画中再按住 ——
-    drag(6, 420, 6 + 150, 424, 2, 8, 16); settle_wait()
+    ev("App.openMenu()"); settle_wait()
+    ev("App.closeMenu()"); p.wait_for_timeout(80)
+    sb = st()
+    ev("App.openMenu()"); p.wait_for_timeout(16)
+    sc2 = st()
+    settle_wait()
+    check('#288 收起动画中再开：直接重新展开，沿用原来那条记录（不先退再推）', sb['state'] == 'closing' and sc2['state'] == 'open' and sc2['ov'] == 1 and opened(st()), [sb, sc2, st()])
+    ev("App.closeMenu()"); settle_wait()
+    # —— A4 下拉一点松手 / 甩动 / touchcancel / 没收到 touchend ——
+    ev("App.openMenu()"); settle_wait(); g = grab()
+    drag(g[0], g[1], g[0], g[1] + 100, 2, 8, 16); p.wait_for_timeout(500); settle_wait()
     s = st()
-    check('#288 拖到 38% 停住松手：收起、复位', clean(s), s)
-    drag(6, 420, 6 + 250, 424, 2, 8, 16); settle_wait()
+    check('#288 下拉不到 1/4 停住松手：弹回、仍开着', opened(s), s)
+    drag(g[0], g[1], g[0], g[1] + 300, 2, 8, 16); settle_wait()
     s = st()
-    check('#288 拖到 64% 停住松手：打开', opened(s), s)
-    drag(300, 400, 80, 404, 2, 8, 16); settle_wait()
+    check('#288 下拉过 1/4 停住松手：收起，history 退干净', clean(s), s)
+    ev("App.openMenu()"); settle_wait()
+    drag(g[0], g[1], g[0], g[1] + 160, 'cancel', 8, 16); p.wait_for_timeout(500); settle_wait()
     s = st()
-    check('#288 侧拉页上左拉到 46% 停住松手：收起，history 退干净', clean(s), s)
-    _poll(p, "!App._histBusy()", 1000, 10); p.wait_for_timeout(60)
-    nh = ev("__hlog.length")
-    drag(6, 420, 6 + 160, 424, 'cancel', 8, 16); p.wait_for_timeout(30)
+    check('#288 下拉中 touchcancel：弹回（不播关闭、不退记录）', opened(s) and s['mInl'] == '', s)
+    drag(g[0], g[1], g[0], g[1] + 120, 'none', 8, 16); p.wait_for_timeout(30)
+    ev("window.__t2nostart=false"); drag(200, 790, 201, 790, True, 1, 0); p.wait_for_timeout(500); settle_wait()
     s = st()
-    _poll(p, "!App._histBusy()", 1000, 10); p.wait_for_timeout(60)
-    s2 = st()
-    check('#288 拉开 41% 时 touchcancel：立即落到关（不播动画）', s['state'] == 'closed' and s['inl'] == '|' and s['mask'] == '0.00/hidden/none' and clean(s2)
-          and ev("n=>__hlog.slice(n).some(h=>h.k==='pushState'&&h.s==='drawer')", nh), [s, s2])
-    # 上一次关闭的 back / 清前进栈（约 5–50ms）落地之前，横拉不接管（设计如此：新记录不能压在马上要退掉的那条上）；等它落地再拉
-    _poll(p, "!App._histBusy()", 1000, 10); p.wait_for_timeout(60)
-    drag(6, 420, 6 + 260, 424, 'cancel', 8, 16); p.wait_for_timeout(30)
-    s = st()
-    check('#288 拉开 67% 时 touchcancel：立即落到开', opened(s), s)
-    ev("Drawer.close()"); p.wait_for_timeout(100)
-    pc = ev("Drawer.progress()")
-    drag(200, 400, 260, 404, 'none', 6, 16); p.wait_for_timeout(30)
-    s = st()
-    check('#288 收起动画中再按住拖：接管为拖动，从当前进度起步（不跳回全开、不先落到关）', s['state'] == 'dragging' and 0.6 * 52 / 390 < s['p'] < pc + 52 / 390 + 0.05 and s['st'] == '{"baoma":"drawer"}', [pc, s])  # 并发负载下按住前动画还会再走一段，只断言「接着当前进度」
-    drag(260, 404, 261, 404, True, 1, 0); settle_wait()
-    ev("Drawer.isOpen()&&Drawer.close()"); settle_wait()
-    drag(6, 420, 6 + 120, 424, 'none', 8, 16); p.wait_for_timeout(30)
-    ev("window.__t2nostart=false"); drag(200, 300, 201, 300, True, 1, 0); settle_wait()
-    s = st()
-    check('#288 上一次拖拽没收到 touchend 就来了新触摸：先按位置落定（31% → 关）', clean(s), s)
+    check('#288 上一次下拉没收到 touchend 就来了新触摸：先弹回原位', opened(s), s)
+    ev("App.closeMenu()"); settle_wait()
     # —— A5 切后台 / pagehide / 旋转（宽度变化）——
     HIDE = "(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));delete document.hidden})()"
-    ev("Drawer.open()"); p.wait_for_timeout(90); ev(HIDE); p.wait_for_timeout(20)
+    ev("App.openMenu()"); p.wait_for_timeout(90); ev(HIDE); p.wait_for_timeout(400); settle_wait()
     s = st()
-    check('#288 打开动画中切后台：立即落到目标（开）', opened(s), s)
-    ev("Drawer.close()"); p.wait_for_timeout(90); ev(HIDE); p.wait_for_timeout(20)
+    check('#288 打开动画中切后台：照常开好', opened(s), s)
+    ev("App.closeMenu()"); p.wait_for_timeout(90); ev(HIDE); settle_wait()
     s = st()
-    check('#288 收起动画中切后台：立即落到关，history 退干净', s['state'] == 'closed' and s['appT'] == 'none' and s['mask'] == '0.00/hidden/none', s)
-    p.wait_for_timeout(300)
-    drag(6, 420, 6 + 230, 424, 'none', 8, 16); p.wait_for_timeout(30); ev(HIDE); p.wait_for_timeout(20)
+    check('#288 收起动画中切后台：照常收好，history 退干净', clean(s), s)
+    ev("App.openMenu()"); settle_wait(); g = grab()
+    drag(g[0], g[1], g[0], g[1] + 150, 'none', 8, 16); p.wait_for_timeout(30); ev(HIDE); p.wait_for_timeout(400); settle_wait()
     s = st()
-    check('#288 拖动中切后台：按位置落定（59% → 开）', opened(s), s)
-    ev("Drawer.close()"); p.wait_for_timeout(80); ev("window.dispatchEvent(new Event('pagehide'))"); p.wait_for_timeout(20)
+    check('#288 下拉中切后台：弹回原位', opened(s), s)
+    ev("App.closeMenu()"); p.wait_for_timeout(80); ev("window.dispatchEvent(new Event('pagehide'))"); settle_wait()
     s = st()
-    check('#288 收起动画中 pagehide：立即落到关', s['state'] == 'closed' and s['mask'] == '0.00/hidden/none', s)
-    p.wait_for_timeout(300)
-    ev("Drawer.open()"); p.wait_for_timeout(100)
-    p.set_viewport_size({'width': 844, 'height': 390}); p.wait_for_timeout(120)
+    check('#288 收起动画中 pagehide：照常收好', clean(s), s)
+    ev("App.openMenu()"); p.wait_for_timeout(100)
+    p.set_viewport_size({'width': 844, 'height': 390}); p.wait_for_timeout(400); settle_wait()
     s = st()
-    check('#288 打开动画中旋转（宽度变化）：立即落到开、侧拉页贴左整屏宽', opened(s) and ev("document.getElementById('sideDrawer').offsetWidth===innerWidth"), s)
-    p.set_viewport_size({'width': 390, 'height': 844}); p.wait_for_timeout(200)
+    rot = ev("(()=>{const r=document.getElementById('qdActions').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight})()")
+    check('#288 打开动画中旋转（横屏矮屏）：照常开好、面板在屏内（内容自己滚动）', opened(s) and rot, [s, rot])
+    p.set_viewport_size({'width': 390, 'height': 844}); p.wait_for_timeout(300); settle_wait()
     s = st()
-    check('#288 开着时转回竖屏：仍是全开、无残留内联位移', opened(s), s)
-    ev("Drawer.close()"); settle_wait()
-    p.set_viewport_size({'width': 390, 'height': 700}); p.wait_for_timeout(150)
-    ev("Drawer.open()"); p.wait_for_timeout(80); p.set_viewport_size({'width': 390, 'height': 844}); p.wait_for_timeout(40)
-    s = st()
-    check('#288 只有高度变化（键盘收起）不打断动画', s['state'] in ('opening', 'open'), s)
-    settle_wait(); ev("Drawer.close()"); settle_wait()
+    check('#288 开着时转回竖屏：仍开着、无残留内联位移', opened(s), s)
+    ev("App.closeMenu()"); settle_wait()
     # —— A6 系统返回（popstate）——
-    ev("Drawer.open()"); settle_wait()
-    ev("window.__ext=1;history.back();window.__ext=0"); _poll(p, "Drawer.state()==='closed'", 800, 16)
-    s = st(); p.wait_for_timeout(400); s2 = st()
-    check('#288 开着时系统返回：popstate 到达即落定为关（不再播收起动画——系统手势已经播过），页面复位、history 回第一条',
-          s['state'] == 'closed' and s['inl'] == '|' and s['mask'] == '0.00/hidden/none' and clean(s2), [s, s2])
-    ev("Drawer.close()"); p.wait_for_timeout(1)
-    ev("Drawer.open()"); p.wait_for_timeout(150); ev("window.__ext=1;history.back();window.__ext=0"); _poll(p, "Drawer.state()==='closed'", 800, 16); p.wait_for_timeout(400)
+    ev("App.openMenu()"); settle_wait()
+    ev("window.__ext=1;history.back();window.__ext=0"); _poll(p, "!document.getElementById('quickDock').classList.contains('open')", 800, 16)
+    s = st(); settle_wait(); s2 = st()
+    check('#288 开着时系统返回：popstate 到达即落定为关（不播收起动画——系统手势已经播过），页面复位、history 回第一条',
+          s['state'] == 'closed' and clean(s2), [s, s2])
+    ev("App.openMenu()"); p.wait_for_timeout(100); ev("window.__ext=1;history.back();window.__ext=0"); _poll(p, "!document.getElementById('quickDock').classList.contains('open')", 800, 16); settle_wait()
     check('#288 打开动画中系统返回：落定为关、history 回第一条', clean(st()), st())
-    ev("Drawer.open()"); settle_wait(); ev("Drawer.close()"); p.wait_for_timeout(100); ev("window.__ext=1;history.back();window.__ext=0"); p.wait_for_timeout(700)
+    ev("App.openMenu()"); settle_wait(); ev("App.closeMenu()"); p.wait_for_timeout(60); ev("window.__ext=1;history.back();window.__ext=0"); p.wait_for_timeout(300); settle_wait()
     s = st()
     check('#288 收起动画中系统返回：落定为关，留在首页、history 回第一条（不会多退一层）', clean(s), s)
-    drag(6, 420, 6 + 200, 424, 'none', 8, 16); p.wait_for_timeout(30); ev("window.__ext=1;history.back();window.__ext=0"); p.wait_for_timeout(700)
+    ev("App.openMenu()"); settle_wait(); g = grab()
+    drag(g[0], g[1], g[0], g[1] + 150, 'none', 8, 16); p.wait_for_timeout(30); ev("window.__ext=1;history.back();window.__ext=0"); p.wait_for_timeout(300); settle_wait()
     s = st()
-    check('#288 拖动中系统返回：拖拽落定并按返回关掉', clean(s), s)
-    # —— A7 点遮罩 / 返回钮 / Esc / 点当前页菜单项 ——
-    ev("Drawer.open()"); p.wait_for_timeout(120)
-    ev("document.getElementById('sdMask').click()"); settle_wait()
-    check('#288 打开动画中点遮罩：反向收起', clean(st()), st())
-    ev("Drawer.open()"); settle_wait(); ev("document.querySelector('#sideDrawer .sd-back').click()"); settle_wait()
-    check('#288 返回钮关闭', clean(st()), st())
-    ev("Drawer.open()"); settle_wait(); p.keyboard.press('Escape'); settle_wait()
+    check('#288 下拉中系统返回：拖动清掉并按返回关掉', clean(s), s)
+    # —— A7 点遮罩 / Esc / 再点宝宝圆钮 / 点当前页 ——
+    ev("App.openMenu()"); p.wait_for_timeout(100)
+    ev("document.getElementById('qdMask').click()"); settle_wait()
+    check('#288 打开动画中点遮罩：收起', clean(st()), st())
+    ev("App.openMenu()"); settle_wait(); ev("document.getElementById('avatarBtn').click()"); settle_wait()
+    check('#288 再点宝宝圆钮关闭', clean(st()), st())
+    ev("App.openMenu()"); settle_wait(); p.keyboard.press('Escape'); settle_wait()
     check('#288 Esc 关闭', clean(st()), st())
-    ev("Drawer.open()"); settle_wait(); ev("document.querySelector('#sideDrawer [data-sd-go=home]').click()"); settle_wait()
+    ev("App.openMenu()"); settle_wait(); ev("document.querySelector('#qdActions [data-qm-go=home]').click()"); settle_wait()
     check('#288 在首页点「首页」：收起、留在首页、history 回第一条', clean(st()), st())
-    # —— A8 点菜单项跳转：新页先画在底下，侧拉页滑走；返回回首页 ——
-    ev("Drawer.open()"); settle_wait()
-    ev("document.querySelector('#sideDrawer [data-sd-go=growth]').click()")
+    # —— A8 点入口跳转：同一次点击里面板关掉、新页画好；返回回首页 ——
+    ev("App.openMenu()"); settle_wait()
+    ev("document.querySelector('#qdActions [data-qm-go=growth]').click()")
     s0 = st()
     settle_wait()
     s = st()
-    check('#288 点菜单项（生长）：同一次点击里新页已画好（侧拉页还在收起）、落定后侧拉页那条记录被改写成生长页',
-          s0['tab'] == 'growth' and s0['state'] == 'closing' and s['state'] == 'closed' and s['st'] == '{"baoma":1,"id":"growth"}' and s['mask'] == '0.00/hidden/none', [s0, s])
+    check('#288 点入口（生长）：同一次点击里新页已画好、面板已关（无遮罩 / inert）、菜单那条记录被改写成生长页',
+          s0['tab'] == 'growth' and s0['state'] == 'closed' and s0['cls'] == '' and not s0['inert'] and s['st'] == '{"baoma":1,"id":"growth"}' and s['ov'] == 0, [s0, s])
     ev("window.__ext=1;history.back();window.__ext=0"); _poll(p, "App.currentTab()==='home'&&history.state===null", 2000, 100); p.wait_for_timeout(300)
     s = st()
-    check('#288 生长页返回：回首页，侧拉页不再冒出来', clean(s), s)
-    ev("Drawer.open()"); settle_wait(); ev("document.querySelector('#sideDrawer [data-sd-go=calendar]').click()"); settle_wait(); p.wait_for_timeout(300)
+    check('#288 生长页返回：回首页，菜单不再冒出来', clean(s), s)
+    ev("App.openMenu()"); settle_wait(); ev("document.querySelector('#qdActions [data-qm-go=calendar]').click()"); settle_wait(); p.wait_for_timeout(300)
     s = st()
-    check('#288 点一级页（日期记录）：切过去、侧拉页那条记录退掉（不留 drawer / guard）', s['tab'] == 'calendar' and s['state'] == 'closed' and s['st'] == 'null' and s['mask'] == '0.00/hidden/none', s)
+    check('#288 点一级页（日期记录）：切过去、菜单那条记录退掉（不留 ov / guard）', s['tab'] == 'calendar' and s['state'] == 'closed' and s['st'] == 'null' and s['ov'] == 0 and s['mask'] == '0.00/hidden/none', s)
     ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(400)
     # —— A9 关闭后紧接着再开（history.back 还没落地）——
-    ev("Drawer.open()"); settle_wait(); ev("Drawer.close()"); settle_wait(); ev("Drawer.open()"); settle_wait(); p.wait_for_timeout(300)
+    ev("App.openMenu()"); settle_wait(); ev("App.closeMenu()"); _poll(p, "!document.getElementById('quickDock').classList.contains('qd-closing')", 1000, 10); ev("App.openMenu()"); settle_wait(); p.wait_for_timeout(300)
     s = st()
-    check('#288 收起落定后立刻再开（上一条记录的 back 还没落地）：等 popstate 后再开，只有一条 drawer 记录', opened(s) and ev("history.length") <= 4, [s, ev("history.length")])
-    ev("Drawer.close()"); settle_wait(); p.wait_for_timeout(300)
-    ev("Drawer.open()"); settle_wait(); ev("Drawer.close()"); settle_wait()
-    ev("Drawer.open();Drawer.close()"); p.wait_for_timeout(900)
+    check('#288 收起落定后立刻再开（上一条记录的 back 还没落地）：等 popstate 后再开，只有一条 ov 记录', opened(s) and ev("history.length") <= 4, [s, ev("history.length")])
+    ev("App.closeMenu()"); settle_wait(); p.wait_for_timeout(300)
+    ev("App.openMenu()"); settle_wait(); ev("App.closeMenu()"); _poll(p, "!document.getElementById('quickDock').classList.contains('qd-closing')", 1000, 10)
+    ev("App.openMenu();App.closeMenu()"); p.wait_for_timeout(900)
     check('#288 关闭落定后「开 → 立刻关」（开还在等上一次 back 落地）：关闭作废排队的打开，最后是关', clean(st()), st())
-    # —— A9b 从侧拉页进「宝宝资料」（设置分组二级页）：改写 + 进二级两次 history 写入都排到收起落定之后 ——
-    ev("Drawer.open()"); settle_wait()
-    ev("document.querySelector('#sideDrawer [data-sd=baby]').click()"); settle_wait(); p.wait_for_timeout(400)
+    # —— A9b 菜单「宝宝资料」（设置分组二级页）——
+    ev("App.openMenu()"); settle_wait()
+    ev("document.querySelector('#qdActions [data-qm=baby]').click()"); settle_wait(); p.wait_for_timeout(400)
     s = st()
-    check('#288 侧拉页「宝宝资料」：进设置分组二级页、侧拉页收起，history 只剩设置 + 二级两条（写入在落定之后）',
-          s['tab'] == 'settings' and s['state'] == 'closed' and ev("App.inSub()") and s['st'] == '{"baoma":1,"id":"__sub"}' and s['mask'] == '0.00/hidden/none', s)
+    check('#288 菜单「宝宝资料」：进设置分组二级页、面板收起，history 只剩设置 + 二级两条',
+          s['tab'] == 'settings' and s['state'] == 'closed' and ev("App.inSub()") and s['st'] == '{"baoma":1,"id":"__sub"}' and s['mask'] == '0.00/hidden/none' and s['ov'] == 0, s)
     ev("window.__ext=1;history.back();window.__ext=0"); p.wait_for_timeout(600); ev("window.__ext=1;history.back();window.__ext=0")
     _poll(p, "App.currentTab()==='home'&&history.state===null", 2000, 100); p.wait_for_timeout(300)
     check('#288 接着返回两次回首页、history 回第一条', clean(st()), st())
-    # —— A10 根因锁：任何 history 写入都不发生在侧拉页动画 / 拖动中途（WebKit 在这一刻给当前记录拍系统返回快照） ——
+    # —— A10 根因锁：任何 history 写入都不发生在面板收起动画 / 拖动中途（WebKit 在这一刻给当前记录拍系统返回快照） ——
     hl = ev("__hlog")
-    badh = [h for h in hl if h['k'] != 'replaceState' and not h.get('ext') and not (h['st'] in ('open', 'closed') or (h['k'] == 'pushState' and h['p'] == 0))]
-    check('#288 本组所有 pushState / back / go 都发生在侧拉页静止时（全开 / 全关，或打开前 p=0），没有一次在动画 / 拖动中途', not badh and len(hl) > 10, [len(hl), badh[:4]])
+    badh = [h for h in hl if h['moving'] and not h.get('ext')]
+    check('#288 本组所有 pushState / replaceState / back / go 都发生在面板静止时，没有一次在收起动画 / 拖动中途', not badh and len(hl) > 10, [len(hl), badh[:4]])
     # —— A11 减少动态效果 ——
     p.emulate_media(reduced_motion='reduce')
-    ev("Drawer.open()"); _poll(p, "+(document.getElementById('sideDrawer').style.opacity||0)>0", 600, 20)
-    rm = ev("[getComputedStyle(document.getElementById('sideDrawer')).transform, document.getElementById('sideDrawer').style.opacity, getComputedStyle(document.getElementById('app')).transform]")
-    settle_wait(); ev("Drawer.close()"); settle_wait()
-    s = st()
-    check('#288 减少动态效果：侧拉页不平移、按进度淡入，底下页不动；关后复位', rm[0] == 'none' and rm[2] == 'none' and 0 < float(rm[1] or 0) < 1 and s['state'] == 'closed' and s['mask'] == '0.00/hidden/none' and s['st'] == 'null' and ev("getComputedStyle(document.getElementById('sideDrawer')).visibility") == 'hidden', [rm, s])
+    ev("App.openMenu()"); p.wait_for_timeout(60)
+    rm = ev("[getComputedStyle(document.getElementById('qdActions')).transform, getComputedStyle(document.querySelector('#qdActions .qm-it')).animationName, getComputedStyle(document.getElementById('app')).transform]")
+    settle_wait(); ev("App.closeMenu()"); p.wait_for_timeout(30)
+    s = st(); settle_wait()
+    check('#288 减少动态效果：面板不位移、格子只淡入，底下页不动；关闭立即落定、复位', rm[0].startswith('matrix(1, 0, 0, 1, -') and rm[1] == 'qdFade' and rm[2] == 'none' and s['state'] == 'closed' and clean(st()), [rm, s, st()])
     p.emulate_media(reduced_motion='no-preference')
     # —— B 咿呀岛连点 ——
     ev("App.showTab('fetal')"); p.wait_for_timeout(700)
@@ -4321,9 +4327,278 @@ def test_r289(b):
     ctx.close()
 
 
+# 第 290 次：菜单面板（和「＋」快捷记录同一个面板）的状态快照
+QM_ST = r"""(()=>{const r=document.getElementById('quickDock'),l=document.getElementById('qdActions'),m=document.getElementById('qdMask'),b=document.body;
+ const mcs=getComputedStyle(m);const ae=document.activeElement;
+ return {menu:r.classList.contains('qd-menu'),open:r.classList.contains('open'),closing:r.classList.contains('qd-closing'),mo:App.menuOpen(),
+  body:['qd-open','qm-open','qd-drag'].filter(c=>b.classList.contains(c)).join(','),sd:[...b.classList].filter(c=>/^sd-/.test(c)).join(','),
+  mask:(+mcs.opacity).toFixed(2)+'/'+mcs.visibility+'/'+(m.style.opacity||''),
+  inert:[...document.querySelectorAll('#app > .app-header,#view,[data-qd-inert]')].filter(e=>e.inert||e.hasAttribute('data-qd-inert')).map(e=>e.id||e.className.split(' ')[0]).join(','),
+  st:JSON.stringify(history.state),tab:App.currentTab(),dy:l.style.getPropertyValue('--qd-dy'),
+  focusIn:l.contains(ae),focus:ae?(ae.id||ae.className.split(' ')[0]):'',avx:document.getElementById('avatarBtn').getAttribute('aria-expanded'),
+  plusx:(document.querySelector('.tabbar [data-qd-toggle]')||{getAttribute:()=>''}).getAttribute('aria-expanded'),
+  role:l.getAttribute('role')||'',sheets:[...document.querySelectorAll('#modalRoot > .modal-mask')].filter(x=>!x.classList.contains('sheet-leaving')).length,
+  drawer:!!document.querySelector('#sideDrawer,.side-drawer,.sd-mask'),viewT:getComputedStyle(document.getElementById('view')).transform,hl:history.length}})()"""
+# history 打桩：记下每次写入时面板是否静止（收起动画 / 拖动中 = 不静止）
+QM_HLOG = r"""(()=>{if(window.__qh)return;window.__qh=[];['pushState','replaceState','back','go'].forEach(k=>{const o=history[k].bind(history);history[k]=function(...a){try{const r=document.getElementById('quickDock');
+ __qh.push({k,s:a[0]&&a[0].baoma,moving:r.classList.contains('qd-closing')||r.classList.contains('qd-dragging'),ext:!!window.__ext})}catch(e){};return o(...a)}})})()"""
+
+
+def test_r290(b):
+    """第 290 次：左侧侧拉页删掉，宝宝圆钮弹出「菜单面板」（与「＋」快捷记录同一个面板）：开合 / 遮罩 / 下拉 / 返回 / Esc、
+    连开连关、＋ 与菜单互换、无左缘侧拉、无残留、竖排 dock、history 只在静止时写、减少动态效果、XSS（入口跳转 / 切宝宝 / 窄屏在 test_r290b）。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(1000)
+    ev = p.evaluate
+    drag = lambda *a: ev(TOUCH2_JS, list(a))
+    st = lambda: ev(QM_ST)
+    ev(QM_HLOG)
+
+    def idle():
+        _poll(p, "!App._histBusy()&&!document.getElementById('quickDock').classList.contains('qd-closing')&&(document.getElementById('quickDock').classList.contains('open')?getComputedStyle(document.getElementById('qdMask')).opacity==='1':getComputedStyle(document.getElementById('qdMask')).visibility==='hidden')", 1500, 20); p.wait_for_timeout(250)
+
+    def clean(s, tab='home', state='null'):
+        return not s['open'] and s['body'] == '' and s['sd'] == '' and s['mask'].startswith('0.00/hidden/') \
+            and s['inert'] == '' and s['st'] == state and s['tab'] == tab and s['avx'] == 'false' and s['role'] == '' and not s['drawer'] and s['dy'] == ''
+
+    def opened(s):
+        return s['mo'] and s['menu'] and s['body'] == 'qd-open,qm-open' and s['mask'].startswith('1.00/visible/') and s['st'] == '{"baoma":"ov"}' \
+            and 'view' in s['inert'] and 'app-header' in s['inert'] and s['avx'] == 'true' and s['plusx'] == 'false' and s['role'] == 'dialog'
+
+    def open_menu():
+        idle(); ev("document.getElementById('avatarBtn').click()"); p.wait_for_timeout(300)
+        _poll(p, "!App.menuOpen()||getComputedStyle(document.getElementById('qdMask')).opacity==='1'", 1500, 30)  # WebKit 无头过渡偏慢
+    # —— 打开 ——
+    check('#290 侧拉页已删除：没有 #sideDrawer / .sd-mask / window.Drawer，body 无 sd-* 类', ev("!document.querySelector('#sideDrawer,.side-drawer,.sd-mask')&&typeof window.Drawer==='undefined'&&![...document.body.classList].some(c=>/^sd-/.test(c))"))
+    ev("document.getElementById('avatarBtn').click()"); p.wait_for_timeout(300)
+    _poll(p, "getComputedStyle(document.getElementById('qdMask')).opacity==='1'", 1500, 30)
+    s = st()
+    check('#290 点宝宝圆钮：弹出菜单面板（同一个 #quickDock 面板），遮罩、一条 ov 记录、顶栏 + 页面 inert、焦点进面板、aria-expanded', opened(s) and s['focusIn'], s)
+    geo = ev("(()=>{const l=document.getElementById('qdActions').getBoundingClientRect(),t=document.getElementById('tabbar').getBoundingClientRect();return [Math.round(l.left),Math.round(innerWidth-l.right),Math.round(l.top),Math.round(t.top-l.bottom)]})()")
+    check('#290 面板贴在 dock 上方居中、不出屏（左右对称、顶部留白）', abs(geo[0] - geo[1]) <= 1 and geo[2] >= 8 and geo[3] >= 0, geo)
+    check('#290 ＋ 不转成 ×（× 只属于快捷记录），宝宝圆钮 / dock 在遮罩之上可再点', ev("getComputedStyle(document.querySelector('.tabbar .tab-plus .ico')).transform") in ('none', 'matrix(1, 0, 0, 1, 0, 0)')
+          and ev("(()=>{const a=document.getElementById('avatarBtn').getBoundingClientRect();const e=document.elementFromPoint(a.left+a.width/2,a.top+a.height/2);return !!e&&document.getElementById('avatarBtn').contains(e)})()"))
+    want = ev("""(()=>{const g=Modules.alltools._groups.filter(x=>x.key!=='tools');return ['home','calendar','whitenoise','__edit','settings'].concat(...g.map(x=>x.items.filter(i=>i.id!=='whitenoise').map(i=>i.id)))})()""")
+    got = ev("[...document.querySelectorAll('#qdActions [data-qm-go]')].map(e=>e.dataset.qmGo)")
+    acts = ev("[...document.querySelectorAll('#qdActions [data-qm]')].map(e=>e.dataset.qm)")
+    check('#290 入口一个不少：宝宝资料 / 切换 / 搜索 + 常用 5 项（首页 日期记录 哄睡声音 编辑首页 设置）+ 全部功能 + 孕期', got == want and acts == ['baby', 'swap', 'search'] and len(got) == 29, [len(got), got, acts])
+    check('#290 当前页（首页）格子高亮、aria-current', ev("(()=>{const e=document.querySelector('#qdActions [data-qm-go=home]');return e.classList.contains('on')&&e.getAttribute('aria-current')==='page'})()"))
+    check('#290 菜单格子复用 ＋ 面板的格子（.qd-action + .qd-badge + qdPop 入场）', ev("(()=>{const e=document.querySelector('#qdActions .qm-it');return e.classList.contains('qd-action')&&!!e.querySelector('.qd-badge')&&getComputedStyle(e).animationName})()") == 'qdPop')
+    # —— 关闭：遮罩 ——
+    ev("document.getElementById('qdMask').click()"); p.wait_for_timeout(60)
+    mid = st()
+    idle(); s = st()
+    check('#290 点遮罩：先播收起（qd-closing），落定后 history 退回、inert 解除、焦点回宝宝圆钮', mid['closing'] and mid['st'] == '{"baoma":"ov"}' and clean(s) and s['focus'] == 'avatarBtn', [mid, s])
+    # —— Esc ——
+    open_menu(); p.keyboard.press('Escape'); idle()
+    check('#290 Esc 关闭，复位', clean(st()), st())
+    # —— 再点宝宝圆钮 = 收起 ——
+    open_menu(); ev("document.getElementById('avatarBtn').click()"); idle()
+    check('#290 开着时再点宝宝圆钮：收起', clean(st()), st())
+    # —— 系统返回 ——
+    open_menu(); hl = ev("history.length")
+    ev("window.__ext=1;history.back();window.__ext=0"); _poll(p, "!document.getElementById('quickDock').classList.contains('open')", 800, 16)
+    s0 = st(); idle(); s = st()
+    check('#290 系统返回：只关面板（立即落定，不播收起），留在首页、history 回第一条、不增长', not s0['open'] and not s0['closing'] and clean(s) and s['hl'] <= hl, [s0, s, hl])
+    # —— 下拉关闭 ——
+    open_menu()
+    g = ev("(()=>{const e=document.querySelector('#qdActions .qd-grab').getBoundingClientRect();return [Math.round(e.left+e.width/2),Math.round(e.top+e.height/2)]})()")
+    drag(g[0], g[1], g[0] + 2, g[1] + 240, 'none', 10, 16); p.wait_for_timeout(30)
+    s = st()
+    dyv = float((s['dy'] or '0px')[:-2] or 0)
+    check('#290 从把手往下拉：面板跟手下移（--qd-dy）、遮罩跟着变淡（只写 transform / opacity）、仍开着', s['open'] and 200 <= dyv <= 245 and s['body'] == 'qd-open,qm-open,qd-drag' and 0 < float(s['mask'].split('/')[2] or 1) < 1, s)
+    p.wait_for_timeout(200)
+    ev("window.__t2nostart=true"); drag(g[0] + 2, g[1] + 240, g[0] + 2, g[1] + 241, True, 1, 0); idle()
+    check('#290 拉过 1/4 高度松手：收起，history 退回，复位', clean(st()), st())
+    open_menu()
+    drag(g[0], g[1], g[0], g[1] + 50, 2, 6, 16); p.wait_for_timeout(450)
+    s = st()
+    check('#290 只拉一点、停住再松手：弹回（仍开着、--qd-dy 归零、遮罩复原）', opened(s) and s['dy'] in ('0px', '') and s['mask'].endswith('/'), s)
+    sc = ev("(()=>{const r=document.querySelector('#qdActions .qm-search').getBoundingClientRect();return [Math.round(r.left+40),Math.round(r.top+r.height/2)]})()")
+    drag(sc[0], sc[1], sc[0], sc[1] + 200, True, 6, 8); idle()
+    check('#290 在内容上（已在顶部）快速下拉：收起，手指抬起不算点了搜索', clean(st()), st())
+    open_menu()
+    drag(sc[0], sc[1] + 60, sc[0] + 160, sc[1] + 70, True, 6, 16); p.wait_for_timeout(300)
+    drag(sc[0], sc[1] + 120, sc[0], sc[1] - 60, True, 6, 16); p.wait_for_timeout(300)
+    check('#290 横拉 / 上拉不接管（不关面板）', opened(st()), st())
+    ev("App.closeMenu()"); idle()
+    hl = ev('history.length')
+    # —— 快速连开连关 ——
+    for gap in (0, 20, 60, 120, 200, 0, 40, 160, 300, 90):
+        ev("document.getElementById('avatarBtn').click()"); p.wait_for_timeout(gap)
+    p.wait_for_timeout(300); idle()
+    s = st()
+    ok1 = clean(s) or (opened(s) and ev("App._ovDepth()") == 1)
+    if s['open']:
+        ev("App.closeMenu()"); idle()
+    check('#290 连点宝宝圆钮 10 次（0–300ms）：落在稳定态（开 = 恰好一条 ov / 关 = 干净），再关后干净、history 不增长', ok1 and clean(st()) and st()['hl'] <= hl + 1, [s, st(), hl])
+    bad = []
+    for gap in (0, 50, 120):
+        open_menu(); ev("App.closeMenu()"); p.wait_for_timeout(gap); ev("App.openMenu()"); p.wait_for_timeout(400); idle()
+        s = st()
+        if not (opened(s) and ev("App._ovDepth()") == 1):
+            bad.append([gap, s])
+        ev("App.closeMenu()"); idle()
+        if not clean(st()):
+            bad.append([gap, 'c', st()])
+    check('#290 收起动画中再开（0 / 50 / 120ms）：重新展开、只一条 ov；再关干净', not bad, bad)
+    open_menu(); ev("App.closeMenu()"); ev("App.openMenu()"); ev("App.closeMenu()"); p.wait_for_timeout(700); idle()
+    check('#290 开 → 关 → 开 → 关（同一帧）：最后是关、干净', clean(st()), st())
+    # ＋ 与菜单互换
+    open_menu(); ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(400); idle()
+    s = st()
+    check('#290 菜单开着点 ＋：换成快捷记录（菜单那条记录退掉、＋ 转 ×）', s['open'] and not s['menu'] and s['body'] == 'qd-open' and s['plusx'] == 'true' and s['avx'] == 'false' and s['st'] == 'null' and ev("!!document.getElementById('qdFeed')"), s)
+    ev("document.getElementById('avatarBtn').click()"); p.wait_for_timeout(450)
+    s = st()
+    check('#290 快捷记录开着点宝宝圆钮：换成菜单', opened(s), s)
+    ev("App.closeMenu()"); idle()
+    check('#290 互换后关闭：干净', clean(st()), st())
+    # —— 无左缘侧拉 ——
+    hl0 = ev("history.length")
+    drag(6, 420, 260, 424, True, 8, 16); p.wait_for_timeout(500)
+    drag(120, 420, 360, 424, True, 8, 16); p.wait_for_timeout(500)
+    s = st()
+    check('#290 首页从左缘 / 任意位置右滑：什么都不打开（无侧拉页、页面不动、history 不变）', clean(s) and s['viewT'] == 'none' and ev("history.length") == hl0 and not s['drawer'], s)
+    ev("App.showTab('diaper')"); p.wait_for_timeout(900)
+    drag(4, 420, 300, 424, True, 10, 16); _poll(p, "App.currentTab()==='home'", 3000, 50); p.wait_for_timeout(300)
+    if ev("App.currentTab()") != 'home':
+        ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(300)
+    check('#290 二级页左缘右滑返回照常（App 自己的侧滑返回）', ev("App.currentTab()") == 'home', ev("App.currentTab()"))
+    idle()
+    # —— 二级页 / 竖排 dock / 深色 ——
+    ev("(()=>{const s=Storage.get().settings;s.themeMode='dark';s.handMode='left';Storage.save();App.applyTheme();App.buildTabbar()})()"); p.wait_for_timeout(300)
+    open_menu()
+    s = st()
+    lg = ev("(()=>{const l=document.getElementById('qdActions').getBoundingClientRect();const t=document.getElementById('tabbar').getBoundingClientRect();const e=document.elementFromPoint(t.left+t.width/2,t.top+20);return [Math.round(l.top),Math.round(innerHeight-l.bottom),Math.round(l.left),Math.round(innerWidth-l.right),!!e&&!document.getElementById('tabbar').contains(e)]})()")
+    check('#290 深色 + 左手竖排：菜单居中贴底、不出屏，竖排 dock 退到遮罩 / 面板下面', opened(s) and lg[0] >= 8 and lg[1] >= 4 and abs(lg[2] - lg[3]) <= 1 and lg[4], [s, lg])
+    ev("App.closeMenu()"); idle()
+    ev("(()=>{const s=Storage.get().settings;s.themeMode='light';s.handMode='normal';Storage.save();App.applyTheme();App.buildTabbar()})()"); p.wait_for_timeout(300)
+    # —— history 只在静止时写 ——
+    qh = ev("__qh")
+    badh = [h for h in qh if h['moving'] and not h['ext']]
+    check('#290 本组所有 pushState / replaceState / back / go 都发生在面板静止时（不在收起动画 / 拖动中途）', not badh and len(qh) > 20, [len(qh), badh[:4]])
+    # —— 减少动态效果 ——
+    p.emulate_media(reduced_motion='reduce')
+    open_menu()
+    rm = ev("[getComputedStyle(document.querySelector('#qdActions .qm-it')).animationName, getComputedStyle(document.getElementById('qdActions')).transform]")
+    ev("document.getElementById('qdMask').click()"); p.wait_for_timeout(20)
+    s0 = st(); idle()
+    check('#290 减少动态效果：格子只淡入（qdFade）、面板不位移；关闭立即收起（无 qd-closing）、复位', rm[0] == 'qdFade' and not s0['closing'] and not s0['open'] and clean(st()), [rm, s0, st()])
+    p.emulate_media(reduced_motion='no-preference')
+    # —— XSS ——
+    ev("(()=>{const x='<img src=x onerror=window.__pwn290=1>';const b=Storage.activeBaby();if(b)b.nickname=x;const sb=Storage.get().settings.baby;if(sb){sb.nickname=x;sb.name=x}Storage.save();App.refreshHeaderAvatar()})()")
+    open_menu()
+    check('#290 XSS：宝宝名进菜单走转义（不插标签、不执行）', ev("!window.__pwn290&&!document.querySelector('#qdActions img[src=x]')&&document.querySelector('#qdActions .qm-name').textContent.indexOf('<img')===0"))
+    ev("App.closeMenu()"); idle()
+    check('#290 pageerror 为 0', not errs, errs)
+    ctx.close()
+
+
+def test_r290b(b):
+    """第 290 次（下半）：菜单面板每个入口跳转、搜索 / 宝宝资料、开着切宝宝、窄屏 320 + 字号 1.33（深浅色）。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(1000)
+    ev = p.evaluate
+    drag = lambda *a: ev(TOUCH2_JS, list(a))
+    st = lambda: ev(QM_ST)
+    ev(QM_HLOG)
+
+    def idle():
+        _poll(p, "!App._histBusy()&&!document.getElementById('quickDock').classList.contains('qd-closing')&&(document.getElementById('quickDock').classList.contains('open')?getComputedStyle(document.getElementById('qdMask')).opacity==='1':getComputedStyle(document.getElementById('qdMask')).visibility==='hidden')", 1500, 20); p.wait_for_timeout(250)
+
+    def clean(s, tab='home', state='null'):
+        return not s['open'] and s['body'] == '' and s['sd'] == '' and s['mask'].startswith('0.00/hidden/') \
+            and s['inert'] == '' and s['st'] == state and s['tab'] == tab and s['avx'] == 'false' and s['role'] == '' and not s['drawer'] and s['dy'] == ''
+
+    def opened(s):
+        return s['mo'] and s['menu'] and s['body'] == 'qd-open,qm-open' and s['mask'].startswith('1.00/visible/') and s['st'] == '{"baoma":"ov"}' \
+            and 'view' in s['inert'] and 'app-header' in s['inert'] and s['avx'] == 'true' and s['plusx'] == 'false' and s['role'] == 'dialog'
+
+    def open_menu():
+        idle(); ev("document.getElementById('avatarBtn').click()"); p.wait_for_timeout(300)
+        _poll(p, "!App.menuOpen()||getComputedStyle(document.getElementById('qdMask')).opacity==='1'", 1500, 30)  # WebKit 无头过渡偏慢
+    open_menu()
+    want = ev("""(()=>{const g=Modules.alltools._groups.filter(x=>x.key!=='tools');return ['home','calendar','whitenoise','__edit','settings'].concat(...g.map(x=>x.items.filter(i=>i.id!=='whitenoise').map(i=>i.id)))})()""")
+    ev("App.closeMenu()"); idle()
+    # —— 每个入口跳转 ——
+    bad = []
+    for go in want:
+        open_menu()
+        ev(f"document.querySelector('#qdActions [data-qm-go=\"{go}\"]').click()")
+        s0 = st()
+        p.wait_for_timeout(250); idle()
+        s = st()
+        exp = 'home' if go in ('__edit', 'home') else go
+        top = exp in ('home', 'calendar')
+        state = 'null' if top else '{"baoma":1,"id":"%s"}' % exp
+        ok = s0['tab'] == exp and not s0['open'] and s0['body'] == '' and clean(s, exp, state)
+        if go == 'home':  # 已在首页：点当前页 = 正常收起（播收起动画）
+            ok = s0['tab'] == 'home' and clean(s)
+        if go == '__edit':
+            ok = ok and ev("!!Modules.home._edit")
+        if not ok:
+            bad.append([go, s0, s])
+        if go == '__edit':
+            ev("Modules.home._edit=false;App.rerender()"); p.wait_for_timeout(200)
+        if not top:
+            ev("window.__ext=1;history.back();window.__ext=0"); _poll(p, "App.currentTab()==='home'", 2500, 50)
+        elif exp != 'home':
+            ev("App.showTab('home',{noVT:true})")
+        idle()
+        if ev("history.state") is not None or ev("App.currentTab()") != 'home':
+            bad.append([go, 'back', ev("JSON.stringify(history.state)"), ev("App.currentTab()")])
+    check('#290 每个入口（29 个）：同一次点击里面板立即关掉（不留遮罩 / inert / 锁定）、新页已画好；二级页由菜单那条记录改写成该页、一级页记录退掉；返回回首页', not bad, bad[:3])
+    # —— 搜索 / 宝宝资料 ——
+    open_menu(); ev("document.querySelector('#qdActions [data-qm=search]').click()")
+    s = st(); idle()
+    check('#290 搜索：同一次点击里进搜索页并聚焦输入框（iOS 才弹键盘），菜单那条记录改写成搜索页', s['tab'] == 'search' and ev("document.activeElement&&document.activeElement.id") == 'searchInput' and clean(st(), 'search', '{"baoma":1,"id":"search"}'), [s, st()])
+    ev("window.__ext=1;history.back();window.__ext=0"); _poll(p, "App.currentTab()==='home'", 2000, 50); idle()
+    open_menu(); ev("document.querySelector('#qdActions [data-qm=baby]').click()"); p.wait_for_timeout(400); idle()
+    s = st()
+    check('#290 宝宝资料：进设置「称呼与阶段」二级分组', s['tab'] == 'settings' and ev("App.inSub()") and s['st'] == '{"baoma":1,"id":"__sub"}' and s['body'] == '' and s['inert'] == '', s)
+    ev("window.__ext=1;history.back();window.__ext=0"); p.wait_for_timeout(500); ev("window.__ext=1;history.back();window.__ext=0")
+    _poll(p, "App.currentTab()==='home'&&history.state===null", 2500, 50); idle()
+    check('#290 宝宝资料返回两次回首页、history 回第一条', clean(st()), st())
+    # —— 打开面板后切宝宝 ——
+    ev("(()=>{const b=Storage.addBaby({name:'二宝',nickname:'糖糖',birthDate:Util.addDays(Util.todayISO(),-40)});Storage.switchBaby(Storage.get().babies[0].id);App.refreshHeaderAvatar();App.rerender()})()"); p.wait_for_timeout(300)
+    open_menu()
+    n0 = ev("document.querySelector('#qdActions .qm-name').textContent")
+    ev("document.querySelector('#qdActions [data-qm=swap]').click()"); p.wait_for_timeout(450)
+    s = st()
+    check('#290 菜单里点「切换」：菜单先关（不留遮罩 / inert / ov 记录），宝宝面板弹出', not s['open'] and s['body'] == '' and s['sheets'] == 1 and ev("!!document.querySelector('#modalRoot .baby-sheet [data-pick]')"), s)
+    ev("document.querySelector('#modalRoot .baby-sheet [data-pick]').click()"); p.wait_for_timeout(500); idle()
+    open_menu()
+    n1 = ev("document.querySelector('#qdActions .qm-name').textContent")
+    check('#290 切到二宝后再开菜单：名字 / 月龄换成二宝', n0 != n1 and n1 == '糖糖', [n0, n1])
+    ev("App.closeMenu()"); idle()
+    check('#290 切宝宝流程结束：无残留', clean(st()) and st()['sheets'] == 0, st())
+    check('#290 下半 pageerror 为 0', not errs, errs)
+    ctx.close()
+    # —— 窄屏 320 + 最大字号（1.33）：名字不折行不截断、面板不出屏；深浅色 ——
+    for dark in (False, True):
+        c2 = b.new_context(viewport={'width': 320, 'height': 640}, has_touch=True)
+        p2 = c2.new_page(); e2 = []
+        p2.on('pageerror', lambda e: e2.append(str(e)[:160]))
+        p2.goto(URL); p2.wait_for_timeout(600); p2.evaluate('t=>Storage.importJSON(t)', SEED_V3); p2.reload(); p2.wait_for_timeout(900)
+        p2.evaluate("d=>{const s=Storage.get().settings;s.themeMode=d?'dark':'light';Storage.save();App.applyTheme();App.setFontScale('xl')}", dark); p2.wait_for_timeout(300)
+        p2.evaluate("document.getElementById('avatarBtn').click()"); p2.wait_for_timeout(600)
+        r = p2.evaluate("""(()=>{const l=document.getElementById('qdActions'),R=l.getBoundingClientRect();
+          const bad=[...l.querySelectorAll('.qm-n,.qm-swap span,.qm-search span:last-child,.qm-gh')].filter(e=>e.scrollWidth>e.clientWidth+1||Math.round(e.getBoundingClientRect().height)>Math.round(parseFloat(getComputedStyle(e).lineHeight)*1.5)).map(e=>e.textContent);
+          const sc=l.querySelector('.qm-scroll');return {mul:getComputedStyle(document.body).getPropertyValue('--fs-mul').trim(),bad,in:R.left>=0&&R.right<=innerWidth&&R.top>=0,scroll:sc.scrollHeight>sc.clientHeight,cols:getComputedStyle(l.querySelector('.qm-grid')).gridTemplateColumns.split(' ').length}})()""")
+        check('#290 窄屏 320 + 字号 1.33（%s）：格子名 / 切换 / 搜索 / 分组标题不折行不截断、面板在屏内、内容可滚' % ('深色' if dark else '浅色'),
+              r['mul'].startswith('1.33') and not r['bad'] and r['in'] and r['scroll'] and r['cols'] >= 2 and not e2, [r, e2])
+        c2.close()
+
+
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -4349,7 +4624,9 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r286',),
           ('test_r287',),
           ('test_r288',),
-          ('test_r289',))  # 第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r289',),
+          ('test_r290',),
+          ('test_r290b',))  # 第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

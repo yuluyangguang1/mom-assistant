@@ -10,10 +10,10 @@
  */
 (function (global) {
   'use strict';
-  var PRESS_SEL = 'button, [role="button"], a[href], summary, label.row-switch, .record-tile, .canvas-card[data-go], .tool-item, .sd-row, .sheet-card, .seg-btn';
-  var GLOW_SEL = '.card, .record-tile, .canvas-card, .tool-item, .sd-row, .sheet-card, .set-group > summary, .hq-b, .hn-q';
+  var PRESS_SEL = 'button, [role="button"], a[href], summary, label.row-switch, .record-tile, .canvas-card[data-go], .tool-item, .sheet-card, .seg-btn';
+  var GLOW_SEL = '.card, .record-tile, .canvas-card, .tool-item, .sheet-card, .set-group > summary, .hq-b, .hn-q';
   var SKIP_SEL = '#tabbar, #dockOrb, #quickDock .qd-fab, .record-grid.is-editing, .tp-off, input, textarea, select';
-  var BIG_SEL = '.card, .record-tile, .canvas-card, .sheet-card, .sd-row, .set-group > summary';
+  var BIG_SEL = '.card, .record-tile, .canvas-card, .sheet-card, .set-group > summary';
 
   var reduce = false;
   try { reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
@@ -82,7 +82,7 @@
      松手时系统把点击真正派给这层 label → 切换 switch → 系统触感；点击事件照常冒泡到按钮，原有逻辑不受影响。
      只给「叶子」按钮装：里面还有别的按钮 / 链接 / 输入框的卡片不装，免得挡住里面的小按钮。 */
   var IOS_HAP = !(global.navigator && typeof navigator.vibrate === 'function') && ('ontouchstart' in global);
-  var HAP_SEL = 'button, [role="button"], .record-tile, .canvas-card[data-go], .sd-row, .tool-item, .seg-btn';
+  var HAP_SEL = 'button, [role="button"], .record-tile, .canvas-card[data-go], .tool-item, .seg-btn';
   var HAP_SKIP = 'a, label, input, select, textarea, .record-grid.is-editing, .sw-row, [data-no-haptic]';
   var INNER = 'button, a, input, select, textarea, label, [role="button"], [data-go], [data-act], [data-del]';
   function hapOn() {
