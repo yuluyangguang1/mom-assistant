@@ -1791,11 +1791,25 @@
     /* ———— 往下拉关闭（两种内容共用）————
        面板内容在顶部（或按在把手上）时向下拉：面板跟手下移、遮罩跟着变淡；松手过 1/4 高度或下甩 ≥ 0.5px/ms 就关，否则弹回。
        只写 transform（--qd-dy）和遮罩 opacity；往上拉 / 横向拉不接管（交给面板里的滚动）。 */
-    var dr = null, swallowT = 0;
-    function dragReset() { dr = null; root.classList.remove('qd-dragging'); bodyCls('qd-drag', false); }
+    /* 第 292 次：松手不再走固定过渡——速度取最近 100ms（Motion.tracker），弹回 / 收走都用带初速度的弹簧逐帧写 --qd-dy；
+       收走时一直推到屏幕外、遮罩按位置变淡，到底才真正收起（立即收起、不再补一段淡出）；弹回途中按住 = 接着拖。 */
+    var dr = null, swallowT = 0, qSpr = null, qTr = global.Motion ? Motion.tracker() : null;
+    function qStop() { var v = null; if (qSpr) { v = qSpr.stop(); qSpr = null; } return v; }
+    function dragReset() { qStop(); dr = null; root.classList.remove('qd-dragging'); root.classList.remove('qd-flinging'); bodyCls('qd-drag', false); }
+    function qPaint(off, h) {
+      list.style.setProperty('--qd-dy', off.toFixed(1) + 'px');
+      if (mask) mask.style.opacity = String(Math.max(0, 1 - Math.max(0, off) / (h || 1)).toFixed(3));
+    }
     list.addEventListener('touchstart', function (e) {
+      if (qSpr && !root.classList.contains('qd-flinging') && e.touches && e.touches.length === 1) {
+        /* 弹回途中被按住：从当前位置接着拖 */
+        var cur = qStop() || 0, t0 = e.touches[0];
+        dr = { x0: t0.clientX, y0: t0.clientY - cur - 8, ly: t0.clientY, lt: Date.now(), vel: 0, on: true, off: cur, h: list.offsetHeight || 300 };
+        if (qTr) qTr.reset(t0.clientY);
+        return;
+      }
       dr = null;
-      if (!root.classList.contains('open') || root.classList.contains('qd-closing')) return;
+      if (!root.classList.contains('open') || root.classList.contains('qd-closing') || root.classList.contains('qd-flinging')) return;
       if (!e.touches || e.touches.length !== 1) return;
       var sc = list.querySelector('.qm-scroll');
       var onGrab = !!(e.target && e.target.closest && e.target.closest('.qd-grab'));
@@ -1811,7 +1825,9 @@
         if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
         if (dy <= 0 || Math.abs(dx) > Math.abs(dy)) { dr = null; return; }
         dr.on = true; root.classList.add('qd-dragging'); bodyCls('qd-drag', true);
+        if (qTr) qTr.reset(t.clientY);
       }
+      if (qTr) qTr.add(t.clientY);
       var now = Date.now(), dtm = Math.max(1, now - dr.lt);
       dr.vel = dr.vel * 0.4 + ((t.clientY - dr.ly) / dtm) * 0.6;
       dr.ly = t.clientY; dr.lt = now;
@@ -1826,16 +1842,33 @@
       if (!d.on) return;
       /* 拖过之后手指抬起时的那次 click 不算点了入口 */
       swallowT = Date.now() + 350;
-      var vel = (Date.now() - d.lt > 120) ? 0 : d.vel;
-      if (!cancelled && (d.off > d.h * 0.25 || vel >= 0.5)) {
-        root.classList.remove('qd-dragging'); bodyCls('qd-drag', false);
+      var vel = cancelled ? 0 : (qTr ? qTr.velocity() : ((Date.now() - d.lt > 120) ? 0 : d.vel));
+      var M = global.Motion;
+      var go = !cancelled && (M ? M.shouldDismiss(d.off, vel, d.h) : (d.off > d.h * 0.25 || vel >= 0.5));
+      if (go) {
         root.classList.add('qd-dragged');
-        close(); detachOutside();
+        if (!M || prefersReduced()) { root.classList.remove('qd-dragging'); bodyCls('qd-drag', false); close(); detachOutside(); return; }
+        /* 一直推到屏幕外：面板底到视口底的距离 + 自身高度 */
+        var rb = list.getBoundingClientRect();
+        var far = Math.max(d.h, d.off + (global.innerHeight || 800) - rb.top + 12);
+        root.classList.add('qd-flinging');
+        var fin = function () { qSpr = null; close(true); detachOutside(); };
+        qSpr = M.spring({ from: d.off, to: far + 40, velocity: Math.max(vel, 0.6), response: 0.34, damping: 1,
+          onUpdate: function (v) { qPaint(Math.min(v, far), far); if (v >= far && qSpr) { qSpr.stop(); fin(); } },
+          onDone: function () { if (qSpr) fin(); } });
         return;
       }
-      root.classList.remove('qd-dragging'); bodyCls('qd-drag', false);
-      list.style.setProperty('--qd-dy', '0px');
-      if (mask) mask.style.opacity = '';
+      /* 被打断（touchcancel / 新触摸 / 切后台：后台 rAF 不跑）= 立刻回原位，不靠动画 */
+      if (!M || !d.off || cancelled) {
+        root.classList.remove('qd-dragging'); bodyCls('qd-drag', false);
+        list.style.setProperty('--qd-dy', '0px');
+        if (mask) mask.style.opacity = '';
+        return;
+      }
+      /* 弹回：拖动态保持着（不走 CSS 过渡），弹簧逐帧写回 0 */
+      qSpr = M.spring({ from: d.off, to: 0, velocity: vel, response: 0.3, damping: 1,
+        onUpdate: function (v) { qPaint(v, d.h); },
+        onDone: function () { qSpr = null; root.classList.remove('qd-dragging'); bodyCls('qd-drag', false); list.style.setProperty('--qd-dy', '0px'); if (mask) mask.style.opacity = ''; } });
     }
     document.addEventListener('touchend', function () { dragEnd(false); }, { passive: true });
     document.addEventListener('touchcancel', function () { dragEnd(true); }, { passive: true });

@@ -25,7 +25,7 @@
 
   function closeVia(mask) {
     try { mask.dispatchEvent(new MouseEvent('click', { bubbles: true })); } catch (e) { /* 旧内核 */ }
-    setTimeout(function () { if (mask.isConnected) root.innerHTML = ''; sync(); }, 30);
+    setTimeout(function () { if (mask.parentNode === root) root.removeChild(mask); sync(); }, 30);
   }
 
   function enhance(mask) {
@@ -46,56 +46,119 @@
     panel.addEventListener('scroll', function () { mask._st = panel.scrollTop; }, { passive: true });
   }
 
+  /* 第 292 次：下拉关闭重写成「被手推着走」——
+     ① 跟手：按住横条可上下拖（往上是橡皮筋）；内容区在顶部时往下拖接管；内容区先往上滚、滚回顶部后继续往下拉，
+        在那一刻无缝转成拖面板（以前这一下什么都不发生，要松手重来）；拖下去再拖回来不会卡在半路；横向先动交给控件。
+     ② 松手：速度取最近 100ms 首尾差（Motion.tracker），用带初速度的临界阻尼弹簧落定——
+        轻轻放下慢慢回去，用力一甩飞快收走；收起时遮罩按面板位置逐帧变淡，到底才真正关掉（不再「到 90% 就消失」）。
+     ③ 打断：弹回途中再按住 = 从当前位置接着拖；收走途中不接点击（sheet-flinging）。
+     ④ touchcancel / 切后台 / 失焦：弹回原位，不停在半路。 */
   function bindDrag(mask, panel) {
-    var y0 = 0, t0 = 0, dy = 0, lastY = 0, lastT = 0, vel = 0, active = false, fromGrab = false;
+    var M = window.Motion;
+    var st = null; /* 一次触摸：{ y0, x0, ly, grab, on, base, off, h, cancel } */
+    var tr = M ? M.tracker() : null;
+    var spr = null;
+    function H() { return panel.offsetHeight || 1; }
+    function paint(off, h) {
+      /* 推入动画是 fill: both，会一直压着内联 transform（动画层级高于内联样式）——第一次跟手就把它摘掉 */
+      if (panel.style.animation !== 'none') panel.style.animation = 'none';
+      panel.style.transition = 'none';
+      panel.style.transform = off ? 'translate3d(0,' + off.toFixed(2) + 'px,0)' : '';
+      mask.style.setProperty('--sheet-dim', String(Math.max(0, Math.min(1, 1 - Math.max(0, off) / (h || H()))).toFixed(3)));
+    }
+    function settleClean() {
+      panel.style.transform = ''; panel.style.transition = '';
+      mask.style.removeProperty('--sheet-dim');
+      mask.classList.remove('sheet-dragging');
+    }
+    function stopSpr() { var v = null; if (spr) { v = spr.stop(); spr = null; } mask._spr = null; return v; }
+    function snapBack(off, vel) {
+      stopSpr();
+      if (!M || !off) { settleClean(); return; }
+      var h = H();
+      spr = mask._spr = M.spring({ from: off, to: 0, velocity: vel, response: 0.3, damping: 1,
+        onUpdate: function (v) { paint(v, h); },
+        onDone: function () { spr = mask._spr = null; settleClean(); } });
+    }
+    function dismiss(off, vel) {
+      stopSpr();
+      var h = H();
+      mask.classList.add('sheet-flinging');
+      var fin = function () { spr = mask._spr = null; panel.style.transform = 'translate3d(0,100%,0)'; mask.classList.add('sheet-leaving'); closeVia(mask); };
+      if (!M) { fin(); return; }
+      /* 目标放在屏幕外一截，弹簧尾巴不拖沓：一出屏就收工 */
+      spr = mask._spr = M.spring({ from: off, to: h + 60, velocity: Math.max(vel, 0.6), response: 0.34, damping: 1,
+        onUpdate: function (v) { paint(Math.min(v, h), h); if (v >= h && spr) { spr.stop(); fin(); } },
+        onDone: function () { if (mask._spr) fin(); } });
+    }
+    function begin(t, base) {
+      st.on = true; st.base = base; st.h = H();
+      mask.classList.add('sheet-dragging');
+      if (tr) tr.reset(t.clientY);
+    }
     function start(e) {
+      if (mask.classList.contains('sheet-flinging') || mask.classList.contains('sheet-leaving')) return;
       var t = e.touches ? e.touches[0] : e;
-      fromGrab = !!(e.target.closest && e.target.closest('.sheet-grab'));
-      /* 内容区：只有面板已在顶部时才接管下拉，否则让它正常滚动 */
-      if (!fromGrab && panel.scrollTop > 0) return;
+      if (e.touches && e.touches.length !== 1) { st = null; return; }
+      var grab = !!(e.target.closest && e.target.closest('.sheet-grab'));
+      /* 弹回途中被按住：从当前位置接着拖 */
+      if (spr) {
+        var cur = stopSpr() || 0;
+        st = { x0: t.clientX, y0: t.clientY, ly: t.clientY, grab: true, on: false, off: cur };
+        begin(t, t.clientY - cur); paint(cur, st.h);
+        return;
+      }
       /* 输入控件里的拖动交给控件（滑块、日期滚轮等） */
-      if (!fromGrab && e.target.closest && e.target.closest('input, textarea, select, .date-slider, .ruler, [data-nodrag]')) return;
-      active = true; y0 = lastY = t.clientY; t0 = lastT = Date.now(); dy = 0; vel = 0;
+      if (!grab && e.target.closest && e.target.closest('input, textarea, select, .date-slider, .ruler, [data-nodrag]')) { st = null; return; }
+      st = { x0: t.clientX, y0: t.clientY, ly: t.clientY, grab: grab, on: false, off: 0 };
     }
     function move(e) {
-      if (!active) return;
+      if (!st) return;
       var t = e.touches ? e.touches[0] : e;
-      var d = t.clientY - y0;
-      if (d <= 0 && !fromGrab) { if (dy === 0) { active = false; } return; }
-      var now = Date.now();
-      vel = (t.clientY - lastY) / Math.max(1, now - lastT);
-      lastY = t.clientY; lastT = now;
-      dy = d > 0 ? d : d / 4; /* 往上拖给阻尼 */
-      panel.style.transition = 'none';
-      panel.style.transform = 'translate3d(0,' + dy + 'px,0)';
-      mask.style.setProperty('--sheet-dim', String(Math.max(0, 1 - dy / (panel.offsetHeight || 1))));
+      if (!t) return;
+      var dx = t.clientX - st.x0, dy = t.clientY - st.y0, down = t.clientY > st.ly;
+      st.ly = t.clientY;
+      if (!st.on) {
+        if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) { st = null; return; }
+        if (st.grab) { if (Math.abs(dy) < 4) return; begin(t, st.y0); }
+        else {
+          /* 内容区：面板在顶部且手指往下走才接管；滚动中途回到顶部也在这一刻接管（基线取当前点，面板从 0 开始跟） */
+          if (panel.scrollTop > 0 || !down) { if (dy < -6 && panel.scrollTop <= 0 && !st.moved) { st = null; return; } st.moved = st.moved || Math.abs(dy) > 6; return; }
+          if (e.cancelable === false) return; /* 原生滚动已经在走，这一下拦不住：不抢 */
+          if (Math.abs(dy) < 4 && !st.moved) return;
+          begin(t, st.moved ? t.clientY : st.y0);
+        }
+      }
+      var raw = t.clientY - st.base;
+      st.off = raw >= 0 ? raw : (st.grab && M ? M.rubber(raw, st.h * 0.4) : 0);
+      if (tr) tr.add(t.clientY);
+      paint(st.off, st.h);
       if (e.cancelable) e.preventDefault();
     }
-    function end() {
-      if (!active) return;
-      active = false;
-      var h = panel.offsetHeight || 1;
-      panel.style.transition = 'transform .28s cubic-bezier(.32,.72,0,1)';
-      if (dy > h * 0.25 || (vel > 0.6 && dy > 24)) {
-        panel.style.transform = 'translate3d(0,100%,0)';
-        mask.classList.add('sheet-leaving');
-        setTimeout(function () { closeVia(mask); }, 200);
-      } else {
-        panel.style.transform = '';
-        mask.style.removeProperty('--sheet-dim');
-        setTimeout(function () { panel.style.transition = ''; }, 300);
-      }
+    function end(cancelled) {
+      var s = st; st = null;
+      if (!s || !s.on) return;
+      mask.classList.remove('sheet-dragging');
+      var vel = cancelled || !tr ? 0 : tr.velocity();
+      var h = s.h || H();
+      var go = !cancelled && s.off > 0 && (M ? M.shouldDismiss(s.off, vel, h) : (s.off > h * 0.25 || vel > 0.5));
+      /* 被打断（touchcancel / 切后台：后台 rAF 不跑）= 立刻回原位 */
+      if (go) dismiss(s.off, vel); else if (cancelled) { stopSpr(); settleClean(); } else snapBack(s.off, vel);
     }
     panel.addEventListener('touchstart', start, { passive: true });
     panel.addEventListener('touchmove', move, { passive: false });
-    panel.addEventListener('touchend', end);
-    panel.addEventListener('touchcancel', end);
+    panel.addEventListener('touchend', function () { end(false); });
+    panel.addEventListener('touchcancel', function () { end(true); });
+    function cancelAll() { if (st && st.on) end(true); }
+    window.addEventListener('blur', cancelAll);
+    window.addEventListener('pagehide', cancelAll);
+    document.addEventListener('visibilitychange', function () { if (document.hidden) cancelAll(); });
     /* 鼠标只从横条拖（桌面调试用） */
     panel.addEventListener('mousedown', function (e) {
       if (!(e.target.closest && e.target.closest('.sheet-grab'))) return;
       start(e);
       function mm(ev) { move(ev); }
-      function mu() { end(); document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); }
+      function mu() { end(false); document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); }
       document.addEventListener('mousemove', mm);
       document.addEventListener('mouseup', mu);
     });
@@ -108,7 +171,7 @@
   var reduceMq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
   function ghostOut(mask) {
     try {
-      if (reduceMq.matches || mask.classList.contains('sheet-leaving') || mask.classList.contains('sheet-ghost')) return;
+      if (reduceMq.matches || mask.classList.contains('sheet-leaving') || mask.classList.contains('sheet-flinging') || mask.classList.contains('sheet-ghost')) return;
       if (root.querySelector('.modal-mask.as-sheet')) return;
       var panel = panelOf(mask); if (!panel) return;
       var g = mask.cloneNode(true);
@@ -122,10 +185,10 @@
       g.setAttribute('aria-hidden', 'true');
       try { g.inert = true; } catch (eI) {}
       var gp = panelOf(g);
-      if (gp) { gp.style.transform = ''; gp.style.transition = ''; }
+      if (gp) { gp.style.transform = ''; gp.style.transition = ''; gp.style.animation = ''; }
       document.body.appendChild(g);
       if (gp && mask._st) gp.scrollTop = mask._st;
-      setTimeout(function () { if (g.parentNode) g.parentNode.removeChild(g); }, 340);
+      setTimeout(function () { if (g.parentNode) g.parentNode.removeChild(g); }, 380);
     } catch (e) { /* 替身只是观感，失败不影响关闭 */ }
   }
 
@@ -155,9 +218,10 @@
   }
   function reset(mask) {
     var panel = panelOf(mask);
-    mask.classList.remove('sheet-leaving');
+    if (mask._spr) { try { mask._spr.stop(); } catch (eS) {} mask._spr = null; }
+    mask.classList.remove('sheet-leaving'); mask.classList.remove('sheet-flinging'); mask.classList.remove('sheet-dragging');
     mask.style.removeProperty('--sheet-dim');
-    if (panel) { panel.style.transform = ''; panel.style.transition = ''; }
+    if (panel) { panel.style.transform = ''; panel.style.transition = ''; panel.style.animation = ''; }
     sync();
   }
   /* 第 272 次（审计 #11：键盘弹出时备注框被遮）：

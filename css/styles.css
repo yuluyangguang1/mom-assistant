@@ -161,6 +161,15 @@
      其余 ~26 处是控件级，**保留不动**，那是奶油感的来源。 */
   --spring: cubic-bezier(.34, 1.56, .64, 1);
   --ease: cubic-bezier(.4, 0, .2, 1);
+  /* 第 292 次：版面级再分两条（全站转场统一节奏，只改这里）
+     --ease-ios  cubic-bezier(.32,.72,0,1)：iOS 面板 / 推页的曲线——起步快、长尾减速，「被推进来、稳稳停住」。
+                 用于半屏面板推入与收起、页面入场、＋/菜单面板容器。
+     --dur-in .42s（面板推入）/ --dur-out .3s（收起，退场永远快于入场）/ --dur-page .32s（页面入场）。
+     跟手拖动松手后的落定不用曲线，用 motion.js 的带初速度弹簧（甩多快收多快）。 */
+  --ease-ios: cubic-bezier(.32, .72, 0, 1);
+  --dur-in: .42s;
+  --dur-out: .3s;
+  --dur-page: .32s;
 
   /* 间距 token：全站统一节奏（改间距只动这里）
      xs=元素内小距 / sm=同级项间距（列表、网格 gap）/ md=卡片间距 / lg=卡片内边距 */
@@ -573,7 +582,7 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
    记录列表（奶油药丸卡片 + 分色左边条 + 错落淡入）
    ============================================================ */
 .list { list-style: none; padding: 0; margin: 0; }.view-enter .list li,
-.view-enter .day-list li { animation: listIn .3s var(--ease) both; }.view-enter .list li:nth-child(1),
+.view-enter .day-list li { animation: listIn .3s var(--ease-ios) both; }.view-enter .list li:nth-child(1),
 .view-enter .day-list li:nth-child(1) { animation-delay: 0ms; }.view-enter .list li:nth-child(2),
 .view-enter .day-list li:nth-child(2) { animation-delay: 40ms; }.view-enter .list li:nth-child(3),
 .view-enter .day-list li:nth-child(3) { animation-delay: 80ms; }.view-enter .list li:nth-child(n+4),
@@ -1786,9 +1795,11 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
   /* 第 96 次（原生手感·方向性进场）：水平位移交给 --enter-x（showTab 按导航方向注入：
      前进从右 18px 滑入、返回从左 -18px、平级页签 0 纯上浮）。CSS 变量 Chrome 49+/
      iOS 9.3+/X5 内核全支持，动画仍只动 transform+opacity（合成器层，60fps）。 */
-  from { opacity: 0; transform: translate3d(var(--enter-x, 0px), 12px, 0); }
+  /* 第 292 次：上浮 12→8px、曲线换 --ease-ios、时长 .35→.32s、错落 35→28ms（最晚 100ms）：
+     进页时内容「到位」更快，不再一块块慢慢飘上来；页头插画 .5→.4s */
+  from { opacity: 0; transform: translate3d(var(--enter-x, 0px), 8px, 0); }
   to { opacity: 1; transform: none; }
-}.view-enter > * { animation: fadeUp .35s var(--ease) both; }.view-enter > *:nth-child(1) { animation-delay: 0ms; }.view-enter > *:nth-child(2) { animation-delay: 35ms; }.view-enter > *:nth-child(3) { animation-delay: 70ms; }.view-enter > *:nth-child(4) { animation-delay: 105ms; }.view-enter > *:nth-child(n+5) { animation-delay: 120ms; }.view-enter .hero { animation: fadeUp .5s var(--ease) both; }
+}.view-enter > * { animation: fadeUp var(--dur-page) var(--ease-ios) both; }.view-enter > *:nth-child(1) { animation-delay: 0ms; }.view-enter > *:nth-child(2) { animation-delay: 28ms; }.view-enter > *:nth-child(3) { animation-delay: 56ms; }.view-enter > *:nth-child(4) { animation-delay: 84ms; }.view-enter > *:nth-child(n+5) { animation-delay: 100ms; }.view-enter .hero { animation: fadeUp .4s var(--ease-ios) both; }
 
 /* ============================================================
    动效降级（覆盖全部动画/过渡）
@@ -3097,17 +3108,21 @@ body.dark .ob-card.active { border-color: var(--primary); }
   background: rgba(20, 16, 12, calc(.48 * var(--sheet-dim, 1)));
   /* 第 270 次（真机录屏：打开记录面板的前几帧，面板是半透明的，背后页面的字和面板里的字叠在一起）：
      原来淡入的是整个遮罩的 opacity，面板是遮罩的子元素，跟着一起半透明。改成只淡入遮罩的底色，面板一出来就是实的。 */
-  animation: sheetMaskIn .28s var(--ease) backwards;
+  animation: sheetMaskIn var(--dur-in) var(--ease-ios) backwards;
 }
 @keyframes sheetMaskIn { from { background-color: rgba(20, 16, 12, 0); } }
 .modal-mask.as-sheet.sheet-leaving { background: rgba(20, 16, 12, 0); transition: background .2s var(--ease); }
+/* 第 292 次：拖动 / 甩走途中遮罩深浅逐帧跟着面板位置（--sheet-dim），不走过渡、不重播淡入；甩走途中不接点击 */
+.modal-mask.as-sheet.sheet-dragging, .modal-mask.as-sheet.sheet-flinging { animation: none; transition: none; }
+.modal-mask.as-sheet.sheet-flinging { pointer-events: none; }
+.modal-mask.as-sheet.sheet-flinging.sheet-leaving { transition: none; }
 .modal-mask.as-sheet > .is-sheet {
   width: 100%; max-width: 640px; margin: 0 auto;
   max-height: calc(100vh - env(safe-area-inset-top) - 44px);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0; border-bottom: 0;
   padding: 0 20px calc(18px + env(safe-area-inset-bottom));
   box-shadow: 0 -10px 40px -12px rgba(30, 20, 10, .28);
-  animation: sheetIn .38s cubic-bezier(.32, .72, 0, 1) both;
+  animation: sheetIn var(--dur-in) var(--ease-ios) both;
   will-change: transform;
 }
 @keyframes sheetIn { from { transform: translate3d(0, 100%, 0); } to { transform: none; } }
@@ -3116,8 +3131,9 @@ body.dark .ob-card.active { border-color: var(--primary); }
 .modal-mask.as-sheet.kb-up > .is-sheet { max-height: calc(100vh - var(--kb, 0px) - env(safe-area-inset-top) - 44px); padding-bottom: 18px; }
 .modal-mask.as-sheet.kb-up > .is-sheet .rs-savebar { bottom: -18px; margin-bottom: -18px; padding-bottom: 12px; }
 /* 第 270 次：关面板的替身（sheet.js ghostOut）沿原路滑下、遮罩淡掉 */
-.modal-mask.as-sheet.sheet-ghost { pointer-events: none; animation: sheetMaskOut .26s var(--ease) forwards; }
-.modal-mask.as-sheet.sheet-ghost > .is-sheet { animation: sheetOut .28s cubic-bezier(.4, 0, .2, 1) forwards; }
+/* 第 292 次：收起改用同一条 iOS 曲线（起步就快——点 ✕ 的那一下立刻有反应，落到底前收尾变轻），.3s，比推入快 */
+.modal-mask.as-sheet.sheet-ghost { pointer-events: none; animation: sheetMaskOut var(--dur-out) var(--ease-ios) forwards; }
+.modal-mask.as-sheet.sheet-ghost > .is-sheet { animation: sheetOut var(--dur-out) var(--ease-ios) forwards; }
 @keyframes sheetMaskOut { to { background-color: rgba(20, 16, 12, 0); } }
 @keyframes sheetOut { from { transform: none; } to { transform: translate3d(0, 100%, 0); } }
 .sheet-grab {
@@ -5727,10 +5743,10 @@ body.has-cta .view { padding-bottom: calc(var(--cta-b) + var(--cta-h) + 20px); }
 body.has-cta.dock-left .view, body.has-cta.dock-right .view { padding-bottom: calc(var(--cta-b) + var(--cta-h) + 20px); }
 /* 入场动画：按钮所在的那个容器自己不动（transform 会让 fixed 改成相对它定位），改由它的子元素各自淡入上浮 */
 .view-enter > :has(.mod-cta) { animation: none; }
-.view-enter > :has(.mod-cta) > * { animation: fadeUp .35s var(--ease) both; }
-.view-enter > :has(.mod-cta) > :nth-child(2) { animation-delay: 35ms; }
-.view-enter > :has(.mod-cta) > :nth-child(3) { animation-delay: 70ms; }
-.view-enter > :has(.mod-cta) > :nth-child(n+4) { animation-delay: 105ms; }
+.view-enter > :has(.mod-cta) > * { animation: fadeUp var(--dur-page) var(--ease-ios) both; } /* 第 292 次：与整页入场同一节奏 */
+.view-enter > :has(.mod-cta) > :nth-child(2) { animation-delay: 28ms; }
+.view-enter > :has(.mod-cta) > :nth-child(3) { animation-delay: 56ms; }
+.view-enter > :has(.mod-cta) > :nth-child(n+4) { animation-delay: 84ms; }
 /* 按钮自己只淡入、不位移：进页那一下也不「动」 */
 #view.view-enter .mod-cta { animation: ctaIn .28s var(--ease) both; }
 @keyframes ctaIn { from { opacity: 0; } to { opacity: 1; } }
@@ -6344,6 +6360,8 @@ body #quickDock.qd-dragging .qd-actions { transition: none !important; }
 body.qd-drag .qd-mask { transition: none !important; }
 body #quickDock.open.qd-closing.qd-dragged .qd-actions { opacity: 0; transform: translateX(-50%) translateY(calc(var(--qd-dy, 0px) + 48px)); transition: opacity .18s var(--ease), transform .2s var(--ease); }
 #quickDock.qd-dragged .qd-action { animation: none !important; }
+/* 第 292 次：甩走途中（弹簧推到屏幕外）不接点击 */
+body #quickDock.qd-flinging .qd-actions { pointer-events: none; }
 /* 菜单在 ＋ 上不转成 ×（× 只属于快捷记录） */
 body.qm-open .tabbar .tab-plus .ico { transform: none; }
 body.qm-open .tabbar .tab-plus::before { opacity: 0; }

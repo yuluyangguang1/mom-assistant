@@ -1381,7 +1381,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v255（第 291 次升）', "var CACHE = 'baoma-static-v255';" in sw)
+    check('#275 SW 版本 v256（第 292 次升）', "var CACHE = 'baoma-static-v256';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -4866,9 +4866,143 @@ def test_r291b(b):
         ctx.close()
 
 
+R292_SH = """(()=>{const m=[...document.querySelectorAll('#modalRoot > .modal-mask:not(.sheet-ghost)')].pop();if(!m)return {open:false};const pn=m.querySelector('.is-sheet');
+ const tf=getComputedStyle(pn).transform;const ty=tf==='none'?0:new DOMMatrix(tf).m42;
+ return {open:true,cls:['sheet-dragging','sheet-flinging','sheet-leaving'].filter(c=>m.classList.contains(c)).join(','),ty:Math.round(ty),inl:pn.style.transform,
+  dim:m.style.getPropertyValue('--sheet-dim'),h:pn.offsetHeight,gtop:Math.round(pn.querySelector('.sheet-grab').getBoundingClientRect().top),st:pn.scrollTop}})()"""
+
+
+def test_r292(b):
+    """第 292 次：半屏面板 / ＋菜单面板的下拉关闭改成「被手推着走」——Motion 物理（速度采样、带初速度弹簧、橡皮筋、惯性判定）；
+    慢放弹回、快甩收走（收走逐帧推到底、遮罩跟着变淡、到底才关）、拖回来不卡半路、往上拖橡皮筋、横向先动不接管、
+    内容区滚回顶部继续下拉无缝接管、弹回途中按住接着拖、touchcancel 弹回；动效 token（--ease-ios / --dur-*）与面板推入 / 收起 / 页面入场时长。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(1000)
+    ev = p.evaluate
+    ev("(()=>{window.__rafOn=1;(function f(){if(window.__rafOn)requestAnimationFrame(f)})()})()")
+    # —— Motion 单元 ——
+    u = ev("""(async()=>{const M=window.Motion;const run=(o)=>new Promise(r=>{const t0=performance.now();let n=0,mx=-1e9,last=null;M.spring(Object.assign({},o,{onUpdate:v=>{n++;mx=Math.max(mx,v);last=v},onDone:()=>r({ms:Math.round(performance.now()-t0),n,mx:Math.round(mx),last})}))});
+      const slow=await run({from:0,to:300,velocity:0}), fast=await run({from:0,to:300,velocity:3});
+      const back=await run({from:200,to:0,velocity:-1});
+      const tr=M.tracker();tr.reset(0);
+      return {slow,fast,back,rb:[M.rubber(-50,300),M.rubber(-5000,300),M.rubber(80,300)].map(x=>+x.toFixed(1)),
+        d:[M.shouldDismiss(50,0,400),M.shouldDismiss(120,0,400),M.shouldDismiss(30,0.6,400),M.shouldDismiss(150,-0.4,400),M.shouldDismiss(60,0.3,400),M.shouldDismiss(60,1.2,400)]}})()""")
+    check('#292 Motion.spring：带初速度的临界阻尼弹簧必然落到终点、不过冲；甩得快（3px/ms）比静止起步更快到位', u['slow']['last'] == 300 and u['fast']['last'] == 300 and u['slow']['mx'] <= 300 and u['fast']['mx'] <= 301 and u['fast']['ms'] < u['slow']['ms'] and u['slow']['ms'] < 900 and u['back']['last'] == 0, u)
+    check('#292 Motion.rubber：往回拖越拖越重、永远到不了上限（-50→小于 50，-5000→小于 300）；Motion.shouldDismiss：1/4 高 / 下甩 0.5 / 往回甩一律弹回 / 轻推 0.3 不够', -50 < u['rb'][0] < -10 and -300 < u['rb'][1] < -200 and u['rb'][2] > 0 and u['d'] == [False, True, True, False, False, True], u)
+    # —— 半屏面板 ——
+    cdp = ctx.new_cdp_session(p)
+    def touch(pts, ms=16, end='end'):
+        cdp.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [{'x': pts[0][0], 'y': pts[0][1]}]})
+        for x, y in pts[1:]:
+            p.wait_for_timeout(ms); cdp.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': x, 'y': y}]})
+        if end == 'end': cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
+        elif end == 'cancel': cdp.send('Input.dispatchTouchEvent', {'type': 'touchCancel', 'touchPoints': []})
+    def line(x0, y0, x1, y1, n):
+        return [(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n) for i in range(n + 1)]
+    def open_sheet():
+        ev("App.showTab('diaper',{noVT:true})"); p.wait_for_timeout(300)
+        ev("document.querySelector('[data-new]').click()"); p.wait_for_timeout(600)
+        return ev(R292_SH)
+    s0 = open_sheet()
+    check('#292 打开记录面板：底部半屏、推入动画 0.42s（--ease-ios）、遮罩同节奏淡入', s0['open'] and ev("(()=>{const m=document.querySelector('#modalRoot .modal-mask.as-sheet');const pn=m.querySelector('.is-sheet');return [getComputedStyle(pn).animationName,getComputedStyle(pn).animationDuration,getComputedStyle(m).animationDuration,getComputedStyle(pn).animationTimingFunction]})()") == ['sheetIn', '0.42s', '0.42s', 'cubic-bezier(0.32, 0.72, 0, 1)'], s0)
+    gy = s0['gtop'] + 10
+    # 1. 慢慢拖 15% 停住再放：弹簧弹回，回到原位后清掉内联样式
+    touch(line(195, gy, 195, gy + int(s0['h'] * 0.15), 12), 30); p.wait_for_timeout(150)
+    mid = ev(R292_SH)
+    p.wait_for_timeout(700); s1 = ev(R292_SH)
+    check('#292 慢拖 15% 松手：不关，弹簧弹回原位（途中拖动态保持、遮罩跟着），落定后内联 transform / --sheet-dim / 状态类全清', s1['open'] and s1['ty'] == 0 and s1['inl'] == '' and s1['dim'] == '' and s1['cls'] == '', [mid, s1])
+    # 2. 拖下去 200 再拖回起点（不松手）：面板跟回 0，不卡在半路
+    touch(line(195, gy, 195, gy + 200, 10) + line(195, gy + 200, 195, gy, 10)[1:], 16, end='none'); p.wait_for_timeout(60)
+    s2 = ev(R292_SH)
+    cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []}); p.wait_for_timeout(600)
+    check('#292 拖下 200px 再拖回起点：面板跟回原位（以前停在 200 不动），松手不关', abs(s2['ty']) <= 2 and 'sheet-dragging' in s2['cls'] and ev(R292_SH)['open'], s2)
+    # 3. 横条往上拖：橡皮筋（越拖越重，最多 40% 高）
+    touch(line(195, gy, 195, gy - 300, 10), 16, end='none'); p.wait_for_timeout(60)
+    s3 = ev(R292_SH)
+    cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []}); p.wait_for_timeout(700)
+    check('#292 按横条往上拖 300px：面板只上去一小截（橡皮筋，< 40% 高且 < 300），松手弹回', -s3['h'] * 0.4 < s3['ty'] < -10 and -s3['ty'] < 150 and ev(R292_SH)['ty'] == 0, s3)
+    # 4. 横向先动：不接管
+    touch(line(120, gy + 60, 300, gy + 90, 10), 16, end='none'); p.wait_for_timeout(40)
+    s4 = ev(R292_SH)
+    cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []}); p.wait_for_timeout(300)
+    check('#292 横向先动的拖动不接管下拉（交给面板里的控件）', s4['ty'] == 0 and s4['cls'] == '', s4)
+    # 5. touchcancel：弹回
+    touch(line(195, gy, 195, gy + 140, 8), 16, end='cancel'); p.wait_for_timeout(700)
+    s5 = ev(R292_SH)
+    check('#292 拖到一半 touchcancel（系统手势吞掉松手）：立刻回原位（后台 rAF 不跑，不靠动画）、不关、状态类清掉', s5['open'] and s5['ty'] == 0 and s5['cls'] == '', s5)
+    # 6. 弹回途中按住：从当前位置接着拖（不跳回原位、不跳到手指下）
+    touch(line(195, gy, 195, gy + 160, 6), 40); p.wait_for_timeout(50)
+    a6 = ev(R292_SH)
+    cdp.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [{'x': 195, 'y': gy + 300}]}); p.wait_for_timeout(30)
+    b6 = ev(R292_SH)
+    cdp.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': 195, 'y': gy + 320}]}); p.wait_for_timeout(30)
+    c6 = ev(R292_SH)
+    cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []}); p.wait_for_timeout(800)
+    check('#292 弹回途中再按住：停在当前位置接着拖（按下不跳），往下 20px 面板跟着下 20px；松手后照常落定',
+          0 < a6['ty'] < 160 and abs(b6['ty'] - a6['ty']) < 40 and 'sheet-dragging' in b6['cls'] and 14 <= c6['ty'] - b6['ty'] <= 26 and ev(R292_SH)['ty'] in (0,) or not ev(R292_SH)['open'], [a6, b6, c6])
+    if not ev(R292_SH)['open']: s0 = open_sheet(); gy = s0['gtop'] + 10
+    # 7. 快甩 70px：收走——途中 sheet-flinging、不接点击、遮罩逐帧变淡、位移继续往下；到底才关
+    flick = lambda x, y0, y1: ev(TOUCH2_JS, [x, y0, x, y1, 1, 6, 10])  # 页内定时器发合成触摸：6 步 × 10ms（CDP 逐步发在无头下每步 50ms+，甩不起来）
+    flick(195, gy, gy + 70); p.wait_for_timeout(40)
+    f1 = ev(R292_SH)
+    pe = ev("(()=>{const m=document.querySelector('#modalRoot .modal-mask.as-sheet');return m?getComputedStyle(m).pointerEvents:''})()")
+    p.wait_for_timeout(700)
+    f2 = ev(R292_SH)
+    check('#292 快甩 70px（只有 1/10 高）也收走：途中 sheet-flinging（不接点击）、面板继续往下（> 70）、遮罩 --sheet-dim < 1；随后关掉、不放替身',
+          f1['open'] and 'sheet-flinging' in f1['cls'] and f1['ty'] > 70 and float(f1['dim'] or 1) < 1 and pe == 'none' and not f2['open'] and not ev("document.querySelector('.sheet-ghost')"), [f1, pe, f2])
+    # 8. 内容区先往上滚、滚回顶部继续往下拉：无缝转成拖面板（合成触摸，cancelable）
+    s0 = open_sheet()
+    h8 = ev("""(async()=>{const pn=document.querySelector('#modalRoot .is-sheet');pn.style.maxHeight='300px';pn.style.height='300px';await new Promise(r=>setTimeout(r,50));
+      pn.scrollTop=40;const r0=pn.getBoundingClientRect();const x=r0.left+r0.width/2,y=r0.top+150;const t=document.elementFromPoint(x,y);
+      const mk=(y)=>new Touch({identifier:7,target:t,clientX:x,clientY:y,pageX:x,pageY:y});
+      const fire=(ty,y)=>{const tt=ty==='touchend'?[]:[mk(y)];const e=new TouchEvent(ty,{bubbles:true,cancelable:true,touches:tt,targetTouches:tt,changedTouches:[mk(y)]});t.dispatchEvent(e);return e};
+      fire('touchstart',y);const out=[];
+      for(let i=1;i<=4;i++){fire('touchmove',y+i*10);pn.scrollTop=Math.max(0,40-i*10);await new Promise(r=>setTimeout(r,40))}
+      for(let i=5;i<=10;i++){fire('touchmove',y+i*10);await new Promise(r=>setTimeout(r,40))}
+      const tf=getComputedStyle(pn).transform;out.push(tf==='none'?0:Math.round(new DOMMatrix(tf).m42));
+      await new Promise(r=>setTimeout(r,150));fire('touchend',y+100);await new Promise(r=>setTimeout(r,700));const tf2=getComputedStyle(pn).transform;out.push(tf2==='none'?0:Math.round(new DOMMatrix(tf2).m42));out.push(!!document.querySelector('#modalRoot .modal-mask.as-sheet'));return out})()""")
+    check('#292 内容区先滚、滚回顶部后继续往下拉：在回到顶部那一刻接管，面板从 0 开始跟手（下移约等于顶部之后的手指位移 60px），松手弹回', 45 <= h8[0] <= 75 and h8[1] == 0 and h8[2], h8)
+    ev("document.querySelector('#modalRoot .modal-mask.as-sheet').dispatchEvent(new MouseEvent('click',{bubbles:true}))"); p.wait_for_timeout(500)
+    # 9. 点遮罩关：替身用 .3s iOS 曲线滑下
+    open_sheet()
+    ev("document.querySelector('#modalRoot .modal-mask.as-sheet').dispatchEvent(new MouseEvent('click',{bubbles:true}))"); p.wait_for_timeout(40)
+    g = ev("(()=>{const g=document.querySelector('.modal-mask.sheet-ghost');if(!g)return null;const pn=g.querySelector('.is-sheet');return [getComputedStyle(pn).animationName,getComputedStyle(pn).animationDuration,getComputedStyle(g).animationDuration,getComputedStyle(pn).animationTimingFunction]})()")
+    p.wait_for_timeout(500)
+    check('#292 点遮罩 / ✕ 关：替身沿原路滑下 0.3s（比推入 0.42s 快）、同一条 iOS 曲线，之后移除', g == ['sheetOut', '0.3s', '0.3s', 'cubic-bezier(0.32, 0.72, 0, 1)'] and not ev("document.querySelector('.sheet-ghost')"), g)
+    # —— ＋ 面板 ——
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(400)
+    QS = "(()=>{const r=document.getElementById('quickDock'),l=document.getElementById('qdActions'),m=document.getElementById('qdMask');const b=l.getBoundingClientRect();return {open:r.classList.contains('open'),cls:['qd-dragging','qd-flinging','qd-closing','qd-dragged'].filter(c=>r.classList.contains(c)).join(','),dy:l.style.getPropertyValue('--qd-dy'),op:m.style.opacity,top:Math.round(b.top),bot:Math.round(b.bottom),body:document.body.classList.contains('qd-open')}})()"
+    ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(600)
+    q0 = ev(QS); qy = q0['top'] + 12
+    touch(line(195, qy, 195, qy + 50, 10), 30); p.wait_for_timeout(40)
+    q1 = ev(QS); p.wait_for_timeout(700); q2 = ev(QS)
+    check('#292 ＋面板慢拖 50px 松手：弹簧弹回（途中保持拖动态、不走 CSS 过渡），落定 --qd-dy 0、遮罩复原、仍开着', q0['open'] and q2['open'] and q2['dy'] in ('0px', '') and q2['op'] == '' and q2['cls'] == '' and q2['top'] == q0['top'], [q0, q1, q2])
+    flick(195, qy, qy + 60); p.wait_for_timeout(40)
+    q3 = ev(QS); p.wait_for_timeout(800); q4 = ev(QS)
+    check('#292 ＋面板快甩 60px：一路推到屏幕外（qd-flinging，遮罩逐帧变淡），到底才收起，收起后无残留', 'qd-flinging' in q3['cls'] and float(q3['dy'][:-2] or 0) > 60 and float(q3['op'] or 1) < 1 and not q4['open'] and not q4['body'] and q4['dy'] == '' and q4['op'] == '' and q4['cls'] == '', [q3, q4])
+    # 菜单（宝宝圆钮）同一套
+    hs0 = ev("JSON.stringify(history.state)")
+    ev("App.openMenu()"); p.wait_for_timeout(700)
+    m0 = ev(QS); my = m0['top'] + 12
+    ev(TOUCH2_JS, [195, my, 195, my + 90, 1, 3, 10]); p.wait_for_timeout(1200)  # 菜单内容重（模糊 + 网格），无头下每帧慢：3 大步甩 90px（仍远不到 1/4 高）
+    m1 = ev(QS)
+    check('#292 菜单面板（宝宝圆钮）同一套：快甩收走、无残留、history 退回打开前', m0['open'] and not ev("App.menuOpen()") and m1['dy'] == '' and m1['cls'] == '' and not m1['body'] and ev("JSON.stringify(history.state)") == hs0, [m0, m1, hs0, ev("JSON.stringify(history.state)")])
+    # —— 页面入场 / token ——
+    ev("document.body.classList.remove('is-night');App.showTab('settings',{noVT:true})"); p.wait_for_timeout(30)
+    fe = ev("(()=>{document.body.classList.remove('is-night');const c=document.querySelector('#view.view-enter > *:nth-child(2)');const cs=getComputedStyle(document.documentElement);return [c?getComputedStyle(c).animationDuration:'',c?getComputedStyle(c).animationTimingFunction:'',c?getComputedStyle(c).animationDelay:'',cs.getPropertyValue('--ease-ios').trim(),cs.getPropertyValue('--dur-in').trim(),cs.getPropertyValue('--dur-out').trim(),cs.getPropertyValue('--dur-page').trim()]})()")
+    check('#292 页面入场：0.32s、--ease-ios、第二块错落 28ms；token --ease-ios / --dur-in .42s / --dur-out .3s / --dur-page .32s', fe[:3] == ['0.32s', 'cubic-bezier(0.32, 0.72, 0, 1)', '0.028s'] and fe[4:] == ['.42s', '.3s', '.32s'], fe)
+    # 减少动态：弹簧直接落定
+    rm = ev("(()=>{const o=window.matchMedia;window.matchMedia=q=>({matches:/reduce/.test(q),addListener(){},removeListener(){}});let got=[];const s=Motion.spring({from:0,to:100,velocity:2,onUpdate:v=>got.push(v),onDone:()=>got.push('done')});window.matchMedia=o;return got})()")
+    check('#292 减少动态效果：Motion.spring 同步落到终点（不播动画）', rm == [100, 'done'], rm)
+    check('#292 pageerror 为 0', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -4898,7 +5032,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r290',),
           ('test_r290b',),
           ('test_r291',),
-          ('test_r291b',))  # 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r291b',),
+          ('test_r292',))  # 第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 
