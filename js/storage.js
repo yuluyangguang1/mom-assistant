@@ -229,6 +229,7 @@
       openCare: null,
       contractions: [],
       openContraction: null,
+      ctSession: null, /* 第 296 次：沉浸式宫缩计时的一组 { id, start } */
       growth: [],
       diapers: [],
       meds: [],
@@ -566,6 +567,9 @@
       ? { start: String(raw.fetalSession.start).slice(0, 19) } : null;
     if (raw.openContraction && typeof raw.openContraction === 'object'
       && !isNaN(new Date(raw.openContraction.start).getTime())) base.openContraction = raw.openContraction;
+    base.ctSession = (raw.ctSession && typeof raw.ctSession === 'object' && raw.ctSession.id
+      && !isNaN(new Date(raw.ctSession.start).getTime()))
+      ? { id: String(raw.ctSession.id).slice(0, 40), start: String(raw.ctSession.start).slice(0, 19) } : null;
     /* 第 138 次：openCare 与 openSleep 同口径——kind 必须在白名单内、start 必须可解析。
        kind 是字符串而不是枚举数，落库前一律小写比对，防止导入脏值把标题渲染成乱码。 */
     if (raw.openCare && typeof raw.openCare === 'object'

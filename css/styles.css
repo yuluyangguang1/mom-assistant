@@ -6096,28 +6096,9 @@ body.dark .mod-stats p { background: rgba(255,255,255,.06); }
 .pd-endq { margin-top: 10px; }
 .pd-err { display: block; margin: 8px 2px 0; }
 .ct-kind { margin: 6px 0 2px; }
-/* 底部：两行（宫缩计时中「轻 / 中 / 强」+ 迷你计时条；胎动计数中 迷你计时条 + ＋1） */
-.mod-cta.cta-col { flex-direction: column; align-items: center; gap: 8px; }
-.mod-cta.cta-col > .mc-main, .mod-cta.cta-col > .ft-mini { width: min(100%, 420px); }
-.ct-int { pointer-events: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: min(100%, 420px); padding: 4px; box-sizing: border-box; border-radius: var(--radius-pill);
-  background: var(--surface); box-shadow: 0 10px 28px -14px rgba(51,48,43,.45), inset 0 0 0 1.5px var(--tile-weak); }
-.ct-int button { min-height: 44px; border: none; border-radius: var(--radius-pill); background: transparent; color: var(--text); font: inherit; font-size: calc(16px * var(--fs-mul, 1)); font-weight: 600; cursor: pointer; }
-.ct-int button.on { background: var(--tile); color: var(--tile-on, #fff); font-weight: 800; }
-.fe-row { gap: 10px; align-items: stretch; }
-.fe-row > .mc-main { flex: 1 1 auto; width: auto; min-width: 0; }
-.fe-start { pointer-events: auto; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 54px; padding: 0 16px; border: none; border-radius: var(--radius-pill);
-  background: var(--surface); color: var(--tile-text); font: inherit; font-size: calc(15px * var(--fs-mul, 1)); font-weight: 700; white-space: nowrap; cursor: pointer;
-  box-shadow: 0 10px 28px -14px rgba(51,48,43,.45), inset 0 0 0 1.5px var(--tile-weak); }
-.fe-start svg { width: 20px; height: 20px; flex-shrink: 0; }
-.fe-start:active { transform: scale(.97); }
-.fe-plus { font-size: calc(20px * var(--fs-mul, 1)); font-weight: 800; letter-spacing: -.5px; }
-.fe-add span { white-space: nowrap; }
-.fe-cta .ft-mini-open svg { width: 22px; height: 22px; flex-shrink: 0; }
-.fe-cta .ft-mini-side b { color: var(--tile-text); font-weight: 800; font-variant-numeric: tabular-nums; }
-/* 浅色：白字对宫缩色只有 4.2:1，按钮底走 --tile-fill（4.7:1）；深色维持深字 + 原模块色 */
-body:not(.dark) .ct-page .ft-split, body:not(.dark) .ct-int button.on { background: var(--tile-fill, var(--tile)); color: #fff; }
-body.dark .ct-int button.on, body.dark .fe-page .mc-main, body.dark .pd-page .mc-main { color: var(--tile-on); }
-@media (max-width: 360px) { .fe-start { padding: 0 12px; } .mod-note { padding: 11px 12px; } }
+body:not(.dark) .ct-page .ft-split { background: var(--tile-fill, var(--tile)); color: #fff; }
+body.dark .fe-page .mc-main, body.dark .pd-page .mc-main { color: var(--tile-on); }
+@media (max-width: 360px) { .mod-note { padding: 11px 12px; } }
 .ct-cf[hidden], .ct-lf[hidden] { display: none !important; }
 .ct-acts { flex-wrap: wrap; }
 /* 第 287 次：320 宽 + 1.33 倍字号时，日期 / 时间磁贴里的「06:35」「今天」不再顶出磁贴（全站面板共用） */
@@ -6125,11 +6106,10 @@ body.dark .ct-int button.on, body.dark .fe-page .mc-main, body.dark .pd-page .mc
 /* 窄屏：计时 / 计数条读数不折行、各块不重叠——收起图标、读数小一号；宫缩条的「宫缩中」与页头状态重复，收起；胎动只留「3 次」 */
 .ct-page .ft-mini-open b, .fe-page .ft-mini-open b { white-space: nowrap; }
 @media (max-width: 360px) {
-  .ct-page .ft-mini-open svg, .ct-page .ft-mini-open .ico, .fe-page .ft-mini-open svg, .ct-page .ft-mini-side, .fe-page .fe-k { display: none; }
+.ct-page .ft-mini-open svg, .ct-page .ft-mini-open .ico, .fe-page .ft-mini-open svg, .ct-page .ft-mini-side { display: none; }
   .ct-page .ft-mini-open b, .fe-page .ft-mini-open b { font-size: calc(18px * var(--fs-mul, 1)); }
   .ct-page .ft-mini-end, .fe-page .ft-mini-end { padding: 0 12px; }
 }
-.fe-k { font-style: normal; }
 
 /* ===================== 疫苗本（第 289 次，工具页第一个） =====================
    封面暖陶土色 + 布纹 + 缝线；翻开是全屏一剂一页（.vb-book，z 86：页面之上、面板 100 之下），只动 transform / opacity。 */
@@ -6552,3 +6532,38 @@ body.dark .su-art.su-ico[data-g="feed"] { color: #F2C282; } body.dark .su-art.su
 .pk-sheet .rs-save .ico { width: 20px; height: 20px; }
 /* 第 295 次：这些控件是 <label> 包着透明 select / input，去掉全局 label 的下边距（否则图标偏上、行高被撑开） */
 label.pk-more, label.su-ib, label.su-more, label.su-selv, label.su-big, label.su-search, label.su-prow, label.spw-pill { margin: 0; }
+
+/* ===================== 第 296 次：沉浸式宫缩计时 / 数胎动（对标 Cali：全屏场景 + 大读数 + 三格统计） ===================== */
+.ftf-ct { background: #1C1814; --imm: #F3A15E; --imm-on: #2B1A0C; }
+.ftf-fe { background: #141815; --imm: #6FD9A8; --imm-on: #0E2A1D; }
+.ftf-ct .ftf-bg { background: url(../assets/imm/contraction.webp) center top / 100% auto no-repeat; }
+.ftf-fe .ftf-bg { background: url(../assets/imm/fetal.webp) center top / 100% auto no-repeat; }
+.ftf-ct .ftf-bg::after { background: linear-gradient(180deg, rgba(28,24,20,0) 0%, rgba(28,24,20,0) 46%, rgba(28,24,20,.85) 60%, #1C1814 70%); }
+.ftf-fe .ftf-bg::after { background: linear-gradient(180deg, rgba(20,24,21,0) 0%, rgba(20,24,21,0) 46%, rgba(20,24,21,.85) 60%, #141815 70%); }
+.ftf-ct .ftf-ib, .ftf-fe .ftf-ib { background: rgba(40,36,32,.72); }
+.ftf-fe .ftf-ib { background: rgba(30,36,32,.72); }
+.ftf-ct .ftf-chip, .ftf-fe .ftf-chip { background: rgba(44,40,36,.88); color: #fff; font-size: 14px; font-weight: 700; }
+.ftf-fe .ftf-chip { background: rgba(32,40,35,.88); }
+.ftf-ct .ftf-chip > svg:first-child, .ftf-fe .ftf-chip > svg:first-child { width: 18px; height: 18px; color: var(--imm); }
+.ftf-ct .ftf-chip i, .ftf-fe .ftf-chip i { background: var(--imm); }
+.ftf-ct .ftf-chip i.is-off { background: #8A8580; animation: none; }
+.ftf-ct .ftf-big { font-size: clamp(64px, 21vw, 92px); }
+.ftf-ct .ftf-big.is-idle { color: rgba(255,255,255,.82); }
+.fe-big { margin: 0; display: inline-flex; align-items: baseline; gap: 10px; line-height: 1; }
+.fe-big b { font-size: clamp(76px, 24vw, 104px); font-weight: 800; }
+.fe-big small { font-size: 28px; font-weight: 600; color: rgba(255,255,255,.55); }
+.ftf-ct .ftf-st i, .ftf-fe .ftf-st i { color: rgba(255,255,255,.5); }
+.ftf-ct .ftf-st b, .ftf-fe .ftf-st b { font-size: 24px; }
+.ftf-note { margin: -4px 0 0; font-size: 13px; color: rgba(255,255,255,.6); text-align: center; }
+.ftf-note.ct-met { color: var(--imm); font-weight: 700; }
+.ftf-ct .ftf-main-btn, .ftf-fe .ftf-main-btn { background: var(--imm); color: var(--imm-on); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.ftf-ct .ftf-main-btn svg, .ftf-fe .ftf-main-btn svg { width: 22px; height: 22px; }
+.ftf-ct .ftf-rb, .ftf-fe .ftf-rb { background: rgba(48,44,40,.92); color: #fff; }
+.ftf-fe .ftf-rb { background: rgba(36,44,39,.92); }
+.ftf-rb .ico { width: 24px; height: 24px; }
+.ftf-ctl2 { grid-template-columns: 1fr 1.7fr; }
+.ftf-sec { min-height: 64px; border: none; border-radius: var(--radius-pill); background: rgba(52,48,44,.92); color: #fff; font: inherit; font-size: 18px; font-weight: 700; cursor: pointer; }
+.ftf-fe .ftf-sec { background: rgba(40,48,43,.92); }
+.ftf-ctl > span:empty { width: 64px; height: 64px; }
+.fe-open { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.fe-open svg { width: 20px; height: 20px; }

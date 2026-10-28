@@ -497,7 +497,7 @@
     return true;
   }
   function closeAllFullLayers() {
-    ['sleep', 'breast', 'pump'].forEach(function (k) { if (Modules[k] && Modules[k]._closeFull) { try { Modules[k]._closeFull(); } catch (e) {} } });
+    ['sleep', 'breast', 'pump', 'contraction', 'fetal'].forEach(function (k) { if (Modules[k] && Modules[k]._closeFull) { try { Modules[k]._closeFull(); } catch (e) {} } });
     Array.prototype.forEach.call(document.querySelectorAll('body > .ftf'), function (el) { el.parentNode.removeChild(el); });
     document.body.classList.remove('ftf-open');
     /* 白噪音播放页只活在白噪音页，离开时由它自己的 leave() 收起（第 271 次） */

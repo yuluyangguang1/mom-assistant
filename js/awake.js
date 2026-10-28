@@ -11,7 +11,7 @@
     try {
       var d = global.Storage && Storage.get();
       if (!d || (d.settings && d.settings.keepAwake === false)) return false;
-      return !!(d.openContraction || d.fetalSession || d.feedingTimer);
+      return !!(d.openContraction || d.ctSession || d.fetalSession || d.feedingTimer);
     } catch (e) { return false; }
   }
 

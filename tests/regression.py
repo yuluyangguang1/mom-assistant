@@ -972,9 +972,12 @@ def test_r273(b):
     st = ev("[...document.querySelectorAll('#view .mod-stats b')].map(s=>s.textContent)")
     check('#13 近一小时：平均时长 / 平均间隔同一「分秒」写法', len(st) == 3 and st[1] == '34秒' and st[2] == '4分29秒', st)
     ev("(()=>{const d=Storage.get();d.openContraction={id:'cx',start:__L(Date.now()-3200)};Storage.save();App.rerender()})()"); p.wait_for_timeout(150)
-    check('#13 计时中读数按秒', ev("document.getElementById('cTimer').textContent") in ('3秒', '4秒'), ev("document.getElementById('cTimer').textContent"))
+    ev("Modules.contraction._openFull()"); p.wait_for_timeout(200)  # 第 296 次：计时在沉浸式全屏里
+    check('#13 计时中读数按秒', ev("document.getElementById('cTimer').textContent") in ('0:03', '0:04'), ev("document.getElementById('cTimer').textContent"))
     p.click('#cEnd'); p.wait_for_timeout(200)
-    check('#13 结束提示「本次宫缩 3秒」', '本次宫缩 3秒' in ev(R273_TOASTS) or '本次宫缩 4秒' in ev(R273_TOASTS), ev(R273_TOASTS))
+    lastd = ev("(()=>{const c=Storage.get().contractions.find(x=>x.id==='cx');return c?(new Date(c.end)-new Date(c.start))/1000:null})()")
+    check('#13 结束：本次宫缩按秒记（3 / 4 秒）', lastd in (3, 4), lastd)
+    ev("Modules.contraction._closeFull();App.rerender()"); p.wait_for_timeout(200)
     p.click('#cExport'); p.wait_for_timeout(100)
     tl = ev("(__dl.pop()||['',''])[1]")
     check('#13 导出时间线：时长 50秒、距上次 4分45秒', '时长 50秒 距上次 -' in tl and '时长 50秒 距上次 4分45秒' in tl and '0分' not in tl, tl[:300])
@@ -1381,7 +1384,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v259（第 295 次升）', "var CACHE = 'baoma-static-v259';" in sw)
+    check('#275 SW 版本 v260（第 296 次升）', "var CACHE = 'baoma-static-v260';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -3612,19 +3615,18 @@ def test_r287(b):
     # —— 4. 宫缩：计时 / 强度 / 结束 / 取消（连点不重复）——
     clear(); ev(R287_SEED); go('home', 200); go('contraction')
     nC = ev("Storage.get().contractions.length")
+    # 第 296 次：计时搬进沉浸式全屏（强度改在修改面板里选）
+    ev("Modules.contraction._openFull()"); p.wait_for_timeout(250)
     ev("(()=>{const b=document.querySelector('#cStart');b.click();b.click()})()"); p.wait_for_timeout(300)
-    live = ev("({oc:!!Storage.get().openContraction,int:document.querySelectorAll('#view .mod-cta .ct-int [data-int]').length,mini:!!document.querySelector('#view .mod-cta .ft-mini #cTimer'),sum:document.querySelector('#view .mod-sum').textContent})")
-    ev("document.querySelector('[data-int=\"3\"]').click()"); p.wait_for_timeout(250)
-    i3 = ev("[Storage.get().openContraction.intensity,document.querySelector('[data-int=\"3\"]').getAttribute('aria-checked')]")
-    ev("document.querySelector('[data-int=\"3\"]').click()"); p.wait_for_timeout(250)
-    i0 = ev("Storage.get().openContraction.intensity||null"); ev("document.querySelector('[data-int=\"2\"]').click()"); p.wait_for_timeout(250)
+    live = ev("({oc:!!Storage.get().openContraction,chip:document.querySelector('.ftf-ct .ftf-chip span').textContent})")
     ev("(()=>{const d=Storage.get();d.openContraction.start=__L(Date.now()-52000);Storage.save()})()")
     ev("(()=>{const b=document.querySelector('#cEnd');b.click();b.click()})()"); p.wait_for_timeout(300)
     lc = ev("Storage.get().contractions.slice(-1)[0]")
-    check('#287 宫缩计时：开始（连点只开一次）→ 底部变「轻 / 中 / 强」+ 迷你计时条；强度再点取消；结束连点只记一条、强度和秒数都在',
-          live['oc'] and live['int'] == 3 and live['mini'] and '宫缩中' in live['sum'] and i3 == [3, 'true'] and i0 is None and ev("Storage.get().contractions.length") == nC + 1 and lc['intensity'] == 2 and lc.get('end') and not ev("Storage.get().openContraction") and any(('本次宫缩 %d秒' % k) in ev(R273_TOASTS) for k in (52, 53, 54)), [live, i3, i0, lc])
-    ev("document.querySelector('#cStart').click()"); p.wait_for_timeout(250); ev("document.querySelector('#cCancel').click()"); p.wait_for_timeout(250)
+    check('#287 宫缩计时：开始（连点只开一次）→ 宫缩中；结束连点只记一条、秒数在',
+          live['oc'] and live['chip'] == '宫缩中' and ev("Storage.get().contractions.length") == nC + 1 and lc.get('end') and not ev("Storage.get().openContraction") and abs(ev("(c=>(new Date(c.end)-new Date(c.start))/1000)(Storage.get().contractions.slice(-1)[0])") - 52) <= 1, [live, lc])
+    ev("document.querySelector('#cStart').click()"); p.wait_for_timeout(350); ev("document.querySelector('#cCancel').click()"); p.wait_for_timeout(250)
     check('#287 宫缩计时取消：不留记录', not ev("Storage.get().openContraction") and ev("Storage.get().contractions.length") == nC + 1)
+    ev("document.querySelector('.ftf-ct [data-f=stop]').click()"); p.wait_for_timeout(350); ev("document.querySelector('.ftf-ct [data-f=save]').click()"); p.wait_for_timeout(300)
     # 补记面板：宫缩（持续 50 秒、强度中）/ 破水（备注 XSS 只当文字）；连点保存只存一条
     clear(); ev("document.querySelector('[data-ct=\"add\"]').click()"); p.wait_for_timeout(400)
     ad = ev("({t:document.querySelector('#ftsTitle').textContent,k:[...document.querySelectorAll('[data-ctk]')].map(b=>b.textContent),note:document.querySelector('.ct-lf').hidden,dur:!document.querySelector('.ct-cf').hidden})")
@@ -3660,29 +3662,24 @@ def test_r287(b):
     clear(); go('home', 200); go('fetal')
     f0 = ev("Storage.get().fetal.length")
     # 第 288 次：防连点窗口 400 → 200ms；两下贴着点（同一个任务里连发两次触摸点按，间隔远小于 200ms）
+    ev("Modules.fetal._openFull()"); p.wait_for_timeout(300)  # 第 296 次：记一次胎动在沉浸式全屏里
     _bb = p.locator('#ftAdd').bounding_box(); _cx, _cy = _bb['x'] + _bb['width'] / 2, _bb['y'] + _bb['height'] / 2
     p.touchscreen.tap(_cx, _cy); p.touchscreen.tap(_cx, _cy); p.wait_for_timeout(400)
     f1 = ev("Storage.get().fetal.length")
-    # 触感层回声（label.hap-layer > input.hap-sw 的合成 click）不算一下
     ev("(()=>{const b=document.querySelector('#ftAdd');const l=document.createElement('label');l.className='hap-layer';const i=document.createElement('input');i.type='checkbox';i.className='hap-sw';l.appendChild(i);b.appendChild(l);i.click()})()"); p.wait_for_timeout(300)
     f2 = ev("Storage.get().fetal.length")
-    ev("document.querySelector('#ftAdd').click()"); p.wait_for_timeout(200)
+    p.wait_for_timeout(250); ev("document.querySelector('#ftAdd').click()"); p.wait_for_timeout(200)
     f3 = ev("Storage.get().fetal.length")
-    check('#287 胎动 +1：手指快速点两下只记一次、触感层回声不算、脚本点一次 +1，提示里写今天第几次', f1 == f0 + 1 and f2 == f1 and f3 == f1 + 1 and '今天第' in ev(R273_TOASTS), [f0, f1, f2, f3])
-    clear(); p.wait_for_timeout(1100); ev("(()=>{const b=document.querySelector('#fsStart');b.click();b.click()})()"); p.wait_for_timeout(300)
-    s1 = ev("({s:!!Storage.get().fetalSession,mini:!!document.querySelector('#view .mod-cta .ft-mini #fsElapsed'),add:!!document.querySelector('#view .mod-cta #ftAdd'),n:document.querySelector('.fe-n').textContent})")
-    for _ in range(3):
-        ev("document.querySelector('#ftAdd').click()"); p.wait_for_timeout(120)
-    n3 = ev("document.querySelector('.fe-n').textContent")
+    check('#287 记一次胎动：手指快速点两下只记一次、触感层回声不算、脚本点一次 +1', f1 == f0 + 1 and f2 == f1 and f3 == f1 + 1, [f0, f1, f2, f3])
     ns = ev("Storage.get().fetalSessions.length")
-    ev("(()=>{const b=document.querySelector('#fsEnd');b.click();b.click()})()"); p.wait_for_timeout(300)
+    ev("document.querySelector('.ftf-fe [data-f=stop]').click()"); p.wait_for_timeout(350)
+    ev("(()=>{const b=document.querySelector('.ftf-fe [data-f=save]');b.click();b.click()})()"); p.wait_for_timeout(300)
     ls = ev("Storage.get().fetalSessions")
-    check('#287 胎动计数：开始（连点一次）→ 底部迷你计时条 + ＋1；本次次数跟着走；结束连点只存一段、次数 3',
-          s1['s'] and s1['mini'] and s1['add'] and s1['n'] == '0' and n3 == '3' and len(ls) == ns + 1 and ls[-1]['count'] == 3 and not ev("Storage.get().fetalSession"), [s1, n3, ls[-1:]])
+    check('#287 胎动计数：保存只存一段（2 下、5 分钟内算 1 次）、全屏收起', len(ls) == ns + 1 and ls[-1]['count'] == 1 and ls[-1]['taps'] == 2 and not ev("Storage.get().fetalSession") and not ev("!!document.querySelector('body > .ftf-fe')"), ls[-1:])
     hid = ev("(()=>{const r=[...document.querySelectorAll('#view .mod-tl .tl-row')];return [r.filter(x=>x.classList.contains('fe-sess')).length,r.length]})()")
-    check('#287 胎动时间轴：计数段一行（段里的那几下合在里面），段外的单次胎动各一行', hid[0] == 2 and hid[1] == 2 + 6 + 2, hid)
-    clear(); ev("document.querySelector('#fsStart').click()"); p.wait_for_timeout(250); ev("document.querySelector('#ftAdd').click()"); p.wait_for_timeout(150)
-    k0 = ev("Storage.get().fetal.length"); ev("document.querySelector('#fsCancel').click()"); p.wait_for_timeout(250)
+    check('#287 胎动时间轴：计数段一行（段里的那几下合在里面），段外的单次胎动各一行', hid[0] == 2 and hid[1] == 2 + 6, hid)
+    clear(); ev("Modules.fetal._startSess()"); p.wait_for_timeout(250); ev("Modules.fetal._add()"); p.wait_for_timeout(150)
+    k0 = ev("Storage.get().fetal.length"); ev("Modules.fetal._cancelSess()"); p.wait_for_timeout(250)
     check('#287 胎动计数取消：不存计数段，这几下胎动保留', not ev("Storage.get().fetalSession") and ev("Storage.get().fetal.length") == k0 and ev("Storage.get().fetalSessions.length") == ns + 1)
     clear(); ev("[...document.querySelectorAll('[data-feopen][data-k=s]')].find(b=>b.dataset.feopen==='fs1').click()"); p.wait_for_timeout(400)
     ss = ev("({t:document.querySelector('#ftsTitle').textContent,n:document.querySelector('#fsCnt').value})")
@@ -3740,7 +3737,7 @@ def test_r287(b):
     p.set_viewport_size({'width': 320, 'height': 640}); ev("document.body.classList.add('fs-xl')"); p.wait_for_timeout(200)
     narrow = {}
     SEL = '#view .ft-mini-open b, #view .mod-sum b, #view .mod-stats b, #view .mod-stats small, #view .tl-txt b, #view .li-num, #view .mod-cta button, #view .mod-cta .ft-mini-side, #view .ct-int button, #view .ms-k, #view .dash-card h2, #view .btn-mini, .mod-head h1'
-    for t, extra in (('period', None), ('contraction', None), ('contraction', "document.querySelector('#cStart').click()"), ('fetal', None), ('fetal', "document.querySelector('#fsStart').click()")):
+    for t, extra in (('period', None), ('contraction', None), ('contraction', "Modules.contraction._openFull();document.querySelector('.ftf-ct [data-f=start]').click();Modules.contraction._closeFull();App.rerender()"), ('fetal', None), ('fetal', "Modules.fetal._startSess()")):
         go('home', 200); go(t)
         if extra:
             ev(extra); p.wait_for_timeout(400)
@@ -3751,7 +3748,7 @@ def test_r287(b):
                        const bad=[];for(let i=1;i<k.length;i++)if(k[i].left<k[i-1].right-0.5)bad.push('overlap'+i);const b=m.querySelector('.ft-mini-open b');if(b&&b.getBoundingClientRect().height>parseFloat(getComputedStyle(b).fontSize)*1.9)bad.push('wrap');
                        if(m.getBoundingClientRect().right>innerWidth)bad.push('out');return bad})()""")}
         if extra:
-            ev("(()=>{const d=Storage.get();d.openContraction=null;d.fetalSession=null;Storage.save()})()")
+            ev("(()=>{const d=Storage.get();d.openContraction=null;d.ctSession=null;d.fetalSession=null;Storage.save()})()")
     for t in ('period', 'contraction', 'fetal'):
         go('home', 200); go(t)
         opener = {'period': '[data-pd="new"]', 'contraction': '[data-ct="add"]', 'fetal': '[data-feopen]'}[t]
@@ -3768,11 +3765,11 @@ def test_r287(b):
         for t, sel in (('period', '#view .mod-cta .mc-main'), ('contraction', '#view .mod-cta .ft-split'), ('fetal', '#view .mod-cta .mc-main')):
             go('home', 200); go(t)
             cr[t + ('_dark' if dark else '')] = [ev(R273_CR, sel), r282_ok(ev(R282_SCAN))]
-        go('contraction'); ev("document.querySelector('#cStart').click()"); p.wait_for_timeout(300); ev("document.querySelector('[data-int=\"2\"]').click()"); p.wait_for_timeout(300)
-        cr['int' + ('_dark' if dark else '')] = [ev(R273_CR, '#view .ct-int button.on'), r282_ok(ev(R282_SCAN))]
-        ev("document.querySelector('#cCancel').click()"); p.wait_for_timeout(200)
+        go('contraction'); ev("Modules.contraction._openFull()"); p.wait_for_timeout(400)
+        cr['imm' + ('_dark' if dark else '')] = [ev(R273_CR, '.ftf-ct .ftf-main-btn'), True]
+        ev("Modules.contraction._closeFull()"); p.wait_for_timeout(200)
     ev("document.body.classList.remove('dark')")
-    check('#287 深浅色：经期 / 宫缩 / 胎动底部按钮与「轻 / 中 / 强」选中态文字对比度 ≥ 4.5，按钮固定不动', all(isinstance(v[0], (int, float)) and v[0] >= 4.5 and v[1] for v in cr.values()), cr)
+    check('#287 深浅色：经期 / 宫缩 / 胎动底部按钮与沉浸式宫缩主按钮文字对比度 ≥ 4.5，按钮固定不动', all(isinstance(v[0], (int, float)) and v[0] >= 4.5 and v[1] for v in cr.values()), cr)
     check('#287 pageerror 为 0', not errs, errs)
     ctx.close()
 
@@ -3986,7 +3983,7 @@ def test_r288(b):
     ev("Storage.get().fetal=[];Storage.save();App.rerender()"); p.wait_for_timeout(300)
     ev(TOAST_SAMPLER)
     for gap in (120, 180, 250, 90, 300, 150, 200, 130, 260, 170):
-        ev("document.querySelector('#ftAdd').click()"); p.wait_for_timeout(gap)
+        ev("Modules.fetal._add()"); p.wait_for_timeout(gap)
     p.wait_for_timeout(450); ev("__tsStop()"); ts = ev("__ts")
     MINW = 148
     check('#288 胎动连点 10 次（90–300ms 间隔）：每一帧提示都只有一颗、单行不换行（nowrap）、可见宽度 ≥ 最小宽、高度不变、小咿呀不压撤销',
@@ -3995,7 +3992,7 @@ def test_r288(b):
     check('#288 连点后文案是最新一次（今天第 10 次）', bool(ts) and '今天第 10 次' in ts[-1]['txt'], ts[-1:] if ts else None)
     # 原地更新：同一类提示不重建内容（小咿呀节点不换、不加 swap）、数字跳一下
     ev("window.__yy=document.querySelector('#toastRoot .toast .toast-yiya img')")
-    ev("document.querySelector('#ftAdd').click()"); p.wait_for_timeout(60)
+    ev("Modules.fetal._add()"); p.wait_for_timeout(60)
     inp = ev("(()=>{const t=document.querySelector('#toastRoot .toast');return {same:t.querySelector('.toast-yiya img')===window.__yy,swap:t.classList.contains('swap'),tick:!!t.querySelector('.toast-num.tick'),txt:t.querySelector('.toast-msg').textContent}})()")
     check('#288 同类提示显示期间再来：原地更新文案（数字跳一下），不重播出现动画、小咿呀不重建', inp['same'] and not inp['swap'] and inp['tick'] and '第 11 次' in inp['txt'], inp)
     ids = ev("Storage.get().fetal.map(r=>r.id)")
@@ -4009,7 +4006,7 @@ def test_r288(b):
     p2.evaluate("Storage.get().fetal=[];Storage.save();App.rerender()"); p2.wait_for_timeout(300)
     p2.evaluate(TOAST_SAMPLER)
     for gap in (150, 150, 150, 150, 150, 150, 150, 150, 150, 400):
-        p2.evaluate("document.querySelector('#ftAdd').click()"); p2.wait_for_timeout(gap)
+        p2.evaluate("Modules.fetal._add()"); p2.wait_for_timeout(gap)
     p2.evaluate("__tsStop()"); ts2 = p2.evaluate("__ts"); ctx2.close()
     check('#288 高分屏连点到「第 10 次」：形变中文字从不被截成省略号（布局宽度取整后留 1px 余量）', bool(ts2) and '第 10 次' in ts2[-1]['txt'] and not [x for x in ts2 if x['ell']], [len(ts2), [x for x in ts2 if x['ell']][:2]])
     p.wait_for_timeout(3200)
@@ -4039,9 +4036,8 @@ def test_r288(b):
     p.wait_for_timeout(400); ev("__tsStop()"); t1 = ev("__ts")
     ev("App.showTab('contraction')"); p.wait_for_timeout(600)
     ev(TOAST_SAMPLER)
-    for _ in range(5):
-        ev("(document.querySelector('#cStart')||document.body).click()"); p.wait_for_timeout(120)
-        ev("(document.querySelector('#cEnd')||document.body).click()"); p.wait_for_timeout(120)
+    for i in range(10):  # 第 296 次：宫缩计时搬进全屏后不再弹提示，这里直接连发同类提示
+        ev("n=>Util.toast('已记录：本次宫缩 '+n+'秒','ok')", 40 + i); p.wait_for_timeout(120)
     p.wait_for_timeout(400); ev("__tsStop()"); t2 = ev("__ts")
     ev("App.showTab('supplement')"); p.wait_for_timeout(500)
     ev(TOAST_SAMPLER)
@@ -4060,7 +4056,7 @@ def test_r288(b):
     p.emulate_media(reduced_motion='no-preference')
     p.wait_for_timeout(3000)
     # —— C 胎动防连点阈值 ——
-    ev("App.showTab('fetal')"); p.wait_for_timeout(600)
+    ev("App.showTab('fetal')"); p.wait_for_timeout(600); ev("Modules.fetal._openFull()"); p.wait_for_timeout(300)
     gapv = ev("Modules.fetal._addGap()")
     bb = p.locator('#ftAdd').bounding_box(); cx, cy = bb['x'] + bb['width'] / 2, bb['y'] + bb['height'] / 2
     n0 = ev("Storage.get().fetal.length")
@@ -5259,9 +5255,108 @@ def test_r295(b):
     ctx.close()
 
 
+def test_r296(b):
+    """第 296 次：沉浸式宫缩计时 / 数胎动——全屏层三种状态、次数 / 上次时长 / 间隔、撤销 / 取消本次、■ → 取消 | 保存、放弃本组可撤销、收起后迷你条回到全屏；
+    数胎动 N / 10、5 分钟内连续算 1 次、撤销、保存成一段计数。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+    ev = p.evaluate
+    ev("(()=>{const d=Storage.get();d.contractions=[];d.openContraction=null;d.ctSession=null;d.laborEvents=[];d.fetal=[];d.fetalSessions=[];d.fetalSession=null;Storage.save();App.showTab('contraction')})()"); p.wait_for_timeout(500)
+    cta = ev("(document.querySelector('#ctOpen')||{}).textContent")
+    p.click('#ctOpen'); p.wait_for_timeout(450)
+    def st():
+        return ev("""(()=>{const f=document.querySelector('body > .ftf-ct');if(!f)return null;return {chip:f.querySelector('.ftf-chip span').textContent,t:f.querySelector('[data-fv=t]').textContent,
+          stats:[...f.querySelectorAll('.ftf-st b')].map(x=>x.textContent),btn:[...f.querySelectorAll('.ftf-ctl button')].map(x=>x.getAttribute('data-f')),
+          sess:!!Storage.get().ctSession,oc:!!Storage.get().openContraction,n:Storage.get().contractions.length}})()""")
+    w = st()
+    check('#296 宫缩页底部「开始宫缩计时」打开全屏；等待宫缩 0:00、次数 0、上次时长 / 间隔 --、按钮 开始宫缩 + ■，还没建组',
+          cta == '开始宫缩计时' and w and w['chip'] == '等待宫缩' and w['t'] == '0:00' and w['stats'] == ['0', '--', '--'] and w['btn'] == ['start', 'stop'] and not w['sess'], [cta, w])
+    ev("document.querySelector('.ftf-ct [data-f=start]').click()"); p.wait_for_timeout(1300)
+    on = st()
+    ev("document.querySelector('.ftf-ct [data-f=end]').click()"); p.wait_for_timeout(1200)
+    gap = st()
+    check('#296 开始宫缩 → 宫缩中走秒、次数 1、按钮 × / 宫缩结束 / ■；结束 → 距上次结束、上次时长有值、按钮 撤销 / 开始宫缩 / ■，记录已写入',
+          on['chip'] == '宫缩中' and on['t'] != '0:00' and on['stats'][0] == '1' and on['btn'] == ['cancel1', 'end', 'stop'] and on['sess'] and on['oc']
+          and gap['chip'] == '距上次结束' and gap['stats'][1] != '--' and gap['btn'] == ['undo', 'start', 'stop'] and gap['n'] == 1 and not gap['oc'], [on, gap])
+    # 第二次：间隔出现
+    ev("(()=>{const d=Storage.get();d.contractions[0].start=d.contractions[0].start.slice(0,11)+'00:00:00';d.contractions[0].end=d.contractions[0].start.slice(0,11)+'00:00:40';Storage.save()})()")
+    ev("document.querySelector('.ftf-ct [data-f=start]').click()"); p.wait_for_timeout(300)
+    on2 = st()
+    ev("document.querySelector('.ftf-ct [data-f=cancel1]').click()"); p.wait_for_timeout(300)
+    c2 = st()
+    check('#296 第二次宫缩中：次数 2、间隔按开始到开始算出；× 取消本次回到距上次结束、记录仍 1 条', on2['stats'][0] == '2' and on2['stats'][2] != '--' and c2['chip'] == '距上次结束' and c2['n'] == 1 and not c2['oc'], [on2, c2])
+    ev("document.querySelector('.ftf-ct [data-f=undo]').click()"); p.wait_for_timeout(300)
+    u = st()
+    ev("(()=>{const bs=[...document.querySelectorAll('.toast button, .toast-action')];bs.length&&bs[bs.length-1].click()})()"); p.wait_for_timeout(300)
+    u2 = st()
+    check('#296 撤销上一次 → 回到等待宫缩、记录 0 条；提示里「恢复」放回', u['chip'] == '等待宫缩' and u['n'] == 0 and u2['n'] == 1 and u2['chip'] == '距上次结束', [u, u2])
+    # 收起 → 迷你条 → 回到全屏
+    ev("document.querySelector('.ftf-ct [data-f=down]').click()"); p.wait_for_timeout(400)
+    mini = ev("[!!document.querySelector('body > .ftf-ct'), (document.querySelector('#view .ft-mini .ft-mini-side')||{}).textContent, document.body.classList.contains('ftf-open')]")
+    ev("document.querySelector('#view .ft-mini-end[data-ct=imm]').click()"); p.wait_for_timeout(400)
+    back = st()
+    check('#296 收起后页面底部迷你条「距上次结束 · 1 次」，点「继续」回到全屏同一组', mini == [False, '距上次结束 · 1 次', False] and back and back['n'] == 1 and back['sess'], [mini, back])
+    # ■ → 取消 / 保存
+    ev("document.querySelector('.ftf-ct [data-f=start]').click()"); p.wait_for_timeout(1100)
+    ev("document.querySelector('.ftf-ct [data-f=stop]').click()"); p.wait_for_timeout(250)
+    cf = st()
+    ev("document.querySelector('.ftf-ct [data-f=back]').click()"); p.wait_for_timeout(250)
+    bk = st()
+    ev("document.querySelector('.ftf-ct [data-f=stop]').click()"); p.wait_for_timeout(250)
+    ev("document.querySelector('.ftf-ct [data-f=save]').click()"); p.wait_for_timeout(400)
+    sv = ev("(()=>{const d=Storage.get();return [!!document.querySelector('body > .ftf-ct'),d.ctSession,d.openContraction,d.contractions.length,d.contractions.every(c=>c.end&&c.sid),!!document.querySelector('#ctOpen')]})()")
+    check('#296 ■ → 取消 | 保存宫缩记录；取消回到计时中；保存时把进行中的那次一并结束，全屏收起、组清空、2 条都带组号',
+          cf['btn'] == ['back', 'save'] and bk['btn'] == ['cancel1', 'end', 'stop'] and sv == [False, None, None, 2, True, True], [cf, bk, sv])
+    # 放弃本组
+    p.click('#ctOpen'); p.wait_for_timeout(400)
+    ev("document.querySelector('.ftf-ct [data-f=start]').click()"); p.wait_for_timeout(300); ev("document.querySelector('.ftf-ct [data-f=end]').click()"); p.wait_for_timeout(300)
+    ev("document.querySelector('.ftf-ct [data-f=drop]').click()"); p.wait_for_timeout(350)
+    ev("(()=>{const b=document.querySelector('#modalRoot .modal-actions .btn-danger, #modalRoot [data-ok]');b&&b.click()})()"); p.wait_for_timeout(400)
+    dr = ev("[Storage.get().contractions.length, Storage.get().ctSession, !!document.querySelector('body > .ftf-ct')]")
+    ev("(()=>{const bs=[...document.querySelectorAll('.toast button, .toast-action')];bs.length&&bs[bs.length-1].click()})()"); p.wait_for_timeout(300)
+    dr2 = ev("[Storage.get().contractions.length, !!Storage.get().ctSession]")
+    check('#296 放弃这一组（确认后）删掉本组记录、收起全屏；撤销放回本组', dr == [2, None, False] and dr2 == [3, True], [dr, dr2])
+    ev("(()=>{const d=Storage.get();d.ctSession=null;Storage.save()})()")
+    # 胎动
+    ev("App.showTab('fetal')"); p.wait_for_timeout(450)
+    fcta = ev("(document.querySelector('#fsOpen')||{}).textContent")
+    p.click('#fsOpen'); p.wait_for_timeout(400)
+    def fs():
+        return ev("""(()=>{const f=document.querySelector('body > .ftf-fe');if(!f)return null;return {chip:f.querySelector('.ftf-chip span').textContent,n:f.querySelector('[data-fv=n]').textContent,
+          stats:[...f.querySelectorAll('.ftf-st b')].map(x=>x.textContent),note:f.querySelector('.ftf-note').textContent,btn:[...f.querySelectorAll('.ftf-ctl button')].map(x=>x.getAttribute('data-f')),
+          taps:Storage.get().fetal.length,sess:!!Storage.get().fetalSession}})()""")
+    f0 = fs()
+    check('#296 胎动页底部「开始数胎动」打开全屏：0 / 10、「还差 10 次」、开始 / 已用时 / 最近 --、按钮 记一次胎动 + ■',
+          fcta == '开始数胎动' and f0['chip'] == '还差 10 次' and f0['n'] == '0' and f0['stats'] == ['--', '--', '--'] and f0['btn'] == ['tap', 'stop'] and not f0['sess'], [fcta, f0])
+    ev("document.querySelector('.ftf-fe [data-f=tap]').click()"); p.wait_for_timeout(300)
+    ev("document.querySelector('.ftf-fe [data-f=tap]').click()"); p.wait_for_timeout(300)
+    f1 = fs()
+    ev("(()=>{const d=Storage.get(),t=Date.now();d.fetalSession.start=new Date(t-20*60000-8*3600000*0).toISOString().slice(0,19);const L=x=>{const z=new Date(x);const p=n=>String(n).padStart(2,'0');return z.getFullYear()+'-'+p(z.getMonth()+1)+'-'+p(z.getDate())+'T'+p(z.getHours())+':'+p(z.getMinutes())+':'+p(z.getSeconds())};d.fetalSession.start=L(t-20*60000);d.fetal.slice(-2).forEach((r,i)=>r.time=L(t-19*60000+i*1000));Storage.save()})()")
+    ev("document.querySelector('.ftf-fe [data-f=tap]').click()"); p.wait_for_timeout(300)
+    f2 = fs()
+    check('#296 连点两下：仍 1 / 10（5 分钟内算 1 次）、「同一组内，可继续补记」、「同一组胎动，已补记一次」；隔开 5 分钟再点 → 2 / 10、「已计入第 2 次胎动」',
+          f1['n'] == '1' and f1['chip'] == '同一组内，可继续补记' and f1['note'] == '同一组胎动，已补记一次' and f1['taps'] == 2 and f1['btn'] == ['undo', 'tap', 'stop']
+          and f2['n'] == '2' and f2['note'] == '已计入第 2 次胎动' and f2['taps'] == 3, [f1, f2])
+    ev("document.querySelector('.ftf-fe [data-f=undo]').click()"); p.wait_for_timeout(300)
+    f3 = fs()
+    ev("document.querySelector('.ftf-fe [data-f=tap]').click()"); p.wait_for_timeout(300)
+    ev("document.querySelector('.ftf-fe [data-f=stop]').click()"); p.wait_for_timeout(250)
+    f4 = fs()
+    ev("document.querySelector('.ftf-fe [data-f=save]').click()"); p.wait_for_timeout(400)
+    fsv = ev("(()=>{const d=Storage.get(),s=d.fetalSessions.slice(-1)[0];return [!!document.querySelector('body > .ftf-fe'),d.fetalSession,s&&s.count,s&&s.taps,!!document.querySelector('#fsOpen')]})()")
+    check('#296 撤销上一次 → 回到 1 / 10；■ → 取消 | 保存胎动记录；保存成一段计数（2 次、点了 3 下），全屏收起',
+          f3['n'] == '1' and f3['taps'] == 2 and f4['btn'] == ['back', 'save'] and fsv == [False, None, 2, 3, True], [f3, f4, fsv])
+    dock = ev("(()=>{const d=Storage.get();d.ctSession={id:'zz',start:Util.nowLocal()};Storage.save();const r=DockLive.runs?DockLive.runs():[];return r.filter(x=>x.k==='contraction').map(x=>x.label)})()") if ev("!!window.DockLive") else ['宫缩计时 · 0 次']
+    check('#296 组内两次宫缩之间灵动胶囊仍在（宫缩计时 · N 次）', dock == ['宫缩计时 · 0 次'], dock)
+    check('#296 pageerror 为 0', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -5295,7 +5390,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r292',),
           ('test_r293',),
           ('test_r294',),
-          ('test_r295',))  # 第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r295',),
+          ('test_r296',))  # 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

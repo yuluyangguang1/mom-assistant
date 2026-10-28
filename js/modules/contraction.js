@@ -8,6 +8,8 @@
  *   补记 / 修改 / 提示规则都在半屏面板里。
  * 数据形状不变：d.contractions = [{ id, start, end, intensity? }]、d.openContraction、d.laborEvents = [{ id, time, type, note }]、
  *   d.pregnancy.contractionRule = { iv, dur, span }。都是妈妈的记录（不在 BABY_KEYS），切换宝宝不影响。
+ * 第 296 次：计时搬进沉浸式全屏（夜景卧室）：等待宫缩 / 宫缩中 / 距上次结束，次数 · 上次时长 · 间隔，撤销 / 取消本次 / ■ 保存一组；
+ *   d.ctSession = { id, start }，组内宫缩带 sid。页面底部只剩「开始宫缩计时 | 补记」或迷你条（点按回到全屏）；强度只在修改面板里选。
  */
 (function (global) {
   'use strict';
@@ -37,9 +39,8 @@
   }
 
   function cTick() {
-    var oc = openC();
-    var el = document.getElementById('cTimer');
-    if (oc && el) el.textContent = Util.fmtSecDur(Date.now() - tms(oc.start)); /* 第 273 次：计时中也按秒走 */
+    var mini = document.querySelector('[data-ct-mini]'); /* 第 296 次：迷你条走秒（全屏里的读数由 tickImm 负责） */
+    if (mini && Storage.get()) mini.textContent = clk(immState(Storage.get()).t);
     var sn = document.querySelector('[data-ct-since]');
     if (sn) { var t0 = Number(sn.getAttribute('data-ct-since')); if (isFinite(t0)) sn.textContent = secTxt(Date.now() - t0); }
   }
@@ -82,29 +83,174 @@
   /* ---------- 计时：开始 / 强度 / 结束 / 取消（都按当前状态幂等，连点 / 回声不会多记） ---------- */
   function start(d) {
     if (d.openContraction) return;
-    d.openContraction = { id: Util.uid(), start: Util.nowLocal() };
-    Storage.save(); if (Util.haptic) Util.haptic('light'); global.App.rerender();
+    var now = Util.nowLocal();
+    if (!d.ctSession) d.ctSession = { id: Util.uid(), start: now };
+    d.openContraction = { id: Util.uid(), start: now, sid: d.ctSession.id };
+    Storage.save(); if (Util.haptic) Util.haptic('light'); rr();
   }
   function setInt(d, v) {
     if (!d.openContraction) return;
     var n = parseInt(v, 10);
     d.openContraction.intensity = d.openContraction.intensity === n ? null : n; /* 再点一次取消 */
     if (!d.openContraction.intensity) delete d.openContraction.intensity;
-    Storage.save(); global.App.rerender();
+    Storage.save(); rr();
   }
-  function finish(d) {
+  function finish(d, quiet) {
     var oc = d.openContraction;
     if (!oc) return;
     oc.end = Util.nowLocal();
     arr(d).push(oc);
     var durMs = tms(oc.end) - tms(oc.start);
     d.openContraction = null;
-    if (Storage.save()) Util.toast('已记录：本次宫缩 ' + secTxt(durMs), 'ok'); /* C1 */
-    global.App.rerender();
+    if (Storage.save() && !quiet && !immEl) Util.toast('已记录：本次宫缩 ' + secTxt(durMs), 'ok'); /* C1 */
+    rr();
   }
   function cancel(d) {
     if (!d.openContraction) return;
-    d.openContraction = null; Storage.save(); Util.toast('已取消本次计时', 'ok'); global.App.rerender();
+    d.openContraction = null; Storage.save(); if (!immEl) Util.toast('已取消本次计时', 'ok'); rr();
+  }
+  function rr() { if (immEl) paintImm(); if (global.App && App.currentTab && App.currentTab() === 'contraction') global.App.rerender(); }
+
+  /* ---------- 第 296 次：沉浸式宫缩计时（对标 Cali：夜景卧室全屏） ----------
+     一组 = d.ctSession { id, start }；组内每次宫缩带 sid。三种状态：等待宫缩（还没开始）/ 宫缩中（走秒）/ 距上次结束（走秒）。
+     次数 · 上次时长 · 间隔（开始到开始）；撤销上一次、取消本次、■ → 取消 | 保存宫缩记录；右上 放弃本组（可撤销）· 提示规则。
+     每次宫缩结束即写进 d.contractions（中途关 App 不丢），保存只是收尾这一组。 */
+  var immEl = null, immTick = null, immConfirm = false;
+  function members(d) {
+    var s = d.ctSession; if (!s) return [];
+    return (d.contractions || []).filter(function (c) { return c && c.sid === s.id && c.end && isFinite(tms(c.start)); })
+      .sort(function (a, b) { return tms(a.start) - tms(b.start); });
+  }
+  function clk(ms) {
+    var t = Math.floor(Math.max(0, ms || 0) / 1000), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), x = t % 60;
+    return (h ? h + ':' + p2(m) : String(m)) + ':' + p2(x);
+  }
+  function immState(d) {
+    var oc = d.openContraction, m = members(d), now = Date.now(), last = m[m.length - 1];
+    var st = { m: m, oc: oc, last: last };
+    if (oc) { st.k = 'on'; st.t = now - tms(oc.start); st.chip = '宫缩中'; }
+    else if (last) { st.k = 'gap'; st.t = now - tms(last.end); st.chip = '距上次结束'; }
+    else { st.k = 'wait'; st.t = 0; st.chip = '等待宫缩'; }
+    st.n = m.length + (oc ? 1 : 0);
+    st.dur = last ? tms(last.end) - tms(last.start) : null;
+    if (oc && last) st.iv = tms(oc.start) - tms(last.start);
+    else if (m.length > 1) st.iv = tms(last.start) - tms(m[m.length - 2].start);
+    else st.iv = null;
+    return st;
+  }
+  function openImm() {
+    if (!immEl) {
+      immEl = document.createElement('div');
+      immEl.className = 'ftf ftf-ct';
+      immEl.setAttribute('data-accent', 'contraction');
+      immEl.setAttribute('role', 'dialog');
+      immEl.setAttribute('aria-label', '宫缩计时');
+      document.body.appendChild(immEl);
+      document.body.classList.add('ftf-open');
+      immEl.addEventListener('click', onImmClick);
+    }
+    immConfirm = false;
+    paintImm();
+    if (!immTick) immTick = setInterval(tickImm, 500);
+  }
+  function closeImm() {
+    if (immTick) { clearInterval(immTick); immTick = null; }
+    if (immEl && immEl.parentNode) immEl.parentNode.removeChild(immEl);
+    immEl = null; immConfirm = false;
+    if (!document.querySelector('body > .ftf')) document.body.classList.remove('ftf-open');
+  }
+  var UNDO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4.5 9.5 9 5M5 9.5h9.5a5 5 0 0 1 0 10H11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var GEAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M6 18l1.6-1.6M16.4 7.6L18 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  var CTI = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 3.5a3 3 0 0 1 0 5M12 15.5a3 3 0 0 1 0 5M3.5 12a3 3 0 0 1 5 0M15.5 12a3 3 0 0 1 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  function paintImm() {
+    var d = Storage.get(); if (!immEl) return;
+    var SV = (global.FTUI && FTUI.SV) || {}, st = immState(d);
+    var rule = normRule(d.pregnancy && d.pregnancy.contractionRule), met = '';
+    if (rule && st.m.length >= 2) {
+      var ended = doneAsc(d).filter(function (c) { return c.end; });
+      if (ruleMet(ended, rule, Date.now())) met = '<p class="ftf-note ct-met">最近 ' + rule.span + ' 分钟已符合你填写的提示规则，请按医生交代的做。</p>';
+    }
+    var ctl;
+    if (immConfirm) {
+      ctl = '<div class="ftf-ctl ftf-ctl2"><button type="button" class="ftf-sec" data-f="back">取消</button>'
+        + '<button type="button" class="ftf-main-btn" data-f="save">' + (SV.stop || '') + '<span>保存宫缩记录</span></button></div>';
+    } else {
+      var left = st.k === 'on' ? '<button type="button" class="ftf-rb" id="cCancel" data-f="cancel1" aria-label="取消本次宫缩">' + icon('close') + '</button>'
+        : st.k === 'gap' ? '<button type="button" class="ftf-rb" data-f="undo" aria-label="撤销上一次宫缩">' + UNDO + '</button>' : '<span></span>';
+      var main = st.k === 'on' ? '<button type="button" class="ftf-main-btn" id="cEnd" data-f="end">宫缩结束</button>'
+        : '<button type="button" class="ftf-main-btn" id="cStart" data-f="start">开始宫缩</button>';
+      ctl = '<div class="ftf-ctl">' + left + main + '<button type="button" class="ftf-rb" data-f="stop" aria-label="结束这一组">' + (SV.stop || '') + '</button></div>';
+    }
+    immEl.classList.toggle('is-on', st.k === 'on');
+    immEl.innerHTML = '<div class="ftf-bg" aria-hidden="true"></div>'
+      + '<div class="ftf-top"><button type="button" class="ftf-ib" data-f="down" aria-label="收起">' + (SV.down || '') + '</button>'
+      + '<span class="ftf-tr">' + (st.n ? '<button type="button" class="ftf-ib ftf-del" data-f="drop" aria-label="放弃这一组">' + icon('trash') + '</button>' : '')
+      + '<button type="button" class="ftf-ib" data-f="rule" aria-label="提示规则">' + GEAR + '</button></span></div>'
+      + '<div class="ftf-main">'
+      + '<p class="ftf-chip">' + CTI + '<span>' + st.chip + '</span><i class="' + (st.k === 'wait' ? 'is-off' : '') + '"></i></p>'
+      + '<span class="ftf-big' + (st.k === 'wait' ? ' is-idle' : '') + '" id="cTimer" data-fv="t">' + clk(st.t) + '</span>'
+      + '<div class="ftf-stats">'
+      + '<div class="ftf-st"><i>' + CTI + '</i><b data-fv="n">' + st.n + '</b><span>次数</span></div>'
+      + '<div class="ftf-st"><i>' + (SV.clock || '') + '</i><b>' + (st.dur != null ? clk(st.dur) : '--') + '</b><span>上次时长</span></div>'
+      + '<div class="ftf-st"><i>' + (SV.swap || '') + '</i><b>' + (st.iv != null ? clk(st.iv) : '--') + '</b><span>间隔</span></div>'
+      + '</div>' + met + ctl + '</div>';
+  }
+  function tickImm() {
+    var d = Storage.get();
+    if (!immEl) return;
+    var st = immState(d), el = immEl.querySelector('[data-fv="t"]');
+    if (el && st.k !== 'wait') el.textContent = clk(st.t);
+  }
+  function undoLast(d) {
+    var m = members(d), last = m[m.length - 1]; if (!last) return;
+    var list = arr(d), i = list.indexOf(last);
+    if (i >= 0) list.splice(i, 1);
+    Storage.save(); rr();
+    Util.toast('已撤销上一次宫缩', 'ok', { label: '恢复', onClick: function () { var dd = Storage.get(); if (!arr(dd).some(function (x) { return x.id === last.id; })) { arr(dd).push(last); Storage.save(); rr(); } } });
+  }
+  function saveSession(d) {
+    if (d.openContraction) finish(d, true);
+    var n = members(d).length;
+    d.ctSession = null; Storage.save();
+    closeImm();
+    if (n) Util.toast('已保存 ' + n + ' 次宫缩', 'ok');
+    if (global.App) global.App.rerender();
+  }
+  function dropSession(d) {
+    Util.confirm({ title: '放弃这一组？', message: '这一组的宫缩记录都会删除，可以撤销。', okText: '放弃', danger: true, onConfirm: function () {
+      var dd = Storage.get(), s = dd.ctSession; if (!s) return;
+      var gone = arr(dd).filter(function (c) { return c && c.sid === s.id; }), oc = dd.openContraction;
+      dd.contractions = arr(dd).filter(function (c) { return !(c && c.sid === s.id); });
+      dd.openContraction = null; dd.ctSession = null; Storage.save();
+      closeImm(); if (global.App) global.App.rerender();
+      Util.toast('已放弃这一组', 'ok', { label: '撤销', onClick: function () {
+        var d3 = Storage.get(); if (d3.ctSession || d3.openContraction) return;
+        d3.ctSession = s; d3.openContraction = oc || null; d3.contractions = arr(d3).concat(gone); Storage.save(); if (global.App) global.App.rerender();
+      } });
+    } });
+  }
+  var immLock = 0;
+  function onImmClick(e) {
+    if (Util.hapEcho && Util.hapEcho(e)) return;
+    var b = e.target.closest ? e.target.closest('[data-f]') : null;
+    if (!b) return;
+    var k = b.getAttribute('data-f'), d = Storage.get();
+    if (k === 'down') { closeImm(); if (global.App) App.rerender(); return; }
+    if (e.isTrusted && Date.now() - immLock < 300) return;
+    immLock = Date.now();
+    if (k === 'start') { immConfirm = false; start(d); return; }
+    if (k === 'end') { finish(d); return; }
+    if (k === 'cancel1') { cancel(d); return; }
+    if (k === 'undo') { undoLast(d); return; }
+    if (k === 'stop') {
+      if (!d.ctSession && !d.openContraction) { closeImm(); if (global.App) App.rerender(); return; }
+      if (!members(d).length && !d.openContraction) { d.ctSession = null; Storage.save(); closeImm(); if (global.App) App.rerender(); return; }
+      immConfirm = true; paintImm(); return;
+    }
+    if (k === 'back') { immConfirm = false; paintImm(); return; }
+    if (k === 'save') { saveSession(d); return; }
+    if (k === 'drop') { dropSession(d); return; }
+    if (k === 'rule') { openRule(d); }
   }
 
   /* ---------- 半屏面板：补记 / 修改宫缩、破水、见红 ---------- */
@@ -324,7 +470,7 @@
 
       if (isEmpty) {
         html += '<div class="sk-empty"><img src="assets/hero/contraction.webp" alt="" width="220" height="220" decoding="sync">'
-          + '<p>宫缩开始时点按底部「开始」</p>'
+          + '<p>点按底部「开始宫缩计时」开始记录</p>'
           + '<p class="sk-empty-ref">仅供参考，一切以医生判断为准；出血、破水、剧烈腹痛或任何担心，请及时就医。</p></div>';
       } else {
         /* 1. 摘要：计时中 / 距上次开始（3 小时内实时走秒）/ 上次是多久前 */
@@ -397,20 +543,16 @@
         }
       }
 
-      /* 5. 底部：计时中 → 强度 + 迷你计时条；否则「▷ 开始宫缩 | ⊕ 补记」 */
-      if (oc) {
-        html += '<div class="mod-cta ft-cta cta-col"><div class="ct-int" role="radiogroup" aria-label="这次感觉">'
-          + ['1', '2', '3'].map(function (v) {
-            var on = String(oc.intensity) === v;
-            return '<button type="button" class="' + (on ? 'on' : '') + '" data-int="' + v + '" role="radio" aria-checked="' + on + '">' + INT[v] + '</button>';
-          }).join('') + '</div>'
-          + '<div class="ft-mini" data-accent="contraction"><span class="ft-mini-open">' + icon('contraction') + '<b id="cTimer">' + secTxt(nowMs - tms(oc.start)) + '</b></span>'
-          + '<span class="ft-mini-side">宫缩中</span>'
-          + '<button type="button" class="ft-mini-b" id="cCancel" aria-label="取消本次计时">' + icon('close') + '</button>'
-          + '<button type="button" class="ft-mini-end" id="cEnd">结束</button></div></div>';
+      /* 5. 底部：没有进行中的一组 →「▷ 开始宫缩计时 | ⊕ 补记」；有 → 迷你条（点按回到全屏） */
+      var sessOn = !!(d.ctSession || oc);
+      if (sessOn) {
+        var stM = immState(d);
+        html += '<div class="mod-cta ft-cta"><div class="ft-mini" data-accent="contraction"><button type="button" class="ft-mini-open" data-ct="imm" aria-label="回到宫缩计时">' + icon('contraction') + '<b data-ct-mini>' + clk(stM.t) + '</b></button>'
+          + '<span class="ft-mini-side">' + stM.chip + ' · ' + stM.n + ' 次</span>'
+          + '<button type="button" class="ft-mini-end" data-ct="imm">继续</button></div></div>';
       } else {
         html += '<div class="mod-cta ft-cta"><div class="ft-split" data-accent="contraction">'
-          + '<button type="button" class="ft-split-main" id="cStart">' + (SV.play || '') + '<span>开始宫缩</span></button>'
+          + '<button type="button" class="ft-split-main" id="ctOpen" data-ct="imm">' + (SV.play || '') + '<span>开始宫缩计时</span></button>'
           + '<button type="button" class="ft-split-add" data-ct="add" aria-label="补记宫缩、破水或见红">' + (SV.plusc || icon('plus')) + '</button></div></div>';
       }
 
@@ -423,16 +565,10 @@
         var b = e.target.closest ? e.target.closest('button') : null;
         if (!b || !page.contains(b)) return;
         var dd = Storage.get(), v;
-        if (b.id === 'cStart') { start(dd); return; }
-        if (b.id === 'cEnd') { finish(dd); return; }
-        if (b.id === 'cCancel') { cancel(dd); return; }
         if (b.id === 'cExport') { exportTimeline(dd, false); return; }
         if (b.id === 'cExportJson') { exportTimeline(dd, true); return; }
-        if ((v = b.getAttribute('data-int'))) {
-          if (e.isTrusted && Date.now() - lock < 300) return;
-          lock = Date.now(); setInt(dd, v); return;
-        }
         var a = b.getAttribute('data-ct');
+        if (a === 'imm') { openImm(); return; }
         if (a === 'add') { openSheet(dd, 'c', null); return; }
         if (a === 'rule') { openRule(dd); return; }
         if ((v = b.getAttribute('data-ctopen'))) {
@@ -453,7 +589,11 @@
     _remove: function (id) { remove(Storage.get(), 'c', id); },
     _removeLabor: function (id) { remove(Storage.get(), 'l', id); },
     _open: function (kind) { openSheet(Storage.get(), kind || 'c', null); },
-    _ruleMet: ruleMet
+    _ruleMet: ruleMet,
+    _openFull: openImm,
+    _imm: immState,
+    _closeFull: closeImm,
+    _setInt: function (v) { setInt(Storage.get(), v); }
   };
 
   setInterval(cTick, 1000);

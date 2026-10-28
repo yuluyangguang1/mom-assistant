@@ -83,13 +83,16 @@
       out.push({ k: 'bottle', go: 'bottle', ico: 'feeding', label: '瓶喂中',
         val: function () { var t = Storage.get().bottleTimer; return t ? clock(Date.now() - ms(t.start)) : ''; }, state: 'on', acts: [] });
     }
-    if (d.openContraction && d.openContraction.start) {
-      out.push({ k: 'contraction', go: 'contraction', ico: 'contraction', label: '宫缩中',
-        val: function () { var t = Storage.get().openContraction; return t ? clock(Date.now() - ms(t.start)) : ''; }, state: 'on', acts: [] });
+    if ((d.openContraction && d.openContraction.start) || (d.ctSession && d.ctSession.start)) {
+      /* 第 296 次：沉浸式宫缩计时——组内两次宫缩之间也留在胶囊里（读数是距上次结束） */
+      var cst = M.contraction && M.contraction._imm ? M.contraction._imm(d) : null;
+      out.push({ k: 'contraction', go: 'contraction', ico: 'contraction', label: d.openContraction ? '宫缩中' : '宫缩计时' + (cst ? ' · ' + cst.n + ' 次' : ''),
+        val: function () { var dd = Storage.get(), c = M.contraction && M.contraction._imm ? M.contraction._imm(dd) : null; return c ? clock(c.t) : (dd.openContraction ? clock(Date.now() - ms(dd.openContraction.start)) : ''); },
+        state: d.openContraction ? 'on' : 'paused', acts: [] });
     }
     if (d.fetalSession && d.fetalSession.start) {
       var fs = d.fetalSession;
-      var n = (d.fetal || []).filter(function (r) { return r.time >= fs.start; }).length;
+      var n = M.fetal && M.fetal._count ? M.fetal._count(d).n : (d.fetal || []).filter(function (r) { return r.time >= fs.start; }).length;
       out.push({ k: 'fetal', go: 'fetal', ico: 'fetal', label: '数胎动 · ' + n + ' 次',
         val: function () { var t = Storage.get().fetalSession; return t ? clock(Date.now() - ms(t.start)) : ''; }, state: 'on', acts: [] });
     }
@@ -136,6 +139,7 @@
     if (r.k === 'breast' && M.breast && M.breast._openFull) setTimeout(function () { M.breast._openFull(); }, 0);
     if (r.k === 'pump' && M.pump && M.pump._openFull) setTimeout(function () { M.pump._openFull(); }, 0);
     if (r.k === 'sleep' && M.sleep && M.sleep._openFull) setTimeout(function () { M.sleep._openFull(); }, 0);
+    if ((r.k === 'contraction' || r.k === 'fetal') && M[r.k] && M[r.k]._openFull) setTimeout(function () { M[r.k]._openFull(); }, 0);
   }
 
   function ensure() {

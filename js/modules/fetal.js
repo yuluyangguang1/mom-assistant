@@ -7,6 +7,8 @@
  *   → 底部固定：「开始计数 | ＋1 动了一下」；计数中变成迷你计时条（用时 · 本次几次 · × 取消 · 结束）+「＋1 动了一下」。
  * 数据形状不变：d.fetal = [{ id, time }]、d.fetalSession = { start } | null、d.fetalSessions = [{ id, start, end, count }]。
  *   都是妈妈的记录（不在 BABY_KEYS），切换宝宝不影响。
+ * 第 296 次：数胎动搬进沉浸式全屏（扶手椅）：N / 10，5 分钟内连续的胎动算 1 次，撤销 / ■ 保存成一段计数（count = 有效次数、taps = 点了几下）。
+ *   页面底部只剩「开始数胎动」或迷你条（点按回到全屏）。
  */
 (function (global) {
   'use strict';
@@ -55,14 +57,140 @@
     d.fetalSession = { start: Util.nowLocal() };
     Storage.save(); global.App.rerender();
   }
-  function endSess(d) {
+  function endSess(d, quiet) {
     var s0 = d.fetalSession; if (!s0) return;
-    var cnt = sessCount(d, s0), end = Util.nowLocal();
-    sessions(d).push({ id: Util.uid(), start: s0.start, end: end, count: cnt });
+    var c = count(d), end = Util.nowLocal();
+    if (c.raw) sessions(d).push({ id: Util.uid(), start: s0.start, end: end, count: c.n, taps: c.raw });
     d.fetalSession = null;
     Storage.save();
-    Util.toast('本次 ' + cnt + ' 次，用时 ' + Util.fmtDuration(tms(end) - tms(s0.start)), 'ok');
-    global.App.rerender();
+    if (!quiet) Util.toast('本次 ' + c.n + ' 次，用时 ' + Util.fmtDuration(tms(end) - tms(s0.start)), 'ok');
+    rr();
+  }
+  function rr() { if (immEl) paintImm(); if (global.App && App.currentTab && App.currentTab() === 'fetal') global.App.rerender(); }
+
+  /* ---------- 第 296 次：沉浸式数胎动（对标 Cali：扶手椅场景，N / 10） ----------
+     一组从第一次点「记一次胎动」开始（d.fetalSession.start）；5 分钟内连续的胎动算 1 次（同一组内可继续补记，不加次数）。
+     撤销上一次、■ → 取消 | 保存胎动记录；右上 放弃本次（连同这次点的胎动一起删，可撤销）。 */
+  var GOAL = 10, MERGE = 5 * 60000;
+  var immEl = null, immTick = null, immConfirm = false;
+  function sessTaps(d) {
+    var s0 = d.fetalSession; if (!s0) return [];
+    var a = tms(s0.start);
+    return (d.fetal || []).filter(function (r) { return r && tms(r.time) >= a; }).sort(function (x, y) { return tms(x.time) - tms(y.time); });
+  }
+  function count(d) {
+    var t = sessTaps(d), n = 0, g0 = NaN, merged = false;
+    t.forEach(function (r) { var x = tms(r.time); if (!(x - g0 < MERGE)) { n++; g0 = x; merged = false; } else merged = true; });
+    return { n: n, raw: t.length, g0: g0, merged: merged, last: t[t.length - 1] || null };
+  }
+  function clk(ms) {
+    var t = Math.floor(Math.max(0, ms || 0) / 1000), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), x = t % 60;
+    return (h ? h + ':' + p2(m) : String(m)) + ':' + p2(x);
+  }
+  function openImm() {
+    if (!immEl) {
+      immEl = document.createElement('div');
+      immEl.className = 'ftf ftf-fe';
+      immEl.setAttribute('data-accent', 'fetal');
+      immEl.setAttribute('role', 'dialog');
+      immEl.setAttribute('aria-label', '数胎动');
+      document.body.appendChild(immEl);
+      document.body.classList.add('ftf-open');
+      immEl.addEventListener('click', onImmClick);
+    }
+    immConfirm = false; paintImm();
+    if (!immTick) immTick = setInterval(tickImm, 500);
+  }
+  function closeImm() {
+    if (immTick) { clearInterval(immTick); immTick = null; }
+    if (immEl && immEl.parentNode) immEl.parentNode.removeChild(immEl);
+    immEl = null; immConfirm = false;
+    if (!document.querySelector('body > .ftf')) document.body.classList.remove('ftf-open');
+  }
+  var UNDO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4.5 9.5 9 5M5 9.5h9.5a5 5 0 0 1 0 10H11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var FOOT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 3.5c2.2 0 3.3 2.2 3.3 5.2 0 2.6-.8 4.6-.8 6.8 0 2.6-1.3 5-3.6 5S5 18.6 5 16.3c0-2.4 1-3.9 1.2-6.6C6.5 6.3 7.4 3.5 9.5 3.5z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="16" cy="5.5" r="1.4" fill="currentColor"/><circle cx="18.6" cy="8.6" r="1.2" fill="currentColor"/><circle cx="19.4" cy="12.2" r="1" fill="currentColor"/></svg>';
+  function chipOf(d, c) {
+    if (!c.raw) return '还差 ' + GOAL + ' 次';
+    if (Date.now() - c.g0 < MERGE) return '同一组内，可继续补记';
+    return c.n >= GOAL ? '已数满 ' + GOAL + ' 次' : '还差 ' + (GOAL - c.n) + ' 次';
+  }
+  function paintImm() {
+    var d = Storage.get(); if (!immEl) return;
+    var SV = (global.FTUI && FTUI.SV) || {}, s0 = d.fetalSession, c = count(d), now = Date.now();
+    var ctl;
+    if (immConfirm) {
+      ctl = '<div class="ftf-ctl ftf-ctl2"><button type="button" class="ftf-sec" data-f="back">取消</button>'
+        + '<button type="button" class="ftf-main-btn" data-f="save">' + (SV.stop || '') + '<span>保存胎动记录</span></button></div>';
+    } else {
+      ctl = '<div class="ftf-ctl">' + (c.raw ? '<button type="button" class="ftf-rb" data-f="undo" aria-label="撤销上一次">' + UNDO + '</button>' : '<span></span>')
+        + '<button type="button" class="ftf-main-btn" id="ftAdd" data-f="tap">记一次胎动</button>'
+        + '<button type="button" class="ftf-rb" data-f="stop" aria-label="结束这次计数">' + (SV.stop || '') + '</button></div>';
+    }
+    var note = c.raw ? (c.merged ? '同一组胎动，已补记一次' : '已计入第 ' + c.n + ' 次胎动') : '5 分钟内连续的胎动算 1 次';
+    immEl.innerHTML = '<div class="ftf-bg" aria-hidden="true"></div>'
+      + '<div class="ftf-top"><button type="button" class="ftf-ib" data-f="down" aria-label="收起">' + (SV.down || '') + '</button>'
+      + '<span class="ftf-tr">' + (c.raw ? '<button type="button" class="ftf-ib ftf-del" data-f="drop" aria-label="放弃这次计数">' + icon('trash') + '</button>' : '') + '</span></div>'
+      + '<div class="ftf-main">'
+      + '<p class="ftf-chip">' + FOOT + '<span data-fv="chip">' + chipOf(d, c) + '</span><i></i></p>'
+      + '<p class="ftf-big fe-big"><b data-fv="n">' + c.n + '</b><small>/ ' + GOAL + '</small></p>'
+      + '<div class="ftf-stats">'
+      + '<div class="ftf-st"><i>' + (SV.clock || '') + '</i><b>' + (s0 && c.raw ? hm(tms(s0.start)) : '--') + '</b><span>开始</span></div>'
+      + '<div class="ftf-st"><i>' + (SV.clock || '') + '</i><b data-fv="el">' + (s0 && c.raw ? clk(now - tms(s0.start)) : '--') + '</b><span>已用时</span></div>'
+      + '<div class="ftf-st"><i>' + FOOT + '</i><b>' + (c.last ? hm(tms(c.last.time)) : '--') + '</b><span>最近</span></div>'
+      + '</div><p class="ftf-note">' + note + '</p>' + ctl + '</div>';
+  }
+  function tickImm() {
+    var d = Storage.get(); if (!immEl || !d.fetalSession) return;
+    var c = count(d), el = immEl.querySelector('[data-fv="el"]'), ch = immEl.querySelector('[data-fv="chip"]');
+    if (el && c.raw) el.textContent = clk(Date.now() - tms(d.fetalSession.start));
+    if (ch) ch.textContent = chipOf(d, c);
+  }
+  var tapLock = 0;
+  function tapImm(d, trusted) {
+    if (trusted && Date.now() - tapLock < ADD_GAP) return;
+    tapLock = Date.now();
+    var now = Util.nowLocal();
+    if (!d.fetalSession || !sessTaps(d).length) d.fetalSession = { start: now };
+    taps(d).push({ id: Util.uid(), time: now });
+    var c = count(d);
+    if (Util.haptic) Util.haptic(c.merged ? 'light' : 'ok');
+    Storage.save(); immConfirm = false; rr();
+    if (!c.merged && c.n === GOAL) Util.toast('已数满 ' + GOAL + ' 次', 'ok');
+  }
+  function undoLast(d) {
+    var c = count(d), last = c.last; if (!last) return;
+    var list = taps(d), i = list.indexOf(last); if (i >= 0) list.splice(i, 1);
+    Storage.save(); rr();
+  }
+  function dropSess(d) {
+    Util.confirm({ title: '放弃这次计数？', message: '这次记下的胎动都会删除，可以撤销。', okText: '放弃', danger: true, onConfirm: function () {
+      var dd = Storage.get(), s0 = dd.fetalSession; if (!s0) return;
+      var gone = sessTaps(dd), ids = gone.map(function (r) { return r.id; });
+      dd.fetal = taps(dd).filter(function (r) { return ids.indexOf(r.id) < 0; });
+      dd.fetalSession = null; Storage.save(); closeImm(); if (global.App) global.App.rerender();
+      Util.toast('已放弃这次计数', 'ok', { label: '撤销', onClick: function () {
+        var d3 = Storage.get(); if (d3.fetalSession) return;
+        d3.fetalSession = s0; d3.fetal = taps(d3).concat(gone); Storage.save(); if (global.App) global.App.rerender();
+      } });
+    } });
+  }
+  var immLock = 0;
+  function onImmClick(e) {
+    if (Util.hapEcho && Util.hapEcho(e)) return;
+    var b = e.target.closest ? e.target.closest('[data-f]') : null; if (!b) return;
+    var k = b.getAttribute('data-f'), d = Storage.get();
+    if (k === 'tap') { tapImm(d, e.isTrusted); return; }
+    if (k === 'down') { closeImm(); if (global.App) App.rerender(); return; }
+    if (e.isTrusted && Date.now() - immLock < 300) return;
+    immLock = Date.now();
+    if (k === 'undo') { undoLast(d); return; }
+    if (k === 'stop') {
+      if (!d.fetalSession || !sessTaps(d).length) { d.fetalSession = null; Storage.save(); closeImm(); if (global.App) App.rerender(); return; }
+      immConfirm = true; paintImm(); return;
+    }
+    if (k === 'back') { immConfirm = false; paintImm(); return; }
+    if (k === 'save') { var n = count(d).n; endSess(d, true); closeImm(); Util.toast('已保存：' + n + ' 次胎动', 'ok'); if (global.App) App.rerender(); return; }
+    if (k === 'drop') dropSess(d);
   }
   function cancelSess(d) {
     if (!d.fetalSession) return;
@@ -162,7 +290,7 @@
 
       if (isEmpty) {
         html += '<div class="sk-empty"><img src="assets/hero/fetal.webp" alt="" width="220" height="220" decoding="sync">'
-          + '<p>感到胎动就点按底部「＋1」</p>'
+          + '<p>点按底部「开始数胎动」开始记录</p>'
           + '<p class="sk-empty-ref">怎么数、数多久，以产检医生教你的方法为准；胎动明显减少请立即就医。</p></div>';
       } else {
         var s = today.length
@@ -213,16 +341,14 @@
         }
       }
 
-      /* 底部：计数中 → 迷你计时条 + ＋1；否则「开始计数 | ＋1 动了一下」 */
-      var plus = '<button type="button" class="mc-main fe-add" id="ftAdd"><b class="fe-plus" aria-hidden="true">＋1</b><span>动了一下</span></button>';
+      /* 底部（第 296 次）：没在数 →「▷ 开始数胎动」打开全屏；在数 → 迷你条（点按回到全屏） */
       if (sess) {
-        html += '<div class="mod-cta ft-cta cta-col fe-cta">'
-          + '<div class="ft-mini" data-accent="fetal"><span class="ft-mini-open">' + (SV.clock || icon('fetal')) + '<b id="fsElapsed">' + Util.fmtClock(Date.now() - tms(sess.start)) + '</b></span>'
-          + '<span class="ft-mini-side"><i class="fe-k">本次 </i><b class="fe-n">' + sessCount(d, sess) + '</b> 次</span>'
-          + '<button type="button" class="ft-mini-b" id="fsCancel" aria-label="取消本次计数（胎动记录保留）">' + icon('close') + '</button>'
-          + '<button type="button" class="ft-mini-end" id="fsEnd">结束</button></div>' + plus + '</div>';
+        var cM = count(d);
+        html += '<div class="mod-cta ft-cta"><div class="ft-mini" data-accent="fetal"><button type="button" class="ft-mini-open" data-fe="imm" aria-label="回到数胎动">' + (SV.clock || icon('fetal')) + '<b id="fsElapsed">' + clk(Date.now() - tms(sess.start)) + '</b></button>'
+          + '<span class="ft-mini-side">数胎动 · <b class="fe-n">' + cM.n + '</b> / ' + GOAL + '</span>'
+          + '<button type="button" class="ft-mini-end" data-fe="imm">继续</button></div></div>';
       } else {
-        html += '<div class="mod-cta ft-cta fe-cta fe-row"><button type="button" class="fe-start" id="fsStart">' + (SV.clock || '') + '<span>开始计数</span></button>' + plus + '</div>';
+        html += '<div class="mod-cta ft-cta"><button type="button" class="mc-main fe-open" id="fsOpen" data-fe="imm">' + (SV.play || '') + '<span>开始数胎动</span></button></div>';
       }
 
       view.innerHTML = '<div class="ft-page skel-page fe-page" data-accent="fetal">' + html + '</div>';
@@ -233,10 +359,7 @@
         var b = e.target.closest ? e.target.closest('button') : null;
         if (!b || !page.contains(b)) return;
         var dd = Storage.get(), v;
-        if (b.id === 'ftAdd') { add(dd, e.isTrusted); return; }
-        if (b.id === 'fsStart') { startSess(dd); return; }
-        if (b.id === 'fsEnd') { endSess(dd); return; }
-        if (b.id === 'fsCancel') { cancelSess(dd); return; }
+        if (b.getAttribute('data-fe') === 'imm') { openImm(); return; }
         if ((v = b.getAttribute('data-feopen'))) {
           var k = b.getAttribute('data-k');
           var rec = (k === 's' ? sessions(dd) : taps(dd)).filter(function (x) { return x && String(x.id) === v; })[0];
@@ -253,7 +376,7 @@
       if (fsEl && d.fetalSession) {
         var fsTick = setInterval(function () {
           if (!view.contains(fsEl) || !Storage.get().fetalSession) { clearInterval(fsTick); return; }
-          fsEl.textContent = Util.fmtClock(Date.now() - tms(Storage.get().fetalSession.start));
+          fsEl.textContent = clk(Date.now() - tms(Storage.get().fetalSession.start));
         }, 1000);
       }
     },
@@ -262,6 +385,12 @@
     _remove: function (id) { removeTap(Storage.get(), id); },
     _editSession: function (rec) { openSess(Storage.get(), rec); },
     _add: function () { add(Storage.get(), false); },
-    _addGap: function () { return ADD_GAP; }
+    _addGap: function () { return ADD_GAP; },
+    _openFull: openImm,
+    _closeFull: closeImm,
+    _count: count,
+    _startSess: function () { startSess(Storage.get()); },
+    _endSess: function () { endSess(Storage.get()); },
+    _cancelSess: function () { cancelSess(Storage.get()); }
   };
 })(window);
