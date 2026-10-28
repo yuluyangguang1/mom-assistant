@@ -872,8 +872,9 @@ def test_r272(b):
     # —— #6 提示在主按钮 / 保存条之上 ——
     go('water'); p.click('[data-new]'); p.wait_for_timeout(400)
     ev("document.querySelectorAll('#modalRoot [data-q]')[1].click()"); p.click('#modalRoot .rs-savebar .rs-save'); p.wait_for_timeout(450)
-    ov = ev("(()=>{const t=document.querySelector('#toastRoot .toast:not(.leaving)'),m=document.querySelector('.mod-cta > *');const a=t.getBoundingClientRect(),q=m.getBoundingClientRect();return [Math.round(a.bottom),Math.round(q.top)]})()")
-    check('#6 保存后的提示在「+ 记录」主按钮上面', ov[0] <= ov[1], ov)
+    ov = ev("(()=>{const t=document.querySelector('#toastRoot .toast:not(.leaving)'),m=document.querySelector('.mod-cta > *');const a=t.getBoundingClientRect(),q=m.getBoundingClientRect();return [Math.round(a.top),Math.round(a.bottom),Math.round(q.top),Math.round(q.bottom),t.classList.contains('toast-dock')]})()")
+    # 第 302 次：带撤销的提示从 dock 长出来（在主按钮下面、dock 的位置）——验收改为「不压住主按钮」
+    check('#6 保存后的提示不压住「+ 记录」主按钮（撤销卡从 dock 长出）', (ov[1] <= ov[2] or ov[0] >= ov[3] - 1) and ov[4], ov)
     p.click('[data-open]'); p.wait_for_timeout(600)
     ov2 = ev("(()=>{const t=document.querySelector('#toastRoot .toast:not(.leaving)'),s=[...document.querySelectorAll('#modalRoot .rs-save')].pop();const a=t.getBoundingClientRect(),q=s.getBoundingClientRect();return [Math.round(a.bottom),Math.round(q.top)]})()")
     check('#6 随后打开编辑面板，提示在「保存修改」上面', ov2[0] <= ov2[1], ov2)
@@ -1393,7 +1394,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v265（第 301 次升）', "var CACHE = 'baoma-static-v265';" in sw)
+    check('#275 SW 版本 v266（第 302 次升）', "var CACHE = 'baoma-static-v266';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求；第 300 次多一张浅色字图），整页 HTML < 60KB',
@@ -1870,7 +1871,7 @@ def test_r277(b):
     ev("Util.toast('已记录：换尿布 · 嘘嘘','ok')"); p.wait_for_timeout(700)
     t1 = ev(f"""(()=>{{const t={TOAST_EL};const r=t.getBoundingClientRect();const im=t.querySelector('.toast-yiya img');return {{top:r.top,bottom:r.bottom,h:r.height,kind:t.dataset.kind,accent:t.dataset.accent,role:t.getAttribute('role'),live:t.getAttribute('aria-live'),atomic:t.getAttribute('aria-atomic'),img:im&&im.getAttribute('src'),loaded:im&&im.naturalWidth>0,badge:!!t.querySelector('.ty-badge svg'),surf:DockRefract._stats().surfaces.map(s=>s.id+':'+s.on)}}}})()""")
     check('#277 提示岛在顶部状态栏下方（不再压住底部操作），单行高 ≤ 52', t1['top'] < 30 and t1['h'] <= 52, t1)
-    check('#277 左侧小咿呀头像（assets/yiya.webp 已载入）+ 类型徽章；首页「换尿布」按文案归到尿布类', t1['img'] == 'assets/yiya.webp' and t1['loaded'] and t1['badge'] and t1['kind'] == 'diaper' and t1['accent'] == 'diaper', t1)
+    check('#277 左侧小咿呀头像（第 302 次：尿布类换「调皮」表情 assets/yiya/cheeky.webp，已载入）+ 类型徽章；首页「换尿布」按文案归到尿布类', t1['img'] == 'assets/yiya/cheeky.webp' and t1['loaded'] and t1['badge'] and t1['kind'] == 'diaper' and t1['accent'] == 'diaper', t1)
     check('#277 读屏：role=status + aria-live=polite + aria-atomic', [t1['role'], t1['live'], t1['atomic']] == ['status', 'polite', 'true'], t1)
     check('#277 提示岛接进同一套折射（toast 玻璃面，在首页上真画了）', 'toast:true' in t1['surf'] and ev("DockRefract._stats().ctxCreated") == 1, t1['surf'])
     tc = ev("document.querySelector('meta[name=theme-color]').content")
@@ -1894,7 +1895,7 @@ def test_r277(b):
     ev("window.__u=0;Util.toast('已记录亲喂 12 分钟','ok',{label:'撤销',onClick(){window.__u++}})"); p.wait_for_timeout(650)
     hit = ev("(()=>{const a=document.querySelector('#toastRoot .toast-action');const r=a.getBoundingClientRect();return document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)===a})()")
     one = ev(f"{TOAST_EL}.getBoundingClientRect().height")
-    check('#277 撤销按钮在最上层可点；「已记录亲喂 12 分钟　撤销」单行', hit and one <= 52, [hit, one])
+    check('#277 撤销按钮在最上层可点；（第 302 次：撤销卡从 dock 长出，高 ≤ 76）', hit and one <= 76 and ev("document.querySelector('#toastRoot .toast').classList.contains('toast-dock')"), [hit, one])
     p.click('#toastRoot .toast-action'); p.wait_for_timeout(350)
     check('#277 点撤销：回调执行一次、提示岛收起', ev("window.__u") == 1 and not ev(f"!!{TOAST_EL}"))
     ev("Util.toast('已记录：喂奶','ok')"); p.wait_for_timeout(650)
@@ -1955,7 +1956,7 @@ def test_r277(b):
     q.evaluate("App.showTab('feeding',{noVT:true})"); q.wait_for_timeout(400)
     q.evaluate("Util.toast('已记录亲喂 12 分钟','ok',{label:'撤销',onClick(){}})"); q.wait_for_timeout(400)
     lh = q.evaluate(f"(()=>{{const r={TOAST_EL}.getBoundingClientRect();return [Math.round(r.height),Math.round(r.left),Math.round(r.right),document.body.classList.contains('dock-left')]}})()")
-    check('#277 左手竖排 360 宽：「已记录亲喂 12 分钟　撤销」单行、不出屏（原来收窄后折成两行）', lh[0] <= 52 and lh[1] >= 8 and lh[2] <= 352 and lh[3], lh)
+    check('#277 左手竖排 360 宽：「已记录亲喂 12 分钟　撤销」单行、不出屏（原来收窄后折成两行）', lh[0] <= 76 and lh[1] >= 8 and lh[2] <= 352 and lh[3], lh)
     check('#277 减少动态 / 左手无报错', not errs2, errs2)
     ctx.close()
 
@@ -3800,7 +3801,7 @@ TOAST_SAMPLER = r"""()=>{window.__ts=[];let on=true;window.__tsStop=()=>{on=fals
  if(t){const m=t.querySelector('.toast-msg');const lh=parseFloat(getComputedStyle(m).lineHeight)||19;const vis=t.hasAttribute('data-vis-w')?+t.getAttribute('data-vis-w'):t.offsetWidth;
   const y=t.querySelector('.toast-yiya'),act=t.querySelector('.toast-action');let ov=false;if(y&&act){const a=y.getBoundingClientRect(),b=act.getBoundingClientRect();ov=a.right>b.left+1}
   const rg=document.createRange();rg.selectNodeContents(m);const mcs=getComputedStyle(m);const TM=getComputedStyle(t).transform,DM=TM==='none'?null:new DOMMatrix(TM);const scaled=!!DM&&(Math.abs(DM.a-1)>1e-3||Math.abs(DM.d-1)>1e-3);const ell=!scaled&&rg.getBoundingClientRect().width+parseFloat(mcs.paddingLeft)+parseFloat(mcs.paddingRight)>m.getBoundingClientRect().width+0.02;
-  __ts.push({n:els.length,w:t.offsetWidth,vis:Math.round(vis),h:t.offsetHeight,lines:Math.round(m.scrollHeight/lh),ws:getComputedStyle(m).whiteSpace,ov:ov,ell:ell,txt:m.textContent})}
+  __ts.push({dock:t.classList.contains('toast-dock'),n:els.length,w:t.offsetWidth,vis:Math.round(vis),h:t.offsetHeight,lines:Math.round(m.scrollHeight/lh),ws:getComputedStyle(m).whiteSpace,ov:ov,ell:ell,txt:m.textContent})}
  if(on)requestAnimationFrame(f)};requestAnimationFrame(f)}"""
 
 
@@ -3995,7 +3996,8 @@ def test_r288(b):
     p.wait_for_timeout(450); ev("__tsStop()"); ts = ev("__ts")
     MINW = 148
     check('#288 胎动连点 10 次（90–300ms 间隔）：每一帧提示都只有一颗、单行不换行（nowrap）、可见宽度 ≥ 最小宽、高度不变、小咿呀不压撤销',
-          ts and all(x['n'] == 1 and x['lines'] == 1 and x['ws'] == 'nowrap' and x['vis'] >= MINW and x['h'] <= 52 and not x['ov'] for x in ts),
+          # 第 302 次：带撤销的提示从 dock 长出来（dock 卡片，宽度固定、文字可两行、高 ≤ 76），顶部岛仍单行 ≤ 52
+          ts and all(x['n'] == 1 and not x['ov'] and x['vis'] >= MINW and ((x['dock'] and x['lines'] <= 2 and x['h'] <= 76 and not x['ell']) or (not x['dock'] and x['lines'] == 1 and x['ws'] == 'nowrap' and x['h'] <= 52)) for x in ts) and len(set(x['h'] for x in ts if x['dock'])) <= 1,
           [len(ts), min([x['vis'] for x in ts] or [0]), max([x['lines'] for x in ts] or [0]), [x for x in ts if x['vis'] < MINW or x['lines'] > 1][:2]])
     check('#288 连点后文案是最新一次（今天第 10 次）', bool(ts) and '今天第 10 次' in ts[-1]['txt'], ts[-1:] if ts else None)
     # 原地更新：同一类提示不重建内容（小咿呀节点不换、不加 swap）、数字跳一下
@@ -4027,7 +4029,7 @@ def test_r288(b):
     ev("__tsStop()"); ts = ev("__ts")
     rw = ev("(()=>{const r=document.getElementById('toastRoot');return Math.round(parseFloat(getComputedStyle(r).maxWidth)||420)})()")
     check('#288 不同类提示在出现 / 形变途中接连顶替（含超长文案）：每帧单行、宽度在 [最小宽, 屏宽上限] 内，不塌成竖条',
-          ts and all(x['lines'] == 1 and MINW <= x['vis'] <= min(rw, 390) + 1 and x['n'] == 1 for x in ts), [len(ts), min([x['vis'] for x in ts] or [0]), max([x['vis'] for x in ts] or [0]), [x for x in ts if x['lines'] > 1 or x['vis'] < MINW][:2]])
+          ts and all((x['lines'] <= 2 and not x['ell'] if x.get('dock') else x['lines'] == 1) and MINW <= x['vis'] <= min(rw, 390) + 1 and x['n'] == 1 for x in ts), [len(ts), min([x['vis'] for x in ts] or [0]), max([x['vis'] for x in ts] or [0]), [x for x in ts if x['lines'] > 1 or x['vis'] < MINW][:2]])
     ev("Util.toast('这是一条特别特别长的提示文字，用来确认放不下时只显示一行并以省略号结尾，不会换行。再加一些字确保一定超出屏幕宽度。','warn')"); p.wait_for_timeout(400)
     el = ev("(()=>{const m=document.querySelector('#toastRoot .toast:not(.leaving) .toast-msg');return [m.scrollWidth>m.clientWidth,getComputedStyle(m).textOverflow,Math.round(m.scrollHeight)<=30]})()")
     check('#288 超长文案一行省略', el == [True, 'ellipsis', True], el)
@@ -4052,7 +4054,8 @@ def test_r288(b):
     for i in range(8):
         ev("n=>Util.toast('已记录 维生素AD 1粒（今天还差 '+n+' 次）','ok',{label:'撤销',onClick(){}})", 8 - i); p.wait_for_timeout(110 + (i % 3) * 60)
     p.wait_for_timeout(400); ev("__tsStop()"); t3 = ev("__ts")
-    okk = lambda ts: bool(ts) and all(x['lines'] == 1 and x['vis'] >= MINW and x['n'] == 1 for x in ts)
+    # 第 302 次：dock 卡片（带撤销）文字可两行、不截断；顶部岛仍单行
+    okk = lambda ts: bool(ts) and all((x['lines'] <= 2 and not x['ell'] if x.get('dock') else x['lines'] == 1) and x['vis'] >= MINW and x['n'] == 1 for x in ts)
     check('#288 尿布 / 宫缩 / 营养品连点：提示每帧单行、不塌缩、同屏一颗', okk(t1) and okk(t2) and okk(t3),
           [[len(t), min([x['vis'] for x in t] or [0]), max([x['lines'] for x in t] or [0])] for t in (t1, t2, t3)])
     # 减少动态效果：不形变（无 clip-path）、数字不跳
@@ -5635,9 +5638,133 @@ def test_r301(b):
     ctx.close()
 
 
+
+def test_r302(b):
+    """第 302 次：提示与通知统一成咿呀——只读的留在顶部咿呀岛；要点的（撤销 / 确认）从 dock 长出来、点完缩回；
+    咿呀表情库 27 张按场景换、配小动作；页内说明 / 留意 / 行动卡由咿呀开口；免责 / 出处改成页尾小字。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+    ev = p.evaluate
+    faces = ev("Util.YIYA_FACES")
+    sw = (ROOT / 'sw.js').read_text(encoding='utf-8')
+    check('#302 表情库 27 张：文件都在、都登记进 SW 预缓存', len(faces) == 27 and len(set(faces)) == 27 and all((ROOT / 'assets' / 'yiya' / (f + '.webp')).exists() and f"'assets/yiya/{f}.webp'" in sw for f in faces), faces)
+    ld = ev("""Promise.all(Util.YIYA_FACES.map(f=>new Promise(r=>{const i=new Image();i.onload=()=>r(i.naturalWidth);i.onerror=()=>r(0);i.src=Util.yiyaSrc(f)})))""")
+    check('#302 27 张表情都能载入（128px）', all(w == 128 for w in ld), ld)
+    mp = ev("""[Util.yiyaFace('已删除这条记录','ok','info',''),Util.yiyaFace('请先选择类型','warn','warn',''),Util.yiyaFace('保存失败','error','warn',''),
+      Util.yiyaFace('记下了：第一次翻身','ok','ok',''),Util.yiyaFace('已导出备份','ok','ok',''),Util.yiyaFace('已保存','ok','feed','feeding'),
+      Util.yiyaFace('已保存','ok','diaper','diaper'),Util.yiyaFace('已保存','ok','sleep','sleep'),Util.yiyaFace('已保存','ok','ok','sick'),
+      Util.yiyaFace('已保存','ok','ok','solid'),Util.yiyaFace('已保存','ok','ok','bath'),Util.yiyaFace('已保存','ok','ok','temp'),Util.yiyaSrc('nope')]""")
+    check('#302 表情按场景挑：删除→不好意思、警告→疑惑、出错→哎呀、第一次→哇、备份→得意、喂养→咕嘟、尿布→调皮、睡眠→睡着、生病→裹毯子（中性）、辅食→吃一口、洗澡→洗澡、其他→开心；未知名回落默认头像',
+          mp == ['sorry', 'puzzled', 'oops', 'wow', 'proud', 'drink', 'cheeky', 'sleep', 'blanket', 'spoon', 'bath', 'happy', 'assets/yiya.webp'], mp)
+    # —— 只读：顶部咿呀岛 ——
+    ev("App.showTab('feeding',{noVT:true})"); p.wait_for_timeout(700)
+    ev("Util.toast('记下了：第一次翻身','ok')"); p.wait_for_timeout(700)
+    t0 = ev("(()=>{const t=document.querySelector('#toastRoot .toast');const r=t.getBoundingClientRect();return [Math.round(r.top),t.classList.contains('toast-dock'),t.dataset.face,t.querySelector('.toast-yiya img').getAttribute('src'),getComputedStyle(t.querySelector('.toast-yiya img')).animationName,!!t.querySelector('button'),document.body.classList.contains('dockpop')]})()")
+    check('#302 只读提示留在顶部咿呀岛、没有按钮、dock 不动；「第一次」用「哇」表情 + 跳一下', t0[0] < 40 and not t0[1] and t0[2] == 'wow' and t0[3] == 'assets/yiya/wow.webp' and 'yy-jump' in t0[4] and not t0[5] and not t0[6], t0)
+    ev("document.querySelector('#toastRoot .toast')._toastDismiss()"); p.wait_for_timeout(400)
+    # —— 要点的：从 dock 长出来 ——
+    dk = ev("(()=>{const r=document.getElementById('tabbar').getBoundingClientRect();return [r.left,r.top,r.right,r.bottom]})()")
+    ev("window.__u=0;Util.toast('已删除 1 条喂养记录','ok',{label:'撤销',onClick(){window.__u++}})"); p.wait_for_timeout(120)
+    mid = ev("(()=>{const t=document.querySelector('#toastRoot .toast');return [getComputedStyle(t).animationName,t.style.getPropertyValue('--dk-sx'),t.style.getPropertyValue('--dk-sy')]})()")
+    p.wait_for_timeout(600)
+    d1 = ev("""(()=>{const t=document.querySelector('#toastRoot .toast'),root=document.getElementById('toastRoot');const r=t.getBoundingClientRect();const a=t.querySelector('.toast-action').getBoundingClientRect();
+      return {dock:t.classList.contains('toast-dock'),at:root.classList.contains('at-dock'),pop:document.body.classList.contains('dockpop'),tb:+getComputedStyle(document.getElementById('tabbar')).opacity,
+        top:r.top,bottom:r.bottom,l:r.left,rt:r.right,face:t.dataset.face,bar:!!t.querySelector('.toast-bar'),hit:(e=>!!e&&t.querySelector('.toast-action').contains(e))(document.elementFromPoint(a.left+a.width/2,a.top+a.height/2))}})()""")
+    check('#302 撤销提示从 dock 的位置长出来（dock-grow，从 dock 的宽高比例放大），dock 让位淡出', mid[0] == 'dock-grow' and 0 < float(mid[1]) < 1 and 0 < float(mid[2]) <= 1 and d1['dock'] and d1['at'] and d1['pop'] and d1['tb'] < 0.05, [mid, d1])
+    check('#302 dock 卡片在拇指区：底边贴着 dock 底边、盖住 dock 的位置、在屏内；撤销最上层可点；删除用「不好意思」表情；有倒计时细条',
+          abs(d1['bottom'] - dk[3]) <= 8 and d1['top'] < dk[1] and d1['l'] >= 8 and d1['rt'] <= 382 and d1['hit'] and d1['face'] == 'sorry' and d1['bar'], [dk, d1])
+    p.click('#toastRoot .toast-action'); p.wait_for_timeout(80)
+    sh = ev("[getComputedStyle(document.querySelector('#toastRoot .toast')).animationName]")
+    p.wait_for_timeout(400)
+    d2 = ev("[window.__u, !!document.querySelector('#toastRoot .toast'), document.body.classList.contains('dockpop'), +getComputedStyle(document.getElementById('tabbar')).opacity, document.getElementById('toastRoot').classList.contains('at-dock')]")
+    check('#302 点撤销：回调一次，卡片缩回 dock（dock-shrink），dock 淡回来、提示根回到顶部', sh[0] == 'dock-shrink' and d2[0] == 1 and not d2[1] and not d2[2] and d2[3] > 0.95 and not d2[4], [sh, d2])
+    # 倒计时结束自己缩回；下滑关闭
+    ev("Util.toast('已删除 1 条','ok',{label:'撤销',onClick(){}})"); p.wait_for_timeout(5700)
+    check('#302 倒计时结束：自己缩回 dock、dock 回来', ev("[!!document.querySelector('#toastRoot .toast:not(.leaving)'), document.body.classList.contains('dockpop')]") == [False, False])
+    p.wait_for_timeout(300)
+    ev("Util.toast('已删除 1 条','ok',{label:'撤销',onClick(){}})"); p.wait_for_timeout(650)
+    ev("""(()=>{const t=document.querySelector('#toastRoot .toast');const r=t.getBoundingClientRect();const x=r.left+30,y=r.top+r.height/2;
+      const f=(ty,yy)=>t.dispatchEvent(new PointerEvent(ty,{bubbles:true,pointerId:9,clientX:x,clientY:yy,isPrimary:true}));
+      f('pointerdown',y);f('pointermove',y+12);f('pointermove',y+34);f('pointerup',y+34)})()""")
+    p.wait_for_timeout(400)
+    check('#302 dock 卡片往下滑关闭（顶部岛仍是上滑）', ev("[!!document.querySelector('#toastRoot .toast'), document.body.classList.contains('dockpop')]") == [False, False])
+    # 撤销被普通提示顶掉：普通的在顶部，撤销回来时回到 dock
+    ev("Util.toast('已删除 1 条','ok',{label:'撤销',onClick(){}})"); p.wait_for_timeout(300)
+    ev("Util.toast('已复制该条记录','ok')"); p.wait_for_timeout(200)
+    m1 = ev("(()=>{const t=document.querySelector('#toastRoot .toast:not(.leaving)');return [t.classList.contains('toast-dock'),Math.round(t.getBoundingClientRect().top),document.body.classList.contains('dockpop'),document.querySelectorAll('#toastRoot .toast:not(.leaving)').length]})()")
+    p.wait_for_timeout(3000)
+    m2 = ev("(()=>{const t=document.querySelector('#toastRoot .toast:not(.leaving)');return t?[t.classList.contains('toast-dock'),t.textContent.includes('撤销'),document.body.classList.contains('dockpop')]:null})()")
+    check('#302 撤销被只读提示顶掉：只读的回顶部岛（dock 回来、同屏一颗），走完后撤销卡回到 dock', m1[0] is False and m1[1] < 40 and not m1[2] and m1[3] == 1 and m2 == [True, True, True], [m1, m2])
+    ev("document.querySelector('#toastRoot .toast')._toastDismiss()"); p.wait_for_timeout(400)
+    # dock 被面板盖住：撤销走顶部；撤销卡显示中打开面板，改回顶部岛
+    ev("App.showTab('water',{noVT:true})"); p.wait_for_timeout(600)
+    ev("Util.toast('已记录 200ml','ok',{label:'撤销',onClick(){}})"); p.wait_for_timeout(500)
+    a0 = ev("document.querySelector('#toastRoot .toast').classList.contains('toast-dock')")
+    p.click('[data-new]'); p.wait_for_timeout(700)
+    a1 = ev("(()=>{const t=document.querySelector('#toastRoot .toast:not(.leaving)');const s=[...document.querySelectorAll('#modalRoot .rs-save')].pop();if(!t||!s)return null;const a=t.getBoundingClientRect(),q=s.getBoundingClientRect();return [t.classList.contains('toast-dock'),Math.round(a.bottom)<=Math.round(q.top),document.body.classList.contains('dockpop'),document.getElementById('toastRoot').classList.contains('at-dock')]})()")
+    check('#302 撤销卡显示中打开记录面板：卡片改回顶部岛，不压住面板保存条，dock 状态复原', a0 and a1 == [False, True, False, False], [a0, a1])
+    ev("document.querySelectorAll('#toastRoot .toast').forEach(t=>t._toastDismiss&&t._toastDismiss())"); p.wait_for_timeout(300)
+    ev("Util.toast('已删除','ok',{label:'撤销',onClick(){}})"); p.wait_for_timeout(500)
+    check('#302 面板开着时新来的撤销提示：走顶部岛', ev("(()=>{const t=document.querySelector('#toastRoot .toast:not(.leaving)');return [t.classList.contains('toast-dock'),Math.round(t.getBoundingClientRect().top)<60]})()") == [False, True])
+    ev("Sheet.closeAll();document.querySelectorAll('#toastRoot .toast').forEach(t=>t._toastDismiss&&t._toastDismiss())"); p.wait_for_timeout(600)
+    # —— 确认框：咿呀底部卡片 ——
+    ev("App.showTab('feeding',{noVT:true})"); p.wait_for_timeout(600)
+    ev("window.__c=0;Util.confirm({title:'放弃这次计时？',message:'这次亲喂不会被记录。',okText:'放弃',danger:true,onConfirm(){window.__c++}})"); p.wait_for_timeout(120)
+    c0 = ev("""(()=>{const m=document.querySelector('#modalRoot .cfm-mask'),c=m.querySelector('.cfm-card');const r=c.getBoundingClientRect();const bs=[...c.querySelectorAll('.cfm-actions .btn')];
+      return {an:getComputedStyle(c).animationName,dock:m.classList.contains('cfm-from-dock'),pop:document.body.classList.contains('dockpop'),face:c.querySelector('.cfm-yiya').dataset.face,
+        role:c.getAttribute('role'),order:bs.map(b=>b.textContent),ok:!!c.querySelector('[data-cfm-ok].btn-danger'),focus:document.activeElement&&document.activeElement.hasAttribute('data-cfm-cancel'),
+        bottom:Math.round(r.bottom),w:Math.round(r.width),minh:Math.min(...bs.map(b=>b.getBoundingClientRect().height))}})()""")
+    p.wait_for_timeout(600)
+    c0.update(ev("(()=>{const c=document.querySelector('#modalRoot .cfm-card');const r=c.getBoundingClientRect();return {bottom:Math.round(r.bottom),w:Math.round(r.width),minh:Math.min(...[...c.querySelectorAll('.cfm-actions .btn')].map(b=>b.getBoundingClientRect().height))}})()"))
+    check('#302 确认框：从 dock 长出来的底部卡片（cfm-grow），咿呀「不好意思」，主按钮在上、取消在下（全宽 ≥ 48 高），危险操作默认聚焦取消',
+          c0['an'] == 'cfm-grow' and c0['dock'] and c0['pop'] and c0['face'] == 'sorry' and c0['role'] == 'alertdialog' and c0['order'] == ['放弃', '取消'] and c0['ok'] and c0['focus'] and c0['bottom'] >= 820 and c0['w'] >= 360 and c0['minh'] >= 48, c0)
+    p.click('[data-cfm-ok]'); p.wait_for_timeout(60)
+    c1 = ev("[window.__c, !!document.querySelector('#modalRoot .modal-mask'), document.querySelectorAll('.cfm-ghost.to-dock').length, document.body.classList.contains('cfm-open')]")
+    p.wait_for_timeout(400)
+    c2 = ev("[document.querySelectorAll('.cfm-ghost').length, document.body.classList.contains('dockpop'), +getComputedStyle(document.getElementById('tabbar')).opacity]")
+    check('#302 点主按钮：回调一次、真身立即摘掉，替身缩回 dock 后自己移除、dock 回来', c1 == [1, False, 1, False] and c2[0] == 0 and not c2[1] and c2[2] > 0.95, [c1, c2])
+    ev("Util.confirm({title:'清空全部数据？',message:'不可恢复',okText:'清空',danger:true,extra:{text:'先导出备份',onClick(){window.__x=1}},onConfirm(){}})"); p.wait_for_timeout(500)
+    ex = ev("[[...document.querySelectorAll('#modalRoot .cfm-actions .btn')].map(b=>b.textContent)]")
+    p.click('[data-cfm-extra]'); p.wait_for_timeout(100)
+    check('#302 带出口按钮：顺序「清空 / 先导出备份 / 取消」，点出口按钮不关卡片', ex[0] == ['清空', '先导出备份', '取消'] and ev("[window.__x, !!document.querySelector('#modalRoot .cfm-mask')]") == [1, True], ex)
+    p.keyboard.press('Escape'); p.wait_for_timeout(400)
+    check('#302 Esc 关闭', ev("!document.querySelector('#modalRoot .cfm-mask') && !document.body.classList.contains('dockpop')"))
+    ev("window.__k=0;Util.yiyaAsk({face:'flag',title:'该喂奶了',message:'距上次 3 小时',layout:'row',actions:[{text:'稍后',kind:'ghost'},{text:'开始记录',kind:'primary',onClick(){window.__k++}}]})"); p.wait_for_timeout(500)
+    ya = ev("(()=>{const c=document.querySelector('#modalRoot .cfm-card');const bs=[...c.querySelectorAll('.cfm-actions .btn')].map(b=>b.getBoundingClientRect());return [c.querySelector('.cfm-yiya img').getAttribute('src'),Math.abs(bs[0].top-bs[1].top)<1,bs.length]})()")
+    ev("document.querySelectorAll('#modalRoot .cfm-actions .btn')[1].click()"); p.wait_for_timeout(300)
+    check('#302 通用咿呀卡 Util.yiyaAsk（到点提醒 / 家庭共享以后用）：指定表情、两个按钮并排、点了执行并收起', ya == ['assets/yiya/flag.webp', True, 2] and ev("[window.__k, !!document.querySelector('#modalRoot .cfm-mask')]") == [1, False], ya)
+    # —— 页面里的咿呀 ——
+    ev("""(()=>{const v=document.getElementById('view');const d=document.createElement('div');d.id='__yt';d.innerHTML='<div class="warn-box"><p>测试</p></div><p class="hint med-note">仅供参考</p><div class="card notice-banner"><h2>提示</h2></div><div class="card vac-remind"><b class="vr-t">开启</b></div><div class="card info-card"><h2>参考</h2></div><div class="card backfill-note feed-live"><p class="hint">计时中</p></div>';v.appendChild(d)})()""")
+    pg = ev("""(()=>{const q=s=>document.querySelector('#__yt '+s);const bi=s=>getComputedStyle(q(s),'::before').backgroundImage;const pl=s=>parseFloat(getComputedStyle(q(s)).paddingLeft);
+      return {warn:bi('.warn-box'),nb:bi('.notice-banner'),vac:bi('.vac-remind'),info:bi('.info-card'),live:bi('.feed-live'),pad:['.warn-box','.notice-banner','.vac-remind','.info-card','.feed-live'].map(pl),
+        med:[getComputedStyle(q('.med-note'),'::before').content,getComputedStyle(q('.med-note')).borderLeftWidth,parseFloat(getComputedStyle(q('.med-note')).fontSize)]}})()""")
+    check('#302 页面里的说明 / 留意 / 行动卡由咿呀开口（留意→疑惑、横幅→举旗、疫苗提醒→招手、参考→想一想、计时中→咕嘟），文字让开咿呀',
+          'puzzled.webp' in pg['warn'] and 'flag.webp' in pg['nb'] and 'wave.webp' in pg['vac'] and 'think.webp' in pg['info'] and 'drink.webp' in pg['live'] and all(x >= 50 for x in pg['pad']), pg)
+    check('#302 免责 / 出处：页尾小字，不配咿呀、没有竖线', pg['med'][0] in ('none', 'normal') and pg['med'][1] == '0px' and pg['med'][2] <= 13, pg['med'])
+    ev("document.getElementById('__yt').remove()")
+    check('#302 pageerror 为 0', not errs, errs)
+    ctx.close()
+    # 减少动态效果：dock 卡片 / 确认卡只淡入，咿呀不动，没有倒计时动画
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, reduced_motion='reduce')
+    q = ctx.new_page(); errs2 = []
+    q.on('pageerror', lambda e: errs2.append(str(e)[:160]))
+    q.goto(URL); q.wait_for_timeout(600); q.evaluate('t=>Storage.importJSON(t)', SEED_V3); q.reload(); q.wait_for_timeout(900)
+    q.evaluate("App.showTab('feeding',{noVT:true})"); q.wait_for_timeout(600)
+    q.evaluate("Util.toast('已删除 1 条','ok',{label:'撤销',onClick(){}})"); q.wait_for_timeout(100)
+    rm = q.evaluate("(()=>{const t=document.querySelector('#toastRoot .toast');return [t.classList.contains('toast-dock'),getComputedStyle(t).animationName,getComputedStyle(t.querySelector('.toast-yiya img')).animationName,getComputedStyle(t.querySelector('.toast-bar')).display]})()")
+    q.evaluate("document.querySelector('#toastRoot .toast')._toastDismiss()"); q.wait_for_timeout(300)
+    q.evaluate("Util.confirm({title:'确认？',onConfirm(){}})"); q.wait_for_timeout(100)
+    rc = q.evaluate("[getComputedStyle(document.querySelector('.cfm-card')).animationName,getComputedStyle(document.querySelector('.cfm-yiya img')).animationName]")
+    q.click('[data-cfm-cancel]'); q.wait_for_timeout(50)
+    check('#302 减少动态效果：dock 卡片和确认卡只淡入（island-fade），咿呀不动，没有倒计时条，关闭不留替身', rm == [True, 'island-fade', 'none', 'none'] and rc == ['island-fade', 'none'] and q.evaluate("document.querySelectorAll('.cfm-ghost').length") == 0, [rm, rc])
+    check('#302 减少动态效果无报错', not errs2, errs2)
+    ctx.close()
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -5677,7 +5804,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r298',),
           ('test_r299',),
           ('test_r300',),
-          ('test_r301',))  # 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r301',),
+          ('test_r302',))  # 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

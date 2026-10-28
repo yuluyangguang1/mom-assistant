@@ -471,54 +471,95 @@
    *         extra: { text, onClick } } —— 可选第三按钮（如「先导出备份」），
    *         点击后不关闭弹层，给不可逆操作留一个出口。
    */
+  /* 第 302 次：确认框也交给咿呀——从 dock 长出来的底部卡片（dock 看得见时从 dock 的形状放大，看不见时从底边升起）。
+   * 咿呀在卡片顶上：危险操作「不好意思」，其他「想一想」（opts.face 可指定）。按钮竖排全宽：主按钮在上、出口按钮次之、取消在最下，
+   * 都在拇指区。DOM 钩子（data-cfm-ok / cancel / extra、#cfmTitle、role=alertdialog）不变。关闭时留一个替身缩回 dock。
+   * Util.yiyaAsk(opts) 是同一张卡的通用版（到点提醒 / 家庭共享的「对方请你帮忙」等以后用）：
+   *   { face, title, message, layout:'row'|'stack', actions:[{ text, kind:'primary'|'danger'|'plain'|'ghost', attr, keep, onClick }] }
+   */
+  function cfmClose(root, mask, onKey) {
+    document.removeEventListener('keydown', onKey);
+    if (!mask || !mask.parentNode) return;
+    var card = mask.querySelector('.cfm-card');
+    var fromDock = mask.classList.contains('cfm-from-dock');
+    /* 替身：克隆一份放到 body 上播缩回动画，真身立即摘掉（调用方和回归测试都按「点了就没了」写的） */
+    if (card && !toastReduced()) {
+      try {
+        var r = card.getBoundingClientRect();
+        var g = document.createElement('div'); g.className = 'cfm-ghost' + (fromDock ? ' to-dock' : '') + (document.body.classList.contains('dark') ? ' dk' : '');
+        g.setAttribute('aria-hidden', 'true');
+        var c = card.cloneNode(true); c.removeAttribute('id'); c.removeAttribute('role');
+        c.querySelectorAll('[id]').forEach(function (n) { n.removeAttribute('id'); });
+        c.style.cssText += ';position:fixed;margin:0;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;';
+        g.appendChild(c); document.body.appendChild(g);
+        setTimeout(function () { if (g.parentNode) g.parentNode.removeChild(g); }, 260);
+      } catch (eG) { /* */ }
+    }
+    if (root.contains(mask)) root.innerHTML = '';
+    document.body.classList.remove('cfm-open');
+    setTimeout(dockpopOff, 140);
+  }
+  Util.yiyaAsk = function (opts) {
+    opts = opts || {};
+    var root = document.getElementById('modalRoot');
+    var acts = (opts.actions || []).filter(function (a) { return a && a.text; });
+    if (!root) { var first = acts[0]; if (first && typeof first.onClick === 'function') first.onClick(); return null; }
+    var face = YIYA_FACES.indexOf(opts.face) >= 0 ? opts.face : 'think';
+    var dockR = toastDockRect();
+    var BTN = { primary: 'btn btn-primary', danger: 'btn btn-danger', plain: 'btn', ghost: 'btn cfm-ghost-btn' };
+    root.innerHTML =
+      '<div class="modal-mask cfm-mask' + (dockR ? ' cfm-from-dock' : '') + '" data-cfm-mask>' +
+        '<div class="modal cfm-card" role="alertdialog" aria-modal="true" aria-labelledby="cfmTitle"' + (opts.message ? ' aria-describedby="cfmMsg"' : '') + '>' +
+          '<span class="cfm-yiya yy-anim" data-face="' + face + '" aria-hidden="true"><img src="' + Util.yiyaSrc(face) + '" alt="" decoding="async" draggable="false"></span>' +
+          '<h2 id="cfmTitle">' + Util.escapeHtml(opts.title || '请确认') + '</h2>' +
+          (opts.message ? '<p id="cfmMsg">' + Util.escapeHtml(opts.message) + '</p>' : '') +
+          '<div class="modal-actions cfm-actions' + (opts.layout === 'row' ? ' is-row' : '') + (opts.danger ? ' is-danger' : '') + '">' +
+            acts.map(function (a, i) {
+              return '<button type="button" class="' + (BTN[a.kind] || BTN.plain) + '" data-cfm-i="' + i + '"' + (a.attr ? ' ' + a.attr : '') + '>' + Util.escapeHtml(a.text) + '</button>';
+            }).join('') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    var mask = root.querySelector('[data-cfm-mask]');
+    var card = mask.querySelector('.cfm-card');
+    document.body.classList.add('cfm-open');
+    if (dockR) {
+      document.body.classList.add('dockpop');
+      var w = card.offsetWidth || 360, h = card.offsetHeight || 260;
+      card.style.setProperty('--dk-sx', Math.max(0.2, Math.min(1, dockR.width / w)).toFixed(3));
+      card.style.setProperty('--dk-sy', Math.max(0.12, Math.min(1, dockR.height / h)).toFixed(3));
+      /* 卡片底边对齐 dock 底边 */
+      var vh = global.innerHeight || 0;
+      mask.style.paddingBottom = Math.max(8, Math.round(vh - dockR.bottom - 2)) + 'px';
+    }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    function close() { cfmClose(root, mask, onKey); }
+    acts.forEach(function (a, i) {
+      var b = mask.querySelector('[data-cfm-i="' + i + '"]');
+      b.addEventListener('click', function () {
+        if (!a.keep) close();
+        if (typeof a.onClick === 'function') a.onClick();
+      });
+    });
+    mask.addEventListener('click', function (e) { if (e.target === mask) close(); });
+    document.addEventListener('keydown', onKey);
+    var fi = typeof opts.focus === 'number' ? opts.focus : 0;
+    var fb = mask.querySelector('[data-cfm-i="' + fi + '"]');
+    if (fb) { try { fb.focus({ focusVisible: false }); } catch (eF) { fb.focus(); } }
+    return { close: close, el: mask };
+  };
   Util.confirm = function (opts) {
     opts = opts || {};
     var root = document.getElementById('modalRoot');
     if (!root) { if (typeof opts.onConfirm === 'function') opts.onConfirm(); return; }
-    var title = opts.title || '请确认';
-    var message = opts.message || '';
-    var okText = opts.okText || '确认';
-    var cancelText = opts.cancelText || '取消';
     var danger = !!opts.danger;
-    var leadIcon = window.icon ? (icon(danger ? 'alert' : 'heart') || '') : '';
-
-    root.innerHTML =
-      '<div class="modal-mask" data-cfm-mask>' +
-        '<div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="cfmTitle" aria-describedby="cfmMsg">' +
-          '<h2 id="cfmTitle">' + leadIcon + Util.escapeHtml(title) + '</h2>' +
-          '<p id="cfmMsg">' + Util.escapeHtml(message) + '</p>' +
-          '<div class="modal-actions' + (opts.extra && opts.extra.text ? ' has-extra' : '') + (danger ? ' is-danger' : '') + '">' +
-            (opts.extra && opts.extra.text
-              ? '<button type="button" class="btn" data-cfm-extra>' + Util.escapeHtml(opts.extra.text) + '</button>' : '') +
-            '<button type="button" class="btn" data-cfm-cancel>' + Util.escapeHtml(cancelText) + '</button>' +
-            '<button type="button" class="btn ' + (danger ? 'btn-danger' : 'btn-primary') + '" data-cfm-ok>' + Util.escapeHtml(okText) + '</button>' +
-          '</div>' +
-        '</div>' +
-      '</div>';
-
-    var mask = root.querySelector('[data-cfm-mask]');
-    var okBtn = root.querySelector('[data-cfm-ok]');
-    var cancelBtn = root.querySelector('[data-cfm-cancel]');
-
-    function close() { root.innerHTML = ''; document.removeEventListener('keydown', onKey); }
-    function onKey(e) { if (e.key === 'Escape') close(); }
-
-    okBtn.addEventListener('click', function () {
-      close();
-      if (typeof opts.onConfirm === 'function') opts.onConfirm();
-    });
-    cancelBtn.addEventListener('click', close);
-    var extraBtn = root.querySelector('[data-cfm-extra]');
-    if (extraBtn) extraBtn.addEventListener('click', function () {
-      /* 出口按钮：执行动作但保留弹层（如先导出备份再决定是否清空） */
-      if (opts.extra && typeof opts.extra.onClick === 'function') opts.extra.onClick();
-    });
-    mask.addEventListener('click', function (e) { if (e.target === mask) close(); });
-    document.addEventListener('keydown', onKey);
-
-    /* 焦点管理：危险操作默认聚焦“取消”，避免误触销毁 */
-    /* 第 189 次：focusVisible:false——触屏打开时不画粗焦点环（键盘用户 Tab 后仍正常显示） */
-    try { (danger ? cancelBtn : okBtn).focus({ focusVisible: false }); } catch (e) { (danger ? cancelBtn : okBtn).focus(); }
+    var acts = [{ text: opts.okText || '确认', kind: danger ? 'danger' : 'primary', attr: 'data-cfm-ok', onClick: opts.onConfirm }];
+    /* 出口按钮：执行动作但保留弹层（如先导出备份再决定是否清空） */
+    if (opts.extra && opts.extra.text) acts.push({ text: opts.extra.text, kind: 'plain', attr: 'data-cfm-extra', keep: true, onClick: opts.extra.onClick });
+    acts.push({ text: opts.cancelText || '取消', kind: 'ghost', attr: 'data-cfm-cancel' });
+    /* 焦点管理：危险操作默认聚焦「取消」，避免误触销毁 */
+    Util.yiyaAsk({ face: opts.face || (danger ? 'sorry' : 'think'), title: opts.title || '请确认', message: opts.message || '',
+      danger: danger, actions: acts, focus: danger ? acts.length - 1 : 0 });
   };
 
   /* -----------------------------------------------------------
@@ -1214,6 +1255,37 @@
     return type === 'ok' ? 'ok' : 'info';
   };
   var YIYA_SRC = 'assets/yiya.webp';
+  /* -----------------------------------------------------------
+   * 第 302 次：咿呀表情库（assets/yiya/<名>.webp，128px）。所有提示都由咿呀开口，表情随场景换：
+   *   基础：happy 开心 / drink 咕嘟 / sleep 睡着 / cheeky 调皮 / puzzled 疑惑 / sorry 不好意思 / wow 哇 / proud 得意 / wave 招手
+   *   家庭共享（互相通知，后续用）：send 送信 / phone 打电话 / heart 比心 / flag 举旗 / hug 抱抱 / whisper 悄悄话 / thumb 点赞 / clap 拍手 / shy 害羞
+   *   场景状态：yawn 打哈欠 / bday 生日帽 / spoon 吃一口 / bath 洗澡 / blanket 裹毯子（生病记录，中性）/ look 张望 / wait 等一等 / oops 哎呀 / think 想一想
+   * 每个表情配一个小动作（CSS：.yy-anim[data-face=…]），减少动态效果时不动。
+   */
+  var YIYA_FACES = ['happy', 'drink', 'sleep', 'cheeky', 'puzzled', 'sorry', 'wow', 'proud', 'wave',
+    'send', 'phone', 'heart', 'flag', 'hug', 'whisper', 'thumb', 'clap', 'shy',
+    'yawn', 'bday', 'spoon', 'bath', 'blanket', 'look', 'wait', 'oops', 'think'];
+  Util.YIYA_FACES = YIYA_FACES.slice();
+  Util.yiyaSrc = function (face) { return YIYA_FACES.indexOf(face) >= 0 ? 'assets/yiya/' + face + '.webp' : YIYA_SRC; };
+  /* 按提示的类型 / 文案 / 所在页挑表情。opts.face 显式指定时优先。 */
+  Util.yiyaFace = function (msg, type, kind, route) {
+    msg = String(msg || '');
+    if (type === 'error') return 'oops';
+    if (/删除|删掉|已撤销|已撤回|撤销了|放弃|已移除|已清空/.test(msg)) return 'sorry';
+    if (type === 'warn') return 'puzzled';
+    if (/第一次|首次|里程碑/.test(msg)) return 'wow';
+    if (/生日|满月|百天|周岁/.test(msg)) return 'bday';
+    if (/备份|导出|已复制|已分享|全部完成|都勾完|已完成/.test(msg)) return 'proud';
+    if (/发给|已发送|已通知|已邀请/.test(msg)) return 'send';
+    if (/同步|加载|正在/.test(msg)) return 'wait';
+    if (route === 'sick' || /生病|症状|就医/.test(msg)) return 'blanket';
+    if (route === 'bath' || /洗澡|抚触/.test(msg)) return 'bath';
+    if (route === 'solid' || /辅食|新食物/.test(msg)) return 'spoon';
+    if (kind === 'feed') return 'drink';
+    if (kind === 'diaper') return 'cheeky';
+    if (kind === 'sleep') return 'sleep';
+    return 'happy';
+  };
   function toastRoot() {
     var root = document.getElementById('toastRoot');
     if (!root) { root = document.createElement('div'); root.id = 'toastRoot'; document.body.appendChild(root); }
@@ -1224,11 +1296,12 @@
     var ico = TOAST_KIND_ICON[e.kind] || 'check';
     var ic = (window.icon && icon(ico)) ? icon(ico) : '';
     var accent = TOAST_KIND_ACCENT[e.kind] || (TOAST_ROUTE_KIND[e.route] ? e.route : '');
-    el.className = 'toast toast-' + e.type + ' toast-island' + (el._glassOn ? ' lg-on' : '');
+    el.className = 'toast toast-' + e.type + ' toast-island' + (el._dock ? ' toast-dock' : '') + (el._glassOn ? ' lg-on' : '');
     el.setAttribute('data-kind', e.kind);
     if (accent) el.setAttribute('data-accent', accent); else el.removeAttribute('data-accent');
     var canvas = el.querySelector(':scope > canvas.lg-gl2');
-    el.innerHTML = '<span class="toast-yiya" aria-hidden="true"><img src="' + YIYA_SRC + '" alt="" decoding="async" draggable="false">'
+    el.setAttribute('data-face', e.face);
+    el.innerHTML = '<span class="toast-yiya" aria-hidden="true"><img src="' + Util.yiyaSrc(e.face) + '" alt="" decoding="async" draggable="false">'
       + '<i class="ty-badge">' + ic + '</i><i class="ty-fx"></i></span>'
       + '<span class="toast-msg">' + Util.escapeHtml(e.msg) + '</span>'
       + '<b class="toast-count"' + (e.count > 1 ? '' : ' hidden') + '>' + (e.count > 1 ? '×' + e.count : '') + '</b>';
@@ -1247,6 +1320,10 @@
       });
       el.appendChild(act);
     }
+    if (el._dock) {
+      var bar = document.createElement('i'); bar.className = 'toast-bar'; bar.setAttribute('aria-hidden', 'true');
+      el.appendChild(bar);
+    }
     el._toastMsg = e.msg;
     el._toastHasAction = !!e.action;
     el._toastRoute = e.route;
@@ -1257,6 +1334,14 @@
     clearTimeout(TST.timer);
     TST.t0 = Date.now(); TST.left = ms;
     TST.timer = setTimeout(toastExpire, ms);
+    /* 第 302 次：dock 卡片底部的倒计时细条，从剩余比例走到 0（垫在下面的撤销回来时接着走） */
+    var bar = TST.el && TST.el._dock && TST.el.querySelector('.toast-bar');
+    if (bar && TST.cur) {
+      bar.style.animation = 'none'; void bar.offsetWidth;
+      bar.style.setProperty('--bar-from', Math.max(0.05, Math.min(1, ms / (TST.cur.dur || ms))).toFixed(3));
+      bar.style.animation = '';
+      bar.style.animationDuration = ms + 'ms';
+    }
   }
   function toastPause() { if (!TST.timer) return; clearTimeout(TST.timer); TST.timer = 0; TST.left = Math.max(600, TST.left - (Date.now() - TST.t0)); }
   function toastResume() { if (TST.timer || !TST.cur || TST.leaving) return; toastArm(TST.left || 1200); }
@@ -1341,9 +1426,66 @@
     }
     el._toastMsg = e.msg; el._toastAt = e.at; el._toastEntry = e;
   }
+  /* -----------------------------------------------------------
+   * 第 302 次：要点的提示（带「撤销」等按钮）从 dock 里长出来——
+   *   dock 看得见时：提示卡贴在 dock 的位置，从 dock 的形状弹性放大成卡片（dock 同时淡出），
+   *   点完 / 倒计时结束再缩回 dock 的形状、dock 淡回来。拇指不用够到屏幕顶上。
+   *   dock 看不见（记录面板 / 全屏计时 / 引导 / 快记菜单开着）时，仍走顶部咿呀岛，不压住面板的保存条。
+   * 只看不点的提示一律留在顶部咿呀岛。
+   */
+  function toastDockRect() {
+    var bar = document.getElementById('tabbar'); if (!bar) return null;
+    var bc = document.body.classList;
+    if (bc.contains('sheet-open') || bc.contains('ftf-open') || bc.contains('ob-open') || bc.contains('qd-open') || bc.contains('menu-open')) return null;
+    if (document.querySelector('#modalRoot .modal-mask:not(.sheet-leaving):not(.sheet-ghost)')) return null;
+    try {
+      var cs = global.getComputedStyle(bar);
+      if (cs.display === 'none' || cs.visibility === 'hidden') return null;
+      if (!bc.contains('dockpop') && parseFloat(cs.opacity) < 0.1) return null;
+      var r = bar.getBoundingClientRect();
+      if (!r.width || !r.height || r.top >= (global.innerHeight || 0) - 4) return null;
+      return r;
+    } catch (eD) { return null; }
+  }
+  Util._toastDockRect = toastDockRect;
+  function dockCardW() { return Math.min(360, (global.innerWidth || 360) - 24); }
+  function dockPlace(root, r) {
+    var vw = global.innerWidth || 0, vh = global.innerHeight || 0, w = dockCardW();
+    var side = document.body.classList.contains('dock-left') || document.body.classList.contains('dock-right');
+    var cx = side ? vw / 2 : r.left + r.width / 2;
+    cx = Math.max(w / 2 + 12, Math.min(vw - w / 2 - 12, cx));
+    root.classList.add('at-dock');
+    root.style.top = 'auto';
+    root.style.left = cx.toFixed(1) + 'px';
+    root.style.bottom = Math.max(4, Math.round(vh - r.bottom - 4)) + 'px';
+  }
+  function dockScaleVars(el, r) {
+    var w = el.offsetWidth || dockCardW(), h = el.offsetHeight || 64;
+    el.style.setProperty('--dk-sx', Math.max(0.2, Math.min(1, r.width / w)).toFixed(3));
+    el.style.setProperty('--dk-sy', Math.max(0.3, Math.min(1, r.height / h)).toFixed(3));
+  }
+  function rootTop(root) {
+    root = root || document.getElementById('toastRoot'); if (!root) return;
+    root.classList.remove('at-dock'); root.style.left = ''; root.style.bottom = ''; root.style.top = '';
+  }
+  function dockpopOff() {
+    if (TST.el && TST.el._dock && !TST.leaving) return;
+    if (document.querySelector('.cfm-mask.cfm-from-dock')) return;
+    document.body.classList.remove('dockpop');
+  }
+  Util._dockpopOff = dockpopOff;
   function toastShow(e, ms, opt) {
     var root = toastRoot();
     var el = TST.el;
+    var dockR = e.action ? toastDockRect() : null;
+    var wantDock = !!dockR;
+    if (el && el.isConnected && !TST.leaving && !!el._dock !== wantDock) {
+      /* 顶部 ↔ dock 换位：旧的直接摘掉，新的按新位置重新出现（不在两处之间形变） */
+      toastMorphEnd(el);
+      if (el.parentNode) el.parentNode.removeChild(el);
+      TST.el = el = null;
+      if (!wantDock) { rootTop(root); dockpopOff(); }
+    }
     var swap = !!(el && el.isConnected && !TST.leaving);
     if (!swap) {
       if (el && el.parentNode) el.parentNode.removeChild(el);
@@ -1351,6 +1493,7 @@
       el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); el.setAttribute('aria-atomic', 'true');
       el._toastDismiss = function () { toastDismissAll(); };
       el._mo = null;
+      el._dock = wantDock;
       toastSwipe(el);
       TST.leaving = false;
     }
@@ -1360,7 +1503,11 @@
     TST.cur = e;
     if (inplace) toastUpdate(el, e, opt.prev);
     else toastFill(el, e);
-    if (!swap) { root.appendChild(el); toastGlass(el); if (el._glassOn) el.classList.add('lg-on'); }
+    if (!swap) {
+      if (wantDock) dockPlace(root, dockR); else rootTop(root);
+      root.appendChild(el); toastGlass(el); if (el._glassOn) el.classList.add('lg-on');
+      if (wantDock) { dockScaleVars(el, dockR); document.body.classList.add('dockpop'); }
+    }
     if (!swap) {
       Util.placeToasts();
       requestAnimationFrame(function () { if (TST.el === el && !TST.leaving) el.classList.add('show'); });
@@ -1384,11 +1531,13 @@
     el.classList.remove('show');
     if (global.DockRefract && DockRefract.kick) DockRefract.kick(300);
     /* 第 81 次动效纪律：退场比入场快（.24s），移除稍后 */
+    if (el._dock) setTimeout(function () { if (TST.el === el || !TST.el) dockpopOff(); }, 150);
     setTimeout(function () {
       if (el.parentNode) el.parentNode.removeChild(el);
       if (TST.el === el) {
         TST.el = null; TST.leaving = false;
         if (global.DockRefract && DockRefract.unsurface) DockRefract.unsurface('toast');
+        if (el._dock) { rootTop(); dockpopOff(); }
       }
     }, 260);
   }
@@ -1403,8 +1552,8 @@
     });
     el.addEventListener('pointermove', function (ev) {
       if (id !== ev.pointerId) return;
-      var raw = ev.clientY - y0;
-      dy = raw < 0 ? raw : raw * 0.25;
+      var raw = (ev.clientY - y0) * (el._dock ? -1 : 1);
+      dy = (raw < 0 ? raw : raw * 0.25) * (el._dock ? -1 : 1);
       var t = ev.timeStamp || Date.now();
       if (t > lastT) { v = (ev.clientY - lastY) / (t - lastT); lastY = ev.clientY; lastT = t; }
       el.style.translate = '0 ' + dy.toFixed(1) + 'px';
@@ -1413,7 +1562,7 @@
     var end = function (ev) {
       if (id !== ev.pointerId) return;
       id = null; el.classList.remove('dragging');
-      if (dy < -22 || v < -0.35) { toastDismissAll(true); return; }
+      if (el._dock ? (dy > 22 || v > 0.35) : (dy < -22 || v < -0.35)) { toastDismissAll(!el._dock); return; }
       el.style.translate = '';
       if (global.DockRefract && DockRefract.kick) DockRefract.kick(360);
       toastResume();
@@ -1427,6 +1576,7 @@
     try { route = (global.App && App.currentTab) ? App.currentTab() : ''; } catch (eR) { route = ''; }
     var e = { msg: String(message == null ? '' : message), type: type, action: action && action.label ? action : null, route: route, at: Date.now(), count: 1 };
     e.kind = Util.toastKind(e.msg, type, route);
+    e.face = (action && action.face && YIYA_FACES.indexOf(action.face) >= 0) ? action.face : Util.yiyaFace(e.msg, type, e.kind, route);
     e.dur = e.action ? 5200 : 2800;
     var cur = TST.cur;
     if (cur && TST.el && !TST.el.isConnected) { TST.el = null; TST.cur = cur = null; TST.base = null; clearTimeout(TST.timer); TST.timer = 0; }
@@ -1474,8 +1624,17 @@
   Util.placeToasts = function () {
     var root = document.getElementById('toastRoot'); if (!root) return;
     try {
-      root.style.top = '';
       var el = TST.el;
+      if (el && el.isConnected && el._dock && !TST.leaving) {
+        var dr = toastDockRect();
+        if (dr) { dockPlace(root, dr); return; }
+        /* dock 被面板 / 全屏计时盖住了：这张卡改回顶部咿呀岛，不压住面板的保存条 */
+        el._dock = false; el.classList.remove('toast-dock');
+        var ob = el.querySelector('.toast-bar'); if (ob) ob.remove();
+        rootTop(root); document.body.classList.remove('dockpop');
+      }
+      if (root.classList.contains('at-dock')) rootTop(root);
+      root.style.top = '';
       if (!el || !el.isConnected) return;
       var vw = global.innerWidth || 0;
       var def = parseFloat(global.getComputedStyle(root).top) || 0;
@@ -1506,7 +1665,11 @@
   };
   /* 小咿呀提前解码，第一次弹提示时头像同帧出现 */
   try {
-    var yiyaWarm = function () { var im = new Image(); im.decoding = 'async'; im.src = YIYA_SRC; if (im.decode) im.decode().catch(function () {}); Util._yiya = im; };
+    var yiyaWarm = function () {
+      var im = new Image(); im.decoding = 'async'; im.src = YIYA_SRC; if (im.decode) im.decode().catch(function () {}); Util._yiya = im;
+      /* 第 302 次：常用表情一起预热（其余用到时再取，SW 已预缓存） */
+      Util._yiyaWarm = ['happy', 'drink', 'cheeky', 'sleep', 'sorry', 'puzzled'].map(function (f) { var m = new Image(); m.decoding = 'async'; m.src = Util.yiyaSrc(f); return m; });
+    };
     if (global.requestIdleCallback) global.addEventListener('load', function () { requestIdleCallback(yiyaWarm, { timeout: 3000 }); });
     else global.addEventListener('load', function () { setTimeout(yiyaWarm, 1200); });
   } catch (eY) { /* */ }

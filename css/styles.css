@@ -669,11 +669,6 @@ body.dark .list li .ing-tag.ing-staple { color: #E3C88E; background: rgba(227, 2
 /* 强调标签（孕期「下一个」节点等）：主按钮同款高对比组合（primary-fill × on-primary，已过对比度回归） */
 .tag-accent { background: var(--primary-fill); color: var(--on-primary); }
 .warn { color: var(--warn-text); font-size: var(--fs-sm); }
-.warn-box {
-  background: var(--warn-bg); border: 1px solid var(--warn-border);
-  border-radius: var(--radius-lg); padding: 16px 18px; margin-bottom: var(--space-md);
-  color: var(--warn-text); font-size: calc(14px * var(--fs-mul)); line-height: 1.65;
-}
 .warn-box b { color: var(--danger); font-weight: 700; }
 .hint { color: var(--muted); font-size: var(--fs-sm); line-height: 1.65; }
 
@@ -1067,7 +1062,6 @@ body.in-home .mod-date { visibility: hidden; }
 
 /* 第 59 次：医学提示行（growth/vaccine/meds/pregnancy/contraction/period/fetal/temp 页脚）
    与 know-hint 同一视觉语言（左侧竖条），但语气更中性、不做强调色 */
-.med-note { margin: 14px 2px 0; padding-left: 12px; border-left: 3px solid var(--primary); border-radius: 3px; opacity: .92; }
 
 /* 第 59 次：设置二级菜单——<details class="set-group"> 分组目录。
    summary 做成菜单行（icon + 标题/描述 + chevron），展开后内部是原有卡片；
@@ -1802,9 +1796,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
    - .notice-banner：持续性静默风险的强提示卡，不自动消失、可延迟关闭、不阻断操作。
    ============================================================ */
 
-.notice-banner { --bar-c: var(--warn); }
 .notice-banner h2 { display: flex; align-items: center; gap: 6px; }
-.notice-banner h2 .ico { width: 18px; height: 18px; }
 .notice-banner .row { margin-top: var(--space-sm); }
 .notice-banner .row .btn { flex: 1; }
 
@@ -3427,7 +3419,6 @@ input[type=time]::-webkit-date-and-time-value { text-align: left; margin: 0; }
 /* 卡片里的列表不再套一层容器（卡片本身就是容器） */
 .card .list:not(:empty), .card .kv:not(:empty) { background: none; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
 /* 第 176 次：喂养参考、睡眠参考、哺乳期与月经这类纯说明卡（.info-card）也走浅色横幅，颜色跟随所在模块 */
-.card.info-card { --bar-c: var(--tile, var(--primary)); }
 .notice-banner, .review-card, .farewell-card, .card.backfill-note, .card.info-card {
   background: color-mix(in srgb, var(--bar-c, var(--primary)) 9%, var(--surface));
   border-color: transparent; box-shadow: none;
@@ -3562,11 +3553,6 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
 /* ⑦ 一键记录 4 枚（吃药/维D）在 3 列网格里落单一枚 → 正好 4 枚时排成一行 4 列 */
 /* ⑩ 确认框三钮（出口 + 取消 + 确认）：320px 宽里三钮横排，「先导出备份」「仍要清空」各折两行。
    有出口按钮时改竖排：确认在上、出口居中、取消在底（iOS 警示框惯例）；危险框标题图标改警示三角。 */
-.modal-actions.has-extra { flex-direction: column; gap: var(--space-xs); }
-.modal-actions.has-extra .btn { flex: none; width: 100%; min-height: 46px; white-space: nowrap; }
-.modal-actions.has-extra [data-cfm-ok] { order: 1; }
-.modal-actions.has-extra [data-cfm-extra] { order: 2; }
-.modal-actions.has-extra [data-cfm-cancel] { order: 3; border-color: transparent; background: transparent; box-shadow: none; }
 .modal h2 .ico { vertical-align: -3px; }
 .modal:has(.modal-actions.is-danger) h2 .ico { color: var(--danger); }
 /* ⑫ 孕期设置：换算结果行（选完日期后淡入，主色弱底小卡） */
@@ -6700,3 +6686,146 @@ body.dark .mw-presave { color: var(--tile-on); }
 body.dark .sk2-page .mc-main, body.dark .ft-sheet[data-accent="sick"] .rs-ok { color: var(--tile-on); }
 .sk2-empty p { max-width: 280px; margin-left: auto; margin-right: auto; }
 .sk2-tl .sk2-f { color: var(--muted); }
+
+/* ============================================================
+   第 302 次：提示与通知统一成「咿呀」
+   · 只看不点 → 顶部咿呀岛（上面第 277 次一节，不变）；表情随场景换（data-face，assets/yiya/*.webp）。
+   · 要点的（撤销 / 确认 / 以后的到点提醒、家庭共享请求）→ 从 dock 长出来的卡片，点完或倒计时结束缩回 dock。
+   · 页面里的说明 / 留意 / 行动卡 → 咿呀说一句话（左上角小咿呀）；免责与出处 → 页尾一行小字，不配咿呀。
+   ============================================================ */
+/* —— dock 卡片：撤销类提示 —— */
+#toastRoot.at-dock { top: auto; transition: none; z-index: 1210; }
+body .toast.toast-island.toast-dock {
+  width: min(360px, calc(100vw - 24px)); min-height: 64px; padding: 10px 10px 12px 10px; gap: 12px;
+  border-radius: var(--radius-lg); transform-origin: 50% 100%;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  box-shadow: 0 1px 1px rgba(90, 74, 62, .06), 0 -4px 28px -10px rgba(90, 74, 62, .4), 0 10px 24px -12px rgba(90, 74, 62, .4);
+}
+body.dark .toast.toast-island.toast-dock { background: color-mix(in srgb, var(--surface) 92%, transparent); }
+.toast-island.toast-dock .toast-yiya { width: 44px; height: 44px; }
+/* dock 卡片地方宽：文字最多两行（不截省略号），高度由 44px 咿呀撑着、一行两行一样高 */
+.toast-island.toast-dock .toast-msg { flex: 1 1 auto; font-size: calc(15px * var(--fs-mul)); line-height: 1.35; white-space: normal; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+body .toast-island.toast-dock .toast-action { min-height: 40px; padding: 8px 18px; margin-left: auto; }
+.toast.toast-island.toast-dock.show { animation: dock-grow .5s cubic-bezier(.3, 1.28, .5, 1) both; }
+.toast.toast-island.toast-dock.show:not(.swap) > :not(canvas):not(.toast-bar) { animation: island-content .26s .16s var(--ease) both; }
+.toast.toast-island.toast-dock.leaving, .toast.toast-island.toast-dock.leaving-up { animation: dock-shrink .24s var(--ease) both; }
+@keyframes dock-grow {
+  0% { opacity: .6; transform: scale(var(--dk-sx, .6), var(--dk-sy, .8)); border-radius: var(--radius-pill); }
+  30% { opacity: 1; }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes dock-shrink {
+  from { opacity: 1; transform: none; }
+  70% { opacity: 1; }
+  to { opacity: 0; transform: scale(var(--dk-sx, .6), var(--dk-sy, .8)); border-radius: var(--radius-pill); }
+}
+.toast-island.toast-dock .toast-bar {
+  position: absolute; left: 20px; right: 20px; bottom: 5px; height: 3px; border-radius: 2px; z-index: 1;
+  background: var(--tile-fill, var(--ty-c, var(--primary))); opacity: .75; transform-origin: 0 50%;
+  animation: toast-bar 5200ms linear both;
+}
+.toast-island.toast-dock[data-accent="feeding"] .toast-bar { background: var(--feeding, var(--primary)); }
+.toast-island.toast-dock[data-accent="sleep"] .toast-bar { background: var(--sleep, var(--primary)); }
+.toast-island.toast-dock[data-accent="diaper"] .toast-bar { background: var(--diaper, var(--primary)); }
+.toast-island.toast-dock.dragging .toast-bar { animation-play-state: paused; }
+@keyframes toast-bar { from { transform: scaleX(var(--bar-from, 1)); } to { transform: scaleX(0); } }
+/* dock 让位：卡片长出来时 dock 淡出，缩回时淡回 */
+#tabbar { transition: opacity .18s var(--ease); }
+body.dockpop #tabbar { opacity: 0 !important; pointer-events: none; }
+
+/* —— dock 卡片：确认框（Util.confirm / Util.yiyaAsk）—— */
+.modal-mask.cfm-mask { align-items: flex-end; padding: 12px 10px calc(10px + env(safe-area-inset-bottom)); }
+.modal.cfm-card {
+  width: min(400px, 100%); max-width: 400px; padding: 22px 16px 14px; text-align: center;
+  border: 0; border-radius: var(--radius-lg); transform-origin: 50% 100%;
+  box-shadow: 0 -8px 40px -12px rgba(51, 48, 43, .45);
+  animation: cfm-up .34s cubic-bezier(.3, 1.2, .5, 1) both;
+}
+.cfm-from-dock .modal.cfm-card { animation: cfm-grow .46s cubic-bezier(.3, 1.24, .5, 1) both; }
+.cfm-from-dock .modal.cfm-card > * { animation: island-content .24s .14s var(--ease) both; }
+@keyframes cfm-up { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: none; } }
+@keyframes cfm-grow {
+  0% { opacity: .6; transform: scale(var(--dk-sx, .5), var(--dk-sy, .2)); border-radius: var(--radius-pill); }
+  30% { opacity: 1; }
+  100% { opacity: 1; transform: none; }
+}
+.cfm-yiya { display: block; width: 72px; height: 72px; margin: 0 auto 10px; border-radius: 50%; overflow: hidden; background: #FCD98A;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 22%, var(--surface)); }
+.cfm-yiya img { display: block; width: 100%; height: 100%; object-fit: cover; -webkit-user-drag: none; }
+.cfm-card .is-danger ~ .cfm-yiya, .cfm-card:has(.is-danger) .cfm-yiya { box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 20%, var(--surface)); }
+.modal.cfm-card h2 { margin: 0 0 6px; display: block; font-size: calc(18px * var(--fs-mul)); }
+.modal.cfm-card p { margin: 0 0 4px; }
+.modal-actions.cfm-actions { flex-direction: column; gap: 8px; margin-top: 16px; }
+.modal-actions.cfm-actions .btn { flex: none; width: 100%; min-height: 50px; border-radius: var(--radius-pill); font-size: calc(16px * var(--fs-mul)); white-space: nowrap; }
+.modal-actions.cfm-actions.is-row { flex-direction: row; }
+.modal-actions.cfm-actions.is-row .btn { flex: 1 1 0; width: auto; }
+.cfm-actions .btn-danger { background: var(--danger); color: #FFF; border-color: transparent; }
+body.dark .cfm-actions .btn-danger { color: #1D1A17; }
+.cfm-actions .cfm-ghost-btn { background: var(--surface-2); border-color: transparent; box-shadow: none; color: var(--text); }
+/* 关闭替身：缩回 dock（或沉下去） */
+.cfm-ghost { position: fixed; inset: 0; z-index: 101; pointer-events: none; }
+.cfm-ghost > .modal { animation: cfm-sink .2s var(--ease) both !important; }
+.cfm-ghost.to-dock > .modal { transform-origin: 50% 100%; animation: cfm-shrink .24s var(--ease) both !important; }
+.cfm-ghost > .modal > * { animation: none !important; }
+@keyframes cfm-sink { to { opacity: 0; transform: translateY(30px); } }
+@keyframes cfm-shrink { 60% { opacity: 1; } to { opacity: 0; transform: scale(var(--dk-sx, .5), var(--dk-sy, .2)); border-radius: var(--radius-pill); } }
+
+/* —— 咿呀的小动作（每个表情一个）：.yy-anim[data-face] 或提示岛 .toast-island[data-face] —— */
+.cfm-yiya.yy-anim img { animation: yy-pop .5s .1s cubic-bezier(.34, 1.56, .64, 1) both; }
+.yy-anim[data-face="sorry"] img { animation: yy-pop .5s .1s cubic-bezier(.34, 1.56, .64, 1) both, yy-shrink .6s .62s ease-in-out both; }
+.yy-anim[data-face="think"] img, .yy-anim[data-face="puzzled"] img { animation: yy-pop .5s .1s cubic-bezier(.34, 1.56, .64, 1) both, yy-tilt 1s .62s ease-in-out both; }
+.yy-anim[data-face="wave"] img, .yy-anim[data-face="send"] img, .yy-anim[data-face="flag"] img, .yy-anim[data-face="phone"] img { animation: yy-pop .5s .1s cubic-bezier(.34, 1.56, .64, 1) both, yy-wave .9s .6s ease-in-out both; }
+.yy-anim[data-face="oops"] img { animation: ty-shake .46s .12s ease-in-out both; }
+.toast-island.show[data-face="sorry"] .toast-yiya img { animation: ty-pop .5s .08s cubic-bezier(.34, 1.56, .64, 1) both, yy-shrink .6s .58s ease-in-out both; }
+.toast-island.show[data-face="wow"] .toast-yiya img, .toast-island.show[data-face="bday"] .toast-yiya img, .toast-island.show[data-face="clap"] .toast-yiya img { animation: ty-pop .5s .08s cubic-bezier(.34, 1.56, .64, 1) both, yy-jump .6s .58s cubic-bezier(.3, 1.5, .5, 1) both; }
+.toast-island.show[data-face="proud"] .toast-yiya img, .toast-island.show[data-face="thumb"] .toast-yiya img { animation: ty-pop .5s .08s cubic-bezier(.34, 1.56, .64, 1) both, yy-proud .7s .58s ease-in-out both; }
+.toast-island.show[data-face="send"] .toast-yiya img, .toast-island.show[data-face="wave"] .toast-yiya img, .toast-island.show[data-face="flag"] .toast-yiya img { animation: ty-pop .5s .08s cubic-bezier(.34, 1.56, .64, 1) both, yy-wave .9s .58s ease-in-out both; }
+.toast-island.show[data-face="spoon"] .toast-yiya img { animation: ty-pop .5s .08s cubic-bezier(.34, 1.56, .64, 1) both, ty-sip .9s .6s ease-in-out both; }
+.toast-island.show[data-face="bath"] .toast-yiya img, .toast-island.show[data-face="hug"] .toast-yiya img { animation: ty-pop .5s .08s cubic-bezier(.34, 1.56, .64, 1) both, yy-sway 1s .6s ease-in-out both; }
+.toast-island.show[data-face="blanket"] .toast-yiya img { animation: island-fade .3s .05s linear both; }
+.toast-island.show[data-face="oops"] .toast-yiya img, .toast-island.show[data-face="puzzled"] .toast-yiya img { animation: ty-shake .46s .12s ease-in-out both; }
+@keyframes yy-pop { 0% { transform: scale(.5) rotate(-10deg); } 60% { transform: scale(1.08) rotate(3deg); } 100% { transform: none; } }
+@keyframes yy-shrink { 0%, 100% { transform: none; } 40% { transform: scale(.9) translateY(2px); } }
+@keyframes yy-tilt { 0%, 100% { transform: none; } 40%, 70% { transform: rotate(-10deg); } }
+@keyframes yy-wave { 0%, 100% { transform: none; } 20% { transform: rotate(-8deg); } 45% { transform: rotate(7deg); } 70% { transform: rotate(-5deg); } }
+@keyframes yy-jump { 0%, 100% { transform: none; } 40% { transform: translateY(-6px) scale(1.06); } 70% { transform: translateY(1px); } }
+@keyframes yy-proud { 0%, 100% { transform: none; } 45% { transform: rotate(6deg) translateY(-2px); } }
+@keyframes yy-sway { 0%, 100% { transform: none; } 30% { transform: rotate(-6deg); } 65% { transform: rotate(5deg); } }
+
+/* —— 页面里：咿呀说一句话 —— */
+.warn-box, .card.backfill-note, p.backfill-note, .notice-banner, .card.vac-remind, .card.info-card {
+  --yy-face: url(../assets/yiya/think.webp);
+  position: relative; padding-left: 58px; min-height: 56px;
+}
+.warn-box::before, .card.backfill-note::before, p.backfill-note::before, .notice-banner::before, .card.vac-remind::before, .card.info-card::before {
+  content: ''; position: absolute; left: 14px; top: 14px; width: 32px; height: 32px; border-radius: 50%;
+  background: #FCD98A var(--yy-face) center / cover no-repeat;
+  box-shadow: 0 0 0 2px var(--surface-solid, var(--surface)); pointer-events: none;
+}
+.warn-box {
+  background: var(--warn-bg); border: 1px solid var(--warn-border);
+  border-radius: var(--radius-lg); padding: 16px 18px 16px 58px; margin-bottom: var(--space-md);
+  color: var(--warn-text); font-size: calc(14px * var(--fs-mul)); line-height: 1.65;
+  --yy-face: url(../assets/yiya/puzzled.webp);
+}
+.card.backfill-note, p.backfill-note { --yy-face: url(../assets/yiya/think.webp); border-left-width: 1px; border-left-color: transparent; }
+p.backfill-note { padding: 12px 16px 12px 58px; border-radius: var(--radius-lg); background: color-mix(in srgb, var(--warn) 9%, var(--surface)); border-left: 0; }
+p.backfill-note::before { top: 10px; }
+.card.backfill-note.feed-live { --yy-face: url(../assets/yiya/drink.webp); }
+.notice-banner { --bar-c: var(--warn); --yy-face: url(../assets/yiya/flag.webp); }
+.card.vac-remind { --yy-face: url(../assets/yiya/wave.webp); padding-left: 58px; }
+.card.info-card { --bar-c: var(--tile, var(--primary)); --yy-face: url(../assets/yiya/think.webp); }
+.notice-banner h2 .ico { display: none; width: 18px; height: 18px; }
+/* 免责 / 出处：页尾一行小字，不配咿呀、不要竖线 */
+.med-note { margin: 16px 4px 0; padding-left: 0; border-left: 0; font-size: calc(12px * var(--fs-mul)); line-height: 1.6; opacity: .85; }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast.toast-island.toast-dock.show { animation: island-fade .22s linear both !important; }
+  .toast.toast-island.toast-dock.leaving, .toast.toast-island.toast-dock.leaving-up { animation: island-fade-out .16s linear both !important; }
+  .toast-island.toast-dock .toast-bar { animation: none !important; display: none; }
+  .modal.cfm-card, .cfm-from-dock .modal.cfm-card { animation: island-fade .2s linear both !important; }
+  .cfm-from-dock .modal.cfm-card > *, .cfm-yiya img { animation: none !important; }
+  .toast-island.show[data-face] .toast-yiya img { animation: none !important; }
+  #tabbar { transition: none; }
+}
