@@ -174,6 +174,7 @@
     contractions: { mod: 'contraction', edit: '_edit', del: '_remove' },
     laborEvents: { mod: 'contraction', edit: '_editLabor', del: '_removeLabor' },
     fetal: { mod: 'fetal', edit: '_edit', del: '_remove' },
+    prenatalVisits: { mod: 'prenatal', edit: '_edit', del: '_remove' },
     /* 第 289 次：疫苗走疫苗本的修改面板（id = 剂次 key 或 'sub:'+自选记录 id）；没有 id 的老键仍去疫苗页 */
     vaccines: { mod: 'vaccine', edit: '_edit', del: '_remove' }
   };
@@ -184,6 +185,7 @@
   var GO_MOD = { prenatal: 'pregnancy', vaccines: 'vaccine' };
   function arrOf(d, src) {
     if (src === 'prenatal') return (d.prenatal && d.prenatal.records) || [];
+    if (src === 'prenatalVisits') return (d.prenatal && Array.isArray(d.prenatal.visits)) ? d.prenatal.visits : [];
     if (src === 'vaccines') return (global.Modules && Modules.vaccine && Modules.vaccine._recs) ? Modules.vaccine._recs(d) : [];
     return Array.isArray(d[src]) ? d[src] : [];
   }

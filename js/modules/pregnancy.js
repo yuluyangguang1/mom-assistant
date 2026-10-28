@@ -158,23 +158,11 @@
         + (mw.length ? '最近一次 ' + mw[0].kg + ' kg · ' + Util.escapeHtml(Util.fmtDate(mw[0].date)) : '记录孕期体重，看推荐增重参考') + '</small></span>'
         + '<span class="pg-mw-go" aria-hidden="true">' + icon('chevron') + '</span></button>';
 
-      // 产检记录
-      html += '<div class="card"><h2>产检记录</h2>';      html += '<label>项目<input type="text" id="rcItem" placeholder="如 宫高 / 体重 / 血压"></label>';
-      html += '<label>数值<input type="text" id="rcVal" placeholder="如 28cm / 120/80"></label>';
-      html += Util.dateSlider({ id: 'rcDate', title: '日期', value: Util.todayISO(), min: Util.addDays(Util.todayISO(), -31), max: Util.todayISO() });
-      html += '<button class="btn btn-primary btn-save" id="rcAdd">保存记录</button>';
-      if (d.prenatal.records.length) {
-        var byItem = {};
-        d.prenatal.records.forEach(function (r) { (byItem[r.item] = byItem[r.item] || []).push(r); });
-        html += '<ul class="list">';
-        Object.keys(byItem).forEach(function (item) {
-          var arr = byItem[item].slice().sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
-          var vals = arr.map(function (r) { return Util.escapeHtml(r.value); }).join(' → ');
-          html += '<li>' + icon('pregnancy') + '<span><b>' + Util.escapeHtml(item) + '</b><br>趋势：' + vals + '</span></li>';
-        });
-        html += '</ul><button class="btn-mini" id="rcClear">清空记录</button>';
-      }
-      html += '</div>';
+      // 第 298 次：产检记录搬到独立的「产检」页（产检本 + 超声测量 + 估重参考 + 报告图片），这里只留入口
+      var pv = (d.prenatal.visits || []).filter(function (r) { return r && r.date; });
+      html += '<button type="button" class="card pg-mw-entry" id="pgPvGo"><span class="pg-mw-t"><b>产检记录</b><small>'
+        + (pv.length ? '已记录 ' + pv.length + ' 次 · 最近 ' + Util.escapeHtml(Util.fmtDate(pv.map(function (r) { return r.date; }).sort().pop())) : '记录每次产检的检查项、B 超数值和报告') + '</small></span>'
+        + '<span class="pg-mw-go" aria-hidden="true">' + icon('chevron') + '</span></button>';
 
       /* 第 59 次：医学提示（遵医嘱） */
       html += '<p class="hint med-note">孕周与预产期为估算值；产检安排与一切医学判断请遵医嘱。</p>';
@@ -281,30 +269,8 @@
       });
       var mwGo = view.querySelector('#pgMwGo');
       if (mwGo) mwGo.addEventListener('click', function () { global.App.showTab('momweight'); });
-      view.querySelector('#rcAdd').addEventListener('click', function () {
-        var itemEl = view.querySelector('#rcItem'), valEl = view.querySelector('#rcVal');
-        var item = itemEl.value.trim(), val = valEl.value.trim();
-        var date = view.querySelector('#rcDate').value;
-        var bad = false;
-        if (!item) { Util.markInvalid(itemEl, '请填写项目'); bad = true; }
-        if (!val) { Util.markInvalid(valEl, '请填写数值'); bad = true; }
-        if (bad) return;
-        d.prenatal.records.push({ id: Util.uid(), item: item, value: val, date: date });
-        if (Storage.save()) Util.toast('已记录：' + item, 'ok'); /* C1 */
-        global.App.rerender();
-      });
-      var rcClear = view.querySelector('#rcClear');
-      if (rcClear) rcClear.addEventListener('click', function () {
-        /* U-33：不可逆批量操作走阻断路径——后果说明 + 立即导出口 + 防误触 */
-        Util.confirm({
-          title: '清空全部产检记录',
-          message: '将删除本机保存的全部产检记录，此操作不可恢复。',
-          okText: '仍要清空',
-          danger: true,
-          extra: { text: '先导出备份', onClick: function () { global.App.exportAll(); } },
-          onConfirm: function () { d.prenatal.records = []; Storage.save(); global.App.rerender(); }
-        });
-      });
+      var pvGo = view.querySelector('#pgPvGo');
+      if (pvGo) pvGo.addEventListener('click', function () { global.App.showTab('prenatal'); });
     }
   };
 })(window);

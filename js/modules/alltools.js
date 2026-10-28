@@ -61,6 +61,7 @@
         { id: 'pregnancy', name: '孕期' },
         { id: 'fetal', name: '胎动' },
         { id: 'contraction', name: '宫缩' },
+        { id: 'prenatal', name: '产检' },
         { id: 'packing', name: '待产包' },
         { id: 'momweight', name: '宝妈体重' }
       ]

@@ -1384,7 +1384,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v261（第 297 次升）', "var CACHE = 'baoma-static-v261';" in sw)
+    check('#275 SW 版本 v262（第 298 次升）', "var CACHE = 'baoma-static-v262';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -4356,7 +4356,7 @@ def test_r290(b):
     want = ev("""(()=>{const g=Modules.alltools._groups.filter(x=>x.key!=='tools');return ['home','calendar','whitenoise','__edit','settings'].concat(...g.map(x=>x.items.filter(i=>i.id!=='whitenoise').map(i=>i.id)))})()""")
     got = ev("[...document.querySelectorAll('#qdActions [data-qm-go]')].map(e=>e.dataset.qmGo)")
     acts = ev("[...document.querySelectorAll('#qdActions [data-qm]')].map(e=>e.dataset.qm)")
-    check('#290 入口一个不少：宝宝资料 / 切换 / 搜索 + 常用 5 项（首页 日期记录 哄睡声音 编辑首页 设置）+ 全部功能 + 孕期', got == want and acts == ['baby', 'swap', 'search'] and len(got) == 30, [len(got), got, acts])
+    check('#290 入口一个不少：宝宝资料 / 切换 / 搜索 + 常用 5 项（首页 日期记录 哄睡声音 编辑首页 设置）+ 全部功能 + 孕期', got == want and acts == ['baby', 'swap', 'search'] and len(got) == 31, [len(got), got, acts])
     check('#290 当前页（首页）格子高亮、aria-current', ev("(()=>{const e=document.querySelector('#qdActions [data-qm-go=home]');return e.classList.contains('on')&&e.getAttribute('aria-current')==='page'})()"))
     check('#290 菜单格子复用 ＋ 面板的格子（.qd-action + .qd-badge + qdPop 入场）', ev("(()=>{const e=document.querySelector('#qdActions .qm-it');return e.classList.contains('qd-action')&&!!e.querySelector('.qd-badge')&&getComputedStyle(e).animationName})()") == 'qdPop')
     # —— 关闭：遮罩 ——
@@ -5009,8 +5009,8 @@ def test_r293(b):
     # —— 分组口径 ——
     g = ev("""(()=>{const G=Modules.alltools._groups;const by=k=>G.find(x=>x.key===k).items.map(i=>i.id);
       return {keys:G.map(x=>x.key),baby:by('baby'),mom:by('mom'),home:by('home'),preg:by('pregnancy'),n:Modules.alltools._modules.length}})()""")
-    check('#293 分组按归属：宝宝 / 孕期 / 妈妈 / 全家 / 工具；妈妈情绪、经期不再混在宝宝组，记账、消耗品归全家；入口一个不少（28 项，第 297 次加宝妈体重）',
-          g['keys'] == ['baby', 'pregnancy', 'mom', 'home', 'tools'] and 'mood' not in g['baby'] and 'period' not in g['baby'] and g['mom'] == ['mood', 'period'] and g['home'] == ['finance', 'supplies'] and 'feeding' in g['baby'] and g['n'] == 28, g)
+    check('#293 分组按归属：宝宝 / 孕期 / 妈妈 / 全家 / 工具；妈妈情绪、经期不再混在宝宝组，记账、消耗品归全家；入口一个不少（29 项，第 297 次加宝妈体重、第 298 次加产检）',
+          g['keys'] == ['baby', 'pregnancy', 'mom', 'home', 'tools'] and 'mood' not in g['baby'] and 'period' not in g['baby'] and g['mom'] == ['mood', 'period'] and g['home'] == ['finance', 'supplies'] and 'feeding' in g['baby'] and g['n'] == 29, g)
     # 宝宝组的条目都是存在宝宝名下的数据；妈妈 / 全家组的都不在 BABY_KEYS（切换宝宝不变）
     ev("App.openMenu()"); p.wait_for_timeout(500)
     m1 = ev("(()=>{const l=document.getElementById('qdActions');return {gh:[...l.querySelectorAll('.qm-gh')].map(e=>e.textContent),preg:!!l.querySelector('.qm-preg')}})()")
@@ -5422,9 +5422,72 @@ def test_r297(b):
     ctx.close()
 
 
+def test_r298(b):
+    """第 298 次：产检独立页——阶段卡（按今天孕周）→ 记录面板（产检日期、孕周自动算、第 N 次 + 阶段 + 检查项点选 + 提示、
+    BPD/HC/AC/FL、估重 + INTERGROWTH-21st P10/P50/P90、备注、报告图片）→ 时间轴（第 N 次按日期排、修改、删除撤销）；
+    日期记录能看到并点开修改；孕期页旧「产检记录」卡改入口；旧文字记录仍可见。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+    ev = p.evaluate
+    ev("(()=>{const d=Storage.get();d.pregnancy.dueDate=Util.addDays(Util.todayISO(),34);d.pregnancy.lmp=null;d.prenatal.visits=[];d.prenatal.records=[{id:'o1',item:'宫高',value:'30cm',date:Util.addDays(Util.todayISO(),-90)}];Storage.save();App.showTab('prenatal')})()"); p.wait_for_timeout(500)
+    e0 = ev("({stage:document.querySelector('.pv-now-t b').textContent,ga:document.querySelector('.pv-now-t small').textContent,tags:[...document.querySelectorAll('.pv-now-tags span')].map(x=>x.textContent),empty:!!document.querySelector('.pv-empty img'),old:document.querySelector('.pv-old').textContent,cta:document.querySelector('#pvAdd').textContent})")
+    check('#298 空页：阶段卡「孕 33–36 周 · 分娩前评估」今天孕 35 周 1 天 + 尿常规 胎监 GBS；插画；旧文字记录仍在；底部「产检记录」',
+          e0['stage'] == '孕 33–36 周 · 分娩前评估' and e0['ga'] == '今天孕 35 周 1 天' and e0['tags'] == ['尿常规', '胎监', 'GBS'] and e0['empty'] and '宫高' in e0['old'] and e0['cta'] == '产检记录', e0)
+    p.click('#pvAdd'); p.wait_for_timeout(700)
+    s1 = ev("({t:document.querySelector('#ftsTitle').textContent,ga:document.querySelector('#pvGa b').textContent,sh:document.querySelector('.pv-sh').textContent,tags:[...document.querySelectorAll('[data-pvtag]')].map(x=>x.textContent),ref:document.querySelector('#pvRef').textContent,ph:!!document.querySelector('[data-phadd]')})")
+    check('#298 记录面板：孕周 35 周 1 天、「第 1 次 · 孕 33–36 周 · 分娩前评估」、阶段检查项 + 常用项、估重参考 P10 1,967g · P50 2,378g · P90 2,838g、可加报告图片',
+          s1['t'] == '新增产检记录' and s1['ga'] == '35 周 1 天' and s1['sh'] == '第 1 次 · 孕 33–36 周 · 分娩前评估' and s1['tags'][:3] == ['尿常规', '胎监', 'GBS'] and '胎心' in s1['tags']
+          and 'P10 1,967g · P50 2,378g · P90 2,838g' in s1['ref'] and 'INTERGROWTH-21st' in s1['ref'] and s1['ph'], s1)
+    ev("(()=>{const d=document.querySelector('#pvDate');d.value=Util.addDays(Util.todayISO(),-77);d.dispatchEvent(new Event('change',{bubbles:true}))})()"); p.wait_for_timeout(200)
+    s2 = ev("[document.querySelector('#pvGa b').textContent,document.querySelector('.pv-sh').textContent,document.querySelector('#pvRef').textContent]")
+    check('#298 改日期：孕周 / 阶段 / 估重参考跟着变（24 周 1 天 → 大排畸、P50 669g）', s2[0] == '24 周 1 天' and '孕 20–24 周 · 大排畸' in s2[1] and 'P50 669g' in s2[2], s2)
+    ev("(()=>{const d=document.querySelector('#pvDate');d.value=Util.todayISO();d.dispatchEvent(new Event('change',{bubbles:true}))})()"); p.wait_for_timeout(200)
+    ev("(()=>{document.querySelector('[data-pvtag=\"胎监\"]').click();document.querySelector('[data-pvtag=\"尿常规\"]').click();document.querySelector('[data-pvtag=\"胎监\"]').click();document.querySelector('[data-pvtag=\"胎监\"]').click();const s=(k,v)=>{document.querySelector('[data-pvn='+k+']').value=v};s('bpd','86');s('hc','310');s('ac','999');s('efw','2,380');document.querySelector('#pvNote').value='两周后复查';document.querySelector('#pvSave').click()})()"); p.wait_for_timeout(300)
+    bad = ev("[document.querySelector('[data-pvn=ac]').classList.contains('is-invalid'),(Storage.get().prenatal.visits||[]).length]")
+    ev("(()=>{document.querySelector('[data-pvn=ac]').value='300';const b=document.querySelector('#pvSave');b.click();b.click()})()"); p.wait_for_timeout(500)
+    v = ev("Storage.get().prenatal.visits")
+    check('#298 腹围 999 标红不保存；改 300 后保存一条（检查项 尿常规 胎监、BPD 86 HC 310 AC 300、估重 2380、备注），连点不重复',
+          bad == [True, 0] and len(v) == 1 and v[0]['tags'] == ['尿常规', '胎监'] and v[0]['bpd'] == 86 and v[0]['hc'] == 310 and v[0]['ac'] == 300 and 'fl' not in v[0] and v[0]['efw'] == 2380 and v[0]['note'] == '两周后复查', [bad, v])
+    ev("(()=>{const d=Storage.get();d.prenatal.visits.push({id:'v1',date:Util.addDays(Util.todayISO(),-28),tags:['OGTT']},{id:'v2',date:Util.addDays(Util.todayISO(),-60),tags:['大排畸']});Storage.save();App.rerender()})()"); p.wait_for_timeout(400)
+    rows = ev("[...document.querySelectorAll('.pv-tl .tl-txt b')].map(x=>x.textContent)")
+    us = ev("document.querySelector('.pv-tl .pv-us').textContent")
+    sm = ev("document.querySelector('.mod-sum p').textContent")
+    check('#298 时间轴：新的在上，第 3 / 2 / 1 次按日期编号；超声行「BPD 86 · HC 310 · AC 300 · 估重 2,380g」；摘要 3 次',
+          rows == ['第 3 次产检', '第 2 次产检', '第 1 次产检'] and us == 'BPD 86 · HC 310 · AC 300 · 估重 2,380g' and '已记录 3 次产检' in sm, [rows, us, sm])
+    ev("document.querySelector('[data-pvopen=v1]').click()"); p.wait_for_timeout(700)
+    ed = ev("[document.querySelector('#ftsTitle').textContent,document.querySelector('.pv-sh').textContent.slice(0,5),document.querySelector('[data-pvtag=OGTT]').getAttribute('aria-pressed'),!!document.querySelector('[data-pvdel]')]")
+    ev("(()=>{document.querySelector('[data-pvn=fl]').value='55';document.querySelector('#pvSave').click()})()"); p.wait_for_timeout(500)
+    e1 = ev("Storage.get().prenatal.visits.find(x=>x.id==='v1')")
+    check('#298 点卡片修改：「修改产检记录」第 2 次、OGTT 已选、有删除；补 FL 55 保存', ed == ['修改产检记录', '第 2 次', 'true', True] and e1['fl'] == 55 and e1['tags'] == ['OGTT'], [ed, e1])
+    ev("document.querySelector('.pv-page .tl-del[data-del=v2]').click()"); p.wait_for_timeout(400)
+    g1 = ev("!Storage.get().prenatal.visits.some(x=>x.id==='v2')")
+    ev("(()=>{const bs=[...document.querySelectorAll('.toast button, .toast-action')];bs.length&&bs[bs.length-1].click()})()"); p.wait_for_timeout(300)
+    check('#298 删除带撤销', g1 and ev("Storage.get().prenatal.visits.some(x=>x.id==='v2')"))
+    ev("(()=>{App.showTab('calendar')})()"); p.wait_for_timeout(700)
+    cal = ev("[...document.querySelectorAll('#view .tl-card, #view [data-it], #view li')].map(x=>x.textContent.replace(/\\s+/g,' ')).filter(t=>/产检/.test(t))")
+    check('#298 日期记录：今天有「产检 孕 35 周 1 天」', any('产检' in c and '孕 35 周 1 天' in c for c in cal), cal)
+    ev("App.showTab('pregnancy')"); p.wait_for_timeout(500)
+    en = ev("[(document.querySelector('#pgPvGo')||{}).textContent,!!document.querySelector('#rcAdd')]")
+    ev("document.querySelector('#pgPvGo').click()"); p.wait_for_timeout(500)
+    check('#298 孕期页旧「产检记录」表单换成入口（已记录 3 次），点进产检页', en[0].startswith('产检记录已记录 3 次') and not en[1] and ev("App.currentTab()") == 'prenatal', en)
+    ev("App.showTab('alltools')"); p.wait_for_timeout(500)
+    check('#298 全部工具里有「产检」', ev("[...document.querySelectorAll('#view button, #view a')].some(x=>x.textContent.trim()==='产检'||/^产检/.test(x.textContent.trim()))"))
+    ph = ev("(()=>{const d=Storage.get();d.prenatal.visits[0].photos=['ph_abcd1234'];return Photos.clean(d.prenatal.visits[0].photos).length})()")
+    check('#298 报告图片 id 合法、照片回收算产检引用', ph == 1 and 'prenatal.visits' in (ROOT / 'js/photos.js').read_text(encoding='utf-8'), ph)
+    ev("document.body.classList.add('dark');App.showTab('prenatal')"); p.wait_for_timeout(500)
+    cr = ev(R273_CR, '#pvAdd')
+    ev("document.body.classList.remove('dark')"); p.wait_for_timeout(200)
+    cr2 = ev(R273_CR, '#pvAdd')
+    check('#298 深浅色「产检记录」按钮文字对比度 ≥ 4.5', isinstance(cr, (int, float)) and cr >= 4.5 and isinstance(cr2, (int, float)) and cr2 >= 4.5, [cr, cr2])
+    check('#298 pageerror 为 0', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -5460,7 +5523,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r294',),
           ('test_r295',),
           ('test_r296',),
-          ('test_r297',))  # 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r297',),
+          ('test_r298',))  # 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

@@ -417,6 +417,12 @@
         var s0 = isoOf(r.start), e0 = r.end ? isoOf(r.end) : '', n = e0 ? Util.daysBetween(s0, e0) + 1 : NaN, ago = Util.daysBetween(s0, Util.todayISO());
         tag(add(s0, 'period', '经期', n > 0 ? n + ' 天' : (!e0 && ago >= 0 && ago < 10 ? '进行中' : '')), 'periods', r);
       });
+      /* 第 298 次：产检本记录进日期记录，点按走产检面板修改 */
+      if (d.prenatal && Array.isArray(d.prenatal.visits)) d.prenatal.visits.forEach(function (r) {
+        if (!r || !r.date) return;
+        var PNM = global.Modules && global.Modules.prenatal, g = PNM && PNM._gaAt ? PNM._gaAt(d, r.date) : null;
+        tag(add(r.date, 'prenatal', '产检', g ? '孕 ' + g.w + ' 周' + (g.d ? ' ' + g.d + ' 天' : '') : ''), 'prenatalVisits', r);
+      });
       if (d.prenatal && d.prenatal.records) d.prenatal.records.forEach(function (r) { tag(add(r.date, 'pregnancy', '产检', r.item || ''), 'prenatal', r); });
       /* 第 287 次：宫缩行带持续时长（精确到秒，同宫缩页） */
       (d.contractions || []).forEach(function (r) {

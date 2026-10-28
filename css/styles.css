@@ -1265,6 +1265,7 @@ body.dark .set-group .sg-ico { background: rgba(255,255,255,.08); }
 [data-accent="milestone"]   { --tile: #5C7DB4; --tile-text: #3A5A94; --tile-weak: #EFF1F5; --tile-fill: #5676A9; }
 [data-accent="fetal"]       { --tile: #A84A7C; --tile-text: #8A3260; --tile-weak: #F5EFF3; }
 [data-accent="temp"]        { --tile: #2E8FA0; --tile-text: #176F80; --tile-weak: #E9F1F2; --tile-fill: #297F8E; }
+[data-accent="prenatal"]    { --tile: #41709F; --tile-text: #335F95; --tile-weak: #EDF2F8; }  /* 第 298 次：产检（Cali 蓝） */
 [data-accent="momweight"]   { --tile: #9A5A9C; --tile-text: #7E4081; --tile-weak: #F4EEF4; }  /* 第 297 次：宝妈体重（Cali 淡紫），白字 4.87、字/弱底 6.26、tile/弱底 4.26 */
 [data-accent="mood"]        { --tile: #8A5FA0; --tile-text: #6F4787; --tile-weak: #F3EFF5; }
   /* 第 107 次：消耗品（浅色）——青绿，与 finance 的紫、temp 的青蓝区分开 */
@@ -1295,6 +1296,7 @@ body.dark [data-accent="meds"]        { --tile: #D6A5BA; --tile-text: #D6A5BA; -
 body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-text: #9FB9DF; --tile-weak: rgba(159,185,223,.16); --tile-on: #2A292A; }
 body.dark [data-accent="fetal"]       { --tile: #DE9CC4; --tile-text: #DE9CC4; --tile-weak: rgba(222,156,196,.16); --tile-on: #322526; }
 body.dark [data-accent="temp"]        { --tile: #7FC4D0; --tile-text: #7FC4D0; --tile-weak: rgba(127,196,208,.16); --tile-on: #262A28; }
+body.dark [data-accent="prenatal"]    { --tile: #9DC3F0; --tile-text: #9DC3F0; --tile-weak: rgba(157,195,240,.16); --tile-on: #22303D; }
 body.dark [data-accent="momweight"]   { --tile: #D9A9DB; --tile-text: #D9A9DB; --tile-weak: rgba(217,169,219,.16); --tile-on: #2F2530; }
 body.dark [data-accent="mood"]        { --tile: #C4A6D6; --tile-text: #C4A6D6; --tile-weak: rgba(196,166,214,.16); --tile-on: #2E2629; }
   body.dark [data-accent="supplies"]    { --tile: #8FCDB2; --tile-text: #8FCDB2; --tile-weak: rgba(143,205,178,.16); --tile-on: #282B24; }
@@ -1351,6 +1353,7 @@ body.hc:not(.dark) [data-accent="meds"]        { --tile-weak: #FDFAFB; }  /* ΔL
 body.hc:not(.dark) [data-accent="milestone"]   { --tile-weak: #F9FBFD; }  /* ΔL* 5.2 */
 body.hc:not(.dark) [data-accent="fetal"]       { --tile-weak: #FDF9FC; }  /* ΔL* 5.0 */
 body.hc:not(.dark) [data-accent="temp"]        { --tile-weak: #F7FBFC; }  /* ΔL* 5.1 */
+body.hc:not(.dark) [data-accent="prenatal"]    { --tile-weak: #F8FAFD; }
 body.hc:not(.dark) [data-accent="momweight"]   { --tile-weak: #FBF9FB; }
 body.hc:not(.dark) [data-accent="mood"]        { --tile-weak: #FBFAFD; }  /* ΔL* 5.1 */
 body.hc:not(.dark) [data-accent="supplies"]    { --tile-weak: #F7FBFA; }  /* ΔL* 5.0 */
@@ -6618,3 +6621,34 @@ body.dark .mw-presave { color: var(--tile-on); }
 .pg-mw-t small { font-size: 13px; color: var(--text-muted); }
 .pg-mw-go .ico, .pg-mw-go svg { width: 20px; height: 20px; color: var(--text-muted); }
 .mw-page .mc-main > svg { width: 20px; height: 20px; flex: 0 0 auto; }
+
+/* ===================== 第 298 次：产检（产检本 + 超声测量 + 估重参考 + 报告图片） ===================== */
+.pv-dateRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; }
+.pv-dateRow > span { font-size: 16px; font-weight: 700; }
+.pv-date input { margin: 0; min-height: 40px; padding: 6px 14px; border: none; border-radius: var(--radius-pill); background: var(--surface-2); font: inherit; font-size: 15px; font-weight: 700; color: var(--text); }
+.pv-ga { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface-2); margin-bottom: 14px; }
+.pv-ga p { margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.pv-ga small { font-size: 12px; color: var(--text-muted); }
+.pv-ga b { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pv-ga > span { font-size: 12px; color: var(--text-muted); padding-bottom: 4px; }
+.pv-sh { margin: 0 0 8px; font-size: 15px; font-weight: 700; }
+.pv-tags { margin-bottom: 6px; }
+.pv-in { display: block; margin: 0 0 10px; }
+.pv-in > span:first-child { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.pv-in > span:first-child b { font-size: 15px; }
+.pv-in > span:first-child small { font-size: 12px; color: var(--text-muted); }
+.pv-ref { margin: -2px 0 8px; font-size: 12px; color: var(--text-muted); line-height: 1.5; font-variant-numeric: tabular-nums; }
+.pv-note { width: 100%; box-sizing: border-box; border: none; border-radius: var(--radius-md); background: var(--surface-2); padding: 12px 14px; font: inherit; font-size: 15px; color: var(--text); resize: vertical; margin-bottom: 8px; }
+.pv-now-t { margin: 0 0 8px; display: flex; flex-direction: column; gap: 2px; }
+.pv-now-t b { font-size: 17px; }
+.pv-now-t small { font-size: 13px; color: var(--text-muted); }
+.pv-now-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.pv-now-tags span { padding: 4px 10px; border-radius: var(--radius-pill); background: var(--tile-weak); color: var(--tile-text); font-size: 13px; font-weight: 600; }
+.pv-now .ms-ref { margin: 8px 0 0; }
+.pv-tl .tl-txt small.pv-us { color: var(--tile-text); font-variant-numeric: tabular-nums; }
+.pv-tl .tl-txt small.pv-nt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pv-phs { display: flex; gap: 6px; margin-top: 6px; align-items: center; }
+.pv-phs img { width: 44px; height: 44px; object-fit: cover; border-radius: var(--radius-xs); background: var(--surface-2); }
+.pv-phs i { font-style: normal; font-size: 12px; color: var(--text-muted); }
+.pv-page .mc-main > svg { width: 20px; height: 20px; flex: 0 0 auto; }
+.pv-old .list small { color: var(--text-muted); }

@@ -61,6 +61,7 @@
     { key: 'pregnancy',   title: '孕期',     go: 'pregnancy',   icon: 'pregnancy' },
     { key: 'packing',     title: '待产包',   go: 'packing',     icon: 'packing' },
     { key: 'momweight',   title: '宝妈体重', go: 'momweight',   icon: 'momweight' },
+    { key: 'prenatal',    title: '产检',     go: 'prenatal',    icon: 'prenatal' },
     { key: 'vaccine',     title: '疫苗',     go: 'vaccine',     icon: 'vaccine' },
     { key: 'checkups',    title: '儿保体检', go: 'vaccine',     icon: 'check' },
     { key: 'babies',      title: '宝宝档案', go: 'settings',    icon: 'baby' }
@@ -511,6 +512,16 @@
         sortKey: 0
       });
     }
+    /* 第 298 次：产检本 */
+    arr(pn.visits).forEach(function (v) {
+      if (!v || typeof v !== 'object') return;
+      rows.push({
+        title: '产检',
+        sub: [fmt(v.date), arr(v.tags).join(' '), txt(v.note)].filter(Boolean).join(' · '),
+        text: makeText([v.date, arr(v.tags).join(' '), v.note, '产检', '孕期', 'B超', '超声']),
+        sortKey: ts(v.date)
+      });
+    });
     var recs = arr(pn.records);
     for (var j = 0; j < recs.length; j++) {
       var pr = recs[j];

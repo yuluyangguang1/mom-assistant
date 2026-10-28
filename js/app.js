@@ -1352,7 +1352,7 @@
     var arrays = ((global.Storage && Storage.RECORD_KEYS) || []).concat(['metrics']);
     var n = 0;
     arrays.forEach(function (k) { if (Array.isArray(obj && obj[k])) n += obj[k].length; });
-    var deep = [['finance', 'records'], ['prenatal', 'records'], ['prenatal', 'checks'], ['packing', 'items'], ['pregnancy', 'weights']];
+    var deep = [['finance', 'records'], ['prenatal', 'records'], ['prenatal', 'checks'], ['prenatal', 'visits'], ['packing', 'items'], ['pregnancy', 'weights']];
     deep.forEach(function (p) {
       var sub = obj && obj[p[0]];
       if (sub && Array.isArray(sub[p[1]])) n += sub[p[1]].length;

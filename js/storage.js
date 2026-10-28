@@ -213,7 +213,7 @@
       periods: [],
       /* 第 192 次：dateBasis = 'due' | 'lmp' | null —— 用户按哪个日期填的（孕期页记住口径），null = 未选过 */
       pregnancy: { lmp: null, dueDate: null, dateBasis: null, weights: [] },
-      prenatal: { checks: [], records: [] },
+      prenatal: { checks: [], records: [], visits: [] },
       feedings: [],
       sleeps: [],
       openSleep: null,
@@ -1093,7 +1093,7 @@
         if (!Array.isArray(cur[k])) cur[k] = [];
         bump(LABEL[k] || k, mergeArr(cur[k], inc[k]));
       });
-      [['prenatal', 'records', '产检记录'], ['prenatal', 'checks', '产检备注'], ['finance', 'records', '记账'],
+      [['prenatal', 'records', '产检记录'], ['prenatal', 'checks', '产检备注'], ['prenatal', 'visits', '产检'], ['finance', 'records', '记账'],
         ['packing', 'items', '待产包'], ['pregnancy', 'weights', '孕期体重']].forEach(function (t) {
         var so = inc[t[0]]; if (!so || !Array.isArray(so[t[1]])) return;
         if (!cur[t[0]] || typeof cur[t[0]] !== 'object') cur[t[0]] = {};
@@ -1273,7 +1273,7 @@
       return ARRAY_KEYS.some(function (k) { return (d[k] || []).length > 0; })
         || (d.packing && d.packing.items && d.packing.items.length > 0)
         || (d.finance && d.finance.records && d.finance.records.length > 0)
-        || (d.prenatal && d.prenatal.records && d.prenatal.records.length > 0);
+        || (d.prenatal && d.prenatal.records && d.prenatal.records.length > 0) || (d.prenatal && Array.isArray(d.prenatal.visits) && d.prenatal.visits.length > 0);
     },
 
     /** 第 74 次（G1）：损坏备份状态查询——设置页「数据与备份」常驻状态行消费 */
@@ -1305,7 +1305,7 @@
         { key: 'mood', name: '妈妈情绪', count: (d.moods || []).length },
         { key: 'packing', name: '待产包', count: (d.packing && d.packing.items ? d.packing.items.length : 0) },
         { key: 'finance', name: '记账', count: (d.finance && d.finance.records ? d.finance.records.length : 0) },
-        { key: 'pregnancy', name: '产检', count: (d.prenatal && d.prenatal.records ? d.prenatal.records.length : 0) }
+        { key: 'pregnancy', name: '产检', count: (d.prenatal && d.prenatal.records ? d.prenatal.records.length : 0) + (d.prenatal && Array.isArray(d.prenatal.visits) ? d.prenatal.visits.length : 0) }
       ];
     }
   };
