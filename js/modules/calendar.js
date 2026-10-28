@@ -175,6 +175,7 @@
     laborEvents: { mod: 'contraction', edit: '_editLabor', del: '_removeLabor' },
     fetal: { mod: 'fetal', edit: '_edit', del: '_remove' },
     prenatalVisits: { mod: 'prenatal', edit: '_edit', del: '_remove' },
+    milestones: { mod: 'milestone', edit: '_edit', del: '_remove' },
     /* 第 289 次：疫苗走疫苗本的修改面板（id = 剂次 key 或 'sub:'+自选记录 id）；没有 id 的老键仍去疫苗页 */
     vaccines: { mod: 'vaccine', edit: '_edit', del: '_remove' }
   };

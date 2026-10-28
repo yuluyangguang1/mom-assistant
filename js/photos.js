@@ -49,9 +49,9 @@
   function referenced() {
     var set = {}, dd = (global.Storage && Storage.get && Storage.get()) || {};
     var add = function (arr) { (arr || []).forEach(function (r) { if (r && r.photos) Photos.clean(r.photos).forEach(function (id) { set[id] = 1; }); }); };
-    add(dd.diapers); add(dd.feedings); add(dd.supplies); add(dd.prenatal && dd.prenatal.visits); /* 第 298 次：产检报告图片 */
+    add(dd.diapers); add(dd.feedings); add(dd.supplies); add(dd.prenatal && dd.prenatal.visits); add(dd.milestones); /* 第 298 次：产检报告图片；第 299 次：里程碑照片 */
     (dd.supplies || []).forEach(function (s) { if (s && Photos.validId(s.img)) set[s.img] = 1; }); /* 第 294 次：用品的物件照片 */
-    (dd.babies || []).forEach(function (bb) { if (bb && bb.rec) { add(bb.rec.diapers); add(bb.rec.feedings); } });
+    (dd.babies || []).forEach(function (bb) { if (bb && bb.rec) { add(bb.rec.diapers); add(bb.rec.feedings); add(bb.rec.milestones); } });
     return set;
   }
 
@@ -175,9 +175,9 @@
       Photos._gcRan = true;
       var keep = [], dd = Storage.get() || {};
       var add = function (arr) { (arr || []).forEach(function (r) { if (r) Photos.clean(r.photos).forEach(function (id) { keep.push(id); }); }); };
-      add(dd.diapers); add(dd.feedings); add(dd.supplies); add(dd.prenatal && dd.prenatal.visits); /* 第 298 次 */
+      add(dd.diapers); add(dd.feedings); add(dd.supplies); add(dd.prenatal && dd.prenatal.visits); add(dd.milestones); /* 第 298、299 次 */
       (dd.supplies || []).forEach(function (s) { if (s && Photos.validId(s.img)) keep.push(s.img); }); /* 第 294 次：用品物件照片 + 备注照片 */
-      (dd.babies || []).forEach(function (bb) { if (bb && bb.rec) { add(bb.rec.diapers); add(bb.rec.feedings); } });
+      (dd.babies || []).forEach(function (bb) { if (bb && bb.rec) { add(bb.rec.diapers); add(bb.rec.feedings); add(bb.rec.milestones); } });
       return Photos.gc(keep);
     },
     /** 选图或拍照：capture=true 直接开相机；回调收到 File 数组 */

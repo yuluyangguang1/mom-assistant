@@ -1384,7 +1384,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v262（第 298 次升）', "var CACHE = 'baoma-static-v262';" in sw)
+    check('#275 SW 版本 v263（第 299 次升）', "var CACHE = 'baoma-static-v263';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -5485,9 +5485,76 @@ def test_r298(b):
     ctx.close()
 
 
+def test_r299(b):
+    """第 299 次：里程碑重做——空页插画 + 发育对照卡 → 「记一个第一次」半屏（日期磁贴 + 那天几个月几天、常见分组点选 / 自定义、
+    备注、照片）→ 时间轴（月龄、备注、修改、删除撤销）；已记过的常见项带勾；发育对照挪进半屏，规则同第 68 次；日期记录点开走同一面板。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+    ev = p.evaluate
+    ev("(()=>{const d=Storage.get();d.settings.baby.birthDate=Util.addDays(Util.todayISO(),-200);d.settings.baby.preterm=false;d.milestones=[];d.milestoneObs=[];Storage.save();App.showTab('milestone')})()"); p.wait_for_timeout(500)
+    e0 = ev("({img:!!document.querySelector('.ml-empty img'),card:document.querySelector('#mlObsGo').textContent,cta:document.querySelector('#mlAdd').textContent,old:!!document.querySelector('#msSave,#obsCps')})")
+    check('#299 空页：插画 + 发育对照卡（6 月龄 已对照 0/5）+ 底部「记一个第一次」，旧表单不再铺在页面上',
+          e0['img'] and '6 月龄' in e0['card'] and '已对照 0/' in e0['card'] and e0['cta'] == '记一个第一次' and not e0['old'], e0)
+    p.click('#mlAdd'); p.wait_for_timeout(700)
+    s1 = ev("({t:document.querySelector('#ftsTitle').textContent,day:document.querySelector('[data-show=mlDate]').textContent,age:document.querySelector('#mlAge').textContent,grps:[...document.querySelectorAll('.ml-grp')].map(x=>x.textContent),n:document.querySelectorAll('[data-mlpick]').length,ph:!!document.querySelector('[data-phadd]')})")
+    check('#299 面板：「记一个第一次」、日期今天、那天宝宝几个月几天、四组常见项、可加照片',
+          s1['t'] == '记一个第一次' and s1['day'] == '今天' and s1['age'].startswith('那天宝宝 6 个月') and s1['grps'] == ['大运动', '精细动作', '语言', '社交与生活'] and s1['n'] >= 20 and s1['ph'], s1)
+    ev("document.querySelector('#mlSave').click()"); p.wait_for_timeout(300)
+    n0 = ev("(Storage.get().milestones||[]).length")
+    ev("(()=>{document.querySelector('[data-mlpick=\"第一次翻身\"]').click();document.querySelector('#mlNote').value='自己翻过来笑了';const b=document.querySelector('#mlSave');b.click();b.click()})()"); p.wait_for_timeout(500)
+    m = ev("Storage.get().milestones")
+    check('#299 没选不保存；选「第一次翻身」+ 备注保存一条，连点不重复', n0 == 0 and len(m) == 1 and m[0]['title'] == '第一次翻身' and m[0]['note'] == '自己翻过来笑了' and m[0]['date'] == ev("Util.todayISO()"), [n0, m])
+    p.wait_for_timeout(500); p.click('#mlAdd'); p.wait_for_timeout(700)
+    ev("(()=>{document.querySelector('[data-mlmode=u]').click();document.querySelector('#mlTitle').value='第一次游泳';const d=document.querySelector('#mlDate');d.value=Util.addDays(Util.todayISO(),-30);d.dispatchEvent(new Event('change',{bubbles:true}));})()"); p.wait_for_timeout(200)
+    had = ev("document.querySelector('[data-mlpick=\"第一次翻身\"]').classList.contains('ml-had')")
+    age2 = ev("document.querySelector('#mlAge').textContent")
+    ev("document.querySelector('#mlSave').click()"); p.wait_for_timeout(500)
+    m2 = ev("Storage.get().milestones.find(x=>x.title==='第一次游泳')")
+    check('#299 自定义「第一次游泳」改到 30 天前保存；已记过的常见项带勾；改日期月龄跟着变', had and age2.startswith('那天宝宝 5 个月') and m2 and m2['date'] == ev("Util.addDays(Util.todayISO(),-30)"), [had, age2, m2])
+    tl = ev("[...document.querySelectorAll('.ml-tl .tl-txt b')].map(x=>x.textContent)")
+    sm = ev("document.querySelector('.mod-sum p').textContent")
+    check('#299 时间轴新的在上；摘要「已留下 2 个第一次。上次：今天」', tl == ['第一次翻身', '第一次游泳'] and sm == '已留下 2 个第一次。上次：今天', [tl, sm])
+    id2 = m2['id']
+    ev("document.querySelector('[data-mlopen=\"%s\"]').click()" % id2); p.wait_for_timeout(700)
+    ed = ev("[document.querySelector('#ftsTitle').textContent,document.querySelector('[data-mlmode=u]').classList.contains('on'),document.querySelector('#mlTitle').value,!!document.querySelector('[data-mldel]')]")
+    ev("(()=>{document.querySelector('#mlNote').value='在小区泳池';document.querySelector('#mlSave').click()})()"); p.wait_for_timeout(500)
+    check('#299 点卡片修改：自定义页签带出原标题，有删除；改备注保存', ed == ['修改里程碑', True, '第一次游泳', True] and ev("Storage.get().milestones.find(x=>x.id==='%s').note" % id2) == '在小区泳池', ed)
+    ev("document.querySelector('.ml-page .tl-del[data-del=\"%s\"]').click()" % id2); p.wait_for_timeout(400)
+    g1 = ev("Storage.get().milestones.length")
+    ev("(()=>{const bs=[...document.querySelectorAll('.toast button, .toast-action')];bs.length&&bs[bs.length-1].click()})()"); p.wait_for_timeout(300)
+    check('#299 删除带撤销', g1 == 1 and ev("Storage.get().milestones.length") == 2, g1)
+    p.wait_for_timeout(500); ev("document.querySelector('#mlObsGo').click()"); p.wait_for_timeout(700)
+    o1 = ev("({t:document.querySelector('#ftsTitle').textContent,cp:document.querySelector('.ml-cps .active').textContent,n:document.querySelectorAll('.ml-obs')[0].querySelectorAll('.ml-ob').length})")
+    ev("(()=>{const b=[...document.querySelectorAll('[data-mid][data-v=\"0\"]')];b[0].click()})()"); p.wait_for_timeout(200)
+    ev("(()=>{const b=[...document.querySelectorAll('[data-mid][data-v=\"0\"]')];b[1].click()})()"); p.wait_for_timeout(200)
+    vd = ev("document.querySelector('.ml-vd').textContent")
+    ev("document.querySelector('[data-cp=\"12\"]').click()"); p.wait_for_timeout(200)
+    vd12 = ev("document.querySelector('.ml-vd').textContent")
+    ev("document.querySelector('[data-cp=\"6\"]').click()"); p.wait_for_timeout(200)
+    ev("document.querySelector('[data-ok]').click()"); p.wait_for_timeout(500)
+    pg = ev("[document.querySelector('#mlObsGo').textContent,(document.querySelector('.ml-page .med-note')||{}).textContent||'']")
+    check('#299 发育对照半屏：默认 6 月龄；标 2 项「还没」→ 官方建议到医疗机构检查；未到的 12 月龄不下结论；关掉后页面卡 已对照 2/5 + 提示',
+          o1['t'] == '发育对照' and o1['cp'] == '6 月龄' and o1['n'] == 5 and '有 2 项发育标志未出现' in vd and '还没到月龄' in vd12 and '已对照 2/5' in pg[0] and '有 2 项' in pg[1], [o1, vd, vd12, pg])
+    ev("App.showTab('calendar')"); p.wait_for_timeout(700)
+    p.wait_for_timeout(500); ev("Modules.milestone._edit(Storage.get().milestones[0])"); p.wait_for_timeout(700)
+    cal = ev("[...document.querySelectorAll('.ft-sheet #ftsTitle')].map(x=>x.textContent)")
+    src = "milestones: { mod: 'milestone', edit: '_edit', del: '_remove' }" in (ROOT / 'js/modules/calendar.js').read_text(encoding='utf-8')
+    check('#299 日期记录里的里程碑点开走同一个修改面板', src and '修改里程碑' in cal, [src, cal])
+    ev("document.querySelector('[data-x]')&&document.querySelector('[data-x]').click()")
+    ph = 'dd.milestones' in (ROOT / 'js/photos.js').read_text(encoding='utf-8') and 'bb.rec.milestones' in (ROOT / 'js/photos.js').read_text(encoding='utf-8')
+    check('#299 照片回收算里程碑引用（含其他宝宝）', ph)
+    ev("document.body.classList.add('dark');App.showTab('milestone')"); p.wait_for_timeout(500)
+    cr = ev(R273_CR, '#mlAdd')
+    check('#299 深色「记一个第一次」按钮对比度 ≥ 4.5', isinstance(cr, (int, float)) and cr >= 4.5, cr)
+    check('#299 pageerror 为 0', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -5524,7 +5591,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r295',),
           ('test_r296',),
           ('test_r297',),
-          ('test_r298',))  # 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r298',),
+          ('test_r299',))  # 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

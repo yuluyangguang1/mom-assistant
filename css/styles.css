@@ -462,9 +462,6 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .seg-lg .seg-btn { flex: 1 1 auto; padding: 12px 10px; font-size: calc(15px * var(--fs-mul)); }
 
 /* 标签式 chips 行（里程碑预设等）：按内容自然宽度排布、可换行，不做等分 */
-.chip-row { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-bottom: var(--space-md); }
-.chip-row .seg-btn { flex: 0 1 auto; }
-.chip-row .btn-mini { margin: 0; }
 
 /* 独立字段小标题（label 不能包 seg 时用，如喂养「本次侧别」）：与 label 同一档排版 */
 .lbl-text { display: block; margin-bottom: var(--space-xs); font-size: calc(13px * var(--fs-mul)); font-weight: 600; color: var(--text); letter-spacing: .01em; }
@@ -1049,9 +1046,6 @@ body.in-home .mod-date { visibility: hidden; }
 }
 
 /* 居中空状态（对标报告 P0-B）：主文案 + 副文案，替代单行 hint（主要空场景逐步迁移） */
-.empty-state { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 14px 8px 8px; gap: 4px; }
-.empty-state p { margin: 0; font-weight: 600; color: var(--text); }
-.empty-state .hint { margin: 0; }
 
 /* 通用弹性行（表单两列并排等）：此前靠 inline style，收编为工具类 */
 .row { display: flex; gap: var(--space-sm); }
@@ -1070,13 +1064,6 @@ body.in-home .mod-date { visibility: hidden; }
    色条用模块分色（情绪页为 mood 紫），失败回落 primary */
 .mind-know { margin: 12px 2px 0; padding-left: 12px; border-left: 3px solid var(--tile, var(--primary)); border-radius: 3px; }
 /* 第 68 次：发育观察点（B2）——自评行「能区标签 + 条目 + 是/还没」，预警行同骨架 */
-.obs-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--border); }
-#obsList .obs-row:last-child, #warnList .obs-row:last-child { border-bottom: 0; }
-.obs-area { flex: none; font-size: calc(11px * var(--fs-mul)); line-height: 1.6; color: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 1px 6px; margin-top: 1px; white-space: nowrap; }
-.obs-txt { flex: 1; font-size: calc(13.5px * var(--fs-mul)); line-height: 1.55; min-width: 0; }
-.obs-btns { flex: none; display: flex; gap: 6px; }
-.obs-btns .seg-btn { padding: 3px 10px; font-size: calc(12px * var(--fs-mul)); white-space: nowrap; flex: none; } /* 第 188 次：不折行，修「还/没」逐字竖排 */
-.obs-btns .seg-btn.active.no-sel { color: var(--warn); border-color: var(--warn); background: transparent; }
 
 /* 第 59 次：医学提示行（growth/vaccine/meds/pregnancy/contraction/period/fetal/temp 页脚）
    与 know-hint 同一视觉语言（左侧竖条），但语气更中性、不做强调色 */
@@ -2457,14 +2444,6 @@ body.dark .tile-size { background: rgba(255,255,255,.08); }
    升级为「模块色大图标 + 主文案 + 副文案」的居中版式。
    只加一条规则，图标由各模块 render 时插入（17 处），不改任何文案。
    ============================================================ */
-.empty-state .es-ico {
-  display: block;
-  width: 44px; height: 44px;
-  margin-bottom: 2px;
-  color: var(--tile, var(--primary));
-  opacity: .85;
-}
-.empty-state .es-ico .ico { width: 44px; height: 44px; stroke-width: 1.3; }
 
 
 .hl2 {
@@ -6652,3 +6631,34 @@ body.dark .mw-presave { color: var(--tile-on); }
 .pv-phs i { font-style: normal; font-size: 12px; color: var(--text-muted); }
 .pv-page .mc-main > svg { width: 20px; height: 20px; flex: 0 0 auto; }
 .pv-old .list small { color: var(--text-muted); }
+
+/* ===================== 第 299 次：里程碑（第一次 + 发育对照半屏） ===================== */
+.ml-obsCard { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; border: none; font: inherit; color: var(--text); cursor: pointer; }
+.ml-oc-t { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ml-oc-t b { font-size: 18px; }
+.ml-oc-t small:last-child { font-size: 13px; color: var(--text-muted); }
+.ml-oc-go { display: inline-flex; align-items: center; gap: 2px; flex: 0 0 auto; padding: 8px 12px; border-radius: var(--radius-pill); background: var(--tile-weak); color: var(--tile-text); font-size: 14px; font-weight: 700; }
+.ml-oc-go svg { width: 16px; height: 16px; }
+.ml-when { align-items: center; }
+.ml-when .ft-tile { flex: 0 0 auto; min-width: 46%; }
+.ml-age { margin: 0; flex: 1 1 auto; font-size: 13px; color: var(--text-muted); text-align: right; }
+.ml-mode { margin: 4px 0 10px; }
+.ml-grp { margin: 16px 0 8px; font-size: 13px; font-weight: 700; color: var(--text-muted); }
+.ml-picks .dp-pill.ml-had i { font-style: normal; margin-right: 3px; color: var(--tile-text); }
+.ml-picks .dp-pill.active.ml-had i { color: inherit; }
+.ml-tl .tl-txt small.ml-nt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ml-cps { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 6px; scrollbar-width: none; }
+.ml-cps::-webkit-scrollbar { display: none; }
+.ml-cps .dp-pill { flex: 0 0 auto; }
+.ml-obs { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.ml-ob { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--surface-2); }
+.ml-ob p { margin: 0; flex: 1 1 auto; font-size: 14px; line-height: 1.45; }
+.ml-ob p small { display: block; font-size: 12px; color: var(--text-muted); }
+.ml-yn { flex: 0 0 auto; display: inline-grid; grid-template-columns: repeat(2, auto); margin: 0; }
+.ml-yn.ml-yn1 { grid-template-columns: auto; }
+.ml-ob .ml-yn { background: var(--surface); }
+.ml-ob .ml-yn button.on:not(.ml-no) { background: var(--tile); color: var(--tile-on, #fff); box-shadow: none; }
+.ml-yn button { min-width: 52px; min-height: 36px; font-size: 13px; }
+.ml-yn button.on.ml-no { background: rgba(214,150,52,.2); color: var(--warn-text); }
+.ml-vd { margin-top: 2px; }
+.ml-page .mc-main > svg { width: 20px; height: 20px; flex: 0 0 auto; }
