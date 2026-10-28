@@ -1381,7 +1381,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v258（第 294 次升）', "var CACHE = 'baoma-static-v258';" in sw)
+    check('#275 SW 版本 v259（第 295 次升）', "var CACHE = 'baoma-static-v259';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -5190,9 +5190,78 @@ def test_r294(b):
     ctx.close()
 
 
+def test_r295(b):
+    """第 295 次：待产包——默认 15 项（妈妈包 6 / 宝宝包 6 / 证件包 3）、进度卡与摘要、点按勾选（划线）、筛选、全部取消勾选可撤销、
+    添加 / 编辑（名称 + 分组，同组同名拦住）/ 删除可撤销；老场景分组按名称归到三组、同组同名合并。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+    ev = p.evaluate
+    mg = ev("""(()=>{const d={packing:{seeded:true,items:[{id:'a',cat:'入院',name:'身份证 / 医保卡',checked:true},{id:'b',cat:'入院',name:'产褥垫',checked:false},
+      {id:'c',cat:'产房',name:'产褥垫',checked:true},{id:'e',cat:'月子房',name:'婴儿湿巾',checked:false},{id:'f',cat:'月子房',name:'束腹带',checked:false,hint:'易闲置'}]}};
+      Modules.packing._migrate(d);return d.packing.items.map(x=>[x.id,x.cat,x.checked])})()""")
+    check('#295 老清单迁移：证件 → 证件包、宝宝用的 → 宝宝包、其余 → 妈妈包；同组同名的产褥垫合并成一条（有一条勾过就算已备）',
+          mg == [['a', '证件包', True], ['b', '妈妈包', True], ['e', '宝宝包', False], ['f', '妈妈包', False]], mg)
+    ev("(()=>{const d=Storage.get();d.packing={seeded:false,items:[]};Storage.save();App.showTab('packing')})()"); p.wait_for_timeout(500)
+    s0 = ev("""(()=>({frac:document.querySelector('.pk-frac').textContent,pct:document.querySelector('.pk-pct').textContent,
+      gh:[...document.querySelectorAll('.pk-gh span')].map(e=>e.textContent),n:[...document.querySelectorAll('.pk-grp')].map(g=>g.querySelectorAll('.pk-row').length),
+      sum:document.querySelector('.pk-sum').textContent,cta:(document.querySelector('[data-pkadd]')||{}).textContent}))()""")
+    check('#295 默认清单 15 项：妈妈包 6、宝宝包 6、证件包 3；进度 0 / 15、0%；摘要「还有 15 项未完成准备」；底部「添加物品」',
+          s0['frac'] == '0 / 15' and s0['pct'] == '0%' and s0['gh'] == ['妈妈包', '宝宝包', '证件包'] and s0['n'] == [6, 6, 3] and '还有 15 项未完成准备' in s0['sum'] and s0['cta'] == '添加物品', s0)
+    for i in range(5):
+        ev(f"document.querySelectorAll('[data-pkchk]')[{i*3}].click()"); p.wait_for_timeout(120)
+    s1 = ev("""(()=>({frac:document.querySelector('.pk-frac').textContent,pct:document.querySelector('.pk-pct').textContent,done:document.querySelectorAll('.pk-row.is-done').length,
+      aria:document.querySelector('.pk-row.is-done .pk-chk').getAttribute('aria-checked'),strike:getComputedStyle(document.querySelector('.pk-row.is-done .pk-nm')).textDecorationLine,
+      bar:document.querySelector('.pk-bar i').style.width,stored:Storage.get().packing.items.filter(x=>x.checked).length}))()""")
+    check('#295 点按勾选：5 / 15、33%、进度条 33%、勾过的划线且 aria-checked=true、存进数据', s1 == {'frac': '5 / 15', 'pct': '33%', 'done': 5, 'aria': 'true', 'strike': 'line-through', 'bar': '33%', 'stored': 5}, s1)
+    ev("(()=>{const s=document.getElementById('pkFilter');s.value='todo';s.dispatchEvent(new Event('change'))})()"); p.wait_for_timeout(250)
+    f1 = ev("[document.querySelectorAll('.pk-row').length, document.querySelectorAll('.pk-row.is-done').length, !!document.querySelector('.pk-fb .su-dot')]")
+    ev("(()=>{const s=document.getElementById('pkFilter');s.value='all';s.dispatchEvent(new Event('change'))})()"); p.wait_for_timeout(200)
+    ev("(()=>{const s=document.getElementById('pkFilter');s.value='reset';s.dispatchEvent(new Event('change'))})()"); p.wait_for_timeout(250)
+    r1 = ev("Storage.get().packing.items.filter(x=>x.checked).length")
+    ev("(()=>{const bs=[...document.querySelectorAll('.toast button, .toast-action')];bs.length&&bs[bs.length-1].click()})()"); p.wait_for_timeout(300)
+    r2 = ev("Storage.get().packing.items.filter(x=>x.checked).length")
+    check('#295 筛选「只看未准备」剩 10 项且筛选钮带点；「全部取消勾选」清零、撤销恢复 5 项', f1 == [10, 0, True] and r1 == 0 and r2 == 5, [f1, r1, r2])
+    # 添加
+    p.click('[data-pkadd]'); p.wait_for_timeout(450)
+    ev("(()=>{const i=document.getElementById('pkName');i.value='手机充电器';i.dispatchEvent(new Event('input',{bubbles:true}))})()")
+    p.click('[data-pkg="证件包"]'); p.wait_for_timeout(100)
+    nm = ev("document.getElementById('pkName').value")
+    p.click('[data-pksave]'); p.wait_for_timeout(450)
+    a1 = ev("(()=>{const x=Storage.get().packing.items.slice(-1)[0];return [x.name,x.cat,x.checked,document.querySelector('.pk-frac').textContent]})()")
+    p.click('[data-pkadd]'); p.wait_for_timeout(450)
+    ev("(()=>{const i=document.getElementById('pkName');i.value='身份证';i.dispatchEvent(new Event('input',{bubbles:true}))})()")
+    p.click('[data-pkg="证件包"]'); p.click('[data-pksave]'); p.wait_for_timeout(300)
+    dup = ev("[!!document.querySelector('#modalRoot .modal'), Storage.get().packing.items.filter(x=>x.name==='身份证').length]")
+    ev("document.querySelector('#modalRoot [data-x]').click()"); p.wait_for_timeout(400)
+    check('#295 添加物品：切分组时已填的名称不丢，存进证件包、未勾选、进度变成 5 / 16；同组同名被拦住（面板不关、不多一条）',
+          nm == '手机充电器' and a1 == ['手机充电器', '证件包', False, '5 / 16'] and dup == [True, 1], [nm, a1, dup])
+    # 编辑（… 菜单）
+    iid = ev("Storage.get().packing.items.find(x=>x.name==='手机充电器').id")
+    ev(f"(()=>{{const s=document.querySelector(`[data-pkmenu='{iid}']`);s.value='edit';s.dispatchEvent(new Event('change'))}})()"); p.wait_for_timeout(450)
+    e0 = ev("[document.querySelector('#ftsTitle').textContent, document.getElementById('pkName').value, document.querySelector('[data-pkg].on').textContent]")
+    ev("(()=>{const i=document.getElementById('pkName');i.value='充电宝';i.dispatchEvent(new Event('input',{bubbles:true}))})()")
+    p.click('[data-pkg="妈妈包"]'); p.click('[data-pksave]'); p.wait_for_timeout(450)
+    e1 = ev(f"(()=>{{const x=Storage.get().packing.items.find(x=>x.id==='{iid}');return [x.name,x.cat]}})()")
+    ev(f"(()=>{{const s=document.querySelector(`[data-pkmenu='{iid}']`);s.value='del';s.dispatchEvent(new Event('change'))}})()"); p.wait_for_timeout(300)
+    d1 = ev(f"Storage.get().packing.items.some(x=>x.id==='{iid}')")
+    ev("(()=>{const bs=[...document.querySelectorAll('.toast button, .toast-action')];bs.length&&bs[bs.length-1].click()})()"); p.wait_for_timeout(300)
+    d2 = ev(f"Storage.get().packing.items.some(x=>x.id==='{iid}')")
+    check('#295 「…」编辑物品：面板标题「编辑物品」、带出原名称和分组，改名改组保存；删除可撤销', e0 == ['编辑物品', '手机充电器', '证件包'] and e1 == ['充电宝', '妈妈包'] and d1 is False and d2 is True, [e0, e1, d1, d2])
+    # 全部准备好
+    ev("(()=>{Storage.get().packing.items.forEach(x=>x.checked=true);Storage.save();App.rerender()})()"); p.wait_for_timeout(250)
+    s2 = ev("[document.querySelector('.pk-sum').textContent, document.querySelector('.pk-pct').textContent]")
+    ev("(()=>{Storage.get().packing.items.push({id:'x1',cat:'宝宝包',name:'<img src=x onerror=window.__pw295=1>',checked:false});Storage.save();App.rerender()})()"); p.wait_for_timeout(250)
+    xs = ev("[!!window.__pw295, document.querySelectorAll('.pk-row img').length]")
+    check('#295 全部勾完摘要「清单上的物品都已准备好。」、100%；物品名里的 HTML 被转义', s2 == ['清单上的物品都已准备好。', '100%'] and xs == [False, 0], [s2, xs])
+    check('#295 pageerror 为 0', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -5225,7 +5294,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r291b',),
           ('test_r292',),
           ('test_r293',),
-          ('test_r294',))  # 第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r294',),
+          ('test_r295',))  # 第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

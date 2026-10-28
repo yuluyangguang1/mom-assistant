@@ -693,14 +693,6 @@ body.dark .list li .ing-tag.ing-staple { color: #E3C88E; background: rgba(227, 2
 .chart text { fill: var(--muted); }
 .chart path:nth-of-type(1) { stroke: var(--ok); }
 .chart path:nth-of-type(2) { stroke: var(--primary); }
-/* 第 128 次：label 原来只有文字宽 × 25.8px 高——行（.list li）已有 64px 触控下限，
-   但点击区没铺满，点行内空白处不生效。label 改为撑满剩余宽度且 ≥44px 高，
-   整行（除删除键外）都是勾选热区。 */
-.pack-item label {
-  display: flex; align-items: center; flex: 1 1 auto; min-width: 0;
-  min-height: 44px; box-sizing: border-box; cursor: pointer; gap: 12px;
-}
-.pack-item.done label { text-decoration: line-through; color: var(--muted); }
 
 
 /* ============================================================
@@ -1847,7 +1839,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
      .btn-mini 40→44 · 消耗品模板按钮 38→44 · .mood-lv button 41→44
      .week-strip button 宽 41.7→44+（gap 4→1px）· .cal-toggle 30→44（第 285 次已删）
      .row-switch 行 36/38→44 · .search-input 38.4→44 · .home-edit-btn 28→44
-     .ds-opt 行 23→44 · .pack-item label 25.8→铺满 64px 行
+     .ds-opt 行 23→44 · 待产包行 25.8→铺满 64px 行
    复测探针：_probe/touch_128_verify.js（10 类逐元素量宽×高对表 44×44）。
    ============================================================ */
 /* 第 92 次：.cal-cell 移出 44px 触控清单——min-height 与 aspect-ratio:1/1 冲突
@@ -3589,26 +3581,6 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
 .modal-actions.has-extra [data-cfm-cancel] { order: 3; border-color: transparent; background: transparent; box-shadow: none; }
 .modal h2 .ico { vertical-align: -3px; }
 .modal:has(.modal-actions.is-danger) h2 .ico { color: var(--danger); }
-/* ⑪ 待产包清单：行高 80px + 原生小方框 + 每行一个主色垃圾桶，长清单满屏红点、节奏松散。
-   行压到 52px；勾选框改 22px 圆形（勾选后主色实心 + 白勾，划线淡显）；删除键平时淡灰，按下才转危险色。 */
-.card .list li.pack-item { min-height: 52px; padding: 2px 0; gap: 8px; }
-.pack-item input[type="checkbox"] {
-  appearance: none; -webkit-appearance: none; flex: none; width: 22px; height: 22px; margin: 0;
-  border: 1.5px solid var(--border-input); border-radius: 50%; background: var(--surface-solid);
-  display: inline-grid; place-content: center; cursor: pointer;
-  transition: background-color .2s var(--ease), border-color .2s var(--ease), transform .15s var(--spring);
-}
-.pack-item input[type="checkbox"]::after {
-  content: ""; width: 10px; height: 6px; margin-top: -2px;
-  border: solid #fff; border-width: 0 0 2px 2px; transform: rotate(-45deg) scale(0);
-  transition: transform .2s var(--spring);
-}
-.pack-item input[type="checkbox"]:checked { background: var(--primary); border-color: var(--primary); }
-.pack-item input[type="checkbox"]:checked::after { transform: rotate(-45deg) scale(1); }
-.pack-item input[type="checkbox"]:active { transform: scale(.88); }
-.pack-item input[type="checkbox"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.pack-item .icon-btn { color: var(--muted); opacity: .55; transition: opacity .2s var(--ease), color .2s var(--ease); }
-.pack-item .icon-btn:hover, .pack-item .icon-btn:active { color: var(--danger); opacity: 1; }
 /* ⑫ 孕期设置：换算结果行（选完日期后淡入，主色弱底小卡） */
 .pg-derived { margin: 10px 0 0; padding: 0 12px; max-height: 0; opacity: 0; overflow: hidden; border-radius: var(--radius-sm); background: var(--primary-weak); color: var(--text); font-size: var(--fs-sm); line-height: 1.6; transition: max-height .3s var(--ease), opacity .25s var(--ease), padding .3s var(--ease); }
 .pg-derived.on { max-height: 80px; opacity: 1; padding: 10px 12px; }
@@ -6543,3 +6515,40 @@ body.dark .su-art.su-ico[data-g="feed"] { color: #F2C282; } body.dark .su-art.su
 .su-nin input, .su-nin input:focus, .su-big input, .su-big input:focus { display: block; margin: 0; border: none; border-radius: 0; background: transparent; box-shadow: none; padding: 0; }
 .su-ed input.su-ed-name, .su-ed input.su-ed-name:focus { margin: 6px 0 4px; padding: 10px 14px; border-radius: var(--radius-md); background: var(--surface-2); border: none; box-shadow: none; font-size: calc(20px * var(--fs-mul, 1)); font-weight: 700; }
 .su-ed input.su-ed-name:focus { box-shadow: 0 0 0 2px color-mix(in srgb, var(--tile) 45%, transparent); }
+
+/* ===================== 第 295 次：待产包（进度卡 + 妈妈包 / 宝宝包 / 证件包分组勾选） ===================== */
+.pk-page { padding-bottom: 8px; }
+.pk-prog { margin: 2px 0 14px; padding: 16px 16px 14px; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 10px 24px -18px rgba(51,48,43,.4); }
+.pk-ph { display: flex; align-items: center; gap: 10px; }
+.pk-frac { font-size: calc(22px * var(--fs-mul, 1)); font-weight: 800; color: var(--tile-text); font-variant-numeric: tabular-nums; }
+.pk-pct { margin-left: auto; font-size: calc(18px * var(--fs-mul, 1)); font-weight: 700; color: var(--tile-text); font-variant-numeric: tabular-nums; }
+.pk-fb { width: 40px; height: 40px; background: var(--surface-2); box-shadow: none; }
+.pk-bar { height: 6px; margin: 12px 0 10px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; }
+.pk-bar i { display: block; height: 100%; border-radius: inherit; background: var(--tile); transition: width .35s var(--ease, ease); }
+.pk-note { margin: 0; font-size: calc(12.5px * var(--fs-mul, 1)); color: var(--muted); }
+.pk-sum { margin: 0 2px 16px; font-size: calc(18px * var(--fs-mul, 1)); line-height: 1.5; color: var(--text); }
+.pk-sum b { font-weight: 800; }
+.pk-grp { margin: 0 0 16px; }
+.pk-gh { display: flex; align-items: baseline; justify-content: space-between; margin: 0 4px 8px; font-size: calc(13px * var(--fs-mul, 1)); font-weight: 700; color: var(--muted); }
+.pk-gh small { font-weight: 600; font-variant-numeric: tabular-nums; }
+.pk-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pk-row { display: flex; align-items: center; min-height: 56px; border-radius: var(--radius-md); background: var(--surface); box-shadow: 0 6px 16px -14px rgba(51,48,43,.4); }
+.pk-chk { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 4px 0 14px; border: none; background: transparent; color: var(--text); font: inherit; font-size: calc(16px * var(--fs-mul, 1)); text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pk-ring { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border: 2px solid color-mix(in srgb, var(--text) 30%, transparent); border-radius: 50%; color: transparent; box-sizing: border-box; transition: background-color .2s, border-color .2s, transform .15s var(--spring, ease); }
+.pk-ring svg { width: 16px; height: 16px; }
+.pk-chk:active .pk-ring { transform: scale(.86); }
+.pk-nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-tag { flex: none; padding: 1px 8px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--muted); font-size: 12px; }
+.pk-row.is-done .pk-ring { border-color: var(--tile); background: var(--tile-fill, var(--tile)); color: #fff; }
+.pk-row.is-done .pk-nm { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 70%, transparent); }
+.pk-more { position: relative; flex: none; width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); cursor: pointer; }
+.pk-more svg { width: 22px; height: 22px; }
+.pk-more select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; cursor: pointer; }
+.pk-none { margin: 8px 4px 16px; color: var(--muted); text-align: center; }
+.pk-ed input.pk-in, .pk-ed input.pk-in:focus { margin: 4px 0 14px; padding: 12px 14px; border: none; border-radius: var(--radius-md); background: var(--surface-2); box-shadow: none; font-size: calc(18px * var(--fs-mul, 1)); font-weight: 600; }
+.pk-ed input.pk-in:focus { box-shadow: 0 0 0 2px color-mix(in srgb, var(--tile) 45%, transparent); }
+.pk-seg { margin-bottom: 16px; }
+.pk-sheet .rs-save { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.pk-sheet .rs-save .ico { width: 20px; height: 20px; }
+/* 第 295 次：这些控件是 <label> 包着透明 select / input，去掉全局 label 的下边距（否则图标偏上、行高被撑开） */
+label.pk-more, label.su-ib, label.su-more, label.su-selv, label.su-big, label.su-search, label.su-prow, label.spw-pill { margin: 0; }
