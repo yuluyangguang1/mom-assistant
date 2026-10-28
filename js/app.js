@@ -733,6 +733,7 @@
 
   function applyTheme() {
     var s = Storage.get().settings;
+    try { localStorage.setItem('yiya_theme', themeMode()); } catch (eT) { /* 第 300 次：给 boot.js 下次启动用 */ }
     var dark = shouldDark();
     if (dark) document.body.classList.add('dark');
     else document.body.classList.remove('dark');
@@ -2282,7 +2283,6 @@
        绑定后 historyDepth 从 0 起，首页不响应侧滑（没有上一层），
        与 iOS「在根页面不触发侧滑」一致。 */
     bindSwipeBack();
-    bindHomePager(); /* 第 291 次：首页左滑去日期页（只有这一个方向） */
 
     /* 第 74 次（G1）：损坏自愈后的告知——此前 _corruptRecovered 只置位、无消费方。
        toast 只在恢复后的第一次启动弹出（corruptNoticeShown 设置键），
@@ -2966,102 +2966,9 @@
   }
 
 
-  /* 第 291 次（真机：「首页右滑是 dock 右侧的日期日历那一页，左滑应该是滑不动的」）：首页横向只有一个方向——
-     手指往左滑（按 dock 顺序，日期记录在首页右边）＝跟手把首页推走、日期页从右边进来；往右滑什么都不发生（不跟手、不导航）。
-     不碰 history（首页和日期页是平级一级页）；左缘 24px 起手不接（留给 iOS 系统返回）；竖向为主交给滚动 / 下拉搜索；
-     面板、菜单、编辑布局、全屏层开着时不接；列表行左滑删除、输入框、滑杆、可横滚的容器里起手不接。
-     只写 transform / opacity；减少动态效果时不跟手，过阈值直接切页。 */
-  var hp = null, hpAnimT = 0;
-  function hpBusy() { return !!hp || !!hpAnimT; }
-  function hpReduced() { try { return !!(global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } }
-  function hpCanStart(tg) {
-    if (current !== 'home' || subExit || historyDepth > 0) return false;
-    var b = document.body.classList;
-    if (b.contains('qd-open') || b.contains('qm-open') || b.contains('sheet-open') || b.contains('ftf-open') || b.contains('ob-open') || b.contains('ps-pull')) return false;
-    if (document.documentElement.classList.contains('wp-lock') || document.documentElement.classList.contains('is-booting')) return false;
-    if (global.Sheet && Sheet.isOpen && Sheet.isOpen()) return false;
-    var mr = document.getElementById('modalRoot');
-    if (mr && mr.children.length) return false;
-    var H = Modules.home;
-    if (H && (H._edit || H._sheet)) return false;
-    if (document.querySelector('body > .ph-view, body > .vb-book, body > .ftf, body > .cal-pop-mask, #homeSheet:not([hidden])')) return false;
-    if (!tg || !tg.closest) return true;
-    if (tg.closest('input, textarea, select, [contenteditable], #tabbar, #dockOrb, #quickDock, .dock-live, [data-no-swipe], .record-grid.is-editing, li.sw-row')) return false;
-    var view = document.getElementById('view');
-    for (var n = tg; n && n !== view && n.nodeType === 1; n = n.parentNode) {
-      if (n.scrollWidth > n.clientWidth + 2) {
-        var ox = global.getComputedStyle(n).overflowX;
-        if (ox === 'auto' || ox === 'scroll') return false;
-      }
-      if (n.querySelector && n.tagName === 'LI' && n.querySelector(':scope [data-del]')) return false; /* 左滑删除的行 */
-    }
-    return true;
-  }
-  function hpPaint(x, animate) {
-    var view = document.getElementById('view');
-    if (!view) return;
-    var vw = global.innerWidth || 1;
-    view.style.transition = animate ? 'transform .26s cubic-bezier(.32,.72,0,1), opacity .26s linear' : 'none';
-    view.style.transform = x ? 'translate3d(' + x.toFixed(1) + 'px,0,0)' : '';
-    view.style.opacity = x ? String(Math.max(0.35, 1 + x / vw * 0.9).toFixed(3)) : '';
-  }
-  function hpClear() {
-    var view = document.getElementById('view');
-    if (view) { view.style.transition = ''; view.style.transform = ''; view.style.opacity = ''; }
-  }
-  function bindHomePager() {
-    try {
-      document.addEventListener('touchstart', function (e) {
-        hp = null;
-        if (hpAnimT || !e.touches || e.touches.length !== 1) return;
-        var t = e.touches[0];
-        if (t.clientX <= SWIPE_EDGE) return;               /* 左缘归 iOS 系统返回 */
-        if (!hpCanStart(e.target)) return;
-        hp = { x0: t.clientX, y0: t.clientY, lock: 0, dx: 0, s: [[Date.now(), t.clientX]] };
-      }, { passive: true });
-      document.addEventListener('touchmove', function (e) {
-        if (!hp || hp.lock < 0) return;
-        var t = e.touches && e.touches[0]; if (!t) return;
-        var dx = t.clientX - hp.x0, dy = t.clientY - hp.y0;
-        if (!hp.lock) {
-          if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-          /* 竖向为主、往右（反方向）、或这次 move 已不能取消（页面在惯性滚动）：整段手势都不接 */
-          if (Math.abs(dx) <= Math.abs(dy) * 1.15 || dx > 0 || !e.cancelable || document.body.classList.contains('ps-pull')) { hp.lock = -1; return; }
-          hp.lock = 1;
-        }
-        if (e.cancelable) e.preventDefault();
-        hp.dx = Math.min(0, dx);
-        var now = Date.now();
-        hp.s.push([now, t.clientX]);
-        while (hp.s.length > 2 && now - hp.s[0][0] > 100) hp.s.shift();
-        if (!hpReduced()) hpPaint(hp.dx, false);
-      }, { passive: false });
-      var end = function (e) {
-        var g = hp; hp = null;
-        if (!g || g.lock !== 1) return;
-        var vw = global.innerWidth || 1, v = 0, now = Date.now();
-        if (g.s.length > 1) { var a = g.s[0], z = g.s[g.s.length - 1]; if (now - z[0] < 80 && z[0] > a[0]) v = (z[1] - a[1]) / (z[0] - a[0]); }
-        var go = e.type !== 'touchcancel' && current === 'home' && (g.dx <= -vw * 0.25 || (v <= -0.35 && g.dx <= -30));
-        var red = hpReduced();
-        if (go) {
-          if (Util.haptic) Util.haptic('light');
-          if (red) { hpClear(); showTab('calendar', { noVT: true }); return; }
-          hpPaint(-vw * 0.32, true);
-          hpAnimT = setTimeout(function () {
-            hpAnimT = 0;
-            hpClear();
-            if (current === 'home') showTab('calendar', { noVT: true, enterX: '24px' });
-          }, 150);
-        } else {
-          if (red || !g.dx) { hpClear(); return; }
-          hpPaint(0, true);
-          hpAnimT = setTimeout(function () { hpAnimT = 0; hpClear(); }, 270);
-        }
-      };
-      document.addEventListener('touchend', end, { passive: true });
-      document.addEventListener('touchcancel', end, { passive: true });
-    } catch (e) { /* 没有 touch 的环境不绑 */ }
-  }
+  /* 第 300 次（用户：「首页以及日历页的滑动还是会有问题也取消吧」）：第 291 次的首页左滑去日期页整段删掉，
+     去日期页只走 dock。hpBusy 留着恒为 false，给原来等它的几处判断用。 */
+  function hpBusy() { return false; }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

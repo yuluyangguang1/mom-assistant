@@ -35,6 +35,17 @@
      app.js 重载前在 sessionStorage 留标记，这里读到就直接拿掉动画层。 */
   var swReload = false;
   try { swReload = global.sessionStorage.getItem('swReload') === '1'; if (swReload) global.sessionStorage.removeItem('swReload'); } catch (e) { /* */ }
+  /* 第 300 次（用户录屏：冷启动先黑屏、再深棕启动层、再浅色首页，看起来「首页闪黑一下」）：
+     启动层跟着上次的主题走。app.js 每次 applyTheme 把主题模式写进 yiya_theme（只有一个词，不读整份数据）；
+     浅色时启动层换成首页的浅米色、字图压暗，状态栏同色，深棕只留给深色主题。 */
+  try {
+    var tm = global.localStorage.getItem('yiya_theme') || 'time', hr = new Date().getHours(), bootDark;
+    if (tm === 'dark') bootDark = true;
+    else if (tm === 'light') bootDark = false;
+    else if (tm === 'system') bootDark = !!(global.matchMedia && global.matchMedia('(prefers-color-scheme: dark)').matches);
+    else bootDark = hr >= 22 || hr < 6;
+    if (!bootDark) { doc.documentElement.classList.add('boot-light'); writeThemeColor('#FBF6F0'); }
+  } catch (e) { /* 读不到就按深色 */ }
   if (!el || !standalone || swReload) { remove(); global.Boot = { done: function () {}, setThemeColor: setThemeColor }; return; }
   /* 第 262 次：去掉沉浸式状态栏后，WebView 从状态栏下沿开始，而启动图铺满整屏。
      启动图里文字块中心在整屏 44% 处 → 换算到 WebView 坐标：0.44 × 屏高 − 状态栏高。

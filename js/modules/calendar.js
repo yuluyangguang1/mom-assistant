@@ -456,7 +456,8 @@
     }
     root.addEventListener('touchstart', function (e) {
       lock = 0;
-      if (!e.touches || e.touches.length !== 1 || blocked()) { lock = -1; return; }
+      /* 第 300 次（用户：日历页的滑动还是有问题，取消）：不再接横滑，换天走周条点选、左右箭头、「查看前一天」和跳转日期 */
+      if (o.touch === false || !e.touches || e.touches.length !== 1 || blocked()) { lock = -1; return; }
       if (anim) finishAnim(); /* 切换中又来手势：这次先直接落定，日期不乱 */
       var t = e.touches[0];
       sx = t.clientX; sy = t.clientY; startT = Date.now(); samples = [[startT, sx]];
@@ -540,7 +541,9 @@
         + '<div class="page-head cal-head-row"><h1 id="calTitle" aria-live="polite"></h1>'
         + '<div class="cal-acts">' + babyBtnHTML()
         + '<button type="button" class="cal-hbtn cal-jump" data-cal-jump aria-label="跳转到日期">' + icon('calendar') + '</button></div></div>'
+        + '<div class="ws-row"><button type="button" class="ws-nav" data-wsnav="-1" aria-label="上一周">' + icon('chevron') + '</button>'
         + '<div class="ws-pager"><div class="ws-track"><div></div><div></div><div></div></div></div>'
+        + '<button type="button" class="ws-nav ws-nav-r" data-wsnav="1" aria-label="下一周">' + icon('chevron') + '</button></div>'
         + '<div class="cal-pager"><div class="cal-track"><div></div><div></div><div></div></div></div>'
         + '</div>';
       var title = view.querySelector('#calTitle');
@@ -600,7 +603,7 @@
       }
 
       var wsP = makePager(wsRoot, wsTrack, {
-        paneCls: 'week-strip ws-pane', mark: markWeek,
+        paneCls: 'week-strip ws-pane', mark: markWeek, touch: false,
         can: function (dir) { return dir < 0 || Util.daysBetween(today, Util.addDays(monOf(state.sel), 7)) <= 0; },
         wantSide: function (k) { return true; },
         fill: function (pane, k) { fillWeek(pane, k); },
@@ -615,7 +618,7 @@
         }
       });
       var dP = makePager(dRoot, dTrack, {
-        paneCls: 'cal-day cal-pane', mark: markDay, vfollow: true, topPad: 0,
+        paneCls: 'cal-day cal-pane', mark: markDay, vfollow: true, topPad: 0, touch: false,
         can: function (dir) { return dir < 0 || Util.daysBetween(today, Util.addDays(state.sel, 1)) <= 0; },
         wantSide: function (k) { return true; },
         fill: function (pane, k) { fillDay(pane, k); },
@@ -628,7 +631,7 @@
       });
       Modules.calendar._pager = dP; Modules.calendar._wpager = wsP;
 
-      function paintTitle() { title.textContent = titleOf(state.sel); }
+      function paintTitle() { title.textContent = titleOf(state.sel); if (typeof paintNav === 'function') paintNav(); }
       function paintWeekSel() {
         var cur = wsP.panes[1];
         if (cur._iso !== monOf(state.sel)) { rebuildWeeks(); return; }
@@ -663,6 +666,19 @@
       }
       Modules.calendar._go = go;
 
+      /* 第 300 次：周条两侧的箭头（取消横滑后换周的入口）；下一周超过今天就禁用 */
+      function paintNav() {
+        var nb = view.querySelector('[data-wsnav="1"]');
+        if (nb) nb.disabled = Util.daysBetween(today, Util.addDays(monOf(state.sel), 7)) > 0;
+      }
+      Array.prototype.forEach.call(view.querySelectorAll('[data-wsnav]'), function (b) {
+        b.addEventListener('click', function () {
+          if (b.disabled) return;
+          var dir = +b.getAttribute('data-wsnav');
+          if (reduced()) { var n = Util.addDays(state.sel, 7 * dir); if (Util.daysBetween(today, n) > 0) n = today; go(n); return; }
+          wsP.finish(); wsP.flip(dir);
+        });
+      });
       wsRoot.addEventListener('click', function (e) {
         var b = e.target.closest && e.target.closest('[data-ws]');
         if (b && wsP.panes[1].contains(b)) go(b.getAttribute('data-ws'));

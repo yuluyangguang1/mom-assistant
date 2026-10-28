@@ -6662,3 +6662,12 @@ body.dark .mw-presave { color: var(--tile-on); }
 .ml-yn button.on.ml-no { background: rgba(214,150,52,.2); color: var(--warn-text); }
 .ml-vd { margin-top: 2px; }
 .ml-page .mc-main > svg { width: 20px; height: 20px; flex: 0 0 auto; }
+
+/* ===================== 第 300 次：日期页取消横滑，周条两侧加箭头 ===================== */
+.ws-row { display: flex; align-items: center; gap: 2px; }
+.ws-row .ws-pager { flex: 1 1 auto; min-width: 0; }
+.ws-nav { flex: 0 0 auto; width: 30px; height: 44px; display: grid; place-items: center; border: none; background: transparent; color: var(--text-muted); border-radius: var(--radius-sm); cursor: pointer; padding: 0; }
+.ws-nav svg { width: 18px; height: 18px; transform: scaleX(-1); }
+.ws-nav.ws-nav-r svg { transform: none; }
+.ws-nav:disabled { opacity: .28; cursor: default; }
+.ws-nav:not(:disabled):active { background: var(--surface-2); }

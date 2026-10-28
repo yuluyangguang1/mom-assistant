@@ -42,7 +42,16 @@ SEED_V3 = json.dumps(dict(seed, version=3), ensure_ascii=False)
 results = []
 
 
+# 第 300 次：用户要求取消首页 / 日期页横滑，下面这些断言测的是横滑翻页本身，整体作废（不再计入）；
+# 「横滑不再换天」「周条箭头换周」改由 test_r300 断言。
+OBSOLETE_300 = ('#285 内容区右滑 = 前一天', '#285 周条右滑 = 上一周', '#285 慢拖不到 1/3 宽', '#285 滑动中间帧',
+                '#286 今天往左（未来）拖 200px', '#286 减少动态效果：拖动时内容不跟手', '#286 动画中连续快速翻页',
+                '#286 周条同样分页', '#286 按速度翻页')
+
+
 def check(name, cond, detail=''):
+    if name.startswith(OBSOLETE_300):
+        return
     results.append((name, bool(cond), detail))
 
 
@@ -1384,11 +1393,11 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v263（第 299 次升）', "var CACHE = 'baoma-static-v263';" in sw)
+    check('#275 SW 版本 v264（第 300 次升）', "var CACHE = 'baoma-static-v264';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
-    check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
-          bootsec.count('src="data:image/webp;base64,') == 2 and len(html.encode()) < 60000, len(html.encode()))
+    check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求；第 300 次多一张浅色字图），整页 HTML < 60KB',
+          bootsec.count('src="data:image/webp;base64,') == 3 and len(html.encode()) < 60000, len(html.encode()))
     check('#275 引导页图标改用 336px webp（<60KB，原 512 png 387KB）且进预缓存', bi.exists() and bi.stat().st_size < 60000
           and "'assets/boot-icon.webp'" in sw and 'src="assets/boot-icon.webp"' in (ROOT / 'js' / 'app.js').read_text(encoding='utf-8'), bi.stat().st_size if bi.exists() else None)
     bad = []
@@ -3058,8 +3067,7 @@ def test_r285(b):
     r = ev("(()=>{const b=document.querySelector('#calDay').getBoundingClientRect();return [b.left+b.width/2,b.top+40]})()")
     ev(TOUCH2_JS, [r[0], r[1], r[0] + 120, r[1] + 3, 'none', 6, 12]); p.wait_for_timeout(60)
     # 位移在 rAF 里写：WebKit 无头模式 rAF 偶尔晚一两帧，轮询等它写到最后一次 touchmove 的位置（最多 1 秒）
-    try: p.wait_for_function("document.querySelector('.cal-track').style.transform.indexOf('translate3d(120')===0", timeout=1000)
-    except Exception: pass
+    p.wait_for_timeout(300)  # 第 300 次：横滑取消，不再等跟手位移（原 wait_for_function 会被 CSP 拦下报错）
     mid = ev("(()=>{const e=document.querySelector('.cal-track');return [e.style.transform,document.querySelector('.cal-pane.is-prev').getBoundingClientRect().right]})()")
     ev("(()=>{const t=document.querySelector('#calDay');const e=new Event('touchcancel',{bubbles:true});Object.defineProperty(e,'changedTouches',{value:[]});t.dispatchEvent(e)})()"); p.wait_for_timeout(450)
     check('#285 滑动中间帧：内容 1:1 跟手（第 286 次），前一天从左边露出来；取消后归位、日期不变', mid[0].startswith('translate3d(120') and abs(mid[1] - (r[0] - ev("document.querySelector('.cal-pager').getBoundingClientRect().width")/2 + 120)) <= 1.5 and sel() == Y and ev("document.querySelector('.cal-track').style.transform") in ('', 'none'), [mid, sel()])
@@ -4636,20 +4644,13 @@ def test_r291(b):
     p.wait_for_timeout(500)
     import re as _re
     mx = _re.search(r'translate3d\((-?[\d.]+)px', m2['vt'] or '')
-    check('#291 首页往左拖 60px：#view 1:1 跟手（只写 transform / opacity）；没过阈值松手回弹、停在首页', mx and abs(float(mx.group(1)) + 60) < 3 and m2['vo'] and st()['tab'] == 'home' and st()['vt'] == '', [m2['vt'], m2['vo'], st()])
-    # —— 首页往左滑过阈值：进日期页（不碰 history） ——
+    check('#291→#300 首页往左拖 60px：不再跟手（第 300 次取消首页横滑），停在首页', not m2['vt'] and st()['tab'] == 'home', [m2['vt'], st()])
+    # —— 第 300 次：首页往左滑过阈值也不再去日期页 ——
     ev("window.__h291.length=0")
     drag(330, 420, 60, 420, True, 8, 16); p.wait_for_timeout(700)
     s5 = st()
-    nav = [x for x in ev("__h291") if x['k'] in ('pushState', 'replaceState', 'go') and x['s'] != 'guard']
-    check('#291 首页往左滑：进日期页（dock 右边那页），不登记新记录（一级页平级；只在静止后重拍前进栈占位）', s5['tab'] == 'calendar' and s5['hl'] == hl0 and s5['st'] == 'null' and not nav and s5['vt'] == '', [s5, ev("__h291")])
+    check('#291→#300 首页往左滑：停在首页、history 不变', s5['tab'] == 'home' and s5['hl'] == hl0 and s5['vt'] == '', s5)
     settle()
-    # —— 日期页三联分页不受影响：往右滑 = 前一天 ——
-    sel0 = ev("Modules.calendar._state.sel")
-    cy = ev("Math.round(document.querySelector('#view .cal-pager').getBoundingClientRect().top+40)")
-    drag(60, cy, 330, cy, True, 8, 16); p.wait_for_timeout(700)
-    sel1 = ev("Modules.calendar._state.sel")
-    check('#291 日期页往右滑仍是「前一天」（分页不受首页手势影响），停在日期页', st()['tab'] == 'calendar' and sel1 < sel0, [sel0, sel1, st()['tab']])
     ev("App.showTab('home')"); settle()
     # —— 左缘起手（iOS 系统返回区）：首页不接 ——
     drag(10, 420, 260, 420, True, 8, 16); p.wait_for_timeout(500)
@@ -5552,9 +5553,49 @@ def test_r299(b):
     ctx.close()
 
 
+def test_r300(b):
+    """第 300 次：取消首页 / 日期页横滑（日期页周条两侧加箭头）；启动层跟上次主题走（浅色不再深棕一闪）。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+    ev = p.evaluate
+    cdp = ctx.new_cdp_session(p)
+    def sw(x0, x1, y):
+        cdp.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [{'x': x0, 'y': y}]})
+        for i in range(1, 9):
+            cdp.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': x0 + (x1 - x0) * i / 8, 'y': y}]}); p.wait_for_timeout(16)
+        cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []}); p.wait_for_timeout(600)
+    ev("App.showTab('home')"); p.wait_for_timeout(600)
+    sw(330, 40, 520)
+    check('#300 首页左滑不再去日期页', ev("!!document.querySelector('#view .home-sky, #view .home')") and not ev("!!document.querySelector('#calTitle')"))
+    ev("App.showTab('calendar')"); p.wait_for_timeout(700)
+    s0 = ev("Modules.calendar._state.sel"); sw(320, 60, 520); s1 = ev("Modules.calendar._state.sel"); sw(320, 60, 280); s2 = ev("Modules.calendar._state.sel")
+    check('#300 日期页当天块、周条横滑都不换天', s0 == s1 == s2, [s0, s1, s2])
+    nx = ev("document.querySelector('[data-wsnav=\"1\"]').disabled")
+    ev("document.querySelector('[data-wsnav=\"-1\"]').click()"); p.wait_for_timeout(600)
+    s3 = ev("Modules.calendar._state.sel")
+    nx2 = ev("document.querySelector('[data-wsnav=\"1\"]').disabled")
+    ev("document.querySelector('[data-wsnav=\"1\"]').click()"); p.wait_for_timeout(600)
+    s4 = ev("Modules.calendar._state.sel")
+    check('#300 周条箭头：本周时「下一周」禁用；上一周跳 7 天前，再点下一周回来', nx and s3 == ev("Util.addDays(Util.todayISO(),-7)") and not nx2 and s4 == s0, [nx, s3, nx2, s4])
+    cal_src = (ROOT / 'js/modules/calendar.js').read_text(encoding='utf-8'); app_src = (ROOT / 'js/app.js').read_text(encoding='utf-8')
+    check('#300 首页横滑代码已删（bindHomePager 不在）；日期页两个分页都 touch:false', 'bindHomePager' not in app_src and cal_src.count('touch: false') == 2)
+    check('#300 applyTheme 写 yiya_theme', ev("localStorage.getItem('yiya_theme')") in ('time', 'light', 'dark', 'system'))
+    ctx.close()
+    for mode, want in (('light', True), ('dark', False)):
+        c2 = b.new_context(viewport={'width': 390, 'height': 844})
+        c2.add_init_script("Object.defineProperty(navigator,'standalone',{get:()=>true});try{localStorage.setItem('yiya_theme','%s')}catch(e){}" % mode)
+        p2 = c2.new_page(); p2.goto(URL); p2.wait_for_timeout(150)
+        r = p2.evaluate("({lt:document.documentElement.classList.contains('boot-light'),bg:getComputedStyle(document.getElementById('boot')||document.body).backgroundColor})")
+        check('#300 启动层（%s）：%s' % (mode, '浅米色 #FBF6F0' if want else '保持深棕 #221E1A'), r['lt'] == want and r['bg'] == ('rgb(251, 246, 240)' if want else 'rgb(34, 30, 26)'), r)
+        c2.close()
+    check('#300 pageerror 为 0', not errs, errs)
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -5592,7 +5633,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r296',),
           ('test_r297',),
           ('test_r298',),
-          ('test_r299',))  # 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r299',),
+          ('test_r300',))  # 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 
