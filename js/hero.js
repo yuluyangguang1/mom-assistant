@@ -176,14 +176,12 @@
       return { status: sum ? '本月（' + (+ym.slice(5)) + ' 月）已花 ' + Util.fmtYuan(sum) : '本月还没有记账' }; /* 第 274 次（#26）：写明是哪个月，金额两位小数 */
     },
     supplies: function (d) {
-      var list = d.supplies || [];
-      if (!list.length) return { status: '添加消耗品，快用完时提醒你' };
-      var low = list.filter(function (x) {
-        var tot = parseInt(x.availDays, 10); if (isNaN(tot)) return false;
-        var used = Math.max(0, Util.daysBetween(x.date, Util.todayISO()) || 0);
-        return tot - used <= 3;
-      }).length;
-      return { status: low ? low + ' 样快用完了' : list.length + ' 样 · 库存都够用', state: low ? 'warn' : '', badge: low ? String(low) : '' };
+      /* 第 294 次：按「还剩多少」——没归档的件数 + 待补货（低于阈值 / 提醒到点）件数 */
+      var S = window.Modules && Modules.supplies;
+      var list = (d.supplies || []).filter(function (x) { return x && x.name && !x.archived; });
+      if (!list.length) return { status: '把常买的用品和剩余放进货架' };
+      var low = S && S._needRestock ? list.filter(function (x) { return S._needRestock(x); }).length : 0;
+      return { status: '共 ' + list.length + ' 件用品' + (low ? ' · ' + low + ' 件待补货' : ''), state: low ? 'warn' : '', badge: low ? String(low) : '' };
     },
     packing: function (d) {
       var items = (d.packing && d.packing.items) || [];

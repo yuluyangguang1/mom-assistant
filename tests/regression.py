@@ -1381,7 +1381,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v257（第 293 次升）', "var CACHE = 'baoma-static-v257';" in sw)
+    check('#275 SW 版本 v258（第 294 次升）', "var CACHE = 'baoma-static-v258';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -5088,9 +5088,111 @@ def test_r293(b):
     ctx.close()
 
 
+def test_r294(b):
+    """第 294 次：用品重做与联动——按「还剩多少」管理（货架 / 物件 / 待补货 / 清单 / 归档 / 补货），
+    老数据迁移（没片数按购买数量起步、只有纸尿裤和清洁类进换尿布扣减），
+    联动账本：配方奶按冲调量扣克数、储奶袋随存奶扣、维生素随吃药扣；改 / 删 / 换宝宝都对得上，只算开启之后、45 天以外冻结。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+    ev = p.evaluate
+    # —— 迁移 ——
+    ev("""(()=>{const d=Storage.get();d.supplies=[
+      {id:'o1',name:'老纸尿裤',cat:'纸尿裤',date:'2026-09-01',price:0,availDays:30,qty:2,unit:'包',history:[]},
+      {id:'o2',name:'湿巾',cat:'清洁',date:'2026-09-01',price:0,availDays:0,qty:1,unit:'包',pieces:80,history:[]},
+      {id:'o3',name:'叶酸片',cat:'维D/药品',date:'2026-09-01',price:0,availDays:0,qty:1,unit:'盒',pieces:30,pcsU:'片',history:[]}];Storage.save()})()""")
+    m = ev("Storage.get().supplies.map(s=>[s.id,s.v294,s.pieces,s.pcsU,s.cnt,s.kind,s.list])")
+    cl = ev("Modules.supplies._countable(Storage.get()).map(s=>s.id)")
+    check('#294 迁移：没片数的老用品按购买数量起步（2 包）、有片数的不动；只有纸尿裤 / 清洁类（且原来就能扣）进换尿布扣减；都放进默认清单',
+          m == [['o1', 1, 2, '包', False, 'diaper', 'main'], ['o2', 1, 80, '抽', True, '', 'main'], ['o3', 1, 30, '片', False, '', 'main']] and cl == ['o2'], [m, cl])
+    # —— 页面：空货架 → 选物件 → 新用品 ——
+    ev("(()=>{Storage.get().supplies=[];Storage.save();App.showTab('supplies')})()"); p.wait_for_timeout(400)
+    e1 = ev("(()=>({t:(document.querySelector('.su-et')||{}).textContent,add:!!document.querySelector('.su-addc[data-suadd]'),exp:!!document.getElementById('spExport'),title:document.querySelector('.mod-head h1, .mod-head .hero-t, .mod-head').textContent.includes('用品')}))()")
+    p.click('.mc-main[data-suadd]'); p.wait_for_timeout(450)
+    pk = ev("(()=>({tabs:[...document.querySelectorAll('[data-pkg]')].map(b=>b.textContent),n:document.querySelectorAll('[data-pk]').length,cam:!!document.querySelector('[data-pkcam]')}))()")
+    check('#294 空货架有虚线 ＋ 和「添加用品」、没有导出；选物件分喂养 / 日常护理 / 营养补充，能拍照或从相册选',
+          e1['t'] == '添加用品' and e1['add'] and not e1['exp'] and pk['tabs'] == ['喂养', '日常护理', '营养补充'] and pk['n'] >= 10 and pk['cam'], [e1, pk])
+    p.click('[data-pk="formula"]'); p.wait_for_timeout(500)
+    ed = ev("(()=>({n:document.getElementById('suName').value,u:document.querySelector('.su-big i').textContent,fx:!!document.querySelector('[data-fxsw]')}))()")
+    ev("(()=>{const i=document.getElementById('suPcs');i.value='3';i.dispatchEvent(new Event('input',{bubbles:true}))})()")
+    p.click('[data-fxsw]'); p.wait_for_timeout(200)
+    g1 = ev("document.getElementById('suPcs').value")
+    ev("(()=>{const c=document.getElementById('suCan');c.value='900';c.dispatchEvent(new Event('input',{bubbles:true}));const m=document.getElementById('suSml');m.value='30';m.dispatchEvent(new Event('input',{bubbles:true}));const g=document.getElementById('suSg');g.value='4.5';g.dispatchEvent(new Event('input',{bubbles:true}))})()")
+    g2 = ev("document.getElementById('suPcs').value")
+    p.click('[data-done]'); p.wait_for_timeout(500)
+    it = ev("(()=>{const s=Storage.get().supplies[0];return {n:s.name,p:s.pieces,u:s.pcsU,on:s.auto&&s.auto.on,src:s.auto&&s.auto.src,fx:s.fx}})()")
+    check('#294 新建配方奶粉：默认名称和单位「罐」；打开按奶粉配比扣减后 3 罐换算成克（3 × 800 → 改每罐 900 后跟着变 2700），保存开启联动',
+          ed == {'n': '配方奶粉', 'u': '罐', 'fx': True} and g1 == '2400' and g2 == '2700' and it == {'n': '配方奶粉', 'p': 2700, 'u': 'g', 'on': True, 'src': 'fx', 'fx': {'canG': 900, 'scoopMl': 30, 'scoopG': 4.5}}, [ed, g1, g2, it])
+    # —— 配方奶联动 ——
+    P = lambda: ev("Storage.get().supplies[0].pieces")
+    ev("(()=>{const d=Storage.get();d.feedings.push({id:'old0',type:'formula',start:Util.addDays(Util.todayISO(),-1)+'T08:00:00',amount:120});d.feedings.push({id:'fx1',type:'bottle',start:Util.nowLocal(),amount:150,amountBm:30,amountFm:120});Storage.save()})()")
+    a1 = P()
+    ev("(()=>{Storage.get().feedings.find(x=>x.id==='fx1').amountFm=60;Storage.save()})()"); a2 = P()
+    ev("(()=>{const d=Storage.get();d.feedings.push({id:'bm1',type:'bottle',start:Util.nowLocal(),amount:90,amountBm:90,amountFm:null});d.feedings.push({id:'br1',type:'breast',start:Util.nowLocal(),durationMin:10});Storage.save()})()"); a3 = P()
+    ev("(()=>{const d=Storage.get();d.feedings=d.feedings.filter(x=>x.id!=='fx1');Storage.save()})()"); a4 = P()
+    check('#294 配方奶联动：开启前的记录不追扣；120 ml 配方奶扣 18 g（120÷30×4.5），改成 60 ml 退回到只扣 9 g；纯母乳瓶喂、亲喂不扣；删除记录退回',
+          [a1, a2, a3, a4] == [2682, 2691, 2691, 2700], [a1, a2, a3, a4])
+    # 撤销删除（Util.removeWithUndo）再扣回；另一个宝宝的配方奶记录也算（奶粉全家一罐）
+    ev("(()=>{const d=Storage.get();d.feedings.push({id:'fx2',type:'formula',start:Util.nowLocal(),amount:90});Storage.save()})()"); b1 = P()
+    ev("(()=>{Util.removeWithUndo(Storage.get().feedings,'fx2',{onSave:()=>Storage.save(),onAfter:()=>{},deletedText:'x'})})()"); p.wait_for_timeout(150); b2 = P()
+    ev("(()=>{const bs=[...document.querySelectorAll('.toast button, .toast-action')];bs.length&&bs[bs.length-1].click()})()"); p.wait_for_timeout(300); b3 = P()
+    ev("(()=>{Storage.addBaby({name:'二宝',birthDate:'2026-10-01'});const d=Storage.get();d.feedings.push({id:'fx3',type:'formula',start:Util.nowLocal(),amount:60});Storage.save()})()"); b4 = P()
+    ev("(()=>{const d=Storage.get();Storage.switchBaby(d.babies[0].id);Storage.save()})()"); b5 = P()
+    check('#294 配方奶联动：撤销删除再扣回；切到另一个宝宝记的配方奶也扣、切回来不重复扣',
+          [b1, b2, b3, b4, b5] == [2686.5, 2700, 2686.5, 2677.5, 2677.5], [b1, b2, b3, b4, b5])
+    # 45 天窗口：账本里超过 45 天的记录冻结（删掉也不退回），账本不无限长
+    ev("(()=>{const d=Storage.get();const s=d.supplies[0];s.auto.since='2026-01-01T00:00:00';d.feedings.push({id:'anc',type:'formula',start:Util.addDays(Util.todayISO(),-60)+'T08:00:00',amount:30});s.auto.applied['anc']=4.5;Storage.save()})()")
+    w1 = [P(), ev("'anc' in Storage.get().supplies[0].auto.applied")]
+    ev("(()=>{const d=Storage.get();d.feedings=d.feedings.filter(x=>x.id!=='anc');Storage.save()})()"); w2 = P()
+    check('#294 联动账本：45 天以前的记录从账本冻结，删了也不退回', w1[1] is False and w2 == w1[0], [w1, w2])
+    # —— 储奶袋 / 维生素 ——
+    ev("(()=>{const d=Storage.get();d.supplies.push({id:'bg',v294:1,name:'储奶袋',kind:'bag',cat:'其他',date:Util.todayISO(),pieces:30,pcsU:'个',list:'main',auto:{on:true,src:'stash',since:Util.nowLocal(),per:1,applied:{}}});"
+       "d.supplies.push({id:'vd',v294:1,name:'维生素 D3 滴剂',kind:'d3',cat:'维D/药品',date:Util.todayISO(),pieces:30,pcsU:'粒',list:'main',auto:{on:true,src:'meds',since:Util.nowLocal(),per:1,applied:{}}});Storage.save();"
+       "d.milkStash.push({id:'ms1',amount:100,time:Util.nowLocal(),place:'fridge',usedAt:null});d.meds.push({id:'md1',name:'维生素 D3',time:Util.nowLocal()});d.meds.push({id:'md2',name:'退烧药',time:Util.nowLocal()});Storage.save()})()")
+    s1 = ev("Storage.get().supplies.filter(s=>s.id==='bg'||s.id==='vd').map(s=>s.pieces)")
+    check('#294 储奶袋随存奶扣 1；维生素 D3 随同名吃药记录扣 1、别的药不扣', s1 == [29, 29], s1)
+    # —— 低库存 / 待补货 / 提醒 ——
+    ev("(()=>{const d=Storage.get();const s=d.supplies.find(x=>x.id==='bg');s.low={on:true,th:30};d.supplies.find(x=>x.id==='vd').remind={on:true,at:Util.addDays(Util.todayISO(),-1)+'T09:00'};Storage.save();Modules.supplies._ui.tab='low';App.rerender()})()"); p.wait_for_timeout(300)
+    lw = ev("(()=>({names:[...document.querySelectorAll('.su-item .su-n')].map(e=>e.textContent),badge:(document.querySelector('.su-badge')||{}).textContent,hero:(document.querySelector('.mod-head')||{}).textContent}))()")
+    r0 = ev("Reminders.evaluate(Storage.get()).filter(r=>r.go==='supplies').length")
+    ev("(()=>{Storage.get().settings.supRemind=true;Storage.save()})()")
+    r1 = ev("Reminders.evaluate(Storage.get()).filter(r=>r.go==='supplies').map(r=>r.text)")
+    check('#294 待补货：低于阈值的储奶袋、提醒到点的维生素都在，标签带数量，页头写明几件待补货；用品提醒默认关、打开后首页提醒「到时间补…」',
+          sorted(lw['names']) == ['储奶袋', '维生素 D3 滴剂'] and lw['badge'] == '2' and '2 件待补货' in lw['hero'] and r0 == 0 and len(r1) == 1 and '到时间补维生素 D3 滴剂' in r1[0], [lw, r0, r1])
+    # —— 补货 ——
+    ev("Modules.supplies._openBuySheet('bg')"); p.wait_for_timeout(450)
+    ev("(()=>{const i=document.getElementById('byN');i.value='50';i.dispatchEvent(new Event('input',{bubbles:true}));const pr=document.getElementById('byPrice');pr.value='39.9';pr.dispatchEvent(new Event('input',{bubbles:true}));document.getElementById('byAlsoCost').checked=true;document.getElementById('byAlsoCost').dispatchEvent(new Event('input',{bubbles:true}))})()")
+    nf = ev("Storage.get().finance.records.length")
+    p.click('#bySave'); p.wait_for_timeout(450)
+    rs = ev("(()=>{const d=Storage.get();const s=d.supplies.find(x=>x.id==='bg');return [s.pieces,s.history[0].qty,d.finance.records.length,Modules.supplies._isLow(s)]})()")
+    check('#294 补货：剩余 +50、记一条补货历史、勾选后记账多一笔、不再低库存', rs == [79, 50, nf + 1, False], [rs, nf])
+    # —— 清单 / 归档 / 筛选 ——
+    ev("(()=>{const d=Storage.get();d.settings.supLists=[{id:'main',name:'用品'},{id:'lab',name:'待产包'},{id:'<x>',name:'坏'}];Storage.save()})()")
+    rt = ev("(()=>{const raw=JSON.parse(Storage.exportJSON());Storage.importJSON(JSON.stringify(raw));return Storage.get().settings.supLists.map(x=>x.id)})()")
+    ev("(()=>{const d=Storage.get();d.supplies.find(x=>x.id==='vd').list='lab';d.supplies.find(x=>x.id==='bg').archived=true;Storage.save();Modules.supplies._ui.tab='main';Modules.supplies._ui.filter='all';App.rerender()})()"); p.wait_for_timeout(300)
+    t1 = ev("[...document.querySelectorAll('[data-sutab]')].map(b=>b.textContent.replace(/\\d+$/,''))")
+    n1 = ev("[...document.querySelectorAll('.su-item .su-n')].map(e=>e.textContent)")
+    ev("(()=>{Modules.supplies._ui.filter='arch';App.rerender()})()"); p.wait_for_timeout(200)
+    n2 = ev("[...document.querySelectorAll('.su-item .su-n')].map(e=>e.textContent)")
+    ev("(()=>{Modules.supplies._ui.filter='all';Modules.supplies._ui.tab='lab';App.rerender()})()"); p.wait_for_timeout(200)
+    n3 = ev("[...document.querySelectorAll('.su-item .su-n')].map(e=>e.textContent)")
+    check('#294 清单：导入时坏 id 的清单被丢掉；标签「用品 / 待产包 / 待补货」；归档的不在货架、在「已归档」里；放进别的清单只在那个清单显示',
+          rt == ['main', 'lab'] and t1[:2] == ['用品', '待产包'] and t1[2].startswith('待补货') and '储奶袋' not in n1 and '维生素 D3 滴剂' not in n1 and n2 == ['储奶袋'] and n3 == ['维生素 D3 滴剂'], [rt, t1, n1, n2, n3])
+    # —— 搜索 / XSS / 照片引用 ——
+    ev("(()=>{const d=Storage.get();d.supplies.push({id:'xs',v294:1,name:'<img src=x onerror=window.__pw294=1>',kind:'',cat:'其他',date:Util.todayISO(),pieces:1,pcsU:'个',list:'main',img:'ph_abc123'});Storage.save();Modules.supplies._ui.tab='main';Modules.supplies._ui.q='img';App.rerender()})()"); p.wait_for_timeout(300)
+    xs = ev("[document.querySelectorAll('.su-item').length, !!window.__pw294, document.querySelectorAll('.su-item img[onerror]').length]")
+    ev("(()=>{Modules.supplies._ui.q='';App.rerender()})()")
+    check('#294 搜索按名称过滤；名称里的 HTML 被转义（不执行）', xs == [1, False, 0], xs)
+    ph = ev("(()=>{let ok=false;try{const r=Photos.validId('ph_abc123');ok=r}catch(e){}return ok})()")
+    check('#294 用品的物件照片 id 合法、会被照片清理当作「还在用」（photos.js 引用表含用品）', ph and 'add(dd.supplies)' in open(str(ROOT / 'js/photos.js'), encoding='utf-8').read(), ph)
+    check('#294 pageerror 为 0', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -5122,7 +5224,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r291',),
           ('test_r291b',),
           ('test_r292',),
-          ('test_r293',))  # 第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r293',),
+          ('test_r294',))  # 第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

@@ -471,6 +471,16 @@
             .slice(0, 8).map(function (x) { return safeId(x.slice(0, 64)); }).filter(Boolean)
         };
       }
+      /* 第 294 次：用品清单（id 安全短串、名称 ≤10 字、最多 8 个）与用品提醒开关 */
+      if (Array.isArray(s.supLists)) {
+        var sl = [];
+        s.supLists.slice(0, 8).forEach(function (x) {
+          if (x && typeof x.id === 'string' && /^[a-z0-9]{1,16}$/.test(x.id) && typeof x.name === 'string' && x.name.trim()
+            && !sl.some(function (y) { return y.id === x.id; })) sl.push({ id: x.id, name: x.name.trim().slice(0, 10) });
+        });
+        if (sl.length) base.settings.supLists = sl;
+      }
+      if (typeof s.supRemind === 'boolean') base.settings.supRemind = s.supRemind;
       if (s.homeLayout && typeof s.homeLayout === 'object' && !Array.isArray(s.homeLayout)) {
         var hlItems = [];
         (Array.isArray(s.homeLayout.items) ? s.homeLayout.items : []).slice(0, 48).forEach(function (it) {

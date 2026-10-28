@@ -56,7 +56,7 @@
     { key: 'sun',         title: '日晒',     go: 'sun',         icon: 'sun' },
     { key: 'water',       title: '饮水',     go: 'water',       icon: 'water' },
     { key: 'supplement',  title: '营养品',     go: 'supplement',  icon: 'supplement' },
-    { key: 'supplies',    title: '消耗品',   go: 'supplies',    icon: 'supplies' },
+    { key: 'supplies',    title: '用品',     go: 'supplies',    icon: 'supplies' },
     { key: 'finance',     title: '记账',     go: 'finance',     icon: 'finance' },
     { key: 'pregnancy',   title: '孕期',     go: 'pregnancy',   icon: 'pregnancy' },
     { key: 'packing',     title: '待产包',   go: 'packing',     icon: 'packing' },
@@ -466,11 +466,13 @@
       var r = list[i];
       if (!r || typeof r !== 'object') continue;
       var qty = '';
-      if (r.qty != null) qty = r.qty + (r.unit ? r.unit : '');
+      /* 第 294 次：显示当前剩余（pieces + 单位），老数据才回落购买数量 */
+      if (typeof r.pieces === 'number' && isFinite(r.pieces)) qty = '剩 ' + (Math.round(r.pieces * 10) / 10) + ((global.Modules && Modules.supplies && Modules.supplies._pcsUnit) ? Modules.supplies._pcsUnit(r) : '');
+      else if (r.qty != null) qty = r.qty + (r.unit ? r.unit : '');
       rows.push({
         title: txt(r.name) || '用品',
         sub: [txt(r.cat), qty, r.price != null ? Util.fmtYuan(r.price) : '', fmt(r.date)].filter(Boolean).join(' · '),
-        text: makeText([r.name, r.cat, r.date, r.price, r.qty, r.unit, '消耗品', '补货', '用品']),
+        text: makeText([r.name, r.cat, r.date, r.price, r.qty, r.unit, r.src, r.note, '消耗品', '补货', '用品']),
         sortKey: ts(r.date)
       });
     }

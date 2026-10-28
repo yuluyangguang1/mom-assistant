@@ -239,7 +239,7 @@
         + '<button type="button" class="rs-switch" role="switch" data-usesw aria-checked="' + !!st.useOn + '" aria-label="扣减用品"><i></i></button></div>';
       if (st.useOn) {
         if (!cl.length) {
-          h += '<p class="rs-stock-empty">还没有可扣减的用品。去消耗品里给纸尿裤填上「一共几片」，这里就能选。</p>'
+          h += '<p class="rs-stock-empty">还没有可扣减的用品。去用品里添加纸尿裤并填上剩余片数，这里就能选。</p>'
             + '<button type="button" class="btn rs-stock-go" data-gosup>去添加</button>';
         } else {
           h += '<div class="rs-stock-list">';

@@ -470,7 +470,25 @@
      settings.lastExportISO 自己算天数，不再经过提醒引擎）。
      ruleBackup 函数保留（不删）是因为它同时被启动时的容量/备份提示复用，
      只是不再进入 evaluate 的常规提醒流。 */
-  var RULES = [ruleSleep, ruleContraction, ruleWhiteNoise, ruleFeeding, ruleVaccine, ruleCheckup, rulePrenatalAppt, ruleMeds, ruleNewbornWet, ruleDiaperGap, rulePacking, rulePeriod, ruleFetal, ruleMilestone];
+  /* 第 294 次：用品提醒（用品页「提醒设置」打开才生效，默认关）。
+     到了设置的提醒时间 → remLevel 1；低于低库存阈值 → remLevel 0。只说事实，不催。 */
+  function ruleSupplies(d, now) {
+    if (!d.settings || d.settings.supRemind !== true) return null;
+    var S = global.Modules && global.Modules.supplies;
+    if (!S || !S._isLow) return null;
+    var p2 = function (x) { return (x < 10 ? '0' : '') + x; }, t = new Date(now);
+    var nowStr = t.getFullYear() + '-' + p2(t.getMonth() + 1) + '-' + p2(t.getDate()) + 'T' + p2(t.getHours()) + ':' + p2(t.getMinutes());
+    var list = (d.supplies || []).filter(function (s) { return s && s.name && !s.archived; });
+    var due = list.filter(function (s) { return S._remindDue(s, nowStr); });
+    var low = list.filter(function (s) { return S._isLow(s); });
+    if (!due.length && !low.length) return null;
+    var names = function (a) { return a.slice(0, 2).map(function (s) { return s.name; }).join('、') + (a.length > 2 ? ' 等 ' + a.length + ' 件' : ''); };
+    if (due.length) return { accent: 'supplies', go: 'supplies', remLevel: 1, text: '到时间补' + names(due) + '了。' };
+    return { accent: 'supplies', go: 'supplies', remLevel: 0,
+      text: low.length === 1 ? low[0].name + '快用完了，剩 ' + S._amount(low[0]) + '。' : names(low) + '快用完了。' };
+  }
+
+  var RULES = [ruleSleep, ruleContraction, ruleWhiteNoise, ruleFeeding, ruleVaccine, ruleCheckup, rulePrenatalAppt, ruleMeds, ruleNewbornWet, ruleDiaperGap, rulePacking, rulePeriod, ruleFetal, ruleMilestone, ruleSupplies];
 
   /* 第 109 次：提醒的收敛与排序。
      此前 evaluate 按 RULES 数组固定顺序输出、不排序、也不设上限——

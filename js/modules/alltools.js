@@ -73,7 +73,7 @@
     {
       key: 'home', title: '全家', items: [
         { id: 'finance', name: '记账' },
-        { id: 'supplies', name: '消耗品' }
+        { id: 'supplies', name: '用品' }
       ]
     },
     {

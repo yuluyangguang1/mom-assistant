@@ -49,7 +49,8 @@
   function referenced() {
     var set = {}, dd = (global.Storage && Storage.get && Storage.get()) || {};
     var add = function (arr) { (arr || []).forEach(function (r) { if (r && r.photos) Photos.clean(r.photos).forEach(function (id) { set[id] = 1; }); }); };
-    add(dd.diapers); add(dd.feedings);
+    add(dd.diapers); add(dd.feedings); add(dd.supplies);
+    (dd.supplies || []).forEach(function (s) { if (s && Photos.validId(s.img)) set[s.img] = 1; }); /* 第 294 次：用品的物件照片 */
     (dd.babies || []).forEach(function (bb) { if (bb && bb.rec) { add(bb.rec.diapers); add(bb.rec.feedings); } });
     return set;
   }
@@ -174,7 +175,8 @@
       Photos._gcRan = true;
       var keep = [], dd = Storage.get() || {};
       var add = function (arr) { (arr || []).forEach(function (r) { if (r) Photos.clean(r.photos).forEach(function (id) { keep.push(id); }); }); };
-      add(dd.diapers); add(dd.feedings);
+      add(dd.diapers); add(dd.feedings); add(dd.supplies);
+      (dd.supplies || []).forEach(function (s) { if (s && Photos.validId(s.img)) keep.push(s.img); }); /* 第 294 次：用品物件照片 + 备注照片 */
       (dd.babies || []).forEach(function (bb) { if (bb && bb.rec) { add(bb.rec.diapers); add(bb.rec.feedings); } });
       return Photos.gc(keep);
     },

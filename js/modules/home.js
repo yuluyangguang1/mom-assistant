@@ -425,7 +425,7 @@
       /* 第 107 次：消耗品。摘要复用模块自己的低库存判定（渲染期派生，不写库）。 */
       var supSum = (global.Modules && Modules.supplies && typeof Modules.supplies._summary === 'function')
         ? Modules.supplies._summary(d.supplies) : '';
-      tiles.push({ id: 'supplies', stages: ['baby'], name: '消耗品', accent: 'supplies', sum: supSum, badge: '', guide: false, empty: !(d.supplies || []).length });
+      tiles.push({ id: 'supplies', stages: ['baby'], name: '用品', accent: 'supplies', sum: supSum, badge: '', guide: false, empty: !(d.supplies || []).length });
 
       /* 第 132 次（对标 Cali 21 工具补缺）：洗澡 / 游泳 / 日晒 / 饮水 / 黄疸 / 补剂。
          一律 guide:false + empty:!有数据 —— 沿用第 118 次的首屏收敛纪律：

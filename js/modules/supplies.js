@@ -1,5 +1,5 @@
 /**
- * supplies.js - 消耗品与补货提醒（第 107 次）
+ * supplies.js - 用品（第 107 次起；第 294 次重做为「货架 + 剩余数量 + 联动扣减」，见下方第 294 次说明）
  *
  * 起因：资料库「健康宝宝早教喂养台」的用品补货表实测 54 行里有 21 行重复
  * （唯一「名称+购买日期」组合仅 33 个，纸尿裤 L码 2026-08-30 有 5 条完全相同的行）。
@@ -107,7 +107,7 @@
   var PIECES_MAX = 99999;
   function hasPieces(s) { return !!s && typeof s.pieces === 'number' && isFinite(s.pieces) && s.pieces >= 0; }
   /* 第 280 次：营养品页当场添加的用品带 pcsU（粒 / 片 / 颗 / 滴 / 包 / ml / 次，白名单），剩余数量按它写 */
-  var PCS_U = ['粒', '片', '颗', '滴', '包', 'ml', '次'];
+  var PCS_U = ['粒', '片', '颗', '滴', '包', 'ml', '次', '个', '袋', '瓶', '罐', '盒', '支', '条', '抽', 'g'];
   function pcsUnit(s) {
     if (s && PCS_U.indexOf(s.pcsU) >= 0) return s.pcsU;
     return s && s.cat === '纸尿裤' ? '片' : (s && s.cat === '清洁' ? '抽' : '个');
@@ -337,441 +337,824 @@
     }, 0);
   }
 
-  /* ---------- 渲染 ---------- */
+  /* ============================================================
+     第 294 次：用品重做与联动（对标 Cali「用品」：货架 + 物件 + 剩余数量）
+     ------------------------------------------------------------
+     一、口径从「还能用几天」换成「还剩多少」——pieces 就是当前剩余（单位 pcsU），
+        联动扣减、低库存、待补货都按它算；availDays / qty / history 等老字段原样保留不删。
+     二、老数据迁移（migrate，幂等，v294 标记）：没填 pieces 的老用品按 qty 件起步；
+        cnt = 换尿布时能不能被选来扣减（迁移时只给纸尿裤 / 清洁类和用户在尿布面板里选过的）。
+     三、联动（记录 → 库存）统一走「账本」：item.auto = { on, src, since, per, applied:{记录id: 扣了多少} }。
+        每次 Storage.save() 之前按当前记录重算一遍「应扣」，与 applied 求差再动库存——
+        新增 / 修改 / 删除 / 撤销 / 换宝宝都自动对上，不用在每个写记录的地方各接一次。
+          fx    配方奶：瓶喂 / 奶粉记录里的配方奶毫升 ÷ 每勺水量 × 每勺克数
+          stash 储奶袋：每存一袋奶扣 1
+          meds  维生素 / 药：同名吃药记录每次扣 per
+        只算「开启之后」且最近 45 天内的记录；更早的记录从账本里冻结（删了也不再退回），账本不会无限长。
+        换尿布仍走第 226 次的 record.used（尿布面板里逐条勾选），不进这个账本。
+     四、物件图：每件用品带 kind（物件）或自拍照片 img（Photos 仓库 id）。
+        统一的立体物件图留到全项目图标统一时一次生成，现在先显示线性图标（ART 表里填上文件名即可替换）。
+     ============================================================ */
 
+  var KINDS = [
+    { g: 'feed', k: 'formula', n: '配方奶粉', u: '罐', cat: '奶粉', ico: 'formula' },
+    { g: 'feed', k: 'bottle', n: '奶瓶', u: '个', cat: '其他', ico: 'feeding' },
+    { g: 'feed', k: 'pacifier', n: '安抚奶嘴', u: '个', cat: '其他', ico: 'baby' },
+    { g: 'feed', k: 'brush', n: '奶瓶刷', u: '个', cat: '清洁', ico: 'feeding' },
+    { g: 'feed', k: 'bag', n: '储奶袋', u: '个', cat: '其他', ico: 'pump' },
+    { g: 'feed', k: 'pump', n: '泵奶器', u: '个', cat: '其他', ico: 'pump' },
+    { g: 'feed', k: 'pad', n: '防溢乳垫', u: '片', cat: '其他', ico: 'breast' },
+    { g: 'feed', k: 'bib', n: '围兜', u: '个', cat: '衣物', ico: 'solid' },
+    { g: 'feed', k: 'bowl', n: '辅食碗', u: '个', cat: '辅食', ico: 'solid' },
+    { g: 'feed', k: 'spoon', n: '辅食勺', u: '个', cat: '辅食', ico: 'solid' },
+    { g: 'feed', k: 'cup', n: '学饮杯', u: '个', cat: '辅食', ico: 'water' },
+    { g: 'feed', k: 'puree', n: '果泥', u: '袋', cat: '辅食', ico: 'solid' },
+    { g: 'feed', k: 'biscuit', n: '磨牙饼干', u: '盒', cat: '辅食', ico: 'solid' },
+    { g: 'care', k: 'diaper', n: '纸尿裤', u: '片', cat: '纸尿裤', ico: 'diaper', cnt: true },
+    { g: 'care', k: 'wipes', n: '婴儿湿巾', u: '包', cat: '清洁', ico: 'supplies', cnt: true },
+    { g: 'care', k: 'cotton', n: '棉柔巾', u: '包', cat: '清洁', ico: 'supplies', cnt: true },
+    { g: 'care', k: 'underpad', n: '一次性隔尿垫', u: '片', cat: '纸尿裤', ico: 'diaper', cnt: true },
+    { g: 'care', k: 'cream', n: '护臀膏', u: '支', cat: '清洁', ico: 'supplies' },
+    { g: 'care', k: 'tissue', n: '婴儿纸巾', u: '包', cat: '清洁', ico: 'supplies' },
+    { g: 'care', k: 'swab', n: '棉签', u: '盒', cat: '清洁', ico: 'supplies' },
+    { g: 'care', k: 'wash', n: '洗发沐浴露', u: '瓶', cat: '清洁', ico: 'bath' },
+    { g: 'care', k: 'lotion', n: '润肤乳', u: '瓶', cat: '清洁', ico: 'bath' },
+    { g: 'care', k: 'towel', n: '浴巾', u: '条', cat: '衣物', ico: 'bath' },
+    { g: 'care', k: 'swaddle', n: '包巾', u: '条', cat: '衣物', ico: 'baby' },
+    { g: 'care', k: 'detergent', n: '婴儿洗衣液', u: '瓶', cat: '清洁', ico: 'supplies' },
+    { g: 'care', k: 'thermo', n: '体温计', u: '个', cat: '维D/药品', ico: 'temp' },
+    { g: 'care', k: 'clipper', n: '指甲剪', u: '个', cat: '其他', ico: 'baby' },
+    { g: 'care', k: 'saline', n: '生理盐水', u: '支', cat: '维D/药品', ico: 'meds' },
+    { g: 'care', k: 'toothpaste', n: '婴儿牙膏', u: '支', cat: '清洁', ico: 'supplies' },
+    { g: 'care', k: 'sunscreen', n: '防晒霜', u: '支', cat: '清洁', ico: 'sun' },
+    { g: 'care', k: 'repellent', n: '驱蚊液', u: '瓶', cat: '清洁', ico: 'supplies' },
+    { g: 'nutri', k: 'd3', n: '维生素 D3 滴剂', u: '粒', cat: '维D/药品', ico: 'supplement', meds: 'D3' },
+    { g: 'nutri', k: 'ad', n: '维生素 AD', u: '粒', cat: '维D/药品', ico: 'supplement', meds: 'AD' },
+    { g: 'nutri', k: 'vd', n: '维生素 D', u: '粒', cat: '维D/药品', ico: 'supplement', meds: '维生素D' },
+    { g: 'nutri', k: 'probiotic', n: '益生菌', u: '包', cat: '维D/药品', ico: 'supplement' },
+    { g: 'nutri', k: 'calcium', n: '钙补充剂', u: 'ml', cat: '维D/药品', ico: 'supplement' },
+    { g: 'nutri', k: 'iron', n: '铁补充剂', u: 'ml', cat: '维D/药品', ico: 'supplement' }
+  ];
+  var KGROUPS = [{ g: 'feed', n: '喂养' }, { g: 'care', n: '日常护理' }, { g: 'nutri', n: '营养补充' }];
+  /* 立体物件图：统一生成后在这里登记 kind → 文件名（assets/supplies/<文件>），没登记的显示线性图标 */
+  var ART = {};
+  var UNITS2 = ['片', '个', '包', '袋', '瓶', '罐', '盒', '支', '条', '抽', '粒', '颗', '滴', 'g', 'ml', '次'];
+  var LIST_MAX = 8, NOTE_MAX = 200, LINK_MAX = 300, SRC_MAX = 30, NAME_MAX = 20;
+  var WINDOW_DAYS = 45;
+  var ui = { tab: 'main', filter: 'all', q: '' };
+
+  function esc(s) { return Util.escapeHtml(s == null ? '' : String(s)); }
+  function kindOf(k) { for (var i = 0; i < KINDS.length; i++) if (KINDS[i].k === k) return KINDS[i]; return null; }
+  function num(v) { var n = Number(v); return isFinite(n) ? n : NaN; }
+  function r1(n) { return Math.round(n * 10) / 10; }
+  function fmtN(n) {
+    if (!isFinite(n)) return '—';
+    try { return Number(r1(n)).toLocaleString('zh-CN', { maximumFractionDigits: 1 }); } catch (e) { return String(r1(n)); }
+  }
+  function amountText(s) { return hasPieces(s) ? fmtN(s.pieces) + ' ' + pcsUnit(s) : '—'; }
+  function chW(v) { return Math.max(1.6, String(v == null ? '' : v).length + 0.6) + 'ch'; }
+  function isUrl(v) { return typeof v === 'string' && /^https?:\/\/[^\s<>"']+$/i.test(v); }
+  function locNow() { return Util.nowLocal(); }
+  function dtOk(v) { return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v); }
+
+  /* ---------- 清单（settings.supLists） ---------- */
+  function lists(d) {
+    var L = (d && d.settings && Array.isArray(d.settings.supLists)) ? d.settings.supLists.filter(function (x) { return x && x.id && x.name; }) : [];
+    if (!L.some(function (x) { return x.id === 'main'; })) L.unshift({ id: 'main', name: '用品' });
+    return L;
+  }
+  function listOf(d, s) {
+    var L = lists(d), id = s && s.list;
+    return L.some(function (x) { return x.id === id; }) ? id : L[0].id;
+  }
+
+  /* ---------- 迁移（幂等） ---------- */
+  function migrate(d) {
+    if (!d || !Array.isArray(d.supplies)) return 0;
+    var pref = (d.settings && d.settings.diaperStock && Array.isArray(d.settings.diaperStock.ids)) ? d.settings.diaperStock.ids : [];
+    var n = 0;
+    d.supplies.forEach(function (s) {
+      if (!s || s.v294) return;
+      var had = hasPieces(s);
+      if (!had) {
+        var q = parseInt(s.qty, 10);
+        s.pieces = (isNaN(q) || q < 0) ? 1 : Math.min(PIECES_MAX, q);
+        if (PCS_U.indexOf(s.pcsU) < 0) s.pcsU = UNITS2.indexOf(s.unit) >= 0 ? s.unit : '个';
+      } else if (PCS_U.indexOf(s.pcsU) < 0) {
+        s.pcsU = pcsUnit(s);
+      }
+      if (!s.kind) s.kind = s.cat === '纸尿裤' ? 'diaper' : (s.cat === '奶粉' ? 'formula' : '');
+      s.cnt = had && (s.cat === '纸尿裤' || s.cat === '清洁' || pref.indexOf(s.id) >= 0);
+      if (!s.list) s.list = 'main';
+      s.v294 = 1;
+      if (!s.updatedAt) s.updatedAt = locNow();
+      n++;
+    });
+    return n;
+  }
+
+  /* ---------- 低库存 / 提醒 ---------- */
+  function lowOn(s) { return !!(s && s.low && s.low.on && isFinite(num(s.low.th))); }
+  function isLow(s) {
+    if (!s || s.archived) return false;
+    if (s.v294) return lowOn(s) && hasPieces(s) && s.pieces <= num(s.low.th);
+    return supplyLeft(s) <= LOW_DAYS; /* 还没迁移的老数据按老口径 */
+  }
+  function remindOn(s) { return !!(s && s.remind && s.remind.on && dtOk(s.remind.at)); }
+  function remindDue(s, nowStr) { return !s.archived && remindOn(s) && String(s.remind.at).slice(0, 16) <= String(nowStr || locNow()).slice(0, 16); }
+  function needRestock(s, nowStr) { return !!s && !s.archived && (isLow(s) || remindDue(s, nowStr)); }
+
+  /* ---------- 联动账本 ---------- */
+  function fxOk(s) {
+    var f = s && s.fx;
+    return !!(f && num(f.scoopMl) > 0 && num(f.scoopG) > 0);
+  }
+  function allRecs(d, key) {
+    var out = [];
+    (d[key] || []).forEach(function (r) { if (r) out.push(r); });
+    var act = d.settings && d.settings.activeBabyId;
+    (d.babies || []).forEach(function (b) {
+      if (!b || b.id === act || !b.rec || !Array.isArray(b.rec[key])) return;
+      b.rec[key].forEach(function (r) { if (r) out.push(r); });
+    });
+    return out;
+  }
+  function formulaMl(r) {
+    if (!r || (r.type !== 'bottle' && r.type !== 'formula')) return 0;
+    var v = r.amountFm != null ? num(r.amountFm) : (r.type === 'formula' ? num(r.amount) : 0);
+    return v > 0 && v < 2000 ? v : 0;
+  }
+  function normName(x) { return String(x == null ? '' : x).replace(/\s+/g, '').toUpperCase(); }
+  function medsHit(s, r) {
+    var a = normName(r && r.name);
+    if (!a) return false;
+    var k = kindOf(s.kind), b = normName(s.name);
+    if (b && (a === b || a.indexOf(b) >= 0)) return true;
+    return !!(k && k.meds && a.indexOf(normName(k.meds)) >= 0);
+  }
+  /** 这件用品此刻「应扣」的账：{ 记录id: 数量 }，以及窗口外（冻结）的记录 id */
+  function desired(d, s) {
+    var a = s.auto, out = {}, frozen = {};
+    if (!a || !a.on || !dtOk(a.since)) return { want: out, frozen: frozen };
+    var since = String(a.since).slice(0, 19);
+    var win = Date.now() - WINDOW_DAYS * 864e5;
+    var take = function (id, t, q) {
+      if (!id || !(q > 0)) return;
+      var tt = new Date(t).getTime();
+      if (!isFinite(tt)) return;
+      if (String(t).slice(0, 19) < since) return;
+      if (tt < win) { frozen[id] = 1; return; }
+      out[id] = r1(q);
+    };
+    if (a.src === 'fx' && fxOk(s)) {
+      allRecs(d, 'feedings').forEach(function (r) {
+        var ml = formulaMl(r);
+        if (ml) take(r.id, r.start, ml / num(s.fx.scoopMl) * num(s.fx.scoopG));
+      });
+    } else if (a.src === 'stash') {
+      (d.milkStash || []).forEach(function (r) { if (r) take(r.id, r.time, 1); });
+    } else if (a.src === 'meds') {
+      var per = num(a.per) > 0 ? num(a.per) : 1;
+      allRecs(d, 'meds').forEach(function (r) { if (medsHit(s, r)) take(r.id, r.time, per); });
+    }
+    return { want: out, frozen: frozen };
+  }
+  /** 按记录重算所有开着联动的用品，返回 [{ item, delta }]（delta>0 = 扣了） */
+  function syncAuto(d) {
+    var moved = [];
+    if (!d || !Array.isArray(d.supplies)) return moved;
+    d.supplies.forEach(function (s) {
+      if (!s || !s.auto || !s.auto.on || s.archived || !hasPieces(s)) return;
+      var r = desired(d, s), want = r.want, ap = (s.auto.applied && typeof s.auto.applied === 'object' && !Array.isArray(s.auto.applied)) ? s.auto.applied : {};
+      var delta = 0, next = {};
+      Object.keys(ap).forEach(function (id) {
+        if (r.frozen[id]) return; /* 窗口外：冻结，不退回 */
+        var had = num(ap[id]) || 0, now = want[id] || 0;
+        delta += now - had;
+        if (now) next[id] = now;
+      });
+      Object.keys(want).forEach(function (id) {
+        if (ap[id] == null) { delta += want[id]; next[id] = want[id]; }
+      });
+      s.auto.applied = next;
+      delta = r1(delta);
+      if (delta) {
+        s.pieces = Math.max(0, Math.min(PIECES_MAX, r1(s.pieces - delta)));
+        moved.push({ item: s, delta: delta });
+      }
+    });
+    return moved;
+  }
+  /** 打开联动：从此刻起算，已有记录不追扣 */
+  function armAuto(s, src, per) {
+    var prev = s.auto && s.auto.on && s.auto.src === src ? s.auto : null;
+    s.auto = { on: true, src: src, since: prev ? prev.since : locNow(), per: per > 0 ? per : 1, applied: prev && prev.applied ? prev.applied : {} };
+  }
+  function autoSrcFor(s) {
+    var k = kindOf(s && s.kind);
+    if (s && (s.kind === 'formula' || s.pcsU === 'g')) return 'fx';
+    if (s && s.kind === 'bag') return 'stash';
+    if (k && k.g === 'nutri') return 'meds';
+    return null;
+  }
+
+  /* 所有写库都从 Storage.save 走：保存前先迁移老数据、再对一遍联动账本 */
+  (function hookSave() {
+    if (!Storage || Storage._supHooked) return;
+    var orig = Storage.save;
+    Storage.save = function () {
+      try { var dd = this.data; if (dd && Array.isArray(dd.supplies) && dd.supplies.length) { migrate(dd); var mv = syncAuto(dd); if (mv.length) Modules.supplies._lastMoved = mv; } } catch (e) { /* 联动出错不挡保存 */ }
+      return orig.apply(this, arguments);
+    };
+    Storage._supHooked = true;
+  })();
+
+  /* ---------- 物件图 ---------- */
+  function artHTML(s, cls) {
+    var k = kindOf(s && s.kind);
+    if (s && Global_Photos() && Photos.validId(s.img)) {
+      return '<span class="su-art ' + (cls || '') + ' su-photo"><img data-phid="' + esc(s.img) + '" alt=""></span>';
+    }
+    if (k && ART[k.k]) return '<span class="su-art ' + (cls || '') + '"><img src="assets/supplies/' + esc(ART[k.k]) + '" alt="" decoding="async"></span>';
+    return '<span class="su-art ' + (cls || '') + ' su-ico" data-g="' + esc(k ? k.g : 'other') + '">' + icon(k ? k.ico : 'supplies') + '</span>';
+  }
+  function Global_Photos() { return global.Photos && typeof Photos.validId === 'function'; }
+
+  /* ---------- 页面 ---------- */
+  function visible(d, nowStr) {
+    var all = (d.supplies || []).filter(function (s) { return s && s.name; });
+    var q = normName(ui.q);
+    var arr;
+    if (ui.tab === 'low') arr = all.filter(function (s) { return needRestock(s, nowStr); });
+    else arr = all.filter(function (s) { return listOf(d, s) === ui.tab; });
+    if (ui.filter === 'arch') arr = arr.filter(function (s) { return s.archived; });
+    else {
+      arr = arr.filter(function (s) { return !s.archived; });
+      if (ui.filter === 'low') arr = arr.filter(isLow);
+      else if (ui.filter === 'remind') arr = arr.filter(remindOn);
+    }
+    if (q) arr = arr.filter(function (s) { return normName(s.name).indexOf(q) >= 0; });
+    return arr;
+  }
+  var FILTERS = [['all', '库存'], ['low', '低库存'], ['remind', '有提醒'], ['arch', '已归档']];
+
+  function pageHTML(d) {
+    var L = lists(d);
+    if (ui.tab !== 'low' && !L.some(function (x) { return x.id === ui.tab; })) ui.tab = L[0].id;
+    var nowStr = locNow();
+    var nLow = (d.supplies || []).filter(function (s) { return needRestock(s, nowStr); }).length;
+    var arr = visible(d, nowStr);
+    var h = '<div class="su-top"><label class="su-search">' + icon('search') + '<input type="search" id="suQ" placeholder="搜索用品" value="' + esc(ui.q) + '" maxlength="20" enterkeyhint="search" aria-label="搜索用品"></label>'
+      + '<label class="su-ib" title="筛选"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>'
+      + (ui.filter !== 'all' ? '<i class="su-dot"></i>' : '') + '<select id="suFilter" aria-label="筛选">'
+      + FILTERS.map(function (f) { return '<option value="' + f[0] + '"' + (ui.filter === f[0] ? ' selected' : '') + '>' + f[1] + '</option>'; }).join('') + '</select></label>'
+      + '<label class="su-ib" title="更多">' + FTUI_more() + '<select id="suMenu" aria-label="更多"><option value="" selected disabled>更多</option><option value="lists">用品设置</option><option value="remind">提醒设置</option></select></label></div>';
+    h += '<div class="su-tabs" role="tablist">';
+    L.forEach(function (x) {
+      var on = ui.tab === x.id;
+      h += '<button type="button" role="tab" class="ft-chip su-tab' + (on ? ' is-on' : '') + '" aria-selected="' + on + '" data-sutab="' + esc(x.id) + '">' + esc(x.name) + '</button>';
+    });
+    h += '<button type="button" role="tab" class="ft-chip su-tab' + (ui.tab === 'low' ? ' is-on' : '') + '" aria-selected="' + (ui.tab === 'low') + '" data-sutab="low">待补货' + (nLow ? '<b class="su-badge">' + nLow + '</b>' : '') + '</button></div>';
+    if (ui.filter !== 'all') h += '<p class="su-fnote">只看：' + FILTERS.filter(function (f) { return f[0] === ui.filter; })[0][1] + ' <button type="button" class="su-fclr" data-fclr>显示全部</button></p>';
+
+    if (!arr.length) {
+      var t, s2, canAdd = ui.tab !== 'low' && ui.filter !== 'arch';
+      if (ui.q) { t = '没有找到「' + esc(ui.q) + '」'; s2 = '换个名字试试。'; canAdd = false; }
+      else if (ui.tab === 'low') { t = '没有要补货的'; s2 = '打开低库存提醒或设置提醒的用品，快用完或到点时会出现在这里。'; }
+      else if (ui.filter === 'arch') { t = '没有归档的用品'; s2 = '用完不再买的用品可以归档，记录还在。'; }
+      else if (ui.filter === 'low') { t = '没有低库存'; s2 = '低于提醒阈值的用品会出现在这里。'; }
+      else if (ui.filter === 'remind') { t = '没有设置提醒的用品'; s2 = '在用品的更多属性里可以设置提醒。'; }
+      else { t = '添加用品'; s2 = '把常买的用品、数量和提醒放在同一个清单里。'; }
+      h += '<div class="su-shelf su-empty"><div class="su-row">' + (canAdd ? '<button type="button" class="su-addc" data-suadd aria-label="添加用品">' + icon('plus') + '</button>' : '<span class="su-addc is-off" aria-hidden="true">' + icon(ui.q ? 'search' : 'check') + '</span>') + '</div>'
+        + '<p class="su-et">' + t + '</p><p class="su-es">' + s2 + '</p></div>';
+    } else {
+      h += '<div class="su-shelf">';
+      for (var i = 0; i < arr.length; i += 3) {
+        h += '<div class="su-row">';
+        arr.slice(i, i + 3).forEach(function (s) {
+          var low = isLow(s), due = remindDue(s, nowStr);
+          h += '<button type="button" class="su-item' + (low ? ' is-low' : '') + (s.archived ? ' is-arch' : '') + '" data-suopen="' + esc(s.id) + '" aria-label="' + esc(s.name) + '，剩 ' + esc(amountText(s)) + (low ? '，快用完了' : '') + (due ? '，提醒到了' : '') + '">'
+            + artHTML(s) + '<b class="su-n">' + esc(s.name) + '</b><small class="su-a">' + esc(amountText(s)) + (low ? ' · 快用完' : (due ? ' · 该补了' : '')) + '</small></button>';
+        });
+        h += '</div>';
+      }
+      h += '</div>';
+    }
+    if ((d.supplies || []).length) h += '<div class="su-foot"><button type="button" class="su-exp" id="spExport">导出 CSV</button></div>';
+    h += '<div class="mod-cta"><button type="button" class="mc-main" data-suadd>' + icon('plus') + '<span>添加用品</span></button></div>';
+    return h;
+  }
+  function FTUI_more() { return (global.FTUI && FTUI.SV && FTUI.SV.more) || '…'; }
+
+  /* ---------- 选物件 ---------- */
+  var pickTab = 'feed';
+  function openPicker(onPick, onCancel) {
+    var picked = false;
+    var F = global.FTUI; if (!F) return;
+    F.openSheet('supplies', '选择物件', '<div class="su-pk" id="suPk"></div>', function (api) {
+      api.box.closest('.modal').classList.add('su-sheet');
+      var ok = api.box.querySelector('[data-ok]'); if (ok) { ok.hidden = true; ok.style.visibility = 'hidden'; }
+      api.onClose = function () { if (!picked && onCancel) setTimeout(onCancel, 60); };
+      var wrap = api.box.querySelector('#suPk');
+      function paint() {
+        var h = '<div class="su-pk-src"><button type="button" class="btn su-pk-b" data-pkcam>' + icon('camera') + '<span>拍摄物品</span></button>'
+          + '<button type="button" class="btn su-pk-b" data-pkalb>' + icon('image') + '<span>从相册选择</span></button></div>'
+          + '<p class="rs-hint su-pk-hint">照片只在这台手机上处理和保存，不上传。</p><div class="ft-chips su-pk-tabs">';
+        KGROUPS.forEach(function (g) { h += '<button type="button" class="ft-chip' + (pickTab === g.g ? ' is-on' : '') + '" data-pkg="' + g.g + '" aria-pressed="' + (pickTab === g.g) + '">' + g.n + '</button>'; });
+        h += '</div><div class="su-pk-grid">';
+        KINDS.filter(function (k) { return k.g === pickTab; }).forEach(function (k) {
+          h += '<button type="button" class="su-pk-it" data-pk="' + k.k + '">' + artHTML({ kind: k.k }) + '<span>' + esc(k.n) + '</span></button>';
+        });
+        wrap.innerHTML = h + '</div>';
+      }
+      paint();
+      wrap.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('button') : null;
+        if (!b) return;
+        if (b.hasAttribute('data-pkg')) { pickTab = b.getAttribute('data-pkg'); paint(); return; }
+        if (b.hasAttribute('data-pk')) { var k = b.getAttribute('data-pk'); picked = true; api.close(); onPick({ kind: k }); return; }
+        if (b.hasAttribute('data-pkcam') || b.hasAttribute('data-pkalb')) {
+          if (!Global_Photos()) { Util.toast('这台设备暂时不能存照片', 'warn'); return; }
+          Photos.pick(b.hasAttribute('data-pkcam'), function (fs) {
+            Photos.compress(fs[0], 720, 0.8).then(Photos.put).then(function (id) { picked = true; api.close(); onPick({ kind: '', img: id }); })
+              .catch(function () { Util.toast('照片没存上，再试一次', 'warn'); });
+          });
+        }
+      });
+    });
+  }
+
+  /* ---------- 用品面板（新建 / 修改） ---------- */
+  function stepFor(u) { return (u === 'g' || u === 'ml') ? 10 : 1; }
+  function openEditor(id, preset, keep) {
+    var F = global.FTUI; if (!F) return;
+    var d = Storage.get();
+    if (!Array.isArray(d.supplies)) d.supplies = [];
+    migrate(d);
+    var s = id ? d.supplies.filter(function (x) { return x && x.id === id; })[0] : null;
+    if (id && !s) return;
+    var k0 = kindOf(s ? s.kind : preset && preset.kind);
+    var src0 = s ? s : { kind: k0 ? k0.k : '', pcsU: k0 ? k0.u : '个' };
+    var st = keep || {
+      kind: s ? (s.kind || '') : (k0 ? k0.k : ''),
+      img: s ? (s.img || null) : (preset && preset.img) || null,
+      name: s ? s.name : (k0 ? k0.n : ''),
+      pieces: s ? (hasPieces(s) ? s.pieces : 0) : 1,
+      unit: s ? pcsUnit(s) : (k0 ? k0.u : '个'),
+      list: s ? listOf(d, s) : (ui.tab !== 'low' ? ui.tab : 'main'),
+      lowOn: s ? lowOn(s) : false,
+      lowTh: s && s.low && isFinite(num(s.low.th)) ? num(s.low.th) : (k0 && k0.k === 'diaper' ? 20 : 1),
+      fxOn: !!(s && s.auto && s.auto.on && s.auto.src === 'fx'),
+      canG: s && s.fx && num(s.fx.canG) > 0 ? num(s.fx.canG) : 800,
+      scoopMl: s && s.fx && num(s.fx.scoopMl) > 0 ? num(s.fx.scoopMl) : 30,
+      scoopG: s && s.fx && num(s.fx.scoopG) > 0 ? num(s.fx.scoopG) : 4.4,
+      autoOn: s ? !!(s.auto && s.auto.on && s.auto.src !== 'fx') : !!(k0 && (k0.k === 'bag' || k0.g === 'nutri')),
+      per: s && s.auto && num(s.auto.per) > 0 ? num(s.auto.per) : 1,
+      cnt: s ? (s.v294 ? !!s.cnt : hasPieces(s)) : !!(k0 && k0.cnt),
+      src: s ? (s.src || '') : '',
+      buyOn: s ? !!s.bought : false,
+      date: (s && /^\d{4}-\d{2}-\d{2}$/.test(s.date || '')) ? s.date : Util.todayISO(),
+      remOn: s ? remindOn(s) : false,
+      remAt: s && s.remind && dtOk(s.remind.at) ? String(s.remind.at).slice(0, 16) : Util.addDays(Util.todayISO(), 7) + 'T09:00',
+      link: s ? (s.link || '') : '',
+      note: s ? (s.note || '') : '',
+      photos: s && Global_Photos() ? Photos.clean(s.photos) : [],
+      more: !s
+    };
+    var kind0 = st.kind;
+    void src0;
+    F.openSheet('supplies', s ? '' : '新用品', '<div class="su-ed" id="suEd"></div>', function (api) {
+      var modal = api.box.closest('.modal'); modal.classList.add('su-sheet', 'su-edsheet');
+      var wrap = api.box.querySelector('#suEd');
+      var src = autoSrcFor({ kind: st.kind, pcsU: st.unit });
+      function sw(attr, on, label) { return '<button type="button" class="rs-switch" role="switch" ' + attr + ' aria-checked="' + !!on + '" aria-label="' + esc(label) + '"><i></i></button>'; }
+      function row(label, right, cls) { return '<div class="spw-row su-prow' + (cls ? ' ' + cls : '') + '"><span>' + label + '</span>' + right + '</div>'; }
+      function numIn(attr, v, unit, label, step) {
+        return '<span class="su-nin"><input type="number" inputmode="decimal" ' + attr + ' value="' + esc(v) + '" min="0" max="99999" step="' + (step || 'any') + '" aria-label="' + esc(label) + '">' + (unit ? '<i>' + esc(unit) + '</i>' : '') + '</span>';
+      }
+      function paint() {
+        src = autoSrcFor({ kind: st.kind, pcsU: st.unit });
+        var h = '<div class="su-ed-hero"><button type="button" class="su-ed-art" data-chart aria-label="更换物件">' + artHTML({ kind: st.kind, img: st.img }, 'su-art-lg') + '<i class="su-pen">' + (FTUI_SV('pen')) + '</i></button>'
+          + (s ? '<label class="su-more" title="更多操作">' + FTUI_more() + '<select data-edmenu aria-label="更多操作"><option value="" selected disabled>更多操作</option><option value="restock">记一次补货</option>'
+            + '<option value="arch">' + (s.archived ? '取消归档' : '归档') + '</option><option value="del">删除用品</option></select></label>' : '') + '</div>';
+        h += '<input type="text" class="su-ed-name" id="suName" maxlength="' + NAME_MAX + '" placeholder="用品名称" value="' + esc(st.name) + '" aria-label="用品名称">';
+        h += '<div class="su-ed-num"><div><label class="su-big"><input type="number" inputmode="decimal" id="suPcs" style="width:' + chW(r1(st.pieces)) + '" value="' + esc(r1(st.pieces)) + '" min="0" max="99999" step="any" aria-label="当前剩余"><i>' + esc(st.unit) + '</i></label><small>当前剩余</small></div>'
+          + '<span class="sd-step su-step"><button type="button" data-pstep="-1" aria-label="减少"' + (st.pieces > 0 ? '' : ' disabled') + '>−</button><i aria-hidden="true"></i><button type="button" data-pstep="1" aria-label="增加">+</button></span></div>';
+        h += '<button type="button" class="su-moret" data-more aria-expanded="' + st.more + '"><span>更多属性</span>' + FTUI_SV('down') + '</button>';
+        if (st.more) {
+          var L = lists(Storage.get());
+          h += '<div class="su-grp">'
+            + row('所在清单', '<label class="su-selv"><b>' + esc((L.filter(function (x) { return x.id === st.list; })[0] || L[0]).name) + '</b>' + FTUI_SV('down') + '<select id="suList" aria-label="所在清单">' + L.map(function (x) { return '<option value="' + esc(x.id) + '"' + (x.id === st.list ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label>')
+            + row('单位', '<label class="su-selv"><b>' + esc(st.unit) + '</b>' + FTUI_SV('down') + '<select id="suUnit" aria-label="单位"' + (st.fxOn ? ' disabled' : '') + '>' + UNITS2.map(function (u) { return '<option' + (u === st.unit ? ' selected' : '') + '>' + u + '</option>'; }).join('') + '</select></label>', 'spw-line')
+            + row('低库存提醒', sw('data-lowsw', st.lowOn, '低库存提醒'), 'spw-line');
+          if (st.lowOn) h += row('提醒阈值', numIn('id="suTh"', st.lowTh, st.unit, '提醒阈值'), 'spw-line');
+          h += '</div>';
+          /* 联动 */
+          if (src === 'fx') {
+            h += '<div class="su-grp">' + row('按奶粉配比扣减', sw('data-fxsw', st.fxOn, '按奶粉配比扣减'));
+            if (st.fxOn) {
+              h += row('每罐净含量', numIn('id="suCan"', st.canG, 'g', '每罐净含量'), 'spw-line')
+                + row('每勺对应水量', numIn('id="suSml"', st.scoopMl, 'ml', '每勺对应水量'), 'spw-line')
+                + row('每勺奶粉', numIn('id="suSg"', st.scoopG, 'g', '每勺奶粉'), 'spw-line')
+                + '<p class="spw-hint su-ghint">按包装上的克数与毫升数填写。记一次配方奶，按冲调量扣减克数；已开封的奶粉，请把上面的剩余改为实际克数。</p>';
+            } else {
+              h += '<p class="spw-hint su-ghint">打开后，记瓶喂 / 配方奶时按冲调的毫升数自动扣减克数。</p>';
+            }
+            h += '</div>';
+          } else if (src === 'stash' || src === 'meds') {
+            h += '<div class="su-grp">' + row(src === 'stash' ? '存奶时扣减' : '吃药时扣减', sw('data-autosw', st.autoOn, '记录时扣减'));
+            if (st.autoOn && src === 'meds') h += row('每次扣减', numIn('id="suPer"', st.per, st.unit, '每次扣减'), 'spw-line');
+            h += '<p class="spw-hint su-ghint">' + (src === 'stash' ? '储奶页每存一袋奶，自动扣 1 个。' : '吃药页记一次「' + esc(st.name || '同名药') + '」，自动扣减。') + '</p></div>';
+          }
+          if (st.cnt || (kindOf(st.kind) && kindOf(st.kind).cnt)) {
+            h += '<div class="su-grp">' + row('换尿布时可扣减', sw('data-cntsw', st.cnt, '换尿布时可扣减')) + '<p class="spw-hint su-ghint">记尿布时可以勾选这件用品，每次扣 1。</p></div>';
+          }
+          h += '<div class="su-grp">'
+            + row('购买来源', '<input type="text" class="su-tin" id="suSrc" maxlength="' + SRC_MAX + '" placeholder="选填" value="' + esc(st.src) + '" aria-label="购买来源">')
+            + row('购买日期', sw('data-buysw', st.buyOn, '购买日期'), 'spw-line');
+          if (st.buyOn) h += row('日期', '<label class="spw-pill spw-date"><b>' + esc(Util.fmtDate ? Util.fmtDate(st.date) : st.date) + '</b><input type="date" class="ft-hid" id="suDate" value="' + esc(st.date) + '" max="' + Util.todayISO() + '" aria-label="购买日期"></label>', 'spw-line');
+          h += row('设置提醒', sw('data-remsw', st.remOn, '设置提醒'), 'spw-line');
+          if (st.remOn) h += row('提醒时间', '<input type="datetime-local" class="su-tin su-dt" id="suRem" value="' + esc(st.remAt) + '" aria-label="提醒时间">', 'spw-line');
+          h += row('链接', '<input type="url" class="su-tin" id="suLink" maxlength="' + LINK_MAX + '" placeholder="https://" value="' + esc(st.link) + '" aria-label="链接">', 'spw-line');
+          if (isUrl(st.link)) h += '<p class="su-linkp"><a href="' + esc(st.link) + '" target="_blank" rel="noopener noreferrer">打开链接</a></p>';
+          h += '</div>';
+          h += '<div class="su-grp"><textarea class="su-note" id="suNote" maxlength="' + NOTE_MAX + '" rows="2" placeholder="备注" aria-label="备注">' + esc(st.note) + '</textarea>';
+          if (Global_Photos()) {
+            h += '<div class="spw-row su-prow"><span>备注照片</span><span class="su-phn">' + st.photos.length + '/' + Photos.MAX + '</span></div>';
+            if (st.photos.length) h += '<div class="su-phs">' + st.photos.map(function (pid) { return '<span class="dp-ph"><button type="button" class="dp-ph-img" data-phview="' + esc(pid) + '" aria-label="查看照片"><img data-phid="' + esc(pid) + '" alt=""></button><button type="button" class="dp-ph-rm" data-phrm="' + esc(pid) + '" aria-label="移除照片">' + icon('close') + '</button></span>'; }).join('') + '</div>';
+            if (st.photos.length < Photos.MAX) h += '<div class="dp-ph-btns"><button type="button" class="btn dp-ph-add" data-phadd>' + icon('image') + '<span>添加照片</span></button><button type="button" class="btn dp-ph-add" data-phcam>' + icon('camera') + '<span>拍摄照片</span></button></div>';
+            h += '<p class="spw-hint su-ghint">包装、购买凭证等照片，和物件图分开保存，只在这台手机上。</p>';
+          }
+          h += '</div>';
+        }
+        h += '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" data-done>' + icon('check') + '<span>完成</span></button></div>';
+        wrap.innerHTML = h;
+        if (Global_Photos()) Photos.hydrate(wrap);
+      }
+      function readInputs() {
+        var g = function (sel) { return wrap.querySelector(sel); };
+        if (g('#suName')) st.name = g('#suName').value;
+        if (g('#suPcs')) {
+          var p = num(g('#suPcs').value);
+          if (isFinite(p) && p >= 0 && p !== st.pieces) { st.pieces = Math.min(PIECES_MAX, p); st.autoG = false; }
+          g('#suPcs').style.width = chW(g('#suPcs').value);
+        }
+        if (g('#suTh')) { var t = num(g('#suTh').value); if (isFinite(t) && t >= 0) st.lowTh = t; }
+        if (g('#suCan')) {
+          var c = num(g('#suCan').value);
+          if (c > 0 && c !== st.canG) {
+            st.canG = c;
+            /* 刚从「罐」换成克、还没手改过剩余：参考值 = 罐数 × 每罐净含量，跟着改 */
+            if (st.autoG && st.cans > 0) { st.pieces = r1(st.cans * c); var pi = g('#suPcs'); if (pi) { pi.value = st.pieces; pi.style.width = chW(st.pieces); } }
+          }
+        }
+        if (g('#suSml')) { var m = num(g('#suSml').value); if (m > 0) st.scoopMl = m; }
+        if (g('#suSg')) { var sg = num(g('#suSg').value); if (sg > 0) st.scoopG = sg; }
+        if (g('#suPer')) { var pr = num(g('#suPer').value); if (pr > 0) st.per = pr; }
+        if (g('#suSrc')) st.src = g('#suSrc').value;
+        if (g('#suDate') && /^\d{4}-\d{2}-\d{2}$/.test(g('#suDate').value)) st.date = g('#suDate').value;
+        if (g('#suRem') && dtOk(g('#suRem').value)) st.remAt = g('#suRem').value.slice(0, 16);
+        if (g('#suLink')) st.link = g('#suLink').value.trim();
+        if (g('#suNote')) st.note = g('#suNote').value;
+      }
+      paint();
+      wrap.addEventListener('change', function (e) {
+        var t = e.target;
+        if (t.id === 'suList') { st.list = t.value; readInputs(); paint(); }
+        else if (t.id === 'suUnit') { st.unit = t.value; readInputs(); paint(); }
+        else if (t.id === 'suDate' || t.id === 'suLink') { readInputs(); paint(); }
+      });
+      wrap.addEventListener('input', function (e) { if (e.target && e.target.tagName !== 'SELECT') readInputs(); });
+      wrap.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('button') : null;
+        if (!b) return;
+        readInputs();
+        if (b.hasAttribute('data-pstep')) {
+          var stp = stepFor(st.unit) * Number(b.getAttribute('data-pstep'));
+          st.pieces = Math.max(0, Math.min(PIECES_MAX, r1(st.pieces + stp))); paint(); return;
+        }
+        if (b.hasAttribute('data-more')) { st.more = !st.more; paint(); return; }
+        if (b.hasAttribute('data-lowsw')) { st.lowOn = !st.lowOn; paint(); return; }
+        if (b.hasAttribute('data-fxsw')) {
+          st.fxOn = !st.fxOn;
+          /* 打开配比：按罐记的换算成克（罐数 × 每罐净含量），单位改成 g */
+          if (st.fxOn && st.unit !== 'g') {
+            if (st.unit === '罐') { st.cans = st.pieces; st.autoG = true; st.pieces = r1(st.pieces * st.canG); }
+            st.unit = 'g'; if (st.lowOn && st.lowTh < 50) st.lowTh = 200;
+          }
+          paint(); return;
+        }
+        if (b.hasAttribute('data-autosw')) { st.autoOn = !st.autoOn; paint(); return; }
+        if (b.hasAttribute('data-cntsw')) { st.cnt = !st.cnt; paint(); return; }
+        if (b.hasAttribute('data-buysw')) { st.buyOn = !st.buyOn; paint(); return; }
+        if (b.hasAttribute('data-remsw')) { st.remOn = !st.remOn; paint(); return; }
+        if (b.hasAttribute('data-chart')) {
+          openPicker(function (r) {
+            /* 选完物件回到同一个面板：重开一次，状态带回去 */
+            var kk = kindOf(r.kind), prevK = kindOf(st.kind || kind0);
+            if (kk && (!st.name || (prevK && st.name === prevK.n))) st.name = kk.n;
+            if (kk && !s) { st.unit = kk.u; st.cnt = !!kk.cnt; st.autoOn = kk.k === 'bag' || kk.g === 'nutri'; }
+            st.kind = r.kind; st.img = r.img || null;
+            reopen(st);
+          }, function () { reopen(st); });
+          return;
+        }
+        if (b.hasAttribute('data-phview')) { Photos.view(b.getAttribute('data-phview'), st.photos); return; }
+        if (b.hasAttribute('data-phrm')) { var v = b.getAttribute('data-phrm'); st.photos = st.photos.filter(function (x) { return x !== v; }); paint(); return; }
+        if (b.hasAttribute('data-phadd') || b.hasAttribute('data-phcam')) {
+          Photos.pick(b.hasAttribute('data-phcam'), function (fs) {
+            var room = Photos.MAX - st.photos.length;
+            Promise.all(fs.slice(0, room).map(function (f) { return Photos.compress(f).then(Photos.put); })).then(function (ids) {
+              st.photos = Photos.clean(st.photos.concat(ids)); paint();
+            }).catch(function () { Util.toast('照片没存上，再试一次', 'warn'); });
+          });
+          return;
+        }
+        if (b.hasAttribute('data-done')) { save(); }
+      });
+      var okb = api.box.querySelector('[data-ok]');
+      if (okb) okb.addEventListener('click', function () { readInputs(); save(); });
+      wrap.addEventListener('change', function (e) {
+        var menu = e.target;
+        if (!menu.hasAttribute || !menu.hasAttribute('data-edmenu')) return;
+        var v = menu.value; menu.selectedIndex = 0;
+        if (v === 'restock') { api.close(); openBuySheet(s.id); }
+        else if (v === 'arch') { s.archived = !s.archived; s.updatedAt = locNow(); Storage.save(); api.close(); Util.toast(s.archived ? '已归档「' + s.name + '」' : '已取消归档', 'ok'); global.App.rerender(); }
+        else if (v === 'del') {
+          api.close();
+          var list = Storage.get().supplies;
+          Util.removeWithUndo(list, s.id, { onSave: function () { Storage.save(); }, onAfter: function () { global.App.rerender(); }, deletedText: '已删除「' + s.name + '」' });
+        }
+      });
+      function reopen(keep) {
+        api.close();
+        setTimeout(function () { openEditor(id, null, keep); }, 60);
+      }
+      var busy = false;
+      function save() {
+        if (busy) return;
+        var name = String(st.name || '').trim().slice(0, NAME_MAX) || ((kindOf(st.kind) || {}).n || '');
+        if (!name) { var ni = wrap.querySelector('#suName'); if (ni && Util.markInvalid) Util.markInvalid(ni, '填一下用品名称'); return; }
+        if (st.link && !isUrl(st.link)) { var li = wrap.querySelector('#suLink'); if (li && Util.markInvalid) Util.markInvalid(li, '链接要以 http:// 或 https:// 开头'); else Util.toast('链接要以 http:// 或 https:// 开头', 'warn'); return; }
+        busy = true;
+        var dd = Storage.get();
+        var it = s;
+        if (!it) {
+          var kk = kindOf(st.kind);
+          it = { id: Util.uid(), v294: 1, name: name, cat: kk ? kk.cat : '其他', date: st.date, price: 0, availDays: 0, qty: 1, unit: kk ? kk.u : st.unit, history: [] };
+          dd.supplies.push(it);
+        }
+        applyState(it, st, name);
+        if (!Storage.save()) { busy = false; return; }
+        api.close();
+        Util.toast(s ? '已保存' : '已添加「' + name + '」', 'ok');
+        global.App.rerender();
+      }
+    });
+  }
+  function FTUI_SV(n) { return (global.FTUI && FTUI.SV && FTUI.SV[n]) || ''; }
+  function applyState(it, st, name) {
+    var oldList = it.list;
+    it.v294 = 1;
+    it.name = name;
+    it.kind = st.kind || '';
+    if (st.img && Global_Photos() && Photos.validId(st.img)) it.img = st.img; else delete it.img;
+    it.pieces = Math.max(0, Math.min(PIECES_MAX, r1(st.pieces)));
+    it.pcsU = st.unit;
+    var L = lists(Storage.get());
+    it.list = L.some(function (x) { return x.id === st.list; }) ? st.list : (oldList || 'main');
+    it.low = { on: !!st.lowOn, th: Math.max(0, r1(st.lowTh)) };
+    it.cnt = !!st.cnt;
+    var src = autoSrcFor({ kind: it.kind, pcsU: it.pcsU });
+    if (src === 'fx') {
+      it.fx = { canG: r1(st.canG), scoopMl: r1(st.scoopMl), scoopG: Math.round(st.scoopG * 100) / 100 };
+      if (st.fxOn) armAuto(it, 'fx', 1); else if (it.auto && it.auto.src === 'fx') delete it.auto;
+    } else if ((src === 'stash' || src === 'meds') && st.autoOn) {
+      armAuto(it, src, src === 'meds' ? r1(st.per) : 1);
+      it.auto.per = src === 'meds' ? r1(st.per) : 1;
+    } else if (it.auto) delete it.auto;
+    it.src = String(st.src || '').trim().slice(0, SRC_MAX);
+    if (!it.src) delete it.src;
+    it.bought = !!st.buyOn;
+    if (st.buyOn && /^\d{4}-\d{2}-\d{2}$/.test(st.date)) it.date = st.date;
+    if (!it.date) it.date = Util.todayISO();
+    it.remind = st.remOn && dtOk(st.remAt) ? { on: true, at: st.remAt.slice(0, 16) } : { on: false, at: dtOk(st.remAt) ? st.remAt.slice(0, 16) : null };
+    if (st.link && isUrl(st.link)) it.link = st.link.slice(0, LINK_MAX); else delete it.link;
+    it.note = String(st.note || '').trim().slice(0, NOTE_MAX);
+    if (!it.note) delete it.note;
+    it.photos = Global_Photos() ? Photos.clean(st.photos) : [];
+    if (!it.photos.length) delete it.photos;
+    it.updatedAt = locNow();
+    return it;
+  }
+
+  /* ---------- 补货 ---------- */
+  function openBuySheet(id) {
+    var F = global.FTUI; if (!F) return;
+    var d = Storage.get(), s = (d.supplies || []).filter(function (x) { return x && x.id === id; })[0];
+    if (!s) return;
+    migrate(d);
+    var kk = kindOf(s.kind);
+    var st = { n: s.pcsU === 'g' && s.fx && num(s.fx.canG) > 0 ? num(s.fx.canG) : (s.pcsU === 'g' || s.pcsU === 'ml' ? 100 : 1), price: '', cost: false };
+    void kk;
+    F.openSheet('supplies', '本次补货', '<div class="su-ed" id="suBuy"></div>', function (api) {
+      api.box.closest('.modal').classList.add('su-sheet');
+      var wrap = api.box.querySelector('#suBuy');
+      function paint() {
+        wrap.innerHTML = '<div class="su-ed-hero">' + artHTML(s, 'su-art-md') + '<p class="su-buy-n">' + esc(s.name) + '</p><p class="su-buy-s">现在剩 ' + esc(amountText(s)) + '</p></div>'
+          + '<div class="su-ed-num"><div><label class="su-big"><input type="number" inputmode="decimal" id="byN" style="width:' + chW(st.n) + '" value="' + esc(st.n) + '" min="0" max="99999" step="any" aria-label="补货数量"><i>' + esc(pcsUnit(s)) + '</i></label><small>这次补了</small></div>'
+          + '<span class="sd-step su-step"><button type="button" data-bstep="-1" aria-label="减少"' + (st.n > 0 ? '' : ' disabled') + '>−</button><i aria-hidden="true"></i><button type="button" data-bstep="1" aria-label="增加">+</button></span></div>'
+          + '<div class="su-grp"><div class="spw-row su-prow"><span>花了多少</span><span class="su-nin"><input type="number" inputmode="decimal" id="byPrice" min="0" step="0.01" placeholder="选填" value="' + esc(st.price) + '" aria-label="价格"><i>元</i></span></div>'
+          + '<label class="spw-row su-prow spw-line chk"><span>同时在记账里记这一笔</span><input type="checkbox" id="byAlsoCost"' + (st.cost ? ' checked' : '') + '></label></div>'
+          + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" id="bySave">' + icon('check') + '<span>记录补货</span></button></div>';
+      }
+      function rd() {
+        var bn = wrap.querySelector('#byN'), n = num(bn.value); if (isFinite(n) && n >= 0) st.n = Math.min(PIECES_MAX, n);
+        bn.style.width = chW(bn.value);
+        st.price = wrap.querySelector('#byPrice').value; st.cost = wrap.querySelector('#byAlsoCost').checked;
+      }
+      paint();
+      wrap.addEventListener('input', rd);
+      wrap.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('button') : null; if (!b) return;
+        rd();
+        if (b.hasAttribute('data-bstep')) { st.n = Math.max(0, r1(st.n + stepFor(pcsUnit(s)) * Number(b.getAttribute('data-bstep')))); paint(); return; }
+        if (b.id === 'bySave') save();
+      });
+      var okb = api.box.querySelector('[data-ok]'); if (okb) okb.addEventListener('click', function () { rd(); save(); });
+      var done = false;
+      function save() {
+        if (done) return;
+        if (!(st.n > 0)) { Util.markInvalid && Util.markInvalid(wrap.querySelector('#byN'), '填一下补了多少'); return; }
+        done = true;
+        var dd = Storage.get(), price = parseFloat(st.price);
+        if (isNaN(price) || price < 0) price = 0;
+        var booked = pushFinanceRecord(dd, { alsoCost: st.cost, amount: price, cat: s.cat, date: Util.todayISO(), note: '用品 · ' + s.name });
+        s.pieces = Math.min(PIECES_MAX, r1((hasPieces(s) ? s.pieces : 0) + st.n));
+        if (price > 0) s.price = price;
+        s.history = pushHistory(s.history, { date: Util.todayISO(), price: price, qty: st.n, unit: pcsUnit(s) });
+        if (s.remind && s.remind.on && remindDue(s)) s.remind.on = false; /* 到点的提醒补完货就算办完 */
+        s.updatedAt = locNow();
+        if (!Storage.save()) { done = false; return; }
+        api.close();
+        Util.toast(booked ? '已补货，并记了一笔账' : '已补货，现在剩 ' + amountText(s), 'ok');
+        global.App.rerender();
+      }
+    });
+  }
+
+  /* ---------- 用品设置（清单）/ 提醒设置 ---------- */
+  function openLists() {
+    var F = global.FTUI; if (!F) return;
+    var d = Storage.get();
+    var rows = lists(d).map(function (x) { return { id: x.id, name: x.name }; });
+    F.openSheet('supplies', '用品设置', '<div class="su-ed" id="suLs"></div>', function (api) {
+      api.box.closest('.modal').classList.add('su-sheet');
+      var wrap = api.box.querySelector('#suLs');
+      function count(id) { return (d.supplies || []).filter(function (s) { return s && listOf(d, s) === id; }).length; }
+      function paint() {
+        var h = '<p class="rs-lbl">现有清单 <span class="rs-lbl-n">' + rows.length + ' 个</span></p><div class="su-grp">';
+        rows.forEach(function (r, i) {
+          var c = count(r.id);
+          h += '<div class="spw-row su-prow' + (i ? ' spw-line' : '') + '"><input type="text" class="su-tin su-lsn" data-lsn="' + i + '" maxlength="10" value="' + esc(r.name) + '" aria-label="清单名称"><span class="su-lsc">' + c + ' 件</span>'
+            + (rows.length > 1 && !c ? '<button type="button" class="spw-rm" data-lsrm="' + i + '" aria-label="删除清单">' + icon('trash') + '</button>' : '') + '</div>';
+        });
+        h += '</div><p class="spw-hint">至少保留一个清单；清单里还有用品时不能删。</p>';
+        if (rows.length < LIST_MAX) h += '<button type="button" class="btn su-lsadd" data-lsadd>' + icon('plus') + '<span>新建清单</span></button>';
+        h += '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" data-lsok>' + icon('check') + '<span>完成</span></button></div>';
+        wrap.innerHTML = h;
+      }
+      paint();
+      wrap.addEventListener('input', function (e) { var i = e.target.getAttribute && e.target.getAttribute('data-lsn'); if (i != null) rows[+i].name = e.target.value; });
+      function save() {
+        var out = rows.map(function (r) { return { id: r.id, name: String(r.name || '').trim().slice(0, 10) }; }).filter(function (r) { return r.name; });
+        if (!out.length) out = [{ id: 'main', name: '用品' }];
+        d.settings.supLists = out;
+        Storage.save(); api.close(); global.App.rerender();
+      }
+      wrap.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('button') : null; if (!b) return;
+        if (b.hasAttribute('data-lsadd')) { rows.push({ id: 'l' + Util.uid().replace(/[^a-z0-9]/gi, '').slice(-8).toLowerCase(), name: '清单 ' + (rows.length + 1) }); paint(); return; }
+        if (b.hasAttribute('data-lsrm')) { rows.splice(+b.getAttribute('data-lsrm'), 1); paint(); return; }
+        if (b.hasAttribute('data-lsok')) save();
+      });
+      var okb = api.box.querySelector('[data-ok]'); if (okb) okb.addEventListener('click', save);
+    });
+  }
+  function openRemind() {
+    var F = global.FTUI; if (!F) return;
+    var d = Storage.get(), on = !!d.settings.supRemind;
+    F.openSheet('supplies', '用品提醒', '<div class="su-ed" id="suRm"></div>', function (api) {
+      api.box.closest('.modal').classList.add('su-sheet');
+      var wrap = api.box.querySelector('#suRm');
+      function paint() {
+        wrap.innerHTML = '<div class="su-grp"><div class="spw-row su-prow"><span class="su-rmt"><b>用品提醒</b><small>到点或低库存时，在首页提醒卡里提醒</small></span>'
+          + '<button type="button" class="rs-switch" role="switch" data-rmsw aria-checked="' + on + '" aria-label="用品提醒"><i></i></button></div></div>'
+          + '<p class="spw-hint">提醒只在这台手机上，打开应用时出现，不会发送到服务器。</p>'
+          + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" data-rmok>' + icon('check') + '<span>完成</span></button></div>';
+      }
+      paint();
+      function save() { d.settings.supRemind = on; Storage.save(); api.close(); global.App.rerender(); }
+      wrap.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('button') : null; if (!b) return;
+        if (b.hasAttribute('data-rmsw')) { on = !on; paint(); return; }
+        if (b.hasAttribute('data-rmok')) save();
+      });
+      var okb = api.box.querySelector('[data-ok]'); if (okb) okb.addEventListener('click', save);
+    });
+  }
+
+  function exportCsv(list) {
+    var csv = Util.toCsv(['名称', '清单', '剩余', '单位', '低库存阈值', '类别', '购买日期', '购买来源', '单价', '归档', '备注'], list.map(function (s) {
+      return [String(s.name || ''), (lists(Storage.get()).filter(function (x) { return x.id === listOf(Storage.get(), s); })[0] || {}).name || '',
+        hasPieces(s) ? r1(s.pieces) : '', pcsUnit(s), lowOn(s) ? s.low.th : '', s.cat || '', s.date || '', s.src || '', s.price || 0, s.archived ? '是' : '', s.note || ''];
+    }));
+    Util.download('用品_' + Util.todayISO() + '.csv', csv, 'text/csv;charset=utf-8');
+    Util.toast('已导出');
+  }
+
+  function canOpen() { return !document.querySelector('#modalRoot > .modal-mask:not(.sheet-leaving)'); }
 
   Modules.supplies = {
     id: 'supplies',
-    title: '消耗品',
+    title: '用品',
 
-    /* 供首页磁贴/提醒复用：低库存摘要，纯读取 */
     _summary: function (list) {
-      var lows = lowSupplies(list);
-      if (lows.length) return '需补货 ' + lows.length + ' 件';
-      if (!list || !list.length) return '未记录';
-      return '充足';
+      var lows = (list || []).filter(function (s) { return needRestock(s); });
+      if (lows.length) return '待补货 ' + lows.length + ' 件';
+      var n = (list || []).filter(function (s) { return s && !s.archived; }).length;
+      if (!n) return '未记录';
+      return '共 ' + n + ' 件';
     },
-
     _left: supplyLeft,
     _hasPieces: hasPieces,
     _pcsUnit: pcsUnit,
     _consume: consume,
     _dailyUse: dailyUse,
-    /* 可扣减的用品：填了片数的那些，纸尿裤排最前 */
+    /* 换尿布时可扣减的用品：没归档、有剩余数量；迁移过的看 cnt（纸尿裤 / 湿巾这类），纸尿裤排最前 */
     _countable: function (d) {
-      return ((d && d.supplies) || []).filter(hasPieces).sort(function (a, b) {
+      return ((d && d.supplies) || []).filter(function (s) { return hasPieces(s) && !s.archived && (s.v294 ? !!s.cnt : true); }).sort(function (a, b) {
         return (a.cat === '纸尿裤' ? 0 : 1) - (b.cat === '纸尿裤' ? 0 : 1);
       });
     },
     _state: supplyState,
-    _lows: lowSupplies,
+    _lows: function (list) { return (list || []).filter(function (s) { return needRestock(s); }); },
+    _isLow: isLow,
+    _needRestock: needRestock,
+    _remindDue: remindDue,
     _findDuplicate: findDuplicate,
-    /* 第 107 次：导出 upsert 与 pushHistory 供 QA 直接驱动真实写入路径。
-       查重是这个模块唯一的不变量守卫，只测 findDuplicate 等于没测——
-       真正决定「会不会多出一行」的是 upsert 里那个 if (dup) 分支。 */
     _upsert: upsertSupply,
     _pushHistory: pushHistory,
-    /* 第 112 次：导出联动三件套供 QA 直接断言。
-       monthSpend 显式收 todayISO，让「本月」口径可被测试固定住，
-       不用依赖跑测试那一刻的真实月份。 */
     _toFinanceCat: toFinanceCat,
     _pushFinanceRecord: pushFinanceRecord,
     _monthSpend: monthSpend,
     _CAT_TO_FINANCE: CAT_TO_FINANCE,
     _CATS: CATS,
-    /* 第 112 次：新购弹层的联动也得能被 QA 驱动。
-       openBuySheet 走 sheet() 弹层，测试无法通过点击清单里的「＋购」进到这里，
-       所以把已有函数直接导出——不改逻辑，只暴露入口。
-       没有它的话，「新购时能不能记上账」这条路径会完全没有测试覆盖：
-       变异体把这里的 pushFinanceRecord 删掉，纳入的所有套件都抓不到。 */
+    _KINDS: KINDS,
+    _migrate: migrate,
+    _sync: syncAuto,
+    _desired: desired,
+    _lists: lists,
+    _amount: amountText,
     _openBuySheet: openBuySheet,
+    _openEditor: function (id, preset) { openEditor(id, preset); },
+    _openPicker: openPicker,
+    _ui: ui,
 
     render: function (view) {
       var d = Storage.get();
       if (!Array.isArray(d.supplies)) d.supplies = [];
-      var list = d.supplies;
-      var lows = lowSupplies(list);
-      var html = '';
-
-      /* 顶部补货提醒：只在真有需要时出现，不常驻占位 */
-      if (lows.length) {
-        html += '<div class="warn-box"><b>该补货了</b>：'
-          + lows.map(function (s) {
-              return Util.escapeHtml(s.name) + (hasPieces(s) ? '（剩 ' + s.pieces + pcsUnit(s) + '）' : '（剩 ' + supplyLeft(s) + ' 天）');
-            }).join('、')
-          + '</div>';
-      }
-
-      /* 新增表单 */
-      html += '<div class="card"><h2>记一件消耗品</h2>';
-
-      /* 第 116 次：常用模板。放在名称输入框【之前】——
-         先点模板省掉打字，点不到模板再用下面的手输，顺序不能反。
-         模板只填名称/单位/可用天数/数量，不碰价格（价格每次都不同，猜不得）。 */
-      html += '<div class="sp-tpl" id="spTplBox">'
-        + '<div class="sp-tpl-hint">选一个省打字（价格还是自己填）</div><div class="sp-tpl-row" id="spTplRow">';
-      (TEMPLATES[CATS[0]] || []).forEach(function (t, i) {
-        html += '<button class="sp-tpl-btn" type="button" data-tpl="' + i + '">' + Util.escapeHtml(t.n) + '</button>';
+      if (migrate(d)) Storage.save();
+      view.innerHTML = '<div class="ft-page su-page" data-accent="supplies">' + pageHTML(d) + '</div>';
+      if (Global_Photos()) Photos.hydrate(view);
+      var q = view.querySelector('#suQ');
+      q.addEventListener('input', function () {
+        ui.q = q.value.trim().slice(0, 20);
+        var pos = q.selectionStart;
+        global.App.rerender();
+        var q2 = document.getElementById('suQ');
+        if (q2) { q2.focus(); try { q2.setSelectionRange(pos, pos); } catch (e) {} }
       });
-      html += '</div></div>';
-
-      html += '<label>名称<input type="text" id="spName" placeholder="如：纸尿裤 L码"></label>';
-      html += '<label>类别<select id="spCat">';
-      CATS.forEach(function (c) {
-        html += '<option value="' + c + '">' + c + '</option>';
+      view.querySelector('#suFilter').addEventListener('change', function () { ui.filter = this.value; global.App.rerender(); });
+      var mn = view.querySelector('#suMenu');
+      mn.addEventListener('change', function () {
+        var v = mn.value; mn.selectedIndex = 0;
+        if (!canOpen()) return;
+        if (v === 'lists') openLists(); else if (v === 'remind') openRemind();
       });
-      html += '</select></label>';
-
-      html += '<div class="row2">';
-      html += '<label>购买日期<input type="date" id="spDate" value="' + Util.todayISO() + '"></label>';
-      html += '<label>价格（元）<input type="number" id="spPrice" step="0.01" min="0" inputmode="decimal"></label>';
-      html += '</div>';
-      html += '<div class="row2">';
-      html += '<label>能用多少天<input type="number" id="spAvail" step="1" min="0" inputmode="numeric" placeholder="如 30"></label>';
-      html += '<label>数量<input type="number" id="spQty" step="1" min="0" inputmode="numeric" value="1"></label>';
-      html += '</div>';
-      html += '<label>一共几片 / 几抽<span class="hint-inline">（可选，填了就能随换尿布自动扣减）</span><input type="number" id="spPieces" step="1" min="0" inputmode="numeric" placeholder="如 2 包 × 60 片 = 120"></label>';
-      html += '<label>单位<select id="spUnit">';
-      UNITS.forEach(function (u) { html += '<option value="' + u + '">' + u + '</option>'; });
-      html += '</select></label>';
-      /* 第 112 次：勾上则本次购买同时在记账里记一笔。
-         默认不勾——记账是「钱花了」的决定，消耗品是「东西没了」的事实，
-         两者不该默认绑在一起，勾选权交给用户。 */
-      html += '<label class="chk"><input type="checkbox" id="spAlsoCost">'
-        + '同时在记账里记这一笔<span class="hint-inline" id="spAlsoCostHint"></span></label>';
-      html += '<p class="hint">同名同一天再记会并入原来那条，不会多出一行。</p>';
-      html += '<button class="btn btn-primary btn-save" id="spSave">保存</button></div>';
-
-      /* 清单 */
-      html += '<div class="card"><h2>清单</h2>';
-      if (!list.length) {
-        html += '<div class="empty-state"><span class="es-ico">' + icon('supplies') + '</span><p>清单还是空的</p><span class="hint">填上「能用多少天」，这里会算出还剩几天。</span></div>';
-      } else {
-        var sorted = list.slice().sort(function (a, b) { return supplyLeft(a) - supplyLeft(b); });
-        html += '<ul class="list">';
-        sorted.forEach(function (s) {
-          var left = supplyLeft(s);
-          var st = supplyState(left);
-          var qty = parseInt(s.qty, 10) || 1;
-          var unit = s.unit || '件';
-          /* 第 112 次：本月该品类在记账里花了多少（渲染期派生，不落库）。
-             与用户自己的账单比，不与他人比。 */
-          var ms = monthSpend(d.finance && d.finance.records, s.cat);
-          /* 第 226 次：原来的行把 9 个子元素塞进一条横向 flex，名称被挤成 0 宽、按钮溢出屏外。
-             改成专用的三段式网格：图标 | 名称+购买信息 | 剩余数；进度条整行；状态 + 操作一行。 */
-          var numHtml = hasPieces(s)
-            ? s.pieces + '<i>' + pcsUnit(s) + '</i>'
-            : left + '<i>天</i>';
-          var rate = hasPieces(s) ? dailyUse(s.id, d) : 0;
-          html += '<li class="sup-row">'
-            + '<span class="sup-ico">' + icon('supplies') + '</span>'
-            + '<span class="sup-main"><b>' + Util.escapeHtml(s.name) + '</b>'
-            + '<small>' + Util.escapeHtml(s.cat || '') + ' · ' + Util.fmtDate(s.date) + ' 买 · ' + qty + Util.escapeHtml(unit)
-            + (s.price > 0 ? ' · ' + Util.fmtYuan(s.price) : '') + '</small></span>'
-            + '<span class="sup-num ' + st.cls + '">' + numHtml + '</span>'
-            + '<div class="sup-bar"><i style="width:' + leftPercent(s) + '%"></i></div>'
-            + '<span class="sup-state"><b class="' + st.cls + '">' + st.text + '</b>'
-            + (hasPieces(s) ? (rate > 0 ? ' · 每天约 ' + (Math.round(rate * 10) / 10) + pcsUnit(s) + '，够用 ' + left + ' 天' : ' · 换尿布时自动扣减') : '')
-            + (ms > 0 ? ' · 本月该品类 ' + Util.fmtYuan(ms) : '')
-            + '</span>'
-            + '<span class="sup-acts">'
-            + '<button class="icon-btn" data-spbuy="' + s.id + '" title="记录新购">＋购</button>'
-            + '<button class="icon-btn" data-spedit="' + s.id + '" title="修改">改</button>'
-            + '<button class="icon-btn" data-spdel="' + s.id + '" title="删除">✕</button>'
-            + '</span></li>';
-        });
-        html += '</ul>';
-      }
-      html += '<button class="btn" id="spExport">导出本模块 CSV</button></div>';
-
-      /* 价格历史：只在有 2 条以上（说明复购过）才有意义 */
-      var multi = list.filter(function (s) { return Array.isArray(s.history) && s.history.length > 1; });
-      if (multi.length) {
-        html += '<div class="card"><h2>复购记录</h2><ul class="kv">';
-        multi.forEach(function (s) {
-          var prices = s.history.map(function (h) { return h.price; }).filter(function (x) { return x > 0; });
-          var min = prices.length ? Math.min.apply(null, prices) : 0;
-          var max = prices.length ? Math.max.apply(null, prices) : 0;
-          html += '<li>' + Util.escapeHtml(s.name)
-            + '：买了 ' + s.history.length + ' 次'
-            + (prices.length ? '，' + Util.fmtYuan(min) + '–' + Util.fmtYuan(max) : '')
-            + '</li>';
-        });
-        html += '</ul><p class="hint">和你自己历次买的价格比，不跟别人比。</p></div>';
-      }
-
-      view.innerHTML = html;
-
-      /* 第 112 次：勾选框旁实时显示「会记到记账的哪个类别」。
-         类别映射里有 4 类不是同名（清洁/辅食/维D药品/出行），不提前告诉用户，
-         他会以为账记错了。 */
-      var catSel = view.querySelector('#spCat');
-      var costHint = view.querySelector('#spAlsoCostHint');
-      if (catSel && costHint) {
-        var refreshHint = function () {
-          var fc = toFinanceCat(catSel.value);
-          costHint.textContent = fc === catSel.value ? '' : '（记到「' + fc + '」）';
-        };
-        catSel.addEventListener('change', refreshHint);
-        refreshHint();
-      }
-
-      /* 第 116 次：模板交互。
-         - 切类别 → 重绘模板行（不同品类的常用物不一样）
-         - 点模板 → 填名称/单位/可用天数/数量，并聚焦到价格框（下一步只剩填价格）
-         刻意不填价格：价格每家每次都不同，猜错比不填更糟。
-         填完给一次 toast，让用户确知「已填好，接下来只剩价格」。 */
-      var tplRow = view.querySelector('#spTplRow');
-      var tplBox = view.querySelector('#spTplBox');
-
-      function paintTemplates() {
-        if (!tplRow || !catSel) return;
-        var items = TEMPLATES[catSel.value] || [];
-        if (!items.length) {
-          /* 「其他」类无模板：整块隐藏，不留一块空白占位 */
-          if (tplBox) tplBox.style.display = 'none';
-          return;
-        }
-        if (tplBox) tplBox.style.display = '';
-        tplRow.innerHTML = items.map(function (t, i) {
-          return '<button class="sp-tpl-btn" type="button" data-tpl="' + i + '">' + Util.escapeHtml(t.n) + '</button>';
-        }).join('');
-      }
-
-      if (tplRow && catSel) {
-        /* 换类别时重绘：整体换掉行内节点，事件用委托挂在行上，不逐个重绑 */
-        catSel.addEventListener('change', paintTemplates);
-        tplRow.addEventListener('click', function (ev) {
-          var btn = ev.target.closest ? ev.target.closest('[data-tpl]') : null;
-          if (!btn) return;
-          var items = TEMPLATES[catSel.value] || [];
-          var t = items[parseInt(btn.getAttribute('data-tpl'), 10)];
-          if (!t) return;
-          var nameEl = view.querySelector('#spName');
-          var unitEl = view.querySelector('#spUnit');
-          var availEl = view.querySelector('#spAvail');
-          var qtyEl = view.querySelector('#spQty');
-          if (nameEl) nameEl.value = t.n;
-          /* 单位下拉未必含模板单位（如「本」不在 UNITS 里）：不静默丢，
-             找不到就补一个 option 选中，保证「填了就是那个单位」 */
-          if (unitEl) {
-            var found = false;
-            for (var i = 0; i < unitEl.options.length; i++) {
-              if (unitEl.options[i].value === t.u) { found = true; break; }
-            }
-            if (!found) {
-              var op = document.createElement('option');
-              op.value = t.u; op.textContent = t.u;
-              unitEl.appendChild(op);
-            }
-            unitEl.value = t.u;
-          }
-          /* 可用天数 0 = 耐用品（安全座椅/体温计），不占天数，模板里已按0 给 */
-          if (availEl) availEl.value = t.d > 0 ? t.d : '';
-          if (qtyEl) qtyEl.value = t.q || 1;
-          var priceEl = view.querySelector('#spPrice');
-          if (priceEl) { priceEl.focus(); }
-          if (global.Util && Util.toast) {
-            Util.toast('已填好「' + t.n + '」，填个价格就能存', 'ok');
-          }
-        });
-        paintTemplates();
-      }
-
-      /* ---------- 事件 ---------- */
-      var saveBtn = view.querySelector('#spSave');
-      if (saveBtn) {
-        saveBtn.addEventListener('click', function () {
-          var nameEl = view.querySelector('#spName');
-          var res = upsertSupply(list, {
-            name: nameEl.value,
-            cat: view.querySelector('#spCat').value,
-            date: view.querySelector('#spDate').value || Util.todayISO(),
-            price: view.querySelector('#spPrice').value,
-            availDays: view.querySelector('#spAvail').value,
-            qty: view.querySelector('#spQty').value,
-            unit: view.querySelector('#spUnit').value,
-            pieces: (view.querySelector('#spPieces') || {}).value
-          });
-          if (res.error) { Util.markInvalid(nameEl, res.error); return; }
-          /* 第 112 次：联动写账。放在 Storage.save() 之前，
-             两边写的是同一个 d 对象，一次落盘即可，不多调一次 save。 */
-          var catVal = view.querySelector('#spCat').value;
-          var priceVal = view.querySelector('#spPrice').value;
-          var dateVal = view.querySelector('#spDate').value || Util.todayISO();
-          var alsoEl = view.querySelector('#spAlsoCost');
-          var booked = pushFinanceRecord(d, {
-            alsoCost: !!(alsoEl && alsoEl.checked),
-            amount: priceVal,
-            cat: catVal,
-            date: dateVal,
-            note: '消耗品 · ' + res.item.name
-          });
-          Storage.save();
-          Util.toast(booked
-            ? '已记下，并记了一笔账'
-            : (res.merged ? '已并入原有那条' : '已记下'));
-          global.App.rerender();
-        });
-      }
-
-      Array.prototype.forEach.call(view.querySelectorAll('[data-spbuy]'), function (b) {
-        b.addEventListener('click', function () {
-          var id = b.getAttribute('data-spbuy');
-          openBuySheet(id, list, view);
-        });
+      var fc = view.querySelector('[data-fclr]');
+      if (fc) fc.addEventListener('click', function () { ui.filter = 'all'; global.App.rerender(); });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-sutab]'), function (b) {
+        b.addEventListener('click', function () { ui.tab = b.getAttribute('data-sutab'); global.App.rerender(); });
       });
-
-      Array.prototype.forEach.call(view.querySelectorAll('[data-spedit]'), function (b) {
-        b.addEventListener('click', function () {
-          var id = b.getAttribute('data-spedit');
-          openEditSheet(id, list, view);
-        });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-suadd]'), function (b) {
+        b.addEventListener('click', function () { if (canOpen()) openPicker(function (r) { openEditor(null, r); }); });
       });
-
-      Array.prototype.forEach.call(view.querySelectorAll('[data-spdel]'), function (b) {
-        b.addEventListener('click', function () {
-          var id = b.getAttribute('data-spdel');
-          var item = list.filter(function (x) { return x.id === id; })[0];
-          if (!item) return;
-          Util.removeWithUndo(list, id, {
-            onSave: function () { Storage.save(); },
-            onAfter: function () { global.App.rerender(); },
-            deletedText: '已删除 ' + item.name
-          });
-        });
+      Array.prototype.forEach.call(view.querySelectorAll('[data-suopen]'), function (b) {
+        b.addEventListener('click', function () { if (canOpen()) openEditor(b.getAttribute('data-suopen')); });
       });
-
-      var expBtn = view.querySelector('#spExport');
-      if (expBtn) {
-        expBtn.addEventListener('click', function () {
-          /* 第 274 次：改走 Util.toCsv（RFC 4180 转义、BOM、CRLF、防公式注入），和记账 / 设置页同一份 */
-          var csv = Util.toCsv(['名称', '类别', '购买日期', '单价', '数量', '单位', '可用天数', '剩余天数', '剩余片数'], list.map(function (s) {
-            return [String(s.name || ''), s.cat || '', s.date || '', s.price || 0, parseInt(s.qty, 10) || 1, s.unit || '',
-              s.availDays || 0, supplyLeft(s), hasPieces(s) ? s.pieces : ''];
-          }));
-          Util.download('消耗品_' + Util.todayISO() + '.csv', csv, 'text/csv;charset=utf-8');
-          Util.toast('已导出');
-        });
-      }
+      var ex = view.querySelector('#spExport');
+      if (ex) ex.addEventListener('click', function () { exportCsv(d.supplies); });
     }
   };
-
-  /* ---------- 两个编辑弹层 ---------- */
-
-  function sheet(title, inner, onMount) {
-    var root = document.getElementById('modalRoot');
-    if (!root) return null;
-    root.innerHTML =
-      '<div class="modal-mask" data-sup-mask>' +
-      '<div class="modal" role="dialog" aria-modal="true" aria-label="' + Util.escapeHtml(title) + '">' +
-      '<h3>' + Util.escapeHtml(title) + '</h3>' + inner +
-      '<div class="modal-actions"><button class="btn" data-sup-cancel>取消</button></div>' +
-      '</div></div>';
-    root.querySelector('[data-sup-cancel]').addEventListener('click', closeSheet);
-    root.querySelector('[data-sup-mask]').addEventListener('click', function (ev) {
-      if (ev.target === this) closeSheet();
-    });
-    if (typeof onMount === 'function') onMount(root);
-    return root;
-  }
-
-  function closeSheet() {
-    var root = document.getElementById('modalRoot');
-    if (root) root.innerHTML = '';
-  }
-
-  /** 修改：走 upsert 时把自身排除，否则会跟自己「同名同日期」判定为重复。 */
-  function openEditSheet(id, list, view) {
-    var s = list.filter(function (x) { return x.id === id; })[0];
-    if (!s) return;
-    sheet('修改 ' + s.name,
-      '<label>名称<input type="text" id="edName" value="' + Util.escapeHtml(s.name) + '"></label>' +
-      '<label>类别<select id="edCat">' + CATS.map(function (c) {
-        return '<option value="' + c + '"' + (c === s.cat ? ' selected' : '') + '>' + c + '</option>';
-      }).join('') + '</select></label>' +
-      '<div class="row2">' +
-      '<label>购买日期<input type="date" id="edDate" value="' + Util.escapeHtml(s.date || '') + '"></label>' +
-      '<label>能用多少天<input type="number" id="edAvail" value="' + (parseInt(s.availDays, 10) || 0) + '" min="0" step="1"></label>' +
-      '</div>' +
-      '<label>还剩几' + pcsUnit(s) + '（可选，换尿布自动扣减）<input type="number" id="edPieces" value="' + (hasPieces(s) ? s.pieces : '') + '" min="0" step="1" inputmode="numeric" placeholder="不填 = 不参与扣减"></label>' +
-      '<button class="btn btn-primary" style="width:100%" id="edSave">保存</button>',
-      function (root) {
-        root.querySelector('#edSave').addEventListener('click', function () {
-          var name = root.querySelector('#edName').value;
-          var date = root.querySelector('#edDate').value || s.date;
-          /* 排除自身后再查重：改名或改日期时若撞上别的行，仍然要拦住 */
-          var others = list.filter(function (x) { return x.id !== id; });
-          var clash = findDuplicate(others, name, date);
-          if (clash) {
-            Util.markInvalid(root.querySelector('#edName'), '已有一条同名同日期的记录');
-            return;
-          }
-          s.name = String(name).trim();
-          s.cat = root.querySelector('#edCat').value;
-          s.date = date;
-          s.availDays = parseInt(root.querySelector('#edAvail').value, 10) || 0;
-          var ep = parsePieces(root.querySelector('#edPieces').value);
-          if (ep === null) delete s.pieces; else s.pieces = ep;
-          Storage.save();
-          closeSheet();
-          global.App.rerender();
-        });
-      });
-  }
-
-  /** 新购：库存累加 + 可用天数按「原剩余 + 新批次」累加。 */
-  function openBuySheet(id, list, view) {
-    var s = list.filter(function (x) { return x.id === id; })[0];
-    if (!s) return;
-    var left = supplyLeft(s);
-    var qty = parseInt(s.qty, 10) || 1;
-    sheet('新购 · ' + s.name,
-      '<p class="hint">当前 ' + qty + (s.unit || '件') + '，还剩 ' + left + ' 天。' +
-      '记录后库存累加，总剩余 = 现在的 ' + left + ' 天 + 新买这批能用的天数。</p>' +
-      '<div class="row2">' +
-      '<label>新购日期<input type="date" id="byDate" value="' + Util.todayISO() + '"></label>' +
-      '<label>新购价格（元）<input type="number" id="byPrice" value="' + (s.price || '') + '" step="0.01" min="0" inputmode="decimal"></label>' +
-      '</div>' +
-      '<div class="row2">' +
-      '<label>这次买几' + (s.unit || '件') + '<input type="number" id="byQty" value="1" min="0" step="1" inputmode="numeric"></label>' +
-      '<label>这批能用多少天<input type="number" id="byAvail" value="' + (s.availDays || '') + '" min="0" step="1" inputmode="numeric"></label>' +
-      '</div>' +
-      '<label>这次一共几' + pcsUnit(s) + '（可选）<input type="number" id="byPieces" min="0" step="1" inputmode="numeric" placeholder="' + (hasPieces(s) ? '现有 ' + s.pieces + pcsUnit(s) + '，会加上去' : '填了就能随换尿布扣减') + '"></label>' +
-      /* 第 112 次：新购同样可以联动写账。默认不勾，理由同主表单。 */
-      '<label class="chk"><input type="checkbox" id="byAlsoCost">同时在记账里记这一笔</label>' +
-      '<button class="btn btn-primary" style="width:100%" id="bySave">记录新购</button>',
-      function (root) {
-        root.querySelector('#bySave').addEventListener('click', function () {
-          var addQty = parseInt(root.querySelector('#byQty').value, 10);
-          if (isNaN(addQty) || addQty < 0) addQty = 1;
-          var addAvail = parseInt(root.querySelector('#byAvail').value, 10);
-          if (isNaN(addAvail) || addAvail < 0) addAvail = 0;
-          var price = parseFloat(root.querySelector('#byPrice').value);
-          if (isNaN(price) || price < 0) price = 0;
-          var date = root.querySelector('#byDate').value || Util.todayISO();
-
-          var alsoEl = root.querySelector('#byAlsoCost');
-          var booked = pushFinanceRecord(Storage.get(), {
-            alsoCost: !!(alsoEl && alsoEl.checked),
-            amount: price,
-            cat: s.cat,
-            date: date,
-            note: '消耗品 · ' + s.name
-          });
-
-          s.qty = (parseInt(s.qty, 10) || 1) + addQty;
-          s.availDays = left + addAvail;
-          s.date = date;
-          s.price = price;
-          s.history = pushHistory(s.history, { date: date, price: price, qty: addQty, unit: s.unit || '' });
-          var bp = parsePieces(root.querySelector('#byPieces').value);
-          if (bp !== null) s.pieces = Math.min(PIECES_MAX, (hasPieces(s) ? s.pieces : 0) + bp);
-          Storage.save();
-          closeSheet();
-          Util.toast('已记录新购');
-          global.App.rerender();
-        });
-      });
-  }
 })(window);

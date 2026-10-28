@@ -457,29 +457,6 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 /* 分段切换确认感：激活时图标轻微弹跳（spring），契合奶油风的 Q 弹 */
 .seg-btn.active .ico { animation: segPop .35s var(--spring); }
 
-/* 第 116 次：消耗品常用模板 chips（sp-tpl）
-   复用 .seg-btn 的视觉语言（药丸 + 描边 + 主色弱底），只是不用 flex:1 撑满，
-   按内容宽度排列并允许换行——模板数量随品类变（1~6 项），撑满会在 6 项时挤成两行空格。 */
-.sp-tpl { margin-bottom: var(--space-md); }
-.sp-tpl-hint {
-  font-size: calc(12.5px * var(--fs-mul)); color: var(--muted); margin-bottom: var(--space-xs);
-}
-.sp-tpl-row { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
-.sp-tpl-btn {
-  flex: 0 0 auto;
-  /* 触屏最小命中区：正文 13px + 左右 12px 内边距。
-     第 128 次：min-height 38→44px——注释曾写着「逼近 44px 下限」却停在 38，
-     U-08（WCAG 2.2 SC 2.5.5 AAA）要求 44×44，这次补上。 */
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 1px solid var(--border); border-radius: var(--radius-pill);
-  background: var(--surface); color: var(--text);
-  font-size: calc(13.5px * var(--fs-mul)); font-family: inherit; cursor: pointer;
-  transition: background .2s var(--ease), border-color .2s var(--ease), transform .2s var(--spring);
-}
-.sp-tpl-btn:hover { border-color: var(--primary); background: var(--primary-weak); }
-.sp-tpl-btn:active { transform: scale(.95); }
-.sp-tpl-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* 首次引导（O 系列）：身份 / 性别按钮更大更好点按 */
 .seg-lg .seg-btn { flex: 1 1 auto; padding: 12px 10px; font-size: calc(15px * var(--fs-mul)); }
@@ -563,8 +540,6 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
    勾选项
    ============================================================ */
 .chk input { margin-right: 6px; }
-/* 第 112 次：勾选框旁的行内说明（提示这笔记到记账的哪个类别） */
-.hint-inline { color: var(--text-sub, #6b6b6b); font-size: calc(13px * var(--fs-mul)); margin-left: 6px; }
 
 
 /* ============================================================
@@ -639,24 +614,10 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* 第 107 次（消耗品）：表单双列 + 剩余天数进度条 + 三档配色。
-   .row2 此前不存在，消耗品表单是第一个用它的模块。 */
-.row2 { display: flex; gap: 10px; }
-.row2 > label { flex: 1 1 0; min-width: 0; }
-
-/* 进度条：宽由渲染期派生（剩余/总可用），底槽固定，不随内容跳动 */
-.sup-bar {
-  flex: 0 0 100%; width: 100%; height: 5px; margin-top: 6px;
-  background: var(--surface-2); border-radius: 3px; overflow: hidden;
-}
-.sup-bar > i { display: block; height: 100%; border-radius: 3px; background: var(--tile, var(--primary)); transition: width .28s ease; }
-.sup-num.sup-low, .sup-state .sup-low { color: #C0392B; }
-.sup-num.sup-mid, .sup-state .sup-mid { color: #9A6A12; }
-.sup-num.sup-ok, .sup-state .sup-ok { color: #2C6B54; }
 
 /* ---- 第 108 次 · 辅食食材分段标签（喂养模块辅食结构化） ----
    食材按「荤｜素｜主食」分段存纯 text，展示层解析成一段一个标签。
-   换行手法沿用第 107 次的 .sup-bar：flex 0 0 100% 占满整行，
+   换行手法沿用第 107 次消耗品进度条：flex 0 0 100% 占满整行，
    不去改 .list li 的单行 flex 布局（那个布局有大量既有依赖）。 */
 .list li .ing-tags {
   flex: 0 0 100%; width: 100%; display: flex; flex-wrap: wrap; gap: 5px;
@@ -683,9 +644,6 @@ body.dark .list li .ing-tag { background: rgba(255, 255, 255, .05); border-color
 body.dark .list li .ing-tag.ing-meat   { color: #E8B48C; background: rgba(232, 180, 140, .12); border-color: rgba(232, 180, 140, .26); }
 body.dark .list li .ing-tag.ing-veg    { color: #8FCDB2; background: rgba(143, 205, 178, .12); border-color: rgba(143, 205, 178, .26); }
 body.dark .list li .ing-tag.ing-staple { color: #E3C88E; background: rgba(227, 200, 142, .12); border-color: rgba(227, 200, 142, .26); }
-body.dark .sup-num.sup-low, body.dark .sup-state .sup-low { color: #F0A79A; }
-body.dark .sup-num.sup-mid, body.dark .sup-state .sup-mid { color: #E8C88A; }
-body.dark .sup-num.sup-ok, body.dark .sup-state .sup-ok { color: #8FCDB2; }
 .list li .li-num {
   flex: 0 0 auto; margin-left: auto; padding-left: 12px;
   font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
@@ -1884,9 +1842,9 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 
    第 128 次（A1+A2 触摸目标补齐）：07 号报告实测冷启动 29.0% / 普通日 27.4%
    的可点元素 <44px，假阳性排查后真不达标 99 个。此前白名单只覆盖 6 个类，
-   「规矩立了没落地」——.sp-tpl-btn 注释自称「逼近 44 下限」实际只给 38px、
+   「规矩立了没落地」——消耗品模板按钮 注释自称「逼近 44 下限」实际只给 38px、
    .btn-mini 第 72 次停在 40px。本轮把缺口类全部补齐（各自规则处有 第 128 次 标注）：
-     .btn-mini 40→44 · .sp-tpl-btn 38→44 · .mood-lv button 41→44
+     .btn-mini 40→44 · 消耗品模板按钮 38→44 · .mood-lv button 41→44
      .week-strip button 宽 41.7→44+（gap 4→1px）· .cal-toggle 30→44（第 285 次已删）
      .row-switch 行 36/38→44 · .search-input 38.4→44 · .home-edit-btn 28→44
      .ds-opt 行 23→44 · .pack-item label 25.8→铺满 64px 行
@@ -2914,7 +2872,7 @@ body.dock-left .view, body.dock-right .view { padding-bottom: calc(var(--dock-h,
    ① 兜底：li-main 自身截断，任何情况下都不再溢出压字；
    ② 支持 :has 的环境（iOS 15.4+ / Chrome 105+）：有 li-sub 的行改两行——
       第一行时间+类型，第二行详情（可换行，不再省略号截掉），图标与操作按钮跨两行居中。
-      带 .sup-bar / .ing-tags（整行换行条）的行保持原单行 flex 布局，避免牵动既有依赖。
+      带 .ing-tags（整行换行条）的行保持原单行 flex 布局，避免牵动既有依赖。
    ============================================================ */
 .list li .li-main {
   /* 第 61 次：「左名称右数据」双列行——li-main（时间/名称）左、li-sub（详情/备注）右 */
@@ -2923,18 +2881,18 @@ body.dock-left .view, body.dock-right .view { padding-bottom: calc(var(--dock-h,
 .list li .li-main b {
   font-weight: 600; font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
   /* ↑ 第 171 次：同名选择器合并到此处 */ margin-right: .4em; }
-.list li:has(> .li-main + .li-sub):not(:has(> .sup-bar, > .ing-tags)) {
+.list li:has(> .li-main + .li-sub):not(:has(> .ing-tags)) {
   display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-columns: auto;
   column-gap: 8px; row-gap: 2px; align-items: center;
 }
-.list li:has(> .li-main + .li-sub):not(:has(> .sup-bar, > .ing-tags)) > .row-ico { grid-column: 1; grid-row: 1 / 3; margin-right: 4px; }
-.list li:has(> .row-ico):has(> .li-main + .li-sub):not(:has(> .sup-bar, > .ing-tags)) { grid-template-columns: auto minmax(0, 1fr); }
+.list li:has(> .li-main + .li-sub):not(:has(> .ing-tags)) > .row-ico { grid-column: 1; grid-row: 1 / 3; margin-right: 4px; }
+.list li:has(> .row-ico):has(> .li-main + .li-sub):not(:has(> .ing-tags)) { grid-template-columns: auto minmax(0, 1fr); }
 /* 文字列 = 显式网格的最后一列（有图标时第 2 列，无图标时第 1 列）；操作按钮自动排到其后的隐式列 */
-.list li:has(> .li-main + .li-sub):not(:has(> .sup-bar, > .ing-tags)) > .li-main { grid-column: -2 / -1; grid-row: 1; }
-.list li:has(> .li-main + .li-sub):not(:has(> .sup-bar, > .ing-tags)) > .li-sub {
+.list li:has(> .li-main + .li-sub):not(:has(> .ing-tags)) > .li-main { grid-column: -2 / -1; grid-row: 1; }
+.list li:has(> .li-main + .li-sub):not(:has(> .ing-tags)) > .li-sub {
   grid-column: -2 / -1; grid-row: 2; margin-left: 0; padding-left: 0; text-align: left; white-space: normal;
 }
-.list li:has(> .li-main + .li-sub):not(:has(> .sup-bar, > .ing-tags)) > :not(.row-ico):not(.li-main):not(.li-sub) { grid-row: 1 / 3; }
+.list li:has(> .li-main + .li-sub):not(:has(> .ing-tags)) > :not(.row-ico):not(.li-main):not(.li-sub) { grid-row: 1 / 3; }
 
 /* ============================================================
    第 149 次：首次引导 → 独立全屏欢迎流程（替代浮在首页上的弹窗）
@@ -4417,17 +4375,6 @@ body.dark .rs-save { color: #2A2116; }
 .rs-stock-item.on { border-color: var(--tile); background: var(--tile-weak); }
 .rs-stock-item.low span { color: var(--danger, #C0392B); }
 /* 第 226 次：消耗品清单行改三段式网格（原单行 flex 把名称挤成 0 宽、按钮溢出屏外） */
-.list li.sup-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; column-gap: 10px; row-gap: 4px; align-items: center; }
-.sup-ico { display: inline-flex; color: var(--muted); } .sup-ico .ico { width: 22px; height: 22px; }
-.sup-main { grid-column: 2 / 4; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.sup-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
-.sup-main small { color: var(--muted); font-size: 12px; line-height: 1.4; }
-.sup-num { grid-column: 4; justify-self: end; font-size: calc(22px * var(--fs-mul, 1)); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.sup-num i { margin-left: 2px; font-size: 12px; font-style: normal; font-weight: 600; }
-.sup-row .sup-bar { grid-column: 1 / -1; margin-top: 2px; }
-.sup-state { grid-column: 1 / 3; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
-.sup-acts { grid-column: 3 / 5; display: flex; gap: 2px; justify-content: flex-end; }
-.sup-acts .icon-btn { min-width: 38px; padding-left: 4px; padding-right: 4px; }
 /* 第 227 次：便便照片——面板缩略图（最多 6 张）、添加/拍摄按钮、时间轴卡片右侧缩略图、全屏看图 */
 .rs-lbl-n { margin-left: 4px; color: var(--muted); font-weight: 500; }
 .rs-hint { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
@@ -6470,3 +6417,129 @@ body.dark .qm-preg { --tile: #E4B982; --tile-weak: rgba(228,185,130,.16); }
 .bs-preg-ico { background: #EDE4D8; color: #9E6D24; }
 body.dark .bs-preg-ico { background: rgba(228,185,130,.16); color: #E4B982; }
 .bs-preg-ico .ico { width: 24px; height: 24px; }
+
+/* ===================== 第 294 次：用品（货架 + 物件 + 剩余数量） ===================== */
+.su-page { padding-bottom: 8px; }
+.su-top { display: flex; align-items: center; gap: 10px; margin: 2px 0 12px; }
+.su-search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border-radius: var(--radius-pill); background: var(--surface); box-shadow: 0 6px 16px -12px rgba(51,48,43,.35); color: var(--muted); }
+.su-search .ico { width: 18px; height: 18px; flex: none; }
+.su-search input { flex: 1; min-width: 0; height: 100%; border: none; background: transparent; color: var(--text); font: inherit; font-size: 16px; outline: none; -webkit-appearance: none; appearance: none; }
+.su-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.su-ib, .su-more { position: relative; flex: none; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--surface); color: var(--text); box-shadow: 0 6px 16px -12px rgba(51,48,43,.35); cursor: pointer; }
+.su-ib svg, .su-more svg { width: 22px; height: 22px; }
+.su-ib select, .su-more select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; cursor: pointer; }
+.su-dot { position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--tile); }
+.su-tabs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -2px 6px; padding: 0 2px 6px; }
+.su-tabs::-webkit-scrollbar { display: none; }
+.su-tab { flex: none; }
+.su-badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 6px; padding: 0 6px; border-radius: var(--radius-pill); background: var(--tile); color: #fff; font-size: 12px; font-weight: 700; box-sizing: border-box; }
+.su-fnote { margin: 0 2px 8px; font-size: calc(13px * var(--fs-mul, 1)); color: var(--muted); }
+.su-fclr { min-height: 32px; margin-left: 4px; padding: 0 8px; border: none; background: transparent; color: var(--tile-text); font: inherit; font-weight: 600; cursor: pointer; }
+/* 货架：一排三件，物件站在一块木板上 */
+.su-shelf { margin: 6px 0 0; }
+.su-row { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; align-items: end; padding: 14px 4px 0; margin-bottom: 18px; min-height: 150px; }
+.su-row::before { content: ''; position: absolute; left: -6px; right: -6px; top: 96px; height: 14px; border-radius: 3px; background: linear-gradient(180deg, color-mix(in srgb, var(--tile) 22%, var(--surface)) 0 40%, color-mix(in srgb, var(--tile) 34%, var(--surface)) 100%); box-shadow: 0 10px 18px -12px rgba(51,48,43,.45); }
+.su-item { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 0; padding: 0 2px; border: none; background: transparent; color: var(--text); font: inherit; text-align: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.su-item:active .su-art { transform: scale(.95); }
+.su-item .su-art { margin-bottom: 26px; }
+.su-n { display: block; width: 100%; font-size: calc(13.5px * var(--fs-mul, 1)); font-weight: 700; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.su-a { display: block; margin-top: 2px; font-size: calc(12.5px * var(--fs-mul, 1)); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.su-item.is-low .su-a { color: #B4572C; font-weight: 600; }
+body.dark .su-item.is-low .su-a { color: #F0A57E; }
+.su-item.is-arch { opacity: .55; }
+/* 物件图：统一图生成前先用线性图标 + 浅色底 */
+.su-art { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 84px; height: 84px; border-radius: var(--radius-lg); transition: transform .15s var(--spring, ease); }
+.su-art img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.su-art.su-photo { overflow: hidden; background: var(--surface-2); }
+.su-art.su-photo img { object-fit: cover; }
+.su-art.su-ico { background: var(--tile-weak); color: var(--tile-text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tile) 14%, transparent); }
+.su-art.su-ico .ico { width: 44%; height: 44%; color: inherit; }
+.su-art.su-ico[data-g="feed"] { background: color-mix(in srgb, #E9A23B 14%, var(--surface)); color: #A7661C; }
+.su-art.su-ico[data-g="care"] { background: color-mix(in srgb, #5B8DD6 13%, var(--surface)); color: #3E6BAF; }
+.su-art.su-ico[data-g="nutri"] { background: color-mix(in srgb, #D9708F 13%, var(--surface)); color: #A84B67; }
+body.dark .su-art.su-ico[data-g="feed"] { color: #F2C282; } body.dark .su-art.su-ico[data-g="care"] { color: #9FC0F0; } body.dark .su-art.su-ico[data-g="nutri"] { color: #F0A9BE; }
+.su-art-lg { width: 132px; height: 132px; border-radius: var(--radius-lg); }
+.su-art-md { width: 96px; height: 96px; border-radius: var(--radius-lg); }
+/* 空货架 */
+.su-empty { text-align: center; padding-bottom: 8px; }
+.su-empty .su-row { grid-template-columns: 1fr; justify-items: center; }
+.su-addc { position: relative; z-index: 1; width: 78px; height: 78px; margin-bottom: 30px; display: inline-flex; align-items: center; justify-content: center; border: 2px dashed color-mix(in srgb, var(--text) 30%, transparent); border-radius: 50%; background: transparent; color: var(--text); cursor: pointer; }
+.su-addc .ico { width: 30px; height: 30px; }
+.su-addc.is-off { color: var(--muted); cursor: default; }
+.su-et { margin: 0; font-size: calc(16px * var(--fs-mul, 1)); font-weight: 700; color: var(--text); }
+.su-es { margin: 4px 16px 0; font-size: calc(13px * var(--fs-mul, 1)); line-height: 1.5; color: var(--muted); }
+.su-foot { display: flex; justify-content: center; margin: 4px 0 6px; }
+.su-exp { min-height: 40px; padding: 0 14px; border: none; background: transparent; color: var(--muted); font: inherit; font-size: calc(13px * var(--fs-mul, 1)); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+/* 选物件 */
+.su-pk-src { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.su-pk-b { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; border-radius: var(--radius-pill); }
+.su-pk-b .ico { width: 20px; height: 20px; }
+.su-pk-hint { text-align: center; margin: 8px 0 12px; }
+.su-pk-tabs { justify-content: flex-start; }
+.su-pk-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 8px; padding-bottom: 12px; }
+.su-pk-it { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; padding: 4px 0; border: none; background: transparent; color: var(--text); font: inherit; font-size: calc(13px * var(--fs-mul, 1)); cursor: pointer; }
+.su-pk-it span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.su-pk-it .su-art { width: 76px; height: 76px; border-radius: var(--radius-lg); }
+.su-pk-it:active .su-art { transform: scale(.94); }
+/* 用品面板 */
+.su-ed-hero { position: relative; display: flex; flex-direction: column; align-items: center; padding: 2px 0 10px; }
+.su-ed-art { position: relative; padding: 0; border: none; background: transparent; cursor: pointer; }
+.su-pen { position: absolute; right: -4px; bottom: -4px; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--surface); color: var(--text); box-shadow: 0 4px 12px -4px rgba(51,48,43,.4); }
+.su-pen svg { width: 17px; height: 17px; }
+.su-ed-hero .su-more { position: absolute; top: 0; right: 0; background: var(--surface-2); box-shadow: none; }
+.su-ed-name { display: block; width: 100%; margin: 6px 0 4px; padding: 6px 2px; border: none; background: transparent; color: var(--text); font: inherit; font-size: calc(22px * var(--fs-mul, 1)); font-weight: 700; outline: none; box-sizing: border-box; }
+.su-ed-name::placeholder { color: var(--muted); font-weight: 600; }
+.su-ed-num { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
+.su-ed-num > div { min-width: 0; }
+.su-ed-num small { display: block; margin-top: 2px; font-size: calc(13px * var(--fs-mul, 1)); color: var(--muted); }
+.su-big { display: flex; align-items: baseline; gap: 6px; }
+.su-big input { width: 6.2ch; min-width: 0; padding: 0; border: none; background: transparent; color: var(--text); font: inherit; font-size: calc(40px * var(--fs-mul, 1)); font-weight: 700; font-variant-numeric: tabular-nums; outline: none; -moz-appearance: textfield; }
+.su-big input::-webkit-outer-spin-button, .su-big input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.su-big i { font-style: normal; font-size: calc(17px * var(--fs-mul, 1)); color: var(--muted); }
+.su-moret { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 48px; margin: 2px 0 4px; padding: 0 2px; border: none; background: transparent; color: var(--muted); font: inherit; font-size: calc(15px * var(--fs-mul, 1)); cursor: pointer; }
+.su-moret svg { width: 20px; height: 20px; transition: transform .2s var(--ease, ease); }
+.su-moret[aria-expanded="true"] svg { transform: rotate(180deg); }
+.su-grp { margin: 0 0 12px; padding: 2px 16px; border-radius: var(--radius-lg); background: var(--surface-2); }
+.su-prow { min-height: 52px; }
+.su-prow > span:first-child { flex: none; }
+.su-selv { position: relative; display: inline-flex; align-items: center; gap: 4px; min-height: 44px; color: var(--tile-text); font-weight: 600; cursor: pointer; }
+.su-selv svg { width: 16px; height: 16px; }
+.su-selv select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; cursor: pointer; }
+.su-selv select:disabled { cursor: default; }
+.su-nin { display: inline-flex; align-items: baseline; gap: 4px; }
+.su-nin input { width: 5.5ch; min-height: 40px; padding: 0; border: none; background: transparent; color: var(--text); font: inherit; font-size: 17px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; outline: none; }
+.su-nin i { font-style: normal; color: var(--muted); font-size: 15px; }
+.su-tin { flex: 1; min-width: 0; min-height: 40px; padding: 0; border: none; background: transparent; color: var(--text); font: inherit; font-size: 16px; text-align: right; outline: none; }
+.su-tin::placeholder { color: var(--muted); }
+.su-dt { flex: none; max-width: 62%; }
+.su-ghint, .modal p.su-ghint { margin: 0 0 10px; }
+.su-linkp { margin: -4px 0 10px; text-align: right; font-size: 14px; }
+.su-linkp a { color: var(--tile-text); font-weight: 600; }
+.su-note { display: block; width: 100%; min-height: 64px; margin: 12px 0 4px; padding: 0; border: none; background: transparent; color: var(--text); font: inherit; font-size: 16px; line-height: 1.5; resize: none; outline: none; box-sizing: border-box; }
+.su-phn { color: var(--muted); font-variant-numeric: tabular-nums; }
+.su-phs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 2px 0 12px; }
+.su-grp .dp-ph-btns { margin-bottom: 8px; }
+.su-buy-n { margin: 10px 0 0; font-weight: 700; font-size: 17px; color: var(--text); }
+.su-buy-s { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+.su-grp .chk { cursor: pointer; }
+.su-grp .chk input { width: 22px; height: 22px; accent-color: var(--tile); }
+.su-lsn { text-align: left; font-weight: 600; }
+.su-lsc { flex: none; color: var(--muted); font-size: 14px; }
+.su-lsadd { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 48px; margin: 4px 0 12px; }
+.su-lsadd .ico { width: 18px; height: 18px; }
+.su-rmt { display: flex; flex-direction: column; gap: 2px; }
+.su-rmt small { color: var(--muted); font-size: 13px; font-weight: 400; }
+.su-sheet .rs-save { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.su-sheet .rs-save .ico { width: 20px; height: 20px; }
+@media (max-width: 359px) {
+  .su-art { width: 72px; height: 72px; border-radius: var(--radius-lg); }
+  .su-row::before { top: 84px; }
+  .su-row { min-height: 138px; }
+}
+/* 第 294 次：用品面板里的行内输入框不套全局输入框外观（全局 input[type=…] 的边框 / 底色 / 上边距） */
+.su-grp input.su-tin, .su-grp input.su-tin:focus { display: block; width: auto; flex: 1; min-width: 0; margin: 0; padding: 0; border: none; border-radius: 0; background: transparent; box-shadow: none; text-align: right; }
+.su-grp input.su-tin.su-lsn { text-align: left; }
+.su-grp input.su-dt { flex: none; width: auto; max-width: 62%; }
+.su-nin input, .su-nin input:focus, .su-big input, .su-big input:focus { display: block; margin: 0; border: none; border-radius: 0; background: transparent; box-shadow: none; padding: 0; }
+.su-ed input.su-ed-name, .su-ed input.su-ed-name:focus { margin: 6px 0 4px; padding: 10px 14px; border-radius: var(--radius-md); background: var(--surface-2); border: none; box-shadow: none; font-size: calc(20px * var(--fs-mul, 1)); font-weight: 700; }
+.su-ed input.su-ed-name:focus { box-shadow: 0 0 0 2px color-mix(in srgb, var(--tile) 45%, transparent); }
