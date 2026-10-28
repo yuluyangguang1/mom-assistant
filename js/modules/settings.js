@@ -190,6 +190,15 @@
     if (ms.length) ms.slice(0, 3).forEach(function (r) { L.push(r.date + '  ' + r.title); });
     else L.push('暂无记录');
     L.push('');
+    /* 第 301 次：生病记录（最近 5 次，家长自记，只列事实） */
+    var sk = (d.sicks || []).filter(function (r) { return r && typeof r.start === 'string'; }).slice().sort(function (a, b) { return b.start.localeCompare(a.start); });
+    L.push('◆ 生病记录（最近 5 次，共 ' + sk.length + ' 次，家长自记）');
+    if (sk.length) sk.slice(0, 5).forEach(function (r) {
+      var jj = function (a) { return Array.isArray(a) ? a.filter(function (x) { return typeof x === 'string'; }).join('、') : ''; };
+      L.push(r.start + (r.end ? ' 至 ' + r.end : ' 起') + '  ' + (jj(r.symptoms) || '生病') + (jj(r.meds) ? '；用药：' + jj(r.meds) : ''));
+    });
+    else L.push('暂无记录');
+    L.push('');
     /* 近 7 天日常 */
     var cut7 = new Date(); cut7.setDate(cut7.getDate() - 7);
     function n7(arr, key) {
@@ -644,6 +653,13 @@
             return [r.date, r.weightKg, r.heightCm, r.headCm];
           }));
         },
+        sicks: function (d) {
+          var VT = { home: '没去医院', clinic: '门诊', er: '急诊', hospital: '住院' };
+          var j = function (a) { return Array.isArray(a) ? a.filter(function (x) { return typeof x === 'string'; }).join('、') : ''; };
+          return toCsv(['开始日期', '好转日期', '症状', '原因', '用药', '就医', '医院', '花费(元)', '备注'], (d.sicks || []).filter(function (r) { return r && r.start; }).map(function (r) {
+            return [r.start, r.end || '', j(r.symptoms), j(r.causes), j(r.meds), VT[r.visit] || '', r.place || '', typeof r.cost === 'number' ? r.cost : '', r.note || ''];
+          }));
+        },
         milestones: function (d) {
           return toCsv(['日期', '里程碑', '备注'], (d.milestones || []).map(function (r) { return [r.date, r.title, r.note]; }));
         },
@@ -808,7 +824,7 @@
       html += '<div class="row"><select id="sCsvModule" aria-label="选择要导出 CSV 的模块" style="flex:1">'
         + '<option value="feedings">喂养记录</option><option value="sleeps">睡眠记录</option>'
         + '<option value="diapers">尿布记录</option><option value="meds">吃药/维D记录</option>'
-        + '<option value="growth">生长记录</option><option value="milestones">里程碑</option>'
+        + '<option value="growth">生长记录</option><option value="milestones">里程碑</option><option value="sicks">生病记录</option>'
         + '<option value="vaccines">疫苗接种</option><option value="contractions">宫缩记录</option>'
         + '<option value="periods">经期记录</option><option value="finance">记账记录</option>'
         + '<option value="supplements">营养品服用记录</option>'

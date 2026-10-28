@@ -47,6 +47,7 @@
         { id: 'meds', name: '吃药/维D' },
         { id: 'milestone', name: '里程碑' },
         { id: 'temp', name: '体温' },
+        { id: 'sick', name: '生病记录' }, /* 第 301 次：只做记录 */
         /* 第 132 次（对标 Cali 21 工具补缺）：新模块在「全部功能」里必须有入口 */
         { id: 'jaundice', name: '黄疸' },
         { id: 'bath', name: '洗澡' },

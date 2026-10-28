@@ -1,0 +1,11 @@
+exec(open('_probe/err168.py').read().split('with sync_playwright')[0])
+OUT=Path('/workspace/work/icon-drafts')
+with sync_playwright() as pw:
+    b=pw.chromium.launch(); p=b.new_page(viewport={'width':393,'height':852},device_scale_factor=2)
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)',S); p.reload(); p.wait_for_timeout(900)
+    p.evaluate("App.showTab('sleep')"); p.wait_for_timeout(900)
+    p.evaluate("document.getElementById('sManStart').scrollIntoView({block:'center'})"); p.wait_for_timeout(300)
+    p.screenshot(path=str(OUT/'s168_sleep.png'))
+    p.evaluate("scrollTo(0,300)"); p.wait_for_timeout(300)
+    print(p.evaluate("[getComputedStyle(document.querySelector('.app-header')).position, document.querySelector('.app-header').getBoundingClientRect().top]"))
+    b.close()

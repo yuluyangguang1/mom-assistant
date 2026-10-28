@@ -411,6 +411,12 @@
       /* 第 280 次：营养品服用记录进日期记录 / 回顾 */
       (d.supplements || []).forEach(function (r) { if (r && r.time) tag(add(isoOf(r.time), 'supplement', '营养品', [r.name || '', r.dose || ''].filter(Boolean).join(' '), hmOf(r.time)), 'supplements', r); });
       (d.milestones || []).forEach(function (r) { tag(add(r.date, 'milestone', '里程碑', r.title || ''), 'milestones', r); });
+      /* 第 301 次：生病记录记在开始那天，值 = 症状 */
+      (d.sicks || []).forEach(function (r) {
+        if (!r || typeof r.start !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(r.start)) return;
+        var sy = Array.isArray(r.symptoms) ? r.symptoms.filter(function (x) { return typeof x === 'string' && x; }).slice(0, 3).join('、') : '';
+        tag(add(r.start, 'sick', '生病', sy), 'sicks', r);
+      });
       /* 第 287 次：经期行带一个关键数值（几天 / 进行中），点按走经期面板修改 */
       (d.periods || []).forEach(function (r) {
         if (!r || !r.start) return;

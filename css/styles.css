@@ -1252,6 +1252,7 @@ body.dark .set-group .sg-ico { background: rgba(255,255,255,.08); }
 [data-accent="milestone"]   { --tile: #5C7DB4; --tile-text: #3A5A94; --tile-weak: #EFF1F5; --tile-fill: #5676A9; }
 [data-accent="fetal"]       { --tile: #A84A7C; --tile-text: #8A3260; --tile-weak: #F5EFF3; }
 [data-accent="temp"]        { --tile: #2E8FA0; --tile-text: #176F80; --tile-weak: #E9F1F2; --tile-fill: #297F8E; }
+[data-accent="sick"]        { --tile: #B0646E; --tile-text: #8E4752; --tile-weak: #F4EAEA; --tile-fill: #A25A64; } /* 第 301 次：生病记录 */
 [data-accent="prenatal"]    { --tile: #41709F; --tile-text: #335F95; --tile-weak: #EDF2F8; }  /* 第 298 次：产检（Cali 蓝） */
 [data-accent="momweight"]   { --tile: #9A5A9C; --tile-text: #7E4081; --tile-weak: #F4EEF4; }  /* 第 297 次：宝妈体重（Cali 淡紫），白字 4.87、字/弱底 6.26、tile/弱底 4.26 */
 [data-accent="mood"]        { --tile: #8A5FA0; --tile-text: #6F4787; --tile-weak: #F3EFF5; }
@@ -1283,6 +1284,7 @@ body.dark [data-accent="meds"]        { --tile: #D6A5BA; --tile-text: #D6A5BA; -
 body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-text: #9FB9DF; --tile-weak: rgba(159,185,223,.16); --tile-on: #2A292A; }
 body.dark [data-accent="fetal"]       { --tile: #DE9CC4; --tile-text: #DE9CC4; --tile-weak: rgba(222,156,196,.16); --tile-on: #322526; }
 body.dark [data-accent="temp"]        { --tile: #7FC4D0; --tile-text: #7FC4D0; --tile-weak: rgba(127,196,208,.16); --tile-on: #262A28; }
+body.dark [data-accent="sick"]        { --tile: #E3A3AA; --tile-text: #E3A3AA; --tile-weak: rgba(227,163,170,.16); --tile-on: #2E2224; }
 body.dark [data-accent="prenatal"]    { --tile: #9DC3F0; --tile-text: #9DC3F0; --tile-weak: rgba(157,195,240,.16); --tile-on: #22303D; }
 body.dark [data-accent="momweight"]   { --tile: #D9A9DB; --tile-text: #D9A9DB; --tile-weak: rgba(217,169,219,.16); --tile-on: #2F2530; }
 body.dark [data-accent="mood"]        { --tile: #C4A6D6; --tile-text: #C4A6D6; --tile-weak: rgba(196,166,214,.16); --tile-on: #2E2629; }
@@ -1340,6 +1342,7 @@ body.hc:not(.dark) [data-accent="meds"]        { --tile-weak: #FDFAFB; }  /* ΔL
 body.hc:not(.dark) [data-accent="milestone"]   { --tile-weak: #F9FBFD; }  /* ΔL* 5.2 */
 body.hc:not(.dark) [data-accent="fetal"]       { --tile-weak: #FDF9FC; }  /* ΔL* 5.0 */
 body.hc:not(.dark) [data-accent="temp"]        { --tile-weak: #F7FBFC; }  /* ΔL* 5.1 */
+body.hc:not(.dark) [data-accent="sick"]        { --tile-weak: #FBF6F6; }
 body.hc:not(.dark) [data-accent="prenatal"]    { --tile-weak: #F8FAFD; }
 body.hc:not(.dark) [data-accent="momweight"]   { --tile-weak: #FBF9FB; }
 body.hc:not(.dark) [data-accent="mood"]        { --tile-weak: #FBFAFD; }  /* ΔL* 5.1 */
@@ -6671,3 +6674,29 @@ body.dark .mw-presave { color: var(--tile-on); }
 .ws-nav.ws-nav-r svg { transform: none; }
 .ws-nav:disabled { opacity: .28; cursor: default; }
 .ws-nav:not(:disabled):active { background: var(--surface-2); }
+
+/* ===================== 第 301 次：生病记录（只做记录） ===================== */
+.sk2-when { grid-template-columns: 1fr 1fr; align-items: start; }
+.sk2-endbox { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.sk2-endbox .rs-seg { margin: 0; }
+.sk2-picks { margin-bottom: 8px; }
+.sk2-add { display: flex; gap: 8px; align-items: center; margin: 0 0 6px; }
+.sk2-add input { flex: 1 1 auto; min-width: 0; }
+.sk2-addb { flex: 0 0 auto; min-height: 44px; padding: 0 16px; border-radius: var(--radius-pill); }
+.sk2-meds { margin-bottom: 8px; }
+.sk2-med { display: inline-flex; align-items: center; gap: 4px; padding-right: 4px; }
+.sk2-med button { display: grid; place-items: center; width: 28px; height: 28px; border: none; background: transparent; color: inherit; padding: 0; border-radius: var(--radius-pill); cursor: pointer; }
+.sk2-med button svg { width: 14px; height: 14px; }
+.sk2-hist { margin: 2px 0 6px; font-size: 13px; color: var(--muted); }
+.sk2-histp { margin-bottom: 8px; }
+.sk2-histp .dp-pill svg { width: 13px; height: 13px; margin-right: 2px; vertical-align: -2px; }
+.sk2-visit { margin-bottom: 8px; }
+.sk2-yuan { position: relative; display: block; }
+.sk2-yuan i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-style: normal; color: var(--muted); pointer-events: none; }
+.sk2-yuan input { padding-left: 30px; width: 100%; box-sizing: border-box; }
+.sk2-foot, .sk2-pfoot { color: var(--muted); }
+.sk2-pfoot { margin: 14px 4px 0; font-size: 13px; line-height: 1.5; text-align: center; white-space: normal; }
+.sk2-page .mc-main > svg { width: 20px; height: 20px; flex: 0 0 auto; }
+body.dark .sk2-page .mc-main, body.dark .ft-sheet[data-accent="sick"] .rs-ok { color: var(--tile-on); }
+.sk2-empty p { max-width: 280px; margin-left: auto; margin-right: auto; }
+.sk2-tl .sk2-f { color: var(--muted); }

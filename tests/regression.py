@@ -1393,7 +1393,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v264（第 300 次升）', "var CACHE = 'baoma-static-v264';" in sw)
+    check('#275 SW 版本 v265（第 301 次升）', "var CACHE = 'baoma-static-v265';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求；第 300 次多一张浅色字图），整页 HTML < 60KB',
@@ -4364,7 +4364,7 @@ def test_r290(b):
     want = ev("""(()=>{const g=Modules.alltools._groups.filter(x=>x.key!=='tools');return ['home','calendar','whitenoise','__edit','settings'].concat(...g.map(x=>x.items.filter(i=>i.id!=='whitenoise').map(i=>i.id)))})()""")
     got = ev("[...document.querySelectorAll('#qdActions [data-qm-go]')].map(e=>e.dataset.qmGo)")
     acts = ev("[...document.querySelectorAll('#qdActions [data-qm]')].map(e=>e.dataset.qm)")
-    check('#290 入口一个不少：宝宝资料 / 切换 / 搜索 + 常用 5 项（首页 日期记录 哄睡声音 编辑首页 设置）+ 全部功能 + 孕期', got == want and acts == ['baby', 'swap', 'search'] and len(got) == 31, [len(got), got, acts])
+    check('#290 入口一个不少：宝宝资料 / 切换 / 搜索 + 常用 5 项（首页 日期记录 哄睡声音 编辑首页 设置）+ 全部功能 + 孕期（第 301 次加生病记录）', got == want and acts == ['baby', 'swap', 'search'] and len(got) == 32, [len(got), got, acts])
     check('#290 当前页（首页）格子高亮、aria-current', ev("(()=>{const e=document.querySelector('#qdActions [data-qm-go=home]');return e.classList.contains('on')&&e.getAttribute('aria-current')==='page'})()"))
     check('#290 菜单格子复用 ＋ 面板的格子（.qd-action + .qd-badge + qdPop 入场）', ev("(()=>{const e=document.querySelector('#qdActions .qm-it');return e.classList.contains('qd-action')&&!!e.querySelector('.qd-badge')&&getComputedStyle(e).animationName})()") == 'qdPop')
     # —— 关闭：遮罩 ——
@@ -5010,8 +5010,8 @@ def test_r293(b):
     # —— 分组口径 ——
     g = ev("""(()=>{const G=Modules.alltools._groups;const by=k=>G.find(x=>x.key===k).items.map(i=>i.id);
       return {keys:G.map(x=>x.key),baby:by('baby'),mom:by('mom'),home:by('home'),preg:by('pregnancy'),n:Modules.alltools._modules.length}})()""")
-    check('#293 分组按归属：宝宝 / 孕期 / 妈妈 / 全家 / 工具；妈妈情绪、经期不再混在宝宝组，记账、消耗品归全家；入口一个不少（29 项，第 297 次加宝妈体重、第 298 次加产检）',
-          g['keys'] == ['baby', 'pregnancy', 'mom', 'home', 'tools'] and 'mood' not in g['baby'] and 'period' not in g['baby'] and g['mom'] == ['mood', 'period'] and g['home'] == ['finance', 'supplies'] and 'feeding' in g['baby'] and g['n'] == 29, g)
+    check('#293 分组按归属：宝宝 / 孕期 / 妈妈 / 全家 / 工具；妈妈情绪、经期不再混在宝宝组，记账、消耗品归全家；入口一个不少（30 项，第 297 次加宝妈体重、第 298 次加产检、第 301 次加生病记录）',
+          g['keys'] == ['baby', 'pregnancy', 'mom', 'home', 'tools'] and 'mood' not in g['baby'] and 'period' not in g['baby'] and g['mom'] == ['mood', 'period'] and g['home'] == ['finance', 'supplies'] and 'feeding' in g['baby'] and g['n'] == 30, g)
     # 宝宝组的条目都是存在宝宝名下的数据；妈妈 / 全家组的都不在 BABY_KEYS（切换宝宝不变）
     ev("App.openMenu()"); p.wait_for_timeout(500)
     m1 = ev("(()=>{const l=document.getElementById('qdActions');return {gh:[...l.querySelectorAll('.qm-gh')].map(e=>e.textContent),preg:!!l.querySelector('.qm-preg')}})()")
@@ -5593,9 +5593,51 @@ def test_r300(b):
     check('#300 pageerror 为 0', not errs, errs)
 
 
+def test_r301(b):
+    """第 301 次：生病记录——只做记录（不提醒、不判断）；症状 / 原因 / 用药 / 就医 / 花费；进日期记录、搜索、CSV、照片引用。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844})
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+    ev = p.evaluate
+    check('#301 全部功能「宝宝」组有生病记录入口', "{ id: 'sick', name: '生病记录' }" in (ROOT / 'js/modules/alltools.js').read_text(encoding='utf-8'))
+    ev("App.showTab('sick')"); p.wait_for_timeout(600)
+    check('#301 空页：有说明、有「记一次生病」', ev("!!document.querySelector('.sk2-empty') && !!document.getElementById('skAdd')"))
+    ev("document.getElementById('skAdd').click()"); p.wait_for_timeout(700)
+    ev("document.getElementById('skSave').click()"); p.wait_for_timeout(300)
+    check('#301 没选症状不能保存', ev("(Storage.get().sicks||[]).length") == 0)
+    ev("document.querySelector('[data-sk=symptoms][data-v=\"发烧\"]').click()")
+    ev("document.getElementById('skSymIn').value='<img src=x onerror=alert(1)>'; document.querySelector('[data-skadd=symptoms]').click()")
+    ev("document.querySelector('[data-sk=causes][data-v=\"着凉\"]').click()")
+    ev("document.getElementById('skMedIn').value='退烧药 2ml'; document.querySelector('[data-skadd=meds]').click()")
+    ev("document.querySelector('[data-skvisit=clinic]').click(); document.getElementById('skPlace').value='市儿童医院'")
+    ev("document.getElementById('skCost').value='abc'"); ev("document.getElementById('skSave').click()"); p.wait_for_timeout(300)
+    check('#301 花费不是数字时不保存', ev("(Storage.get().sicks||[]).length") == 0)
+    ev("document.getElementById('skCost').value='¥128.5'")
+    ev("document.querySelector('[data-skend=\"1\"]').click()")
+    ev("(()=>{const s=document.getElementById('skStart');s.value=Util.addDays(Util.todayISO(),-3);s.dispatchEvent(new Event('change'));const e=document.getElementById('skEnd');e.value=Util.todayISO();e.dispatchEvent(new Event('change'))})()")
+    ev("document.getElementById('skSave').click()"); p.wait_for_timeout(900)
+    r = ev("(Storage.get().sicks||[])[0]")
+    check('#301 保存字段齐全', r and r['symptoms'][0] == '发烧' and len(r['symptoms']) == 2 and r['causes'] == ['着凉'] and r['meds'] == ['退烧药 2ml'] and r['visit'] == 'clinic' and r['place'] == '市儿童医院' and r['cost'] == 128.5 and r['end'] == ev("Util.todayISO()"), r)
+    txt = ev("document.querySelector('.sk2-tl').textContent")
+    check('#301 时间轴：天数、原因、用药、花费；自写内容被转义', '4 天' in txt and '原因：着凉' in txt and '用药：退烧药 2ml' in txt and '¥128.5' in txt and ev("!document.querySelector('.sk2-tl img[src=x]')"), txt[:200])
+    check('#301 存在当前宝宝名下（BABY_KEYS）', "'checkups', 'sicks']" in (ROOT / 'js/storage.js').read_text(encoding='utf-8'))
+    day = ev("Util.addDays(Util.todayISO(),-3)")
+    check('#301 进日期记录（开始那天，点按走生病面板）', ev("(d=>((Util.buildDayIndex(Storage.get())[d]||[]).some(it=>it.icon==='sick'&&it.src==='sicks'&&it.label==='生病')))", day) and "sicks: { mod: 'sick'" in (ROOT / 'js/modules/calendar.js').read_text(encoding='utf-8'))
+    check('#301 搜索 / CSV / 照片引用 / 打印报告都接上', 'buildSick' in (ROOT / 'js/modules/search.js').read_text(encoding='utf-8') and 'value="sicks"' in (ROOT / 'js/modules/settings.js').read_text(encoding='utf-8') and (ROOT / 'js/photos.js').read_text(encoding='utf-8').count('sicks') >= 4)
+    src = (ROOT / 'js/modules/sick.js').read_text(encoding='utf-8')
+    check('#301 只做记录：模块里没有提醒 / 通知 / 建议就医的逻辑', all(k not in src for k in ('Reminders', 'Notification', 'scheduled', '建议就医', '建议到医院')))
+    ev("document.querySelector('[data-skopen]').click()"); p.wait_for_timeout(700)
+    ev("document.querySelector('[data-skdel]').click()"); p.wait_for_timeout(500)
+    check('#301 删除可用', ev("(Storage.get().sicks||[]).length") == 0)
+    check('#301 sw 预缓存 sick.js 与插画', "'js/modules/sick.js'" in (ROOT / 'sw.js').read_text(encoding='utf-8') and "'assets/hero/sick.webp'" in (ROOT / 'sw.js').read_text(encoding='utf-8'))
+    check('#301 pageerror 为 0', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -5634,7 +5676,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r297',),
           ('test_r298',),
           ('test_r299',),
-          ('test_r300',))  # 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r300',),
+          ('test_r301',))  # 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 
@@ -5675,11 +5718,16 @@ def main():
         report([r for name in ALL_TESTS for r in out[name]])
         return
     import subprocess
-    procs = [subprocess.Popen([sys.executable, __file__, '--only', ','.join(g)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-             for g in GROUPS]
+    # 第 301 次：--jobs N 限制同时跑的子进程数（机器忙时全部并发会把浏览器挤崩）
+    jobs = int(sys.argv[sys.argv.index('--jobs') + 1]) if '--jobs' in sys.argv else len(GROUPS)
+    import concurrent.futures as _cf
+    def _run(g):
+        pr = subprocess.Popen([sys.executable, __file__, '--only', ','.join(g)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        return pr.communicate()
+    with _cf.ThreadPoolExecutor(max_workers=jobs) as _ex:
+        outs = list(_ex.map(_run, GROUPS))
     merged = {}
-    for g, pr in zip(GROUPS, procs):
-        so, se = pr.communicate()
+    for g, (so, se) in zip(GROUPS, outs):
         if '--times' in sys.argv:
             print(' '.join(ln[7:] for ln in (se or '').splitlines() if ln.startswith('@@TIME ')))
         line = next((ln for ln in so.splitlines() if ln.startswith('@@RESULTS ')), None)

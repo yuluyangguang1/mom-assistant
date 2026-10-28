@@ -49,6 +49,7 @@
     { key: 'mood',        title: '妈妈情绪', go: 'mood',        icon: 'mood' },
     { key: 'fetal',       title: '胎动',     go: 'fetal',       icon: 'fetal' },
     { key: 'temp',        title: '体温',     go: 'temp',        icon: 'temp' },
+    { key: 'sick',        title: '生病记录', go: 'sick',        icon: 'sick' }, /* 第 301 次 */
     /* 第 132 次：新增六个模块的检索分组 */
     { key: 'jaundice',    title: '黄疸',     go: 'jaundice',    icon: 'jaundice' },
     { key: 'bath',        title: '洗澡',     go: 'bath',        icon: 'bath' },
@@ -286,6 +287,24 @@
         sub: [fmt(r.date), txt(r.note)].filter(Boolean).join(' · '),
         text: makeText([r.title, r.date, r.note, '里程碑']),
         sortKey: ts(r.date)
+      });
+    }
+    return rows;
+  }
+
+  /* 第 301 次：生病记录——症状、原因、用药、医院、备注都可搜 */
+  function buildSick(d) {
+    var rows = [];
+    var list = arr(d.sicks);
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      if (!r || typeof r !== 'object' || typeof r.start !== 'string') continue;
+      var sy = arr(r.symptoms).map(txt).filter(Boolean), ca = arr(r.causes).map(txt).filter(Boolean), me = arr(r.meds).map(txt).filter(Boolean);
+      rows.push({
+        title: sy.join('、') || '生病',
+        sub: [fmt(r.start), me.length ? '用药：' + me.join('、') : '', txt(r.note)].filter(Boolean).join(' · '),
+        text: makeText([sy.join(' '), ca.join(' '), me.join(' '), r.place, r.note, r.start, '生病']),
+        sortKey: ts(r.start)
       });
     }
     return rows;
@@ -670,7 +689,7 @@
   var BUILDERS = {
     feeding: buildFeeding, diaper: buildDiaper, sleep: buildSleep,
     contraction: buildContraction, growth: buildGrowth, meds: buildMeds,
-    milestone: buildMilestone, obs: buildObs, period: buildPeriod, mood: buildMood,
+    milestone: buildMilestone, obs: buildObs, sick: buildSick, period: buildPeriod, mood: buildMood,
     fetal: buildFetal, temp: buildTemp, supplies: buildSupplies,
     /* 第 132 次 */
     jaundice: buildJaundice, bath: buildBath, swim: buildSwim,

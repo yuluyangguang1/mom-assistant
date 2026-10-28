@@ -140,6 +140,14 @@
       var t = todayCount(d.supplements, 'time');
       return { status: n ? n + ' 种营养品' + (t ? ' · 今天已吃 ' + t + ' 次' : '') : '添加营养品，安排服用日程' };
     },
+    /* 第 301 次：生病记录，只陈述记了几次 / 最近一次，不做判断 */
+    sick: function (d) {
+      var a = (d.sicks || []).filter(function (r) { return r && /^\d{4}-\d{2}-\d{2}$/.test(r.start || ''); });
+      if (!a.length) return { status: '只做记录：症状、原因、用药和花费' };
+      var r = a.slice().sort(function (x, y) { return x.start < y.start ? 1 : -1; })[0];
+      var s = (Array.isArray(r.symptoms) && r.symptoms.length) ? r.symptoms.slice(0, 2).join('、') : '生病';
+      return { status: '共记 ' + a.length + ' 次 · 最近：' + s };
+    },
     milestone: function (d) {
       var r = lastOf(d.milestones, 'date');
       var n = (d.milestones || []).length;

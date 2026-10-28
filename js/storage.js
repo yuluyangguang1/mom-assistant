@@ -42,7 +42,9 @@
     /* 第 197 次：临产征兆事件 { id, time, type: 'water'|'show', note } —— 破水 / 见红，宫缩页一键记 */
     'laborEvents',
     /* 第 201 次：储奶 { id, amount(ml), time(吸出时间), place: 'fridge'|'freezer', usedAt|null }，妈妈的奶不分宝宝，放全局 */
-    'milkStash'];
+    'milkStash',
+    /* 第 301 次：生病记录 { id, start, end|null, symptoms[], causes[], meds[], visit|null, place|null, cost|null, note|null, photos? }，只做记录 */
+    'sicks'];
   /* 对象型字段（嵌套容器） */
   /* 第 136 次（缺陷修复）：feedingTimer 是「亲喂计时进行中」的持久状态，
      feeding.js 注释写着「跨刷新保留」，但它既不在 defaultData 也不在 OBJECT_KEYS，
@@ -60,7 +62,7 @@
      其他宝宝的数据收在各自档案的 rec 里；switchBaby 时整组换入换出。 */
   var BABY_KEYS = ['feedings', 'sleeps', 'openSleep', 'feedingTimer', 'bottleTimer', 'pumpTimer', 'openCare', 'growth', 'diapers', 'meds',
     'milestones', 'milestoneObs', 'temps', 'baths', 'swims', 'suns', 'waters', 'jaundices',
-    'supplements', 'supplementPlans', 'vaccines', 'checkups'];
+    'supplements', 'supplementPlans', 'vaccines', 'checkups', 'sicks'];
 
   /* 导入兜底：记录里的单个字符串字段最长 500 字（界面输入框上限 40 字），
      防止手改/恶意文件用一条超长备注吃掉存储配额。 */
@@ -234,6 +236,7 @@
       diapers: [],
       meds: [],
       milestones: [],
+      sicks: [], /* 第 301 次：生病记录 */
       /* 第 66 次（F 线）：妈妈情绪随记。{ id, time, level(1-5), note, tags[] }
          —— 第 71 次补默认值（当时只入了 ARRAY_KEYS，defaultData 漏了本键） */
       moods: [],
@@ -1067,7 +1070,7 @@
       var LABEL = { feedings: '喂养', sleeps: '睡眠', diapers: '尿布', growth: '生长', meds: '吃药', milestones: '里程碑',
         milestoneObs: '发育观察', temps: '体温', baths: '洗澡', swims: '游泳', suns: '日晒', waters: '饮水', jaundices: '黄疸',
         supplements: '营养品服用', supplementPlans: '营养品', periods: '经期', contractions: '宫缩', fetal: '胎动',
-        fetalSessions: '胎动计数', laborEvents: '破水见红', milkStash: '储奶', moods: '情绪', supplies: '囤货' };
+        fetalSessions: '胎动计数', laborEvents: '破水见红', milkStash: '储奶', moods: '情绪', supplies: '囤货', sicks: '生病' };
       var ARR_BABY = BABY_KEYS.filter(function (k) { return ARRAY_KEYS.indexOf(k) >= 0; });
       function mergeBaby(dst, src) {
         ARR_BABY.forEach(function (k) {
@@ -1298,6 +1301,7 @@
         { key: 'checkup', name: '儿保体检', count: (d.checkups && d.checkups.done ? Object.keys(d.checkups.done).length : 0) },
         { key: 'meds', name: '吃药/维D', count: (d.meds || []).length },
         { key: 'milestone', name: '里程碑', count: (d.milestones || []).length },
+        { key: 'sick', name: '生病记录', count: (d.sicks || []).length },
         { key: 'period', name: '经期', count: (d.periods || []).length },
         { key: 'contraction', name: '宫缩', count: (d.contractions || []).length },
         { key: 'fetal', name: '胎动', count: (d.fetal || []).length },

@@ -15,7 +15,7 @@
   var esc = function (s) { return Util.escapeHtml(s == null ? '' : String(s)); };
   var CHEV = '<span class="dm-chev" aria-hidden="true">' + (global.icon ? icon('chevron-right') : '›') + '</span>';
   var CSV_OPTS = [['feedings', '喂养记录'], ['sleeps', '睡眠记录'], ['diapers', '尿布记录'], ['meds', '吃药记录'], ['growth', '生长记录'],
-    ['milestones', '里程碑'], ['vaccines', '疫苗接种'], ['supplements', '营养品服用记录'], ['contractions', '宫缩记录'], ['periods', '经期记录'], ['finance', '记账记录']];
+    ['milestones', '里程碑'], ['sicks', '生病记录'], ['vaccines', '疫苗接种'], ['supplements', '营养品服用记录'], ['contractions', '宫缩记录'], ['periods', '经期记录'], ['finance', '记账记录']];
 
   function readLog() {
     try {
