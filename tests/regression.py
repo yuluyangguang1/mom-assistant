@@ -1384,7 +1384,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v260（第 296 次升）', "var CACHE = 'baoma-static-v260';" in sw)
+    check('#275 SW 版本 v261（第 297 次升）', "var CACHE = 'baoma-static-v261';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -4356,7 +4356,7 @@ def test_r290(b):
     want = ev("""(()=>{const g=Modules.alltools._groups.filter(x=>x.key!=='tools');return ['home','calendar','whitenoise','__edit','settings'].concat(...g.map(x=>x.items.filter(i=>i.id!=='whitenoise').map(i=>i.id)))})()""")
     got = ev("[...document.querySelectorAll('#qdActions [data-qm-go]')].map(e=>e.dataset.qmGo)")
     acts = ev("[...document.querySelectorAll('#qdActions [data-qm]')].map(e=>e.dataset.qm)")
-    check('#290 入口一个不少：宝宝资料 / 切换 / 搜索 + 常用 5 项（首页 日期记录 哄睡声音 编辑首页 设置）+ 全部功能 + 孕期', got == want and acts == ['baby', 'swap', 'search'] and len(got) == 29, [len(got), got, acts])
+    check('#290 入口一个不少：宝宝资料 / 切换 / 搜索 + 常用 5 项（首页 日期记录 哄睡声音 编辑首页 设置）+ 全部功能 + 孕期', got == want and acts == ['baby', 'swap', 'search'] and len(got) == 30, [len(got), got, acts])
     check('#290 当前页（首页）格子高亮、aria-current', ev("(()=>{const e=document.querySelector('#qdActions [data-qm-go=home]');return e.classList.contains('on')&&e.getAttribute('aria-current')==='page'})()"))
     check('#290 菜单格子复用 ＋ 面板的格子（.qd-action + .qd-badge + qdPop 入场）', ev("(()=>{const e=document.querySelector('#qdActions .qm-it');return e.classList.contains('qd-action')&&!!e.querySelector('.qd-badge')&&getComputedStyle(e).animationName})()") == 'qdPop')
     # —— 关闭：遮罩 ——
@@ -5009,8 +5009,8 @@ def test_r293(b):
     # —— 分组口径 ——
     g = ev("""(()=>{const G=Modules.alltools._groups;const by=k=>G.find(x=>x.key===k).items.map(i=>i.id);
       return {keys:G.map(x=>x.key),baby:by('baby'),mom:by('mom'),home:by('home'),preg:by('pregnancy'),n:Modules.alltools._modules.length}})()""")
-    check('#293 分组按归属：宝宝 / 孕期 / 妈妈 / 全家 / 工具；妈妈情绪、经期不再混在宝宝组，记账、消耗品归全家；入口一个不少（27 项）',
-          g['keys'] == ['baby', 'pregnancy', 'mom', 'home', 'tools'] and 'mood' not in g['baby'] and 'period' not in g['baby'] and g['mom'] == ['mood', 'period'] and g['home'] == ['finance', 'supplies'] and 'feeding' in g['baby'] and g['n'] == 27, g)
+    check('#293 分组按归属：宝宝 / 孕期 / 妈妈 / 全家 / 工具；妈妈情绪、经期不再混在宝宝组，记账、消耗品归全家；入口一个不少（28 项，第 297 次加宝妈体重）',
+          g['keys'] == ['baby', 'pregnancy', 'mom', 'home', 'tools'] and 'mood' not in g['baby'] and 'period' not in g['baby'] and g['mom'] == ['mood', 'period'] and g['home'] == ['finance', 'supplies'] and 'feeding' in g['baby'] and g['n'] == 28, g)
     # 宝宝组的条目都是存在宝宝名下的数据；妈妈 / 全家组的都不在 BABY_KEYS（切换宝宝不变）
     ev("App.openMenu()"); p.wait_for_timeout(500)
     m1 = ev("(()=>{const l=document.getElementById('qdActions');return {gh:[...l.querySelectorAll('.qm-gh')].map(e=>e.textContent),preg:!!l.querySelector('.qm-preg')}})()")
@@ -5354,9 +5354,77 @@ def test_r296(b):
     ctx.close()
 
 
+def test_r297(b):
+    """第 297 次：宝妈体重独立页——孕前信息（身高 / 孕前体重校验）→ 孕前 BMI + WS/T 801—2022 推荐总增重（四档）→ 表盘记录（较孕前 / 较上次）
+    → 最近一次 / 摘要 / 曲线 / 时间轴（修改、删除撤销）；孕期页只留入口；全部工具与搜索能找到。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+    ev = p.evaluate
+    ev("(()=>{const d=Storage.get();d.pregnancy.weights=[];delete d.pregnancy.heightCm;delete d.pregnancy.preKg;Storage.save();App.showTab('momweight')})()"); p.wait_for_timeout(500)
+    e0 = ev("({pre:!!document.querySelector('#mwH'),ref:!!document.querySelector('.mw-ref'),empty:!!document.querySelector('.mw-empty img'),cta:(document.querySelector('#mwAdd')||{}).textContent,title:(document.querySelector('.mod-h h1, .lt-title, #pageTitle, h1')||{}).textContent})")
+    check('#297 空页：孕前信息卡（身高 / 孕前体重）+ 插画 + 底部「记录体重」', e0['pre'] and not e0['ref'] and e0['empty'] and e0['cta'] == '记录体重', e0)
+    ev("(()=>{document.querySelector('#mwH').value='100';document.querySelector('#mwP').value='abc';document.querySelector('#mwPreSave').click()})()"); p.wait_for_timeout(300)
+    bad = ev("[document.querySelector('#mwH').classList.contains('is-invalid'),document.querySelector('#mwP').classList.contains('is-invalid'),Storage.get().pregnancy.heightCm===undefined]")
+    check('#297 孕前信息校验：身高 100、体重 abc 都标红、不保存', bad == [True, True, True], bad)
+    cases = ev("""(()=>{const out=[];for(const [h,w] of [[160,45],[165,55],[160,64],[160,75],[138,50],[170,130]]){const d=Storage.get();d.pregnancy.heightCm=h;d.pregnancy.preKg=w;const r=Modules.momweight._pre(d);out.push([r.bmi,r.na?'na':r.g.lo+'-'+r.g.hi])}return out})()""")
+    check('#297 WS/T 801—2022 四档：BMI 17.6→11–16、20.2→8–14、25→7–11、29.3→5–9；身高 <140 或孕前 >125 kg 标准不适用',
+          cases == [[17.6, '11-16'], [20.2, '8-14'], [25, '7-11'], [29.3, '5-9'], [26.3, 'na'], [45, 'na']], cases)
+    ev("(()=>{const d=Storage.get();delete d.pregnancy.heightCm;delete d.pregnancy.preKg;Storage.save();App.rerender()})()"); p.wait_for_timeout(300)
+    ev("(()=>{document.querySelector('#mwH').value='165';document.querySelector('#mwP').value='55';document.querySelector('#mwPreSave').click()})()"); p.wait_for_timeout(400)
+    r1 = ev("({h:Storage.get().pregnancy.heightCm,w:Storage.get().pregnancy.preKg,tiles:[...document.querySelectorAll('.mw-tiles b')].map(x=>x.textContent),ref:document.querySelector('.mw-ref .ms-ref').textContent,bad:/偏|不足|过多|超标|达标/.test(document.querySelector('.mw-ref').textContent)})")
+    check('#297 保存孕前信息 → 增重参考：孕前 BMI 20.2、推荐总增重 8.0–14.0 kg，写明出处与「不替代医生判断」，没有判定词',
+          r1['h'] == 165 and r1['w'] == 55 and r1['tiles'] == ['20.2', '8.0–14.0kg'] and 'WS/T 801—2022' in r1['ref'] and '不替代医生判断' in r1['ref'] and not r1['bad'], r1)
+    p.click('#mwAdd'); p.wait_for_timeout(700)
+    sh = ev("({t:document.querySelector('#ftsTitle').textContent,v:document.querySelector('#mwNum').value,dial:!!document.querySelector('#mwCtl svg.gr-dial'),kb:document.querySelector('#mwNum').getAttribute('inputmode'),delta:document.querySelector('[data-mwdelta]').textContent})")
+    check('#297 记录面板：「新增体重记录」、测量时间、半圆表盘、初值 = 孕前体重 55.0、较孕前 ±0', sh['t'] == '新增体重记录' and sh['v'] == '55.0' and sh['dial'] and sh['delta'] == '较孕前 ±0 kg', sh)
+    ev("(()=>{const h=document.querySelector('#mwCtl');h.focus();for(let i=0;i<12;i++)h.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}))})()"); p.wait_for_timeout(200)
+    k = ev("[document.querySelector('#mwNum').value,document.querySelector('[data-mwdelta]').textContent]")
+    ev("(()=>{const i=document.querySelector('#mwNum');i.value='62.4';i.dispatchEvent(new Event('input',{bubbles:true}));const b=document.querySelector('#mwSave');b.click();b.click()})()"); p.wait_for_timeout(500)
+    w = ev("Storage.get().pregnancy.weights")
+    check('#297 表盘 → 键盘右移 12 格 = 56.2（较孕前 +1.2）；直接输入 62.4 保存，连点只存一条（带时刻 at）',
+          k == ['56.2', '较孕前 +1.2 kg'] and len(w) == 1 and w[0]['kg'] == 62.4 and len(w[0].get('at', '')) == 5, [k, w])
+    ev("(()=>{const d=Storage.get();d.pregnancy.weights.push({id:'w1',date:Util.addDays(Util.todayISO(),-30),kg:58.2,week:20},{id:'w2',date:Util.addDays(Util.todayISO(),-14),kg:60.1,week:22});Storage.save();App.rerender()})()"); p.wait_for_timeout(400)
+    pg = ev("({gain:document.querySelector('.mw-gain').textContent,big:document.querySelector('.mw-big b').textContent,sub:document.querySelector('.mw-sub').textContent,sum:document.querySelector('.mod-sum p').textContent,chart:!!document.querySelector('.mw-chart svg'),rows:[...document.querySelectorAll('.mw-page .tl-row .tl-txt')].map(x=>x.textContent)})")
+    check('#297 页面：当前增重 +7.4、最近一次 62.4（较孕前 +7.4 · 较上次 +2.3）、摘要、曲线、时间轴新的在上（较上次差值、孕周）',
+          '+7.4 kg' in pg['gain'] and pg['big'] == '62.4' and pg['sub'] == '较孕前 +7.4 kg · 较上次 +2.3 kg' and '最近一次体重为 62.4 kg' in pg['sum'] and pg['chart']
+          and pg['rows'][0].startswith('62.4 kg') and pg['rows'][1] == '60.1 kg孕 22 周 · 较上次 +1.9 kg' and pg['rows'][2] == '58.2 kg孕 20 周', pg)
+    ev("document.querySelector('[data-mwopen=w2]').click()"); p.wait_for_timeout(700)
+    ed = ev("[document.querySelector('#ftsTitle').textContent,document.querySelector('#mwNum').value,!!document.querySelector('[data-mwdel]')]")
+    ev("(()=>{const i=document.querySelector('#mwNum');i.value='60.5';i.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#mwSave').click()})()"); p.wait_for_timeout(500)
+    e2 = ev("Storage.get().pregnancy.weights.find(x=>x.id==='w2')")
+    check('#297 点时间轴修改：「修改体重记录」初值 60.1、有删除；改 60.5 保存，日期 / 孕周不变', ed == ['修改体重记录', '60.1', True] and e2['kg'] == 60.5 and e2['week'] == 22, [ed, e2])
+    ev("document.querySelector('.mw-page .tl-del[data-del=w1]').click()"); p.wait_for_timeout(400)
+    g1 = ev("!Storage.get().pregnancy.weights.some(x=>x.id==='w1')")
+    ev("(()=>{const bs=[...document.querySelectorAll('.toast button, .toast-action')];bs.length&&bs[bs.length-1].click()})()"); p.wait_for_timeout(300)
+    g2 = ev("Storage.get().pregnancy.weights.some(x=>x.id==='w1')")
+    check('#297 删除带撤销', g1 and g2, [g1, g2])
+    ev("document.querySelector('[data-mw=pre]').click()"); p.wait_for_timeout(700)
+    ev("(()=>{document.querySelector('#modalRoot #mwH').value='160';document.querySelector('#mwPreSave').click()})()"); p.wait_for_timeout(500)
+    r2 = ev("[Storage.get().pregnancy.heightCm,[...document.querySelectorAll('.mw-tiles b')].map(x=>x.textContent)[0]]")
+    check('#297 修改孕前信息（半屏）：身高改 160 → BMI 21.5', r2 == [160, '21.5'], r2)
+    ev("App.showTab('pregnancy')"); p.wait_for_timeout(500)
+    en = ev("[(document.querySelector('#pgMwGo')||{}).textContent,!!document.querySelector('#mwAdd'),!!document.querySelector('#mwRuler')]")
+    ev("document.querySelector('#pgMwGo').click()"); p.wait_for_timeout(500)
+    cur = ev("App.currentTab()")
+    check('#297 孕期页旧体重卡换成入口「宝妈体重 · 最近一次 62.4 kg」，点进宝妈体重页', en[0].startswith('宝妈体重最近一次 62.4 kg') and not en[1] and not en[2] and cur == 'momweight', [en, cur])
+    find = ev("[!!(Modules.alltools&&JSON.stringify(Modules.alltools).length),document.querySelector('script[src*=momweight]')!==null]")
+    ev("App.showTab('alltools')"); p.wait_for_timeout(500)
+    at = ev("[...document.querySelectorAll('#view [data-go], #view [data-tool], #view button')].some(x=>/宝妈体重/.test(x.textContent))")
+    check('#297 全部工具里有「宝妈体重」', at, at)
+    ev("document.body.classList.add('dark');App.showTab('momweight')"); p.wait_for_timeout(500)
+    cr = ev(R273_CR, '#mwAdd')
+    ev("document.body.classList.remove('dark')"); p.wait_for_timeout(200)
+    cr2 = ev(R273_CR, '#mwAdd')
+    check('#297 深浅色「记录体重」按钮文字对比度 ≥ 4.5', isinstance(cr, (int, float)) and cr >= 4.5 and isinstance(cr2, (int, float)) and cr2 >= 4.5, [cr, cr2])
+    check('#297 pageerror 为 0', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -5391,7 +5459,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r293',),
           ('test_r294',),
           ('test_r295',),
-          ('test_r296',))  # 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r296',),
+          ('test_r297',))  # 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

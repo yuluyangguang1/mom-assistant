@@ -60,6 +60,7 @@
     { key: 'finance',     title: '记账',     go: 'finance',     icon: 'finance' },
     { key: 'pregnancy',   title: '孕期',     go: 'pregnancy',   icon: 'pregnancy' },
     { key: 'packing',     title: '待产包',   go: 'packing',     icon: 'packing' },
+    { key: 'momweight',   title: '宝妈体重', go: 'momweight',   icon: 'momweight' },
     { key: 'vaccine',     title: '疫苗',     go: 'vaccine',     icon: 'vaccine' },
     { key: 'checkups',    title: '儿保体检', go: 'vaccine',     icon: 'check' },
     { key: 'babies',      title: '宝宝档案', go: 'settings',    icon: 'baby' }

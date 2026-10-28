@@ -872,6 +872,7 @@
   }
 
   Modules.growth = {
+    _makeCtl: makeCtl, /* 第 297 次：宝妈体重的表盘共用 */
     id: 'growth',
     title: '生长',
     subTitle: function () { var s = Modules.growth._sub; return s === 'trend' ? '生长趋势' : s === 'feed' ? '喂养与体重' : null; },

@@ -189,6 +189,12 @@
       var c = items.filter(function (x) { return x && x.checked; }).length;
       return { status: '已备 ' + c + ' / ' + items.length + ' 件', ring: c / items.length };
     },
+    momweight: function (d) {
+      var w = ((d.pregnancy || {}).weights || []).filter(function (r) { return r && typeof r.kg === 'number' && isFinite(r.kg) && r.date; })
+        .sort(function (a, b) { return String(b.date + (b.at || '')).localeCompare(String(a.date + (a.at || ''))); });
+      if (!w.length) return { status: '记录孕期体重' };
+      return { status: '最近一次 ' + (Math.round(w[0].kg * 10) / 10) + ' kg' };
+    },
     pregnancy: function (d) {
       var pg = d.pregnancy || {};
       var base = pg.lmp || (pg.dueDate ? Util.addDays(pg.dueDate, -280) : null);

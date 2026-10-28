@@ -68,6 +68,7 @@
 
   Modules.pregnancy = {
     _checks: CHECKS,
+    _weightChart: weightChart,
     id: 'pregnancy',
     title: '孕期',
     render: function (view) {
@@ -150,30 +151,12 @@
       }
       html += '</div>';
 
-      // 宝妈孕期体重（对标报告 A4，第 38 次）：只记录与自比，不给增重达标线（U-25）
-      var mw = d.pregnancy.weights || [];
-      html += '<div class="card"><h2>宝妈体重</h2>';
-      html += '<div class="row">' + Util.dateSlider({ id: 'mwDate', title: '日期', value: Util.todayISO(), min: Util.addDays(Util.todayISO(), -31), max: Util.todayISO() }) + '</div>';
-      /* 体重改尺滑杆录入（第 42 次）：孕期每周只增 0.3–0.5kg，0.1 步进的滑杆比数字键盘好按得多 */
-      html += Util.rulerHTML('mwRuler', { unit: 'kg', label: '体重' });
-      html += '<button class="btn btn-primary btn-save" id="mwAdd">保存体重</button>';
-      if (mw.length) {
-        var mwSorted = mw.slice().sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
-        var mwGain = (mwSorted[mwSorted.length - 1].kg - mwSorted[0].kg).toFixed(1);
-        html += weightChart(mwSorted);
-        html += '<p class="hint">从 ' + Util.fmtDate(mwSorted[0].date) + ' 到现在变化 ' + (mwGain > 0 ? '+' : '') + mwGain + ' kg。'
-          + '孕期增重因人而异，具体范围请参考产检医生意见。</p>';
-        html += '<ul class="list">';
-        mw.slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); }).forEach(function (r) {
-          html += '<li>' + icon('pregnancy') + '<span>' + Util.fmtDate(r.date)
-            + (r.week != null ? '（孕 ' + r.week + ' 周）' : '') + ' ｜ <b>' + r.kg + ' kg</b></span>'
-            + '<button class="icon-btn" data-mw="' + r.id + '" aria-label="删除" title="删除">' + icon('trash') + '</button></li>';
-        });
-        html += '</ul>';
-      } else {
-        html += '<p class="hint">孕期体重记几次，就能看到自己的变化曲线。增重范围因人而异，以产检医生意见为准。</p>';
-      }
-      html += '</div>';
+      // 第 297 次：宝妈体重搬到独立页（孕前信息 → BMI 与推荐增重、表盘录入），这里只留入口
+      var mw = (d.pregnancy.weights || []).filter(function (r) { return r && typeof r.kg === 'number' && isFinite(r.kg); })
+        .slice().sort(function (a, b) { return String(b.date + (b.at || '')).localeCompare(String(a.date + (a.at || ''))); });
+      html += '<button type="button" class="card pg-mw-entry" id="pgMwGo"><span class="pg-mw-t"><b>宝妈体重</b><small>'
+        + (mw.length ? '最近一次 ' + mw[0].kg + ' kg · ' + Util.escapeHtml(Util.fmtDate(mw[0].date)) : '记录孕期体重，看推荐增重参考') + '</small></span>'
+        + '<span class="pg-mw-go" aria-hidden="true">' + icon('chevron') + '</span></button>';
 
       // 产检记录
       html += '<div class="card"><h2>产检记录</h2>';      html += '<label>项目<input type="text" id="rcItem" placeholder="如 宫高 / 体重 / 血压"></label>';
@@ -296,60 +279,8 @@
           });
         });
       });
-      /* 宝妈孕期体重：保存 / 删除（P2 A4；第 42 次改尺滑杆录入） */
-      var MW = { min: 30, max: 150, step: 0.1, dec: 1, anchor: 62.5 };
-      var mwVal = null; /* null = 还没设置过（滑杆停在 anchor 但不算已填） */
-      /* U-06：预填最近一次记录 */
-      if (mw.length) {
-        var lastW = mw.slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); })[0];
-        if (lastW && lastW.kg != null) mwVal = lastW.kg;
-      }
-      function paintMW() {
-        Util.rulerPaint('mwRuler', {
-          min: MW.min, max: MW.max, step: MW.step, value: mwVal, anchor: MW.anchor, dec: MW.dec, unit: MW.unit || 'kg', label: '体重'
-        });
-      }
-      paintMW();
-      var mwRange = view.querySelector('#mwRulerRange');
-      if (mwRange) mwRange.addEventListener('input', function () {
-        mwVal = Math.round(parseFloat(mwRange.value) * 10) / 10;
-        paintMW();
-      });
-      var mwMinus = view.querySelector('#mwRulerMinus');
-      if (mwMinus) mwMinus.addEventListener('click', function () {
-        mwVal = Math.round(((mwVal != null ? mwVal : MW.anchor) - MW.step) * 10) / 10;
-        paintMW();
-      });
-      var mwPlus = view.querySelector('#mwRulerPlus');
-      if (mwPlus) mwPlus.addEventListener('click', function () {
-        mwVal = Math.round(((mwVal != null ? mwVal : MW.anchor) + MW.step) * 10) / 10;
-        paintMW();
-      });
-
-      view.querySelector('#mwAdd').addEventListener('click', function () {
-        var dateEl = view.querySelector('#mwDate');
-        var kg = mwVal;
-        var bad = false;
-        if (kg == null || isNaN(kg) || kg < MW.min || kg > MW.max) { Util.toast('请用滑杆设置 30–150 之间的体重', 'warn'); bad = true; }
-        if (!dateEl.value) { Util.markInvalid(dateEl, '请选择日期'); bad = true; }
-        if (bad) return;
-        /* 孕周按「记录日期」推算，补记过去的体重不带今天的孕周 */
-        var base = pg.lmp || (pg.dueDate ? Util.addDays(pg.dueDate, -280) : null);
-        var wkAt = base ? Math.max(0, Math.floor(Util.daysBetween(base, dateEl.value) / 7)) : null;
-        d.pregnancy.weights = d.pregnancy.weights || [];
-        d.pregnancy.weights.push({ id: Util.uid(), date: dateEl.value, kg: Math.round(kg * 10) / 10, week: wkAt });
-        if (Storage.save()) Util.toast('已记录体重：' + Math.round(kg * 10) / 10 + ' kg' + (wkAt != null ? '（孕 ' + wkAt + ' 周）' : ''), 'ok');
-        global.App.rerender();
-      });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-mw]'), function (b) {
-        b.addEventListener('click', function () {
-          Util.removeWithUndo(d.pregnancy.weights, b.getAttribute('data-mw'), {
-            onSave: function () { Storage.save(); },
-            onAfter: function () { global.App.rerender(); },
-            deletedText: '已删除体重记录'
-          });
-        });
-      });
+      var mwGo = view.querySelector('#pgMwGo');
+      if (mwGo) mwGo.addEventListener('click', function () { global.App.showTab('momweight'); });
       view.querySelector('#rcAdd').addEventListener('click', function () {
         var itemEl = view.querySelector('#rcItem'), valEl = view.querySelector('#rcVal');
         var item = itemEl.value.trim(), val = valEl.value.trim();

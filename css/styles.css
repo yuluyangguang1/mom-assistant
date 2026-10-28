@@ -1265,6 +1265,7 @@ body.dark .set-group .sg-ico { background: rgba(255,255,255,.08); }
 [data-accent="milestone"]   { --tile: #5C7DB4; --tile-text: #3A5A94; --tile-weak: #EFF1F5; --tile-fill: #5676A9; }
 [data-accent="fetal"]       { --tile: #A84A7C; --tile-text: #8A3260; --tile-weak: #F5EFF3; }
 [data-accent="temp"]        { --tile: #2E8FA0; --tile-text: #176F80; --tile-weak: #E9F1F2; --tile-fill: #297F8E; }
+[data-accent="momweight"]   { --tile: #9A5A9C; --tile-text: #7E4081; --tile-weak: #F4EEF4; }  /* 第 297 次：宝妈体重（Cali 淡紫），白字 4.87、字/弱底 6.26、tile/弱底 4.26 */
 [data-accent="mood"]        { --tile: #8A5FA0; --tile-text: #6F4787; --tile-weak: #F3EFF5; }
   /* 第 107 次：消耗品（浅色）——青绿，与 finance 的紫、temp 的青蓝区分开 */
   [data-accent="supplies"]    { --tile: #3F8A6E; --tile-text: #2C6B54; --tile-weak: #E9F0ED; --tile-fill: #3B8066; }
@@ -1294,6 +1295,7 @@ body.dark [data-accent="meds"]        { --tile: #D6A5BA; --tile-text: #D6A5BA; -
 body.dark [data-accent="milestone"]   { --tile: #9FB9DF; --tile-text: #9FB9DF; --tile-weak: rgba(159,185,223,.16); --tile-on: #2A292A; }
 body.dark [data-accent="fetal"]       { --tile: #DE9CC4; --tile-text: #DE9CC4; --tile-weak: rgba(222,156,196,.16); --tile-on: #322526; }
 body.dark [data-accent="temp"]        { --tile: #7FC4D0; --tile-text: #7FC4D0; --tile-weak: rgba(127,196,208,.16); --tile-on: #262A28; }
+body.dark [data-accent="momweight"]   { --tile: #D9A9DB; --tile-text: #D9A9DB; --tile-weak: rgba(217,169,219,.16); --tile-on: #2F2530; }
 body.dark [data-accent="mood"]        { --tile: #C4A6D6; --tile-text: #C4A6D6; --tile-weak: rgba(196,166,214,.16); --tile-on: #2E2629; }
   body.dark [data-accent="supplies"]    { --tile: #8FCDB2; --tile-text: #8FCDB2; --tile-weak: rgba(143,205,178,.16); --tile-on: #282B24; }
   /* 第 132 次：六个新模块（暗色，同色系调亮） */
@@ -1349,6 +1351,7 @@ body.hc:not(.dark) [data-accent="meds"]        { --tile-weak: #FDFAFB; }  /* ΔL
 body.hc:not(.dark) [data-accent="milestone"]   { --tile-weak: #F9FBFD; }  /* ΔL* 5.2 */
 body.hc:not(.dark) [data-accent="fetal"]       { --tile-weak: #FDF9FC; }  /* ΔL* 5.0 */
 body.hc:not(.dark) [data-accent="temp"]        { --tile-weak: #F7FBFC; }  /* ΔL* 5.1 */
+body.hc:not(.dark) [data-accent="momweight"]   { --tile-weak: #FBF9FB; }
 body.hc:not(.dark) [data-accent="mood"]        { --tile-weak: #FBFAFD; }  /* ΔL* 5.1 */
 body.hc:not(.dark) [data-accent="supplies"]    { --tile-weak: #F7FBFA; }  /* ΔL* 5.0 */
 /* 弱底提亮后模块身份不能丢：磁贴描边改用 --tile（色+形双冗余，色觉障碍也能靠轮廓分组） */
@@ -6567,3 +6570,51 @@ label.pk-more, label.su-ib, label.su-more, label.su-selv, label.su-big, label.su
 .ftf-ctl > span:empty { width: 64px; height: 64px; }
 .fe-open { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .fe-open svg { width: 20px; height: 20px; }
+
+
+/* ===================== 第 297 次：宝妈体重（孕前信息 → 增重参考 → 最近一次 → 曲线 → 记录；表盘录入） ===================== */
+.mw-card { padding: 16px 16px 14px; }
+.mw-card .ms-k { margin: 0 0 6px; }
+.mw-tip { margin: 0 0 12px; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+.mw-in { display: block; margin: 0 0 12px; }
+.mw-in > span:first-child { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.mw-in > span:first-child b { font-size: 15px; }
+.mw-in > span:first-child small { font-size: 12px; color: var(--text-muted); }
+.mw-inbox { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; min-height: 54px; padding: 0 16px; border-radius: var(--radius-md); background: var(--tile-weak); }
+.mw-inbox input { flex: 1; min-width: 0; margin: 0; padding: 12px 0; border: none; background: transparent; text-align: right; font: inherit; font-size: 24px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; box-shadow: none; }
+.mw-inbox input:focus { outline: none; }
+.mw-inbox input::placeholder { color: var(--text-muted); opacity: .45; font-weight: 600; }
+.mw-inbox i { font-style: normal; font-size: 14px; font-weight: 700; color: var(--text-muted); }
+.mw-inbox:focus-within { box-shadow: inset 0 0 0 2px var(--tile); }
+.mw-in .is-invalid { color: var(--danger, #C0392B); }
+.mw-presave { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px; background: var(--tile); color: #fff; }
+body.dark .mw-presave { color: var(--tile-on); }
+.mw-presave .ico, .mw-presave svg { width: 18px; height: 18px; }
+.mw-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.mw-hd .ms-k { margin: 0; }
+.mw-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mw-tiles p { margin: 0; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--tile-weak); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mw-tiles small { font-size: 12px; color: var(--text-muted); }
+.mw-tiles b { font-size: 20px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mw-tiles b i { font-style: normal; font-size: 13px; font-weight: 700; margin-left: 3px; color: var(--text-muted); }
+.mw-tiles b.mw-na { font-size: 16px; color: var(--text-muted); }
+.mw-gain { margin: 10px 0 0; font-size: 15px; }
+.mw-gain b { color: var(--tile-text); font-variant-numeric: tabular-nums; }
+.mw-ref .ms-ref { margin: 8px 0 0; }
+.mw-lastrow { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.mw-big { margin: 0; display: inline-flex; align-items: baseline; gap: 4px; }
+.mw-big b { font-size: 34px; font-weight: 800; color: var(--tile-text); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.mw-big i { font-style: normal; font-size: 15px; font-weight: 700; color: var(--text-muted); }
+.mw-when { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+.mw-sub { margin: 4px 0 0; font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.mw-sub:empty { display: none; }
+.mw-k { margin: 18px 4px 0; }
+.mw-empty { padding-top: 8px; }
+.mw-delta { margin: -4px 0 4px; text-align: center; font-size: 13px; color: var(--text-muted); min-height: 18px; font-variant-numeric: tabular-nums; }
+.mw-lbl { margin-top: 14px; }
+.pg-mw-entry { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; border: none; font: inherit; color: inherit; cursor: pointer; }
+.pg-mw-t { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pg-mw-t b { font-size: 17px; }
+.pg-mw-t small { font-size: 13px; color: var(--text-muted); }
+.pg-mw-go .ico, .pg-mw-go svg { width: 20px; height: 20px; color: var(--text-muted); }
+.mw-page .mc-main > svg { width: 20px; height: 20px; flex: 0 0 auto; }
