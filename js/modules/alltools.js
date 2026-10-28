@@ -27,11 +27,16 @@
   var ACCENT = { whitenoise: 'sleep' };
 
   /* 模块名逐字照抄首页 home.js 磁贴的 name 字段——两处必须一致，否则用户会觉得是两套东西。 */
+  /* 第 293 次（多宝宝 / 孕期分类）：按「这条记录属于谁」分组，与存储口径一致——
+     · baby：存在当前宝宝名下（storage.js BABY_KEYS），切换宝宝就换一套；
+     · pregnancy：这次怀孕（孕周、胎动、宫缩、待产包），全家一份；
+     · mom：妈妈自己的身体和情绪；home：全家共用的账和用品。
+     之前「通用」一组把宝宝和妈妈的混在一起，两个宝宝时分不清哪些跟着切换。 */
   var GROUPS = [
     {
-      key: 'common', title: '通用', items: [
+      key: 'baby', title: '宝宝', items: [
         { id: 'feeding', name: '喂养' },
-        { id: 'pump', name: '泵奶' }, /* 第 256 次：泵奶独立入口 */
+        { id: 'pump', name: '泵奶' }, /* 第 256 次：泵奶独立入口（记录跟着当前宝宝，和喂养同一份） */
         { id: 'solid', name: '辅食' }, /* 第 269 次：辅食独立入口 */
         /* 第 254 次：亲喂、瓶喂只从喂养页底部进入，不在全部功能里单列 */
         { id: 'diaper', name: '尿布' },
@@ -42,18 +47,13 @@
         { id: 'meds', name: '吃药/维D' },
         { id: 'milestone', name: '里程碑' },
         { id: 'temp', name: '体温' },
-        /* 第 132 次（对标 Cali 21 工具补缺）：六个新模块在「全部功能」里必须有入口——
-           首页磁贴走「有数据才出现」的收敛策略，新模块的发现路径就靠这一页。 */
+        /* 第 132 次（对标 Cali 21 工具补缺）：新模块在「全部功能」里必须有入口 */
         { id: 'jaundice', name: '黄疸' },
         { id: 'bath', name: '洗澡' },
         { id: 'swim', name: '游泳' },
         { id: 'sun', name: '日晒' },
         { id: 'water', name: '饮水' },
-        { id: 'supplement', name: '营养品' },
-        { id: 'mood', name: '妈妈情绪' },
-        { id: 'finance', name: '记账' },
-        { id: 'supplies', name: '消耗品' },
-        { id: 'period', name: '经期' }
+        { id: 'supplement', name: '营养品' }
       ]
     },
     {
@@ -65,12 +65,58 @@
       ]
     },
     {
+      key: 'mom', title: '妈妈', items: [
+        { id: 'mood', name: '妈妈情绪' },
+        { id: 'period', name: '经期' }
+      ]
+    },
+    {
+      key: 'home', title: '全家', items: [
+        { id: 'finance', name: '记账' },
+        { id: 'supplies', name: '消耗品' }
+      ]
+    },
+    {
       key: 'tools', title: '工具', items: [
         { id: 'calendar', name: '日期记录' },
         { id: 'settings', name: '设置' }
       ]
     }
   ];
+
+  /* 第 293 次：分组标题与顺序（菜单面板、全部功能页共用一份）。
+     · 宝宝组标题带当前宝宝的名字；两个及以上宝宝时注明「切换宝宝后换一套」；
+     · 孕期组：正在孕期（含大宝已出生又怀孕）时排第一、标题带孕周；不在孕期时排在妈妈前面、只叫「孕期」。 */
+  function groupsFor(d) {
+    var App = global.App, S = global.Storage;
+    var stage = (d && App && typeof App.stageOf === 'function') ? App.stageOf(d) : null;
+    var wk = (d && App && typeof App.pregnancyWeekOf === 'function') ? App.pregnancyWeekOf(d) : null;
+    var kids = (d && d.babies) ? d.babies.length : 0;
+    var nm = '';
+    try { nm = (S && S.babyLabel) ? S.babyLabel() : ''; } catch (e) { nm = ''; }
+    var out = GROUPS.map(function (g) {
+      var t = g.title, sub = '';
+      if (g.key === 'baby') {
+        t = (nm && nm !== '宝宝') ? nm + '的记录' : '宝宝的记录';
+        if (kids >= 2) sub = '跟着当前宝宝';
+      } else if (g.key === 'pregnancy' && wk !== null) {
+        t = '孕期 · 第 ' + wk + ' 周';
+      }
+      return { key: g.key, title: t, sub: sub, items: g.items };
+    });
+    /* 妈妈（2 项）和全家（2 项）各占一个标题 + 一整行，菜单面板会被顶到屏幕最上面；显示时并成一组「妈妈和全家」，一行放下 */
+    var mi = -1, hi = -1;
+    out.forEach(function (g, i) { if (g.key === 'mom') mi = i; if (g.key === 'home') hi = i; });
+    if (mi >= 0 && hi >= 0) {
+      out[mi] = { key: 'mom', title: '妈妈和全家', sub: kids >= 2 ? '全家一份' : '', items: out[mi].items.concat(out[hi].items) };
+      out.splice(hi, 1);
+    }
+    if (stage === 'pregnancy' || wk !== null) {
+      var order = ['pregnancy', 'baby', 'mom', 'tools'];
+      out.sort(function (a, b) { return order.indexOf(a.key) - order.indexOf(b.key); });
+    }
+    return out;
+  }
 
   /* 展平后的完整清单：供首页读取「全部功能」的总项数（home.js 的 N 项），
      也让本页与首页共用同一份来源，不各写一份会漂移的常量。 */
@@ -99,12 +145,7 @@
       var d = (global.Storage && typeof global.Storage.get === 'function') ? global.Storage.get() : null;
       var stage = (d && global.App && typeof global.App.stageOf === 'function') ? global.App.stageOf(d) : null;
 
-      var groups = GROUPS.slice();
-      if (stage === 'pregnancy') {
-        /* 孕期把「孕期」组提到最前（对标首页的阶段前置磁贴思路），育儿期维持默认顺序。 */
-        var order = ['pregnancy', 'common', 'tools'];
-        groups.sort(function (a, b) { return order.indexOf(a.key) - order.indexOf(b.key); });
-      }
+      var groups = groupsFor(d);
 
       var html = '';
       /* 顶部搜索入口：与首页 .home-search 完全同一套类名与结构，点击跳到搜索页。 */
@@ -114,7 +155,7 @@
         + '</button>';
 
       groups.forEach(function (g) {
-        html += '<h2 class="section-title">' + esc(g.title) + '</h2><div class="tools-grid">';
+        html += '<h2 class="section-title">' + esc(g.title) + (g.sub ? '<small class="st-sub">' + esc(g.sub) + '</small>' : '') + '</h2><div class="tools-grid">';
         g.items.forEach(function (it) {
           html += '<button class="tool-item" data-accent="' + esc(accentOf(it.id)) + '" data-go="' + esc(it.id) + '" type="button">'
             + '<span class="ti-ico">' + iconOf(it.id) + '</span>'
@@ -138,6 +179,7 @@
     },
     /* 目录清单：首页读它拿「N 项」的总数；无效依赖时也不会崩。 */
     _modules: ALL_ITEMS,
-    _groups: GROUPS /* 第 245 次：左侧抽屉按同一份分组列功能 */
+    _groups: GROUPS, /* 第 245 次：左侧抽屉按同一份分组列功能 */
+    _groupsFor: groupsFor /* 第 293 次：带当前宝宝名 / 孕周的标题与阶段排序 */
   };
 })(window);

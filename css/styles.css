@@ -2901,8 +2901,6 @@ body.dock-left .view, body.dock-right .view { padding-bottom: calc(var(--dock-h,
 .hn-q:active { transform: scale(.95); }
 .hn-q:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .hn-tgt { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: var(--fs-sm); color: var(--muted); }
-.hn-tgt-b { min-height: 30px; padding: 0 12px; border-radius: var(--radius-pill); border: 1px solid var(--border); background: transparent; color: var(--text); font: inherit; font-size: var(--fs-sm); max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hn-tgt-b.on { background: var(--tile-feeding-weak, rgba(90,160,150,.14)); border-color: var(--feeding, #5AA096); color: var(--feeding-ink, var(--text)); font-weight: 600; }
 .hn-hint { margin: 0; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 第 146 次（P0-5）：宝宝生日原生日期选择器 */
@@ -6372,11 +6370,12 @@ body:not(.qd-open) .qd-mask { pointer-events: none; }
 body.qd-now .qd-mask, body.qd-now #quickDock .qd-actions { transition: none !important; }
 body.qd-now #quickDock .qd-action { animation: none !important; }
 
-/* 面板本体：比快捷记录高，内容区自己滚动；顶上一根把手（往下拉关闭的提示） */
+/* 面板本体：比快捷记录高，内容区自己滚动；顶上一根把手（往下拉关闭的提示）
+   第 293 次：顶上留出咿呀岛的位置（提示 48 + 8）——分组按归属拆开后内容变高，面板会顶到屏幕上沿，提示岛只能下移压住面板内容 */
 body #quickDock.qd-menu .qd-actions {
   display: flex; flex-direction: column; padding: 0; overflow: hidden;
-  max-height: calc(100vh - 76px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 24px);
-  max-height: calc(100dvh - 76px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 24px);
+  max-height: calc(100vh - 76px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 56px);
+  max-height: calc(100dvh - 76px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 56px);
 }
 body #quickDock.qd-menu .qd-actions:focus { outline: none; }
 .qd-grab { flex: none; display: flex; justify-content: center; padding: 8px 0 2px; cursor: grab; touch-action: none; }
@@ -6406,7 +6405,7 @@ body #quickDock.qd-menu .qd-actions:focus { outline: none; }
 /* 分组网格：图标在上、名字在下；最小列宽按这一组最长的名字算（--qm-ch 个字宽），窄屏 / 大字号自动少一列，名字不折行不截断 */
 .qm-sec { margin: 0; padding: 0; }
 .qm-sec + .qm-sec { margin-top: 8px; padding-top: 8px; border-top: 1px solid color-mix(in srgb, var(--text) 9%, transparent); }
-.qm-gh { margin: 2px 4px 6px; font-size: calc(12px * var(--fs-mul, 1)); font-weight: 700; color: var(--muted); letter-spacing: .04em; }
+.qm-gh { display: flex; align-items: baseline; gap: 8px; margin: 2px 4px 6px; font-size: calc(12px * var(--fs-mul, 1)); font-weight: 700; color: var(--muted); letter-spacing: .04em; }
 .qm-grid { display: grid; gap: 2px; font-size: calc(13px * var(--fs-mul, 1));
   grid-template-columns: repeat(auto-fill, minmax(max(calc(var(--qm-ch, 4) * 1em + 8px), 52px), 1fr)); }
 body #quickDock .qd-action.qm-it { flex-direction: column; justify-content: flex-start; gap: 5px; min-height: 0; padding: 8px 2px 7px; border-radius: var(--radius);
@@ -6426,11 +6425,48 @@ body.dark #quickDock .qm-it.qm-mono .qd-badge { background: rgba(255, 255, 255, 
 body.dock-left #quickDock.qd-menu, body.dock-right #quickDock.qd-menu { left: 50%; right: auto; bottom: calc(10px + env(safe-area-inset-bottom)); }
 body.dock-left #quickDock.qd-menu .qd-actions, body.dock-right #quickDock.qd-menu .qd-actions {
   max-width: none; flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: flex-start;
-  max-height: calc(100vh - 10px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 24px);
-  max-height: calc(100dvh - 10px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 24px);
+  max-height: calc(100vh - 10px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 56px);
+  max-height: calc(100dvh - 10px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 56px);
 }
 body.qm-open.dock-left .tabbar, body.qm-open.dock-right .tabbar { z-index: 10; }
 @media (prefers-reduced-motion: reduce) {
   body #quickDock.open.qd-closing.qd-dragged .qd-actions { transform: translateX(-50%); }
   body #quickDock.open:not(.qd-closing) .qd-actions { transform: translateX(-50%) translateY(var(--qd-dy, 0px)); }
 }
+
+/* ============================================================
+   第 293 次 · 多宝宝 / 孕期分类
+   ============================================================ */
+/* 「记给谁」：首页快记卡与 ＋ 快捷记录共用（每个宝宝一个名字 + 都记） */
+.rec-tgt { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; font-size: var(--fs-sm); color: var(--muted); }
+.rec-tgt .rt-l { flex: none; margin-right: 2px; }
+.rt-b { min-height: 32px; padding: 0 12px; border-radius: var(--radius-pill); border: 1px solid var(--border); background: transparent; color: var(--text);
+  font: inherit; font-size: var(--fs-sm); max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+  transition: background-color var(--dur-out, .3s) var(--ease-ios, ease), border-color var(--dur-out, .3s) var(--ease-ios, ease); }
+.rt-b.on { background: var(--primary-weak); border-color: var(--primary); color: var(--primary-text); font-weight: 700; }
+.rt-b:active { transform: scale(.96); }
+.qd-tgt { margin: -2px 6px 10px; }
+
+/* 菜单分组副标题（「跟着当前宝宝」「全家一份」） */
+.qm-gsub, .st-sub { font-weight: 500; letter-spacing: 0; color: var(--muted); opacity: .85; }
+.qm-gsub { font-size: calc(11.5px * var(--fs-mul, 1)); }
+.section-title .st-sub { margin-left: 8px; font-size: calc(12px * var(--fs-mul, 1)); }
+
+/* 菜单头部的孕期条：一个宝宝 + 一个孕期时，两个都看得见 */
+.qm-preg { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; margin: -2px 0 10px; padding: 6px 12px 6px 4px; border: 0;
+  border-radius: var(--radius); background: var(--tile-weak); color: var(--text); font: inherit; text-align: left; cursor: pointer; --tile: #9E6D24; --tile-weak: #EDE4D8; }
+body.dark .qm-preg { --tile: #E4B982; --tile-weak: rgba(228,185,130,.16); }
+.qm-preg:active { filter: brightness(.97); }
+.qm-preg-ico { flex: none; width: 44px; height: 44px; display: grid; place-items: center; color: var(--tile); }
+.qm-preg-ico .ico { width: 24px; height: 24px; }
+.qm-preg .qm-bt { flex: 1 1 auto; }
+.qm-preg b { font-size: calc(15px * var(--fs-mul, 1)); font-weight: 800; line-height: 1.25; }
+.qm-preg small { font-size: calc(12px * var(--fs-mul, 1)); color: var(--muted); line-height: 1.4; }
+.qm-preg-chv { flex: none; color: var(--muted); display: inline-flex; }
+.qm-preg-chv .ico { width: 16px; height: 16px; }
+
+/* 宝宝资料面板里的孕期行 */
+.bs-preg { padding: 10px 14px; min-height: 64px; border-radius: var(--radius-lg); background: var(--surface-2); border: 1px solid var(--border); }
+.bs-preg-ico { background: #EDE4D8; color: #9E6D24; }
+body.dark .bs-preg-ico { background: rgba(228,185,130,.16); color: #E4B982; }
+.bs-preg-ico .ico { width: 24px; height: 24px; }

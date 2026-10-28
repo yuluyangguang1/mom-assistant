@@ -1381,7 +1381,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v256（第 292 次升）', "var CACHE = 'baoma-static-v256';" in sw)
+    check('#275 SW 版本 v257（第 293 次升）', "var CACHE = 'baoma-static-v257';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求），整页 HTML < 60KB',
@@ -4724,7 +4724,7 @@ def test_r291(b):
       d.feedings.push({id:'b291',type:'breast',start:L(Date.now()-3*3600e3),durationMin:18,side:'right',amount:null,note:null});
       d.feedings.push({id:'p291',type:'pump',start:L(Date.now()-40*60e3),durationMin:15,side:'both',amount:90,note:null});
       d.feedings.push({id:'s291',type:'solid',start:L(Date.now()-20*60e3),dish:'米粉',note:null});
-      d.pregnancy=Object.assign(d.pregnancy||{},{lmp:L(Date.now()-200*86400e3).slice(0,10)});Storage.save();App.rerender()})()""")
+      d.pregnancy=Object.assign(d.pregnancy||{},{lmp:L(Date.now()-100*86400e3).slice(0,10)});Storage.save();App.rerender()})()""")  # 第 293 次：200 天前早于豆豆生日 = 这次已生，改成大宝出生后又怀孕
     p.wait_for_timeout(300)
 
     def open_qd():
@@ -5000,9 +5000,97 @@ def test_r292(b):
     ctx.close()
 
 
+def test_r293(b):
+    """第 293 次：多宝宝 / 孕期分类与数据归属——
+    菜单与全部功能按「记录属于谁」分组（宝宝 / 孕期 / 妈妈 / 全家），宝宝组标题带当前宝宝名；
+    两个宝宝：首页快记卡与 ＋ 快捷记录都有「记给」（每个宝宝一个名字 + 两个都记），点另一个名字即切换、＋ 都记各写一份、撤销一起撤、提示写明记给谁；
+    一个宝宝 + 一个孕期：菜单头部孕期条（孕周 / 预产期）、宝宝资料面板列出肚子里的宝宝、老数据没有档案时先补建；怀孕已生（生日 ≥ 末次月经）不再出「胎动 +1」。"""
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); errs = []
+    p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(1000)
+    ev = p.evaluate
+    # —— 分组口径 ——
+    g = ev("""(()=>{const G=Modules.alltools._groups;const by=k=>G.find(x=>x.key===k).items.map(i=>i.id);
+      return {keys:G.map(x=>x.key),baby:by('baby'),mom:by('mom'),home:by('home'),preg:by('pregnancy'),n:Modules.alltools._modules.length}})()""")
+    check('#293 分组按归属：宝宝 / 孕期 / 妈妈 / 全家 / 工具；妈妈情绪、经期不再混在宝宝组，记账、消耗品归全家；入口一个不少（27 项）',
+          g['keys'] == ['baby', 'pregnancy', 'mom', 'home', 'tools'] and 'mood' not in g['baby'] and 'period' not in g['baby'] and g['mom'] == ['mood', 'period'] and g['home'] == ['finance', 'supplies'] and 'feeding' in g['baby'] and g['n'] == 27, g)
+    # 宝宝组的条目都是存在宝宝名下的数据；妈妈 / 全家组的都不在 BABY_KEYS（切换宝宝不变）
+    ev("App.openMenu()"); p.wait_for_timeout(500)
+    m1 = ev("(()=>{const l=document.getElementById('qdActions');return {gh:[...l.querySelectorAll('.qm-gh')].map(e=>e.textContent),preg:!!l.querySelector('.qm-preg')}})()")
+    check('#293 一个宝宝：菜单宝宝组标题「豆豆的记录」、没有「跟着当前宝宝」副标题；不在孕期不出孕期条；妈妈（2 项）和全家（2 项）并成一组「妈妈和全家」', m1['gh'][0] == '豆豆的记录' and not m1['preg'] and m1['gh'][1:] == ['孕期', '妈妈和全家'], m1)
+    ev("App.closeMenu(true)"); p.wait_for_timeout(400)
+    # —— 两个宝宝 ——
+    ev("(()=>{Storage.addBaby({name:'二宝',nickname:'糖糖',birthDate:'2026-10-01',sex:'boy'});App.showTab('home',{noVT:true})})()"); p.wait_for_timeout(600)
+    h = ev("(()=>{const t=document.querySelector('.hn-tgt');return t?{b:[...t.querySelectorAll('[data-qtgt]')].map(x=>[x.textContent,x.getAttribute('data-qtgt'),x.classList.contains('on')])}:null})()")
+    check('#293 两个宝宝：首页快记卡「记给 豆豆 / 糖糖 / 两个都记」，当前宝宝（糖糖）亮着', h and [x[0] for x in h['b']] == ['豆豆', '糖糖', '两个都记'] and h['b'][1][2] and h['b'][0][1].startswith('b:'), h)
+    ev("App.openMenu()"); p.wait_for_timeout(500)
+    m2 = ev("(()=>{const l=document.getElementById('qdActions');return [...l.querySelectorAll('.qm-gh')].map(e=>e.textContent)})()")
+    check('#293 两个宝宝：菜单「糖糖的记录 · 跟着当前宝宝」，「妈妈和全家」注明「全家一份」', m2[0] == '糖糖的记录跟着当前宝宝' and '妈妈和全家全家一份' in m2, m2)
+    ev("App.closeMenu(true)"); p.wait_for_timeout(400)
+    # ＋ 快捷记录：记给行 + 提示带名字
+    ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(600)
+    q = ev("(()=>{const l=document.getElementById('qdActions');const t=l.querySelector('.qd-tgt');return t?[...t.querySelectorAll('[data-qtgt]')].map(x=>x.textContent+(x.classList.contains('on')?'*':'')):null})()")
+    check('#293 ＋ 快捷记录也有「记给」行（与首页同一份）', q == ['豆豆', '糖糖*', '两个都记'], q)
+    n0 = ev("(()=>{const d=Storage.get();return {cur:d.diapers.length,other:(d.babies[0].rec.diapers||[]).length}})()")
+    ev("document.getElementById('qdDiaper').click()"); p.wait_for_timeout(400)
+    t1 = ev("(()=>{const d=Storage.get();const t=document.querySelector('.toast');return {cur:d.diapers.length,other:(d.babies[0].rec.diapers||[]).length,toast:t?t.textContent:''}})()")
+    check('#293 ＋ 记尿布只记给当前宝宝（糖糖 +1、豆豆不变），提示写明「记给糖糖」', t1['cur'] == n0['cur'] + 1 and t1['other'] == n0['other'] and '记给糖糖' in t1['toast'], [n0, t1])
+    # 都记
+    ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(600)
+    ev("document.querySelector('#qdActions [data-qtgt=all]').click()"); p.wait_for_timeout(300)
+    on = ev("[...document.querySelectorAll('#qdActions .qd-tgt .on')].map(x=>x.textContent)")
+    ev("document.getElementById('qdPoop').click()"); p.wait_for_timeout(400)
+    t2 = ev("(()=>{const d=Storage.get();const t=document.querySelector('.toast');return {cur:d.diapers.length,other:(d.babies[0].rec.diapers||[]).length,toast:t?t.textContent:'',ids:new Set(d.diapers.map(x=>x.id).concat(d.babies[0].rec.diapers.map(x=>x.id))).size}})()")
+    check('#293 ＋ 选「两个都记」后记拉了：两个宝宝各 +1（各自独立 id），提示「2 个宝宝都记了」', on == ['两个都记'] and t2['cur'] == t1['cur'] + 1 and t2['other'] == t1['other'] + 1 and '2 个宝宝都记了' in t2['toast'] and t2['ids'] == t2['cur'] + t2['other'], [on, t2])
+    ev("document.querySelector('.toast [data-act],.toast button').click()"); p.wait_for_timeout(400)
+    t3 = ev("(()=>{const d=Storage.get();return {cur:d.diapers.length,other:(d.babies[0].rec.diapers||[]).length}})()")
+    check('#293 「都记」撤销：两个宝宝的那一条一起撤掉', t3 == {'cur': t1['cur'], 'other': t1['other']}, t3)
+    # 点另一个宝宝名字 = 切换
+    ev("Modules.home._qTarget='one';App.showTab('home',{noVT:true})"); p.wait_for_timeout(500)
+    ev("document.querySelector('.hn-tgt [data-qtgt^=\"b:\"]').click()"); p.wait_for_timeout(500)
+    sw = ev("(()=>{const t=document.querySelector('.hn-tgt .on');return {act:Storage.babyLabel(),on:t?t.textContent:''}})()")
+    check('#293 首页「记给」点豆豆 = 切换到豆豆（首页跟着换，亮的也是豆豆）', sw == {'act': '豆豆', 'on': '豆豆'}, sw)
+    ev("App._openBabySheet()"); p.wait_for_timeout(500)
+    note = ev("(document.querySelector('.baby-sheet .bs-note')||{}).textContent||''")
+    check('#293 两个宝宝：宝宝资料面板说明哪些跟着切换、哪些全家一份', '跟着当前宝宝' in note and '全家一份' in note, note)
+    ev("Sheet.closeAll&&Sheet.closeAll()"); p.wait_for_timeout(400)
+    ctx.close()
+    # —— 一个宝宝 + 一个孕期（老数据只有 settings.baby、没有档案） ——
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    p = ctx.new_page(); p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+    p.goto(URL); p.wait_for_timeout(600); p.evaluate('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(1000)
+    ev = p.evaluate
+    ev("(()=>{const s=Storage.get();s.pregnancy.lmp=Util.addDays(Util.todayISO(),-143);s.pregnancy.dueDate=null;s.settings.stage=null;Storage.save();App.rerender()})()"); p.wait_for_timeout(400)
+    pi = ev("App._pregInfo(Storage.get())")
+    check('#293 孕期摘要：孕 20 周 + 3 天、预产期还有 137 天，标成二胎', pi and pi['t'] == '孕 20 周 + 3 天' and '还有 137 天' in pi['s'] and pi['second'], pi)
+    ev("App.openMenu()"); p.wait_for_timeout(500)
+    m3 = ev("(()=>{const l=document.getElementById('qdActions');const c=l.querySelector('.qm-preg');return {preg:c?c.textContent:'',gh:[...l.querySelectorAll('.qm-gh')].map(e=>e.textContent),name:l.querySelector('.qm-name').textContent}})()")
+    check('#293 一个宝宝 + 孕期：菜单头部宝宝（豆豆）下面一条孕期（孕周 + 预产期），孕期组排第一并带孕周，其后是豆豆的记录',
+          m3['name'] == '豆豆' and '孕 20 周' in m3['preg'] and '预产期' in m3['preg'] and m3['gh'] == ['孕期 · 第 20 周', '豆豆的记录', '妈妈和全家'], m3)
+    ev("document.querySelector('#qdActions .qm-preg').click()"); p.wait_for_timeout(700)
+    check('#293 点菜单孕期条进孕期页', ev("App.currentTab()") == 'pregnancy', ev("App.currentTab()"))
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(500)
+    ev("App._openBabySheet()"); p.wait_for_timeout(500)
+    bs = ev("(()=>{const s=document.querySelector('.baby-sheet');return {txt:s.textContent,cur:!!s.querySelector('.bs-cur'),preg:!!s.querySelector('[data-bs-preg]'),babies:Storage.get().babies.length}})()")
+    check('#293 宝宝资料面板：老数据先补建档案（不再说「还没有宝宝档案」），列出当前宝宝和「肚子里的宝宝」，添加宝宝提示「填上生日，孕期自动结束」',
+          bs['cur'] and bs['preg'] and bs['babies'] == 1 and '还没有宝宝档案' not in bs['txt'] and '肚子里的宝宝' in bs['txt'] and '孕期自动结束' in bs['txt'], bs)
+    ev("Sheet.closeAll&&Sheet.closeAll()"); p.wait_for_timeout(400)
+    ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(600)
+    f1 = ev("(()=>{const e=document.getElementById('qdFetal');return e?e.textContent:null})()")
+    ev("App._qdClose&&App._qdClose(true)"); p.wait_for_timeout(400)
+    # 这次怀孕已生：末次月经在豆豆生日之前
+    ev("(()=>{const s=Storage.get();s.pregnancy.lmp=Util.addDays(s.settings.baby.birthDate,-270);Storage.save();App.rerender()})()"); p.wait_for_timeout(300)
+    ev("document.querySelector('.tabbar [data-qd-toggle]').click()"); p.wait_for_timeout(600)
+    f2 = ev("!!document.getElementById('qdFetal')")
+    check('#293 ＋ 胎动 +1：孕期中显示「孕 20 周」；这次怀孕已经生了（豆豆生日 ≥ 末次月经）就不再出现（之前会显示「孕 43 周」这类）', f1 and '孕 20 周' in f1 and not f2, [f1, f2])
+    check('#293 pageerror 为 0', not errs, errs)
+    ctx.close()
+
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -5033,7 +5121,8 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r290b',),
           ('test_r291',),
           ('test_r291b',),
-          ('test_r292',))  # 第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r292',),
+          ('test_r293',))  # 第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 

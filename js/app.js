@@ -891,6 +891,67 @@
     return birthDates(s).some(function (bd) { return bd < base && bd <= today; });
   }
 
+  /* ---------------- 第 293 次：两个及以上宝宝时「记给谁」 ----------------
+     首页快记卡和 ＋ 快捷记录共用一份：每个宝宝一个名字按钮 + 「都记」。
+     · 点另一个宝宝的名字 = 切换当前宝宝（首页、日期记录跟着换，记录写到这个宝宝名下）；
+     · 「都记」只对这一类一下就记好的快记生效（双胞胎同时喂、同时换尿布），睡眠计时这类仍只对当前宝宝。
+     data-qtgt 沿用第 222 次的取值：one（当前宝宝）/ all，另一个宝宝是 b:<id>。 */
+  function recTarget(d) {
+    var M = global.Modules && Modules.home;
+    return (M && M._qTarget === 'all' && (d.babies || []).length >= 2) ? 'all' : 'one';
+  }
+  function tgtChips(d, cls) {
+    var kids = d.babies || [];
+    if (kids.length < 2) return '';
+    var tgt = recTarget(d), cur = d.settings.activeBabyId;
+    var h = '<div class="rec-tgt ' + (cls || '') + '" role="radiogroup" aria-label="记给谁"><span class="rt-l">记给</span>';
+    kids.forEach(function (b) {
+      var on = tgt === 'one' && b.id === cur;
+      h += '<button type="button" role="radio" aria-checked="' + on + '" class="rt-b' + (on ? ' on' : '') + '" data-qtgt="' + (b.id === cur ? 'one' : 'b:' + Util.escapeHtml(b.id)) + '">'
+        + Util.escapeHtml(Storage.babyLabel(b)) + '</button>';
+    });
+    h += '<button type="button" role="radio" aria-checked="' + (tgt === 'all') + '" class="rt-b rt-all' + (tgt === 'all' ? ' on' : '') + '" data-qtgt="all">'
+      + (kids.length === 2 ? '两个都记' : kids.length + ' 个都记') + '</button></div>';
+    return h;
+  }
+  function pickTarget(v) {
+    var M = global.Modules = global.Modules || {};
+    M.home = M.home || {};
+    if (v === 'all') { M.home._qTarget = 'all'; return false; }
+    M.home._qTarget = 'one';
+    if (v && v.indexOf('b:') === 0) {
+      var nb = Storage.switchBaby(v.slice(2));
+      if (nb) { refreshHeaderAvatar(); Util.toast('已切换到「' + Storage.babyLabel(nb) + '」', 'ok'); return true; }
+    }
+    return false;
+  }
+  function bindTgt(scope, after) {
+    Array.prototype.forEach.call(scope.querySelectorAll('[data-qtgt]'), function (b) {
+      b.addEventListener('click', function (e) {
+        if (Util.hapEcho && Util.hapEcho(e)) return;
+        pickTarget(b.getAttribute('data-qtgt'));
+        if (after) after();
+      });
+    });
+  }
+
+  /* 第 293 次：孕期摘要（菜单头部、宝宝资料面板共用）。不在孕期 → null */
+  function pregInfo(s) {
+    var wk = pregnancyWeekOf(s);
+    if (wk === null) return null;
+    var pg = s.pregnancy || {}, base = pregBase(s), today = Util.todayISO();
+    var days = Util.daysBetween(base, today), dd = days % 7;
+    var due = pg.dueDate || Util.addDays(base, 280);
+    var left = Util.daysBetween(today, due);
+    var md = function (iso) { var p = String(iso).split('-'); return (+p[1]) + ' 月 ' + (+p[2]) + ' 日'; };
+    return {
+      week: wk,
+      t: '孕 ' + wk + ' 周' + (dd ? ' + ' + dd + ' 天' : ''),
+      s: '预产期 ' + md(due) + ' · ' + (left > 0 ? '还有 ' + left + ' 天' : (left === 0 ? '就是今天' : '已过 ' + (-left) + ' 天')),
+      second: birthDates(s).some(function (bd) { return bd < base && bd <= today; })
+    };
+  }
+
   /* ---------------- 首次引导（O 系列规范） ----------------
      检索结论（出处见《哄睡白噪音与首次引导_功能研究与落地设计》）：
      · NN/g《Mobile-App Onboarding》(2020)：能不做引导就不做——引导本身有交互成本、很少提升任务表现；
@@ -939,6 +1000,11 @@
   function openBabySheet() {
     var root = document.getElementById('modalRoot');
     if (!root) return;
+    /* 第 293 次：老数据只有 settings.baby、还没建档案时，先按现有资料补建一份——
+       否则菜单头部显示着「豆豆」，这里却说「还没有宝宝档案」（日期记录页的切换早就这样做了） */
+    if (Storage.activeBaby && !Storage.activeBaby() && Storage.get().settings.baby && Storage.syncBabyFromSettings) {
+      try { Storage.syncBabyFromSettings(); Storage.save(); } catch (eS) {}
+    }
     var s = Storage.get();
     var babies = s.babies || [];
     var cur = s.settings.activeBabyId;
@@ -957,7 +1023,7 @@
         + '<span class="bs-ava">' + ava(act) + '</span>'
         + '<span class="bs-txt"><b>' + Util.escapeHtml(Storage.babyLabel(act)) + '</b><i>' + Util.escapeHtml(babyAge(act.birthDate)) + '</i></span>'
         + '<span class="bs-chv" aria-hidden="true">' + icon('chevron-right') + '</span></button>'
-        + '<p class="bs-note">首页、回顾和新记录都会用当前宝宝。</p>';
+        + '<p class="bs-note">' + (babies.length >= 2 ? '首页、日期记录和新记录都跟着当前宝宝；妈妈、孕期、记账和用品全家一份，切换不影响。' : '首页、回顾和新记录都会用当前宝宝。') + '</p>';
     } else {
       html += '<p class="bs-note">还没有宝宝档案，先添加一个。</p>';
     }
@@ -971,8 +1037,18 @@
       });
       html += '</ul>';
     }
+    /* 第 293 次（一个宝宝 + 一个孕期）：肚子里的这一个也在这里——孕周、预产期，点开进孕期页；
+       生了之后在「添加宝宝」填上生日，孕期自动结束（生日 ≥ 末次月经即判定这次怀孕已生），首页回到育儿 */
+    var pi = pregInfo(s);
+    if (pi) {
+      html += '<p class="bs-label">' + (act ? '肚子里的宝宝' : '孕期') + '</p>'
+        + '<button type="button" class="bs-row bs-preg" data-bs-preg>'
+        + '<span class="bs-ava bs-ava-s bs-preg-ico">' + icon('pregnancy') + '</span>'
+        + '<span class="bs-txt"><b>' + Util.escapeHtml(pi.t) + '</b><i>' + Util.escapeHtml(pi.s) + '</i></span>'
+        + '<span class="bs-chv" aria-hidden="true">' + icon('chevron-right') + '</span></button>';
+    }
     html += '<ul class="bs-list bs-actions">'
-      + '<li><button type="button" class="bs-row" id="sheetAdd"><span class="bs-act-ico">' + icon('plus') + '</span><span class="bs-txt"><b>添加宝宝</b></span>'
+      + '<li><button type="button" class="bs-row" id="sheetAdd"><span class="bs-act-ico">' + icon('plus') + '</span><span class="bs-txt"><b>添加宝宝</b>' + (pi ? '<i>宝宝出生了？填上生日，孕期自动结束</i>' : '') + '</span>'
       + '<span class="bs-chv" aria-hidden="true">' + icon('chevron-right') + '</span></button></li>'
       + '<li><button type="button" class="bs-row" id="sheetManage"><span class="bs-act-ico">' + icon('baby') + '</span><span class="bs-txt"><b>宝宝设置</b><i>管理资料、头像和删除</i></span>'
       + '<span class="bs-chv" aria-hidden="true">' + icon('chevron-right') + '</span></button></li>'
@@ -999,6 +1075,8 @@
       close();
       if (global.Modules && Modules.settings && Modules.settings._babyForm) Modules.settings._babyForm(id);
     });
+    var pgb = root.querySelector('[data-bs-preg]');
+    if (pgb) pgb.addEventListener('click', function () { close(); showTab('pregnancy'); });
     root.querySelector('#sheetAdd').addEventListener('click', function () {
       close();
       if (global.Modules && Modules.settings && Modules.settings._babyForm) Modules.settings._babyForm(null);
@@ -1565,6 +1643,8 @@
     stageOf: stageOf, /* 阶段判定（settings.stage 优先，缺省回落到客观数据） */
     pregnancyWeekOf: pregnancyWeekOf,
     isDualStage: isDualStage, /* 第 220 次：大宝已出生 + 又怀孕 */
+    _pregInfo: pregInfo, /* 第 293 次 */
+    _tgtChips: tgtChips, _bindTgt: bindTgt, _recTarget: recTarget,
     setStage: function (st) {
       if (st !== 'pregnancy' && st !== 'baby' && st !== null) return;
       Storage.get().settings.stage = st;
@@ -1893,7 +1973,26 @@
       var d2 = Storage.get();
       /* 第 226 次：＋号快记尿布也按「扣减用品」偏好扣库存，撤销时退回 */
       var DM = global.Modules && Modules.diaper;
+      /* 第 293 次：两个及以上宝宝时可「都记」——每个宝宝名下各一份（独立 id），撤销一起撤；提示里写明记给了谁 */
+      if (recTarget(d2) === 'all') {
+        var made = [];
+        d2.babies.forEach(function (bb) {
+          var r = JSON.parse(JSON.stringify(rec)); r.id = Util.uid();
+          if (arrName === 'diapers' && DM && typeof DM._autoUse === 'function') DM._autoUse(d2, r);
+          if (Storage.pushFor(bb.id, arrName, r)) made.push([bb.id, r.id, r]);
+        });
+        if (Storage.save()) Util.toast(msg + ' · ' + made.length + ' 个宝宝都记了', 'ok', { label: '撤销', onClick: function () {
+          made.forEach(function (m) {
+            if (m[2].used && DM && typeof DM._applyUse === 'function') DM._applyUse(Storage.get(), DM._validUsed(Storage.get(), m[2].used), -1);
+            Storage.removeFor(m[0], arrName, m[1]);
+          });
+          Storage.save(); rerender(); Util.toast('已撤销', 'ok');
+        } });
+        close(); detachOutside(); rerender();
+        return;
+      }
       if (arrName === 'diapers' && DM && typeof DM._autoUse === 'function') msg += DM._autoUse(d2, rec);
+      if ((d2.babies || []).length >= 2) msg += ' · 记给' + Storage.babyLabel();
       d2[arrName].push(rec);
       if (Storage.save()) Util.toast(msg, 'ok', { label: '撤销', onClick: function () {
         var arr = Storage.get()[arrName];
@@ -1917,12 +2016,12 @@
       root.classList.remove('qd-closing'); root.classList.remove('qd-dragged');
       list.style.removeProperty('--qd-dy');
       mode = 'quick'; root.classList.remove('qd-menu');
+      fillQuick(false);
+    });
+    function fillQuick(again) {
       var d = Storage.get();
-      var wk = (function () {
-        var pg = d.pregnancy || {};
-        var base = pg.lmp || (pg.dueDate ? Util.addDays(pg.dueDate, -280) : null);
-        return base ? Math.floor(Util.daysBetween(base, Util.todayISO()) / 7) : null;
-      })();
+      /* 第 293 次：用统一的孕期判定——这次怀孕已经生了（宝宝生日 ≥ 末次月经）就不再出「胎动 +1」 */
+      var wk = pregnancyWeekOf(d);
       var fed = fedDefaults();
       /* 第 84 次：补「尿布：拉了」（pee/poop 是尿布两大类，此前快记只有「尿了」）；
          动作加识别图标（读得快）+ 内联 --i 序号（CSS 逐项 stagger 入场用） */
@@ -1934,7 +2033,7 @@
         { id: 'qdMeds', ico: 'meds', acc: 'meds', t: '维生素 D3', s: '吃药 · 1 次' }
       ];
       if (wk !== null) acts.push({ id: 'qdFetal', ico: 'fetal', acc: 'fetal', t: '胎动 +1', s: '孕 ' + wk + ' 周' });
-      list.innerHTML = '<p class="qd-head">快速记录<small>点一下就记好，可再去页面里改</small></p><div class="qd-grid">'
+      list.innerHTML = '<p class="qd-head">快速记录<small>点一下就记好，可再去页面里改</small></p>' + tgtChips(d, 'qd-tgt') + '<div class="qd-grid">'
         + acts.map(function (a, i) {
           return '<button type="button" class="qd-action" id="' + a.id + '" data-accent="' + a.acc + '" style="--i:' + i + '">'
             + '<span class="qd-badge">' + (global.icon ? global.icon(a.ico, 'qd-ico') : '') + '</span>'
@@ -1942,7 +2041,8 @@
         }).join('') + '</div>';
       var nAct = acts.length;
       Array.prototype.forEach.call(list.querySelectorAll('.qd-action'), function (el, i) { el.style.setProperty('--j', String(nAct - 1 - i)); });
-      showOpen(null);
+      if (!again) showOpen(null);
+      bindTgt(list, function () { fillQuick(true); rerender(); });
 
       var f0 = fed.rec;
       list.querySelector('#qdFeed').addEventListener('click', function () {
@@ -1964,7 +2064,7 @@
       });
       var qdF = list.querySelector('#qdFetal');
       if (qdF) qdF.addEventListener('click', function () { close(); detachOutside(); saveFetal(); });
-    });
+    }
 
     /* ———— 菜单面板（第 290 次，取代左侧侧拉页；入口一个不少） ———— */
     var MENU_TOP = [
@@ -1989,6 +2089,16 @@
     function menuGrid(items, cur, mono, start, w) {
       return '<div class="qm-grid" style="--qm-ch:' + w.toFixed(1) + '">' + items.map(function (it, k) { return menuTile(it, start + k, cur, mono); }).join('') + '</div>';
     }
+    /* 第 293 次（一个宝宝 + 一个孕期）：菜单头部宝宝下面加一条「孕期」——孕周 + 预产期倒计时，点开进孕期页。
+       只在客观上正处于孕期时出现（大宝已出生、这次还没生）；单纯孕期、还没有宝宝档案时宝宝行本身就是孕期入口之外的东西，同样显示。 */
+    function pregChip(d) {
+      var info = pregInfo(d);
+      if (!info) return '';
+      return '<button type="button" class="qm-preg" data-qm-go="pregnancy" aria-label="' + esc('孕期：' + info.t + '，' + info.s) + '">'
+        + '<span class="qm-preg-ico">' + (global.icon ? icon('pregnancy') : '') + '</span>'
+        + '<span class="qm-bt"><b>' + esc(info.t) + '</b><small>' + esc(info.s) + '</small></span>'
+        + '<span class="qm-preg-chv" aria-hidden="true">' + (global.icon ? icon('chevron-right') : '') + '</span></button>';
+    }
     function renderMenu() {
       var d = Storage.get();
       var b = Storage.activeBaby ? Storage.activeBaby() : null;
@@ -2005,11 +2115,13 @@
         + '<button type="button" class="qm-baby" data-qm="baby" aria-label="' + esc('宝宝资料：' + name) + '"><span class="qm-ava">' + ava + '</span>'
         + '<span class="qm-bt"><b class="qm-name">' + esc(name) + '</b>' + (meta ? '<small class="qm-meta">' + meta + '</small>' : '') + '</span></button>'
         + '<button type="button" class="qm-swap" data-qm="swap" aria-label="切换宝宝">' + SWAP_SVG + '<span>切换</span></button></div>'
+        + pregChip(d)
         + '<button type="button" class="qm-search" data-qm="search" aria-label="搜索记录、里程碑、用品"><span class="si-ico">' + (global.icon ? icon('search') : '') + '</span><span>搜索全部记录</span></button>';
-      var groups = ((global.Modules && Modules.alltools && Modules.alltools._groups) || []).filter(function (g) { return g.key !== 'tools'; });
-      if (App.stageOf && App.stageOf(d) === 'pregnancy') groups = groups.slice().sort(function (x, y) { return x.key === 'pregnancy' ? -1 : (y.key === 'pregnancy' ? 1 : 0); });
+      /* 第 293 次：按「记录属于谁」分组（宝宝 / 孕期 / 妈妈 / 全家），宝宝组标题带当前宝宝名，孕期中孕期组排第一 */
+      var AT = global.Modules && Modules.alltools;
+      var groups = ((AT && AT._groupsFor) ? AT._groupsFor(d) : ((AT && AT._groups) || [])).filter(function (g) { return g.key !== 'tools'; });
       var secs = groups.map(function (g) {
-        return { t: g.title === '通用' ? '全部功能' : g.title,
+        return { t: g.title, sub: g.sub || '',
           items: g.items.filter(function (it) { return it.id !== 'whitenoise'; }) /* 上面「哄睡声音」已有 */
             .map(function (it) { return { go: it.id, ico: it.id, name: it.name }; }) };
       });
@@ -2018,7 +2130,7 @@
       var n = 0;
       h += '<nav class="qm-sec" aria-label="常用">' + menuGrid(MENU_TOP, cur, true, n, w) + '</nav>'; n += MENU_TOP.length;
       secs.forEach(function (x) {
-        h += '<nav class="qm-sec" aria-label="' + esc(x.t) + '"><h3 class="qm-gh">' + esc(x.t) + '</h3>' + menuGrid(x.items, cur, false, n, w) + '</nav>';
+        h += '<nav class="qm-sec" aria-label="' + esc(x.t) + '"><h3 class="qm-gh">' + esc(x.t) + (x.sub ? '<small class="qm-gsub">' + esc(x.sub) + '</small>' : '') + '</h3>' + menuGrid(x.items, cur, false, n, w) + '</nav>';
         n += x.items.length;
       });
       h += '</div>';

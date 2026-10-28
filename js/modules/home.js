@@ -1178,15 +1178,8 @@
               : '<button type="button" class="hn-q"' + (editing ? ' disabled' : '') + ' data-recsl="start" data-accent="sleep">' + icon('sleep') + '<span>睡了</span></button>')
             + '</div>';
           if (fedQ) h2 += '<p class="hn-hint">喂奶按上次：' + Util.escapeHtml(fedQ.label) + '</p>';
-          /* 第 222 次：两个及以上宝宝时可选「记给谁」——当前宝宝 / 全部（双胞胎一次记两份） */
-          var kids = (d.babies || []);
-          if (kids.length >= 2 && !editing) {
-            var tgt = Modules.home._qTarget === 'all' ? 'all' : 'one';
-            var curName = (d.settings.baby && (d.settings.baby.nickname || d.settings.baby.name)) || '当前宝宝';
-            h2 += '<div class="hn-tgt" role="radiogroup" aria-label="记给谁"><span>记给</span>'
-              + '<button type="button" role="radio" aria-checked="' + (tgt === 'one') + '" class="hn-tgt-b' + (tgt === 'one' ? ' on' : '') + '" data-qtgt="one">' + Util.escapeHtml(curName) + '</button>'
-              + '<button type="button" role="radio" aria-checked="' + (tgt === 'all') + '" class="hn-tgt-b' + (tgt === 'all' ? ' on' : '') + '" data-qtgt="all">' + (kids.length === 2 ? '两个都记' : kids.length + ' 个都记') + '</button></div>';
-          }
+          /* 第 222 次：两个及以上宝宝时可选「记给谁」；第 293 次：每个宝宝一个名字（点了即切换）+ 都记，与 ＋ 快捷记录共用 */
+          if (!editing && global.App && App._tgtChips) h2 += App._tgtChips(d, 'hn-tgt');
           return '<div class="card canvas-card hn-quick-card' + (cls || '') + '" data-cid="quick">' + h2 + (bd2 || '') + '</div>';
         };
         /* 第 245 次：快捷记录的横条 / 小卡两种尺寸——同一套 data-hnq / data-recsl 绑定，记法完全一致 */
@@ -1834,12 +1827,7 @@
         } });
         global.App.rerender();
       }
-      Array.prototype.forEach.call(view.querySelectorAll('[data-qtgt]'), function (b) {
-        b.addEventListener('click', function () {
-          Modules.home._qTarget = b.getAttribute('data-qtgt') === 'all' ? 'all' : 'one';
-          global.App.rerender();
-        });
-      });
+      if (global.App && App._bindTgt) App._bindTgt(view, function () { global.App.rerender(); });
       Array.prototype.forEach.call(view.querySelectorAll('[data-hnq]'), function (b) {
         b.addEventListener('click', function () {
           var k = b.getAttribute('data-hnq');
