@@ -32,6 +32,9 @@
  *     （clip + 只重画与横带相交的子树 + texSubImage2D 只传那几行）；离所有玻璃面都远的改动先攒着，
  *     滚到玻璃面附近或 4 秒后再拍。换页 / 窗口尺寸 / 页面高度变化仍整张重拍。
  *
+ * 第 309 次：选中指示器换成定稿的拖动透镜（liquid-dock.js 逐帧调 DR.lens）：透镜中间 1:1（栏内透明、栏外照画页面），
+ *   只有外沿约 7px 一圈按 mock303n 的 rim 公式往外取样 + R/G/B 三通道色散，栏边细灰线折进来是上下两条直线。
+ *
  * 何时开：仅 WebKit / 非 Chromium（Chromium 走第 235 次的 SVG 路径）；设置「真实玻璃折射」开、
  *   「dock 液态玻璃折射」开；高对比 / 减少透明度时关；减少动态效果时只在静止时重拍、不跟随动画、高光不动。
  *   「自动」档下快照连续两次超过 150ms 就关闭本次会话的折射；滚动 <45fps 逐档降画质。
@@ -72,6 +75,8 @@
   var light = { x: -0.7071, y: -0.7071, tx: -0.7071, ty: -0.7071, src: 'static', tiltAt: 0, lastSy: 0, lastAng: '' };
   var press = { dock: 0, live: 0, tdock: 0, tlive: 0 };
   var lastT = 0;
+  /* 第 309 次：拖动透镜（liquid-dock.js 逐帧给）：视口矩形、速度 0..1、鼓起比例（偏移随尺寸缩放） */
+  var lensR = null, lensM = 0, lensG = 1;
 
   /* ---------- 开关判断 ---------- */
   function setting() {
@@ -435,7 +440,7 @@
   var FS = [
     'precision highp float;',
     'uniform sampler2D uP,uB;uniform vec2 uCv,uPS,uScroll,uL;uniform vec4 uBox,uStrip,uTint,uFade,uA,uBr,uCut,uT;uniform vec3 uFadeC;',
-    'uniform float uTaps,uS,uY0,uPageOn,uBand,uAmt,uDisp,uBlur,uSpec,uRim,uDbg,uRA,uRB,uK,uHasB,uRC,uHasCut,uFill,uRT,uHasT,uBandB;',
+    'uniform float uTaps,uS,uY0,uPageOn,uBand,uAmt,uDisp,uBlur,uSpec,uRim,uDbg,uRA,uRB,uK,uHasB,uRC,uHasCut,uFill,uRT,uHasT,uBandB,uLM,uLG;uniform vec4 uLine;',
     'float sdR(vec2 p,vec2 b,float r){vec2 q=abs(p)-b+r;return length(max(q,0.))+min(max(q.x,q.y),0.)-r;}',
     'float sdBox(vec2 v,vec4 R,float r){return sdR(v-R.xy-R.zw*.5,R.zw*.5,r);}',
     /* smooth-min（多项式）：k=0 时就是普通并集 */
@@ -448,6 +453,14 @@
     '  vec3 c=p.rgb+b.rgb*(1.-p.a);',
     '  float fa=uFade.w>0.?clamp((v.y-uFade.x)/uFade.y,0.,1.)*uFade.w:0.;',
     '  return mix(c,uFadeC,fa);}',
+    /* 第 309 次：透镜用的「场景」——栏里是毛玻璃（模糊 + 提饱和 + 栏底色），栏外是页面（略提亮提饱和，定稿 1.07 / 1.3），
+       栏边一条细灰线（折进透镜后就是上下两条直线） */
+    'vec3 lift(vec3 c){float l=dot(c,vec3(.2126,.7152,.0722));return clamp(mix(vec3(l),c,1.3)*1.07,0.,1.);}',
+    'vec3 scn(vec2 p){float sa=sdBox(p,uA,uRA);vec3 c;',
+    '  if(sa<0.){c=vec3(0.);for(int i=0;i<5;i++){float a=float(i)*2.39996;vec2 k=i==0?vec2(0.):vec2(cos(a),sin(a))*5.*sqrt(float(i)/4.);c+=bg(p+k);}c/=5.;',
+    '    float l=dot(c,vec3(.2126,.7152,.0722));c=clamp(mix(vec3(l),c,1.9)*1.04,0.,1.);c=mix(c,uTint.rgb,uTint.a);}',
+    '  else c=lift(bg(p));',
+    '  return mix(c,uLine.rgb,uLine.a*(1.-smoothstep(.15,.9,abs(sa))));}',
     'vec3 glass(vec2 v,vec2 o,float rad){',
     '  vec3 c=vec3(0.);float nt=0.;',
     '  for(int i=0;i<9;i++){',
@@ -494,28 +507,30 @@
     '      outc=vec4(c*al,al);',
     '    }',
     '  }',
-    /* 水滴指示器 = 一块小透镜：中间按 0.9 放大、边缘一圈再往外拉弯，拉伸时随形状变形 */
+    /* 第 309 次：拖动透镜（定稿第十四版）——中间 1:1：栏内透明（下面就是 DOM 的毛玻璃和原位图标），栏外照原样画页面（盖住栏的投影，不出灰团）；
+       只有外沿 rb≈7px 一圈折射：沿外法线往外取样 17px（左右）/ 30px（上下）× t^(1.6+0.8|ny|)，R/G/B 按 IOR 1.47/1.5/1.535 分开（chx 9→18 随速度） */
     '  if(uHasT>.5){',
     '    float st=sdBox(v,uT,uRT);',
     '    if(st<.5){',
-    '      float dt=-st;vec2 tc=uT.xy+uT.zw*.5;',
-    '      vec2 nt=normalize(vec2(sdBox(v+e.xy,uT,uRT)-sdBox(v-e.xy,uT,uRT),sdBox(v+e.yx,uT,uRT)-sdBox(v-e.yx,uT,uRT))+1e-5);',
-    '      float bt=max(2.,min(9.,min(uT.z,uT.w)*.5-1.));',
-    '      float tt=clamp(1.-dt/bt,0.,1.);',
-    '      float mt=(1.-sqrt(max(0.,1.-tt*tt)))*uAmt*.6;',
-    '      vec2 lv=tc+(v-tc)*.9+nt*mt;',
-    '      vec3 cl=glass(lv,nt*mt*.35,1.6);',
-    '      cl=mix(cl,vec3(1.),.10);',
-    '      float lt=dot(nt,uL);',
-    '      cl=min(cl+pow(abs(lt),3.)*(1.-smoothstep(0.,2.5,dt))*uSpec*1.2+(1.-smoothstep(.2,1.4,dt))*max(lt,0.)*uRim,1.);',
-    '      float at=clamp(.5-st,0.,1.)*.9;',
-    '      outc=vec4(cl*at,at)+outc*(1.-at);',
+    '      float dt=-st,at=clamp(.5-st,0.,1.);vec4 lc=vec4(0.);',
+    '      float rb=max(1.,7.*uLG);',
+    '      if(dt<rb){',
+    '        vec2 nt=normalize(vec2(sdBox(v+e.xy,uT,uRT)-sdBox(v-e.xy,uT,uRT),sdBox(v+e.yx,uT,uRT)-sdBox(v-e.yx,uT,uRT))+1e-5);',
+    '        float tt=1.-max(dt,0.)/rb,ay=abs(nt.y);',
+    '        float off=mix(17.,30.,ay)*(1.+.12*uLM)*uLG*pow(tt,1.6+ay*.8);',
+    '        float chx=9.+9.*uLM;vec2 o=nt*off;',
+    '        lc=vec4(scn(v+o*(1.-.03*chx)).r,scn(v+o).g,scn(v+o*(1.+.035*chx)).b,1.);',
+    '      }else{',
+    '        float sa=sdBox(v,uA,uRA);',
+    '        if(sa>-.5){float ia=clamp(sa+.5,0.,1.);lc=vec4(lift(bg(v))*ia,ia);}',
+    '      }',
+    '      outc=lc*at+outc*(1.-at);',
     '    }',
     '  }',
-    '  gl_FragColor=outc;}'
+  '  gl_FragColor=outc;}'
   ].join('\n');
   var UNI = ['uP', 'uB', 'uCv', 'uPS', 'uScroll', 'uL', 'uBox', 'uStrip', 'uTint', 'uFade', 'uA', 'uBr', 'uCut', 'uT', 'uFadeC', 'uTaps', 'uS', 'uY0', 'uPageOn', 'uBand', 'uAmt', 'uDisp', 'uBlur', 'uSpec', 'uRim', 'uDbg',
-    'uRA', 'uRB', 'uK', 'uHasB', 'uRC', 'uHasCut', 'uFill', 'uRT', 'uHasT', 'uBandB'];
+    'uRA', 'uRB', 'uK', 'uHasB', 'uRC', 'uHasCut', 'uFill', 'uRT', 'uHasT', 'uBandB', 'uLM', 'uLG', 'uLine'];
 
   function mkTex() {
     var t = gl.createTexture(); stats.texCreated++; stats.texLive++;
@@ -634,6 +649,11 @@
     loopUntil = Math.max(loopUntil, now + (ms || 300));
     schedule();
   };
+  /* 第 309 次：拖动透镜。rect = 视口坐标 {x,y,w,h}（null = 收起）；m = 拖动速度 0..1（色散 / 偏移加重）；g = 鼓起比例 */
+  DR.lens = function (rect, m, g) {
+    lensR = rect && rect.w > 6 && rect.h > 6 ? rect : null; lensM = m || 0; lensG = g == null ? 1 : g;
+    schedule();
+  };
   DR.press = function (id, down) {
     if (!on || reduced) return;
     press['t' + id] = down ? 1 : 0;
@@ -705,6 +725,8 @@
     gl.uniform1f(U.uBlur, 4.5);
     gl.uniform1f(U.uSpec, dark ? 0.18 : 0.32);
     gl.uniform1f(U.uRim, dark ? 0.42 : 0.16);
+    if (dark) gl.uniform4f(U.uLine, 1, 1, 1, 0.16); else gl.uniform4f(U.uLine, 120 / 255, 106 / 255, 96 / 255, 0.36);
+    gl.uniform1f(U.uLM, lensM); gl.uniform1f(U.uLG, lensG);
     gl.uniform2f(U.uL, light.x, light.y);
     gl.uniform1f(U.uDbg, DR._debug ? 1 : 0);   /* 调试：整块显示快照本身（不折射、不调色），用来核对快照与页面是否对齐 */
   }
@@ -759,7 +781,7 @@
     if (!on || !ready || lost || !gl || !bar) return;
     var moving = stepAnim(dt, now);
     var th = (quality >= 1 && !DR._debug) ? bar.querySelector('.lg-thumb.on') : null;
-    var looping = moving || now < loopUntil || thumbMoving(th);
+    var looping = moving || now < loopUntil || thumbMoving(th) || !!lensR;
     if (quality === 0 && scrolling) { if (looping) schedule(); return; }
     var t0 = now;
     var r = bar.getBoundingClientRect();
@@ -774,9 +796,11 @@
     var fk = lshape && ls.shape && quality >= 1 && !reduced ? ls.k : 0;
     var dockShape = { x: r.left - 1, y: r.top - 1, w: r.width + 2, h: r.height + 2 };
     var u = null;
-    if (lshape) {
-      var x0 = Math.min(dockShape.x, lshape.x - 2), y0 = Math.min(dockShape.y, lshape.y - 2);
-      var x1 = Math.max(dockShape.x + dockShape.w, lshape.x + lshape.w + 2), y1 = Math.max(dockShape.y + dockShape.h, lshape.y + lshape.h + 2);
+    /* 第 309 次：透镜比栏高，画布也要扩到透镜（和胶囊一样走外接矩形） */
+    var LT = lensR && !DR._debug ? lensR : null;
+    if (lshape || LT) {
+      var x0 = dockShape.x, y0 = dockShape.y, x1 = dockShape.x + dockShape.w, y1 = dockShape.y + dockShape.h;
+      [lshape, LT].forEach(function (q) { if (!q) return; x0 = Math.min(x0, q.x - 2); y0 = Math.min(y0, q.y - 2); x1 = Math.max(x1, q.x + q.w + 2); y1 = Math.max(y1, q.y + q.h + 2); });
       u = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
     }
     placeCanvas(r, u);
@@ -815,9 +839,10 @@
       cv.classList.remove('on'); setBand(ls, false); dirty = true; if (!scrolling) markDirty();
     } else {
       if (!hiddenForNav && !cv.classList.contains('on')) cv.classList.add('on');
-      var T = th ? boxOf(th.getBoundingClientRect()) : null;
-      if (T && (T.w < 8 || T.h < 8)) T = null;
-      bar.classList.toggle('lg-lens', !!T);
+      /* 第 309 次：选中指示器静止时是 CSS 灰胶囊；透镜只在按下 / 拖动时由 liquid-dock.js 给出（DR.lens）。
+         .lg-lens 仍表示「WebGL 接管了透镜」 */
+      var T = LT;
+      bar.classList.toggle('lg-lens', !!th);
       render({ box: box, A: dockShape, B: lshape, k: fk, T: T, tint: tintOf(bar), band: BAND, press: Math.max(press.dock, press.live) });
       setBand(ls, !!lshape && !hiddenForNav);
     }
@@ -1050,6 +1075,7 @@
     pageCv = stripCv = pctx = sctx = null;
     IMG = {}; range = null; pend.length = 0; stale.length = 0;
     press.dock = press.live = press.tdock = press.tlive = 0;
+    lensR = null;
     doc.documentElement.classList.remove('lg-gl');
   };
   /* liquid-dock.js 每次刷新（建好 / 重建底栏 / 换设置）都会调它 */
@@ -1071,7 +1097,7 @@
       strips: stats.strips, copies: stats.copies, frames: stats.frames,
       surfaces: Object.keys(surf).map(function (k) { var s = surf[k]; return { id: k, canvas: s.c ? [s.c.width, s.c.height] : null, on: s.c ? s.c.classList.contains('on') : !!(s.el && s.el.classList.contains('lg-band')), inDom: s.c ? s.c.isConnected : !!(s.el && s.el.isConnected), shape: !!s.shape, k: s.k }; }),
       light: { src: light.src, x: Math.round(light.x * 1000) / 1000, y: Math.round(light.y * 1000) / 1000 }, press: { dock: press.dock, live: press.live },
-      ext: cv && cv._key ? 1 : 0, lens: !!(bar && bar.classList.contains('lg-lens')),
+      ext: cv && cv._key ? 1 : 0, lens: !!(bar && bar.classList.contains('lg-lens')), lensT: lensR ? { x: Math.round(lensR.x), y: Math.round(lensR.y), w: Math.round(lensR.w), h: Math.round(lensR.h), m: Math.round(lensM * 100) / 100 } : null,
       idle: !!(on && ready && !dirty && !rasterTimer && !stripeTimer && !settleTimer && !pend.length)
     };
   };

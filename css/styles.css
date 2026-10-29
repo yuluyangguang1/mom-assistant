@@ -6990,3 +6990,68 @@ body.dock-sl #quickDock .qd-actions, body.dock-sr #quickDock .qd-actions { max-w
 /* 第 307 次：「正在进行」胶囊对准胶囊 dock 的中线（＋ 珠在右边，整组偏左 35px），像从 dock 顶上长出来 */
 body.has-orb:not(.dock-simple) .dock-live { left: calc(50% - 35px); max-width: calc(100vw - 40px - 70px); }
 @media (max-width: 360px) { body.has-orb:not(.dock-simple) .dock-live { left: calc(50% - 31px); } }
+
+/* ============================================================
+   第 309 次 · dock 透镜（定稿 fix303/mock303n · 第十四版，js/liquid-dock.js + js/dock-refract.js）
+   · 静止：选中项是栏内一块浅灰小胶囊（.lg-thumb，替代原来的白色水滴）。
+   · 按下：约 0.15 秒鼓成透镜 #lgLensEl（比栏高 20px、宽 112px），拖动跟手，松手吸到页签再缩回灰胶囊。
+   · 透镜中间 1:1 不变形：图标原位原大，只换成彩色选中态（.dk-c 只在透镜范围内露出，.dk-l 只在透镜外）。
+   · 折射只在外沿一圈：Chromium 用透镜元素自己的 backdrop-filter:url(#lgLens)（位移贴图 + R/G/B 三通道色散，
+     透镜外遮罩成原样，所以四周留白看不出来）；iOS / WebKit 由 dock 的 WebGL 画布画（.gl 时元素只留外形）。
+   · 栏的上下细边折进透镜 = 两条水平直细线（.lgl-line，JS 让它们始终贴在栏边、只画栏的直边段）。
+   · dock 本体的底色 / 模糊 / 阴影一概不动。
+   ============================================================ */
+body .tabbar.lg .lg-thumb, body .tabbar.lg.lg-lens .lg-thumb {
+  background: linear-gradient(rgba(110, 92, 80, .13), rgba(110, 92, 80, .13));
+  box-shadow: inset 0 0 0 .6px rgba(255, 255, 255, .6);
+}
+body.dark .tabbar.lg .lg-thumb, body.dark .tabbar.lg.lg-lens .lg-thumb {
+  background: linear-gradient(rgba(255, 255, 255, .13), rgba(255, 255, 255, .13));
+  box-shadow: inset 0 0 0 .6px rgba(255, 255, 255, .14);
+}
+body .tabbar.lg .lg-thumb.lg-lhide { opacity: 0 !important; transition: opacity .1s linear; }
+.lg-lens-el {
+  position: fixed; left: 0; top: 0; z-index: 11; display: none; pointer-events: none;
+  transform-origin: 50% 50%; will-change: transform, opacity;
+}
+.lg-lens-el.on { display: block; }
+html.lg-refract .lg-lens-el.svg { -webkit-backdrop-filter: url(#lgLens); backdrop-filter: url(#lgLens); }
+.lg-lens-el > .lgl-body {
+  position: absolute; display: block; border-radius: var(--radius-pill);
+  box-shadow: 0 0 0 .6px rgba(110, 100, 92, .38), 0 8px 18px -8px rgba(90, 60, 40, .22), inset 0 0 0 .6px rgba(255, 255, 255, .9);
+}
+/* 顶部一道窄高光（定稿 lensrim::after × .5 + .hl × .35） */
+.lg-lens-el > .lgl-body::before, .lg-lens-el > .lgl-body::after {
+  content: ''; position: absolute; top: 4px; height: 7px; border-radius: var(--radius-pill);
+  background: linear-gradient(rgba(255, 255, 255, .95), rgba(255, 255, 255, 0));
+}
+.lg-lens-el > .lgl-body::before { left: 16%; right: 34%; opacity: .5; }
+.lg-lens-el > .lgl-body::after { left: 16%; width: 50%; opacity: .35; }
+.lg-lens-el .lgl-line {
+  position: absolute; display: block; height: .7px; margin-top: -.35px; background: rgba(120, 106, 96, .36);
+  -webkit-mask: linear-gradient(90deg, transparent, #000 8px, #000 calc(100% - 8px), transparent);
+  mask: linear-gradient(90deg, transparent, #000 8px, #000 calc(100% - 8px), transparent);
+}
+/* 不支持折射时（非 Chromium、关了「真实玻璃折射」、WebGL 起不来）：只有透镜外形 + 一层很淡的亮面 */
+.lg-lens-el.plain > .lgl-body { background: rgba(255, 255, 255, .22); }
+body.dark .lg-lens-el > .lgl-body { box-shadow: 0 0 0 .6px rgba(255, 255, 255, .22), 0 8px 18px -8px rgba(0, 0, 0, .5), inset 0 0 0 .6px rgba(255, 255, 255, .28); }
+body.dark .lg-lens-el > .lgl-body::before, body.dark .lg-lens-el > .lgl-body::after { opacity: .1; }
+body.dark .lg-lens-el .lgl-line { background: rgba(255, 255, 255, .16); }
+body.dark .lg-lens-el.plain > .lgl-body { background: rgba(255, 255, 255, .08); }
+/* 透镜在场时：每个页签的彩色图标只在透镜里露出、线条图标只在透镜外（--la / --lb 由 JS 逐帧写：透镜左右边在元素局部坐标里的位置） */
+body .tabbar.lg.lg-lensing .tab.dk-tab .dk-c {
+  opacity: 1 !important; scale: 1 !important; transition: none !important; animation: none !important;
+  filter: none; /* drop-shadow 叠遮罩在 WebKit / Chromium 里会露出图标方框，透镜里不要投影 */
+  -webkit-mask: linear-gradient(90deg, transparent var(--la, -999px), #000 var(--la, -999px), #000 var(--lb, -998px), transparent var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
+  mask: linear-gradient(90deg, transparent var(--la, -999px), #000 var(--la, -999px), #000 var(--lb, -998px), transparent var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
+}
+body .tabbar.lg.lg-lensing .tab.dk-tab .dk-l {
+  opacity: 1 !important; scale: 1 !important; transition: none !important;
+  /* 单层硬边渐变（不用两层 exclude：透镜整个在图标外时 Chromium 会把整颗图标遮没） */
+  -webkit-mask: linear-gradient(90deg, #000 var(--la, -999px), transparent var(--la, -999px), transparent var(--lb, -998px), #000 var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
+  mask: linear-gradient(90deg, #000 var(--la, -999px), transparent var(--la, -999px), transparent var(--lb, -998px), #000 var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
+}
+/* 降级：高对比 / 减少透明度不出透镜（JS 同样不建）；减少动态效果时按下不出透镜（liquid-dock.js 不响应按压） */
+body.hc .lg-lens-el { display: none !important; }
+@media (prefers-reduced-transparency: reduce) { .lg-lens-el { display: none !important; } }
+@media (prefers-reduced-motion: reduce) { .lg-lens-el { display: none !important; } body .tabbar.lg .lg-thumb.lg-lhide { opacity: 1 !important; } }

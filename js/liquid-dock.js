@@ -20,6 +20,14 @@
  *      （模块里的 MiniSinkBounce / ReboundPercent）。
  *      → 网页：.lg-thumb 指示器 + 弹簧曲线；整条胶囊按下轻微下沉。
  *
+ * 第 309 次：选中指示器做成定稿的「第十四版透镜」（fix303/mock303n）：
+ *   静止 = 栏内浅灰小胶囊（.lg-thumb）；按下约 0.15 秒鼓成比栏高、略宽的透镜（#lgLens），拖动跟手，
+ *   松手吸附到页签再缩回灰胶囊。透镜中间 1:1 不变形（图标原位原大，只换成彩色选中态 .dk-c），
+ *   折射只在外沿约 7px 一圈：往外 17px（左右）/ 30px（上下）取样，把透镜外的内容压成贴边的彩色细带；
+ *   栏的上下边在透镜里是两条水平直细线；色散 R/G/B 三通道（IOR 1.47 / 1.5 / 1.535），静止淡、拖动随速度变重。
+ *   Chromium：透镜元素 backdrop-filter:url(#lgLens)（位移贴图按透镜尺寸生成，透镜外 B 通道遮罩 = 原样）；
+ *   iOS / WebKit：dock-refract.js 的 WebGL 在 dock 画布里画同一套外沿折射（DR.lens）。
+ *
  * 不改 app.js 的构建逻辑：MutationObserver 盯着 #tabbar，每次重建后补回指示器、
  * 把它从上一次的位置滑到新位置（FLIP）。减少动态效果 / 高对比 / 减少透明度时降级。
  */
@@ -137,6 +145,217 @@
     doc.documentElement.classList.add('lg-refract'); refractOn = true;
   }
 
+
+  /* ---------- 第 309 次：拖动透镜（定稿 mock303n · 第十四版） ---------- */
+  var LENS_RIM = { rb: 7, re: 17, rev: 30 };   /* 静止参数；拖动时偏移 ×(1+0.12·速度)（≈ 移动中 re 19 / rev 32） */
+  var LENS_MX = 34;                            /* 贴图里 ±127 对应的最大偏移（CSS px，绿通道基准） */
+  var LENS_PAD = 60;                           /* 透镜元素四周留白：外沿取样最远 ≈ 30 × 1.12 × 1.315（蓝）≈ 44px，再加余量 */
+  var LENS_K = 2;                              /* 贴图分辨率：每 CSS px 2 像素 */
+  var LENS_W = 112, LENS_DH = 20;              /* 透镜宽 112（≈ 页签 2 倍、比灰胶囊略宽，宽高比约 1.33）；高 = 栏高 + 20（上下各冒出栏 10px，与定稿同比） */
+  var IOR_D = [-0.03, 0, 0.035];               /* n − 1.5，n = [1.47, 1.5, 1.535] */
+  var lens = null, lensEl = null, lensKey = '', lensRaf = 0;
+
+  /* 定稿 rim 算法：中间 0 偏移；外沿 rb 内 off = (re·(1−|ny|) + rev·|ny|) · t^(1.6+0.8|ny|)，沿外法线往外取样。
+     R/G = 绿通道（n=1.5）的偏移，B = 透镜形状遮罩（滤镜里只在透镜内用折射结果，其余原样）。 */
+  LD.buildLensMap = function (w, h, pad, K, maxDown) {
+    pad = pad == null ? LENS_PAD : pad; K = K || LENS_K;
+    /* 视口外没有背景可取（backdrop 是透明的，会折出一道黑 / 彩线）：透镜下沿离屏幕底不远时，往下取样不超过屏幕底
+       （按最重的蓝通道 + 拖动加重 1.63 × 1.12 留余量）。真机有 home 条安全区，一般用不到。 */
+    var KMAX = (1 + IOR_D[2] * 18) * 1.12, lim = maxDown == null ? 1e9 : maxDown;
+    var CW = Math.round((w + 2 * pad) * K), CH = Math.round((h + 2 * pad) * K);
+    var c = doc.createElement('canvas'); c.width = CW; c.height = CH;
+    var g = c.getContext('2d'); if (!g) return null;
+    var img = g.createImageData(CW, CH), dd = img.data;
+    var hx = w / 2, hy = h / 2, r = Math.min(hx, hy), P = LENS_RIM;
+    for (var j = 0; j < CH; j++) {
+      for (var i = 0; i < CW; i++) {
+        var x = (i + 0.5) / K - pad - hx, y = (j + 0.5) / K - pad - hy;
+        var sd = sdRoundRect(x, y, hx, hy, r), d = -sd, ox = 0, oy = 0;
+        if (sd < 1.5 && d < P.rb) {
+          var gx = sdRoundRect(x + 0.5, y, hx, hy, r) - sdRoundRect(x - 0.5, y, hx, hy, r);
+          var gy = sdRoundRect(x, y + 0.5, hx, hy, r) - sdRoundRect(x, y - 0.5, hx, hy, r);
+          var nl = Math.sqrt(gx * gx + gy * gy) || 1, nx = gx / nl, ny = gy / nl, ay = Math.abs(ny);
+          var t = 1 - Math.max(d, 0) / P.rb;
+          var off = (P.re * (1 - ay) + P.rev * ay) * Math.pow(t, 1.6 + ay * 0.8);
+          ox = nx * off; oy = ny * off;
+          var yl = (h / 2 + lim - 0.5 - y) / KMAX;
+          if (oy > yl) { var sc = Math.max(0, yl) / oy; oy *= sc; ox *= sc; }
+        }
+        var k = (j * CW + i) * 4;
+        dd[k] = Math.round(128 + 127 * Math.max(-1, Math.min(1, ox / LENS_MX)));
+        dd[k + 1] = Math.round(128 + 127 * Math.max(-1, Math.min(1, oy / LENS_MX)));
+        dd[k + 2] = Math.round(255 * Math.max(0, Math.min(1, 0.5 - sd)));
+        dd[k + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    return { url: c.toDataURL('image/png'), mx: LENS_MX, W: w + 2 * pad, H: h + 2 * pad };
+  };
+  function reducedTransparencyNow() {
+    try { return !!(global.matchMedia && global.matchMedia('(prefers-reduced-transparency: reduce)').matches); } catch (e) { return false; }
+  }
+  /* 透镜走哪条路：gl（iOS WebGL）/ svg（Chromium 位移贴图）/ plain（不支持折射：只有透镜外形）/ ''（高对比、减少透明度：不出透镜，保留旧的灰胶囊按下放大） */
+  function lensMode() {
+    if (!bar || doc.body.classList.contains('hc') || reducedTransparencyNow()) return '';
+    if (global.DockRefract && DockRefract.isOn && DockRefract.isOn()) return 'gl';
+    if (canRefract() && settingsAllow()) return 'svg';
+    return 'plain';
+  }
+  function ensureLensFilter(W, H, maxDown) {
+    var key = W + 'x' + H + '/' + maxDown;
+    if (key === lensKey && doc.getElementById('lgLens')) return true;
+    var mp = LD.buildLensMap(W, H, LENS_PAD, LENS_K, maxDown);
+    if (!mp) return false;
+    var svg = ensureDefs(), old = doc.getElementById('lgLens');
+    if (old) old.parentNode.removeChild(old);
+    var ch = ['R', 'G', 'B'], m = '';
+    var row = function (c) { return [c === 'R' ? '1 0 0 0 0' : '0 0 0 0 0', c === 'G' ? '0 1 0 0 0' : '0 0 0 0 0', c === 'B' ? '0 0 1 0 0' : '0 0 0 0 0', '0 0 0 1 0'].join(' '); };
+    ch.forEach(function (c) {
+      m += '<feDisplacementMap in="SourceGraphic" in2="m" scale="' + (2 * mp.mx) + '" xChannelSelector="R" yChannelSelector="G" result="d' + c + '"/>'
+        + '<feColorMatrix in="d' + c + '" type="matrix" values="' + row(c) + '" result="c' + c + '"/>';
+    });
+    var f = doc.createElementNS('http://www.w3.org/2000/svg', 'filter');
+    f.setAttribute('id', 'lgLens'); f.setAttribute('x', '0'); f.setAttribute('y', '0'); f.setAttribute('width', '100%'); f.setAttribute('height', '100%');
+    f.setAttribute('color-interpolation-filters', 'sRGB');
+    f.innerHTML = '<feImage x="0" y="0" width="' + mp.W + '" height="' + mp.H + '" preserveAspectRatio="none" href="' + mp.url + '" result="m"/>' + m
+      + '<feComposite in="cR" in2="cG" operator="arithmetic" k2="1" k3="1" result="rg"/>'
+      + '<feComposite in="rg" in2="cB" operator="arithmetic" k2="1" k3="1" result="rgb"/>'
+      /* 定稿：透镜里的内容略提亮、提饱和（brightness 1.07 / saturate 1.3） */
+      + '<feColorMatrix in="rgb" type="saturate" values="1.3" result="sat"/>'
+      + '<feComponentTransfer in="sat" result="lit"><feFuncR type="linear" slope="1.07"/><feFuncG type="linear" slope="1.07"/><feFuncB type="linear" slope="1.07"/></feComponentTransfer>'
+      + '<feColorMatrix in="m" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0" result="mk"/>'
+      + '<feComposite in="lit" in2="mk" operator="in" result="ln"/>'
+      + '<feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="ln"/></feMerge>';
+    var im = f.firstChild; im.setAttributeNS('http://www.w3.org/1999/xlink', 'href', mp.url);
+    svg.appendChild(f);
+    lensKey = key;
+    return true;
+  }
+  function ensureLensEl() {
+    if (lensEl && lensEl.isConnected) return lensEl;
+    lensEl = doc.getElementById('lgLensEl');
+    if (!lensEl) {
+      lensEl = doc.createElement('div');
+      lensEl.id = 'lgLensEl'; lensEl.className = 'lg-lens-el'; lensEl.setAttribute('aria-hidden', 'true');
+      lensEl.innerHTML = '<i class="lgl-body"><i class="lgl-line lgl-t"></i><i class="lgl-line lgl-b"></i></i>';
+    }
+    if (bar && bar.parentNode && lensEl.parentNode !== bar.parentNode) bar.parentNode.insertBefore(lensEl, bar.nextSibling);
+    return lensEl;
+  }
+  function nowMs() { return global.performance ? performance.now() : Date.now(); }
+  function tabCenter(t) { var r = t.getBoundingClientRect(); return r.left + r.width / 2; }
+  function lensStart(t) {
+    if (lens || !bar || !t || !t.classList.contains('dk-tab') || bar.classList.contains('is-sub') || bar.classList.contains('is-vertical')) return false;
+    var mode = lensMode();
+    if (!mode) return false;
+    var W = LENS_W, H = Math.round(bar.offsetHeight + LENS_DH);
+    var br0 = bar.getBoundingClientRect();
+    var maxDown = Math.max(0, Math.floor(global.innerHeight - (br0.top + br0.height / 2 + H / 2)));
+    if (maxDown > 60) maxDown = 60;   /* 够远就不限（贴图键稳定，不反复重建） */
+    if (mode === 'svg' && !ensureLensFilter(W, H, maxDown >= 60 ? null : maxDown)) mode = 'plain';
+    var el = ensureLensEl();
+    var body = el.firstChild;
+    el.style.width = (W + 2 * LENS_PAD) + 'px'; el.style.height = (H + 2 * LENS_PAD) + 'px';
+    body.style.left = body.style.top = LENS_PAD + 'px'; body.style.width = W + 'px'; body.style.height = H + 'px';
+    el.classList.remove('svg', 'gl', 'plain'); el.classList.add(mode);
+    var x = tabCenter(t), n = nowMs();
+    lens = { mode: mode, W: W, H: H, x: x, tx: x, s: 0, m: 0, phase: 'grow', t0: n, last: n, pw: t.offsetWidth, ph: t.offsetHeight, tab: t };
+    bar.classList.add('lg-lensing');
+    if (thumb) { thumb.classList.add('lg-lhide'); thumb.classList.remove('lg-grow'); }
+    lensApply();
+    el.classList.add('on');
+    if (!lensRaf) lensRaf = global.requestAnimationFrame(lensFrame);
+    return true;
+  }
+  function lensRelease(x) {
+    if (!lens || lens.phase === 'settle' || lens.phase === 'shrink') return;
+    if (x != null) lens.tx = x;
+    lens.phase = 'settle'; lens.ts = nowMs();
+    if (!lensRaf) lensRaf = global.requestAnimationFrame(lensFrame);
+  }
+  function lensEnd() {
+    if (lensRaf) { global.cancelAnimationFrame(lensRaf); lensRaf = 0; }
+    lens = null;
+    if (lensEl) { lensEl.classList.remove('on'); lensEl.style.opacity = ''; }
+    if (bar) bar.classList.remove('lg-lensing');
+    if (thumb) thumb.classList.remove('lg-lhide');
+    if (global.DockRefract && DockRefract.lens) DockRefract.lens(null);
+  }
+  function ease(k) { return 1 - Math.pow(1 - k, 3); }
+  function lensFrame() {
+    lensRaf = 0;
+    if (!lens) return;
+    if (!bar || !bar.isConnected) { lensEnd(); return; }
+    var n = nowMs(), dt = Math.min(48, Math.max(1, n - lens.last)); lens.last = n;
+    var px = lens.x;
+    /* 拖动时跟手（只留一点点平滑）；松手后像被磁吸一样落到页签中心 */
+    var tau = (lens.phase === 'settle' || lens.phase === 'shrink') ? 55 : 14;
+    lens.x += (lens.tx - lens.x) * (1 - Math.exp(-dt / tau));
+    var v = Math.abs(lens.x - px) / dt;                          /* px / ms */
+    var mt = Math.min(1, v / 0.45);
+    lens.m += (mt - lens.m) * (1 - Math.exp(-dt / (mt > lens.m ? 40 : 170)));
+    if (lens.phase === 'grow') {
+      var k = (n - lens.t0) / 150;
+      if (k >= 1) { k = 1; lens.phase = 'hold'; }
+      lens.s = ease(k);
+    } else if (lens.phase === 'hold') {
+      lens.s += (1 - lens.s) * (1 - Math.exp(-dt / 40));
+    } else if (lens.phase === 'settle') {
+      lens.s += (1 - lens.s) * (1 - Math.exp(-dt / 40));
+      if (n - lens.ts > 260 || (n - lens.ts > 110 && Math.abs(lens.tx - lens.x) < 0.6 && lens.m < 0.15)) {
+        lens.phase = 'shrink'; lens.t1 = n; lens.s1 = lens.s;
+        if (thumb) {
+          try { thumb.getAnimations().forEach(function (a) { a.finish(); }); } catch (e) { /* 老内核 */ }
+          thumb.classList.remove('lg-lhide');
+        }
+      }
+    } else if (lens.phase === 'shrink') {
+      var q = (n - lens.t1) / 160;
+      if (q >= 1) { lensEnd(); return; }
+      lens.s = lens.s1 * (1 - ease(q));
+    }
+    lensApply();
+    lensRaf = global.requestAnimationFrame(lensFrame);
+  }
+  var lensPin = null;   /* 测试 / 截图用：钉住鼓起比例 s 与速度 m（截图要几百毫秒，逐帧状态等不到） */
+  function lensApply() {
+    if (!lens || !lensEl) return;
+    if (lensPin) { if (lensPin.s != null) lens.s = lensPin.s; if (lensPin.m != null) lens.m = lensPin.m; }
+    var L = lens, br = bar.getBoundingClientRect(), cy = br.top + br.height / 2, s = L.s;
+    var w = L.pw + (L.W - L.pw) * s, h = L.ph + (L.H - L.ph) * s, sx = w / L.W, sy = h / L.H;
+    lensEl.style.transform = 'translate(' + (L.x - L.W / 2 - LENS_PAD) + 'px,' + (cy - L.H / 2 - LENS_PAD) + 'px) scale(' + sx + ',' + sy + ')';
+    lensEl.style.opacity = L.phase === 'shrink' ? Math.min(1, s * 1.6) : Math.min(1, 0.35 + s * 1.3);
+    /* 色散随速度：chx 9（静止）→ 18（快速拖动）；偏移 ×(1 + 0.12·m) */
+    var chx = 9 + 9 * L.m, gm = 1 + 0.12 * L.m;
+    if (L.mode === 'svg') {
+      var f = doc.getElementById('lgLens');
+      if (f) {
+        var dms = f.getElementsByTagName('feDisplacementMap');
+        for (var c = 0; c < 3 && c < dms.length; c++) dms[c].setAttribute('scale', (2 * LENS_MX * (1 + IOR_D[c] * chx) * gm).toFixed(2));
+      }
+    }
+    /* 栏的上下细边：透镜里两条水平直线（局部坐标里抵消缩放，始终贴在栏边上；只画栏的直边段） */
+    var lx = L.x - w / 2, R = br.height / 2;
+    var a = Math.max(14, (br.left + R - lx) / sx), b = Math.min(L.W - 14, (br.right - R - lx) / sx);
+    var lines = lensEl.firstChild.children;
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i], yy = (i === 0 ? br.top : br.bottom) - cy;
+      ln.style.top = (L.H / 2 + yy / sy) + 'px';
+      ln.style.left = a + 'px'; ln.style.width = Math.max(0, b - a) + 'px';
+      ln.style.opacity = b - a > 6 ? Math.min(1, s * s) : 0;
+    }
+    /* 透镜范围内的页签：彩色图标只在透镜里露出，线条图标只在透镜外（原位、原大，不缩放） */
+    tabsOf().forEach(function (t) {
+      var els = t.querySelectorAll('.dk-c, .dk-l');
+      for (var j = 0; j < els.length; j++) {
+        var r = els[j].getBoundingClientRect();
+        els[j].style.setProperty('--la', (lx - r.left).toFixed(2) + 'px');
+        els[j].style.setProperty('--lb', (lx - r.left + w).toFixed(2) + 'px');
+      }
+    });
+    if (L.mode === 'gl' && global.DockRefract && DockRefract.lens) DockRefract.lens({ x: lx, y: cy - h / 2, w: w, h: h }, L.m, sy);
+  }
+
   /* ---------- 3. 选中水滴：跟随 + 弹簧 ---------- */
   function activeTab() {
     if (!bar || bar.classList.contains('is-sub')) return null;
@@ -182,14 +401,23 @@
     var t = e.target && e.target.closest && e.target.closest('button');
     if (!t || !bar.contains(t)) return;
     bar.classList.add('lg-press');
-    if (thumb && t.classList.contains('active')) thumb.classList.add('lg-grow');
     dragStart(e, t);
+    /* 第 309 次：页签上按下 → 灰胶囊鼓成透镜；不出透镜时（高对比 / 减少透明度）仍是旧的放大 */
+    if (!lensStart(t) && thumb && t.classList.contains('active')) thumb.classList.add('lg-grow');
     /* 第 277 次：按下时玻璃轻微放大（CSS scale 1.02），边缘折射同步增强（dock-refract.js 逐帧缓动） */
     if (global.DockRefract && DockRefract.press) DockRefract.press('dock', true);
   }
   function onUp(e) {
     if (!bar) return;
+    /* 第 309 次：松手 → 透镜吸到页签（拖过的那个；没拖就是按下的那个；取消 = 回到当前页签）再缩回灰胶囊。
+       落点要在 dragEnd 之前量：拖完切页会立刻重建页签节点 */
+    var lx = null;
+    if (lens) {
+      var tg = e && e.type === 'pointercancel' ? activeTab() : ((drag && drag.on && drag.hover) || lens.tab);
+      if (tg && tg.isConnected) lx = tabCenter(tg);
+    }
     dragEnd(e && e.type === 'pointercancel');
+    if (lens) lensRelease(lx);
     var was = bar.classList.contains('lg-press');
     bar.classList.remove('lg-press');
     if (thumb) thumb.classList.remove('lg-grow');
@@ -221,7 +449,8 @@
     var x = e.clientX - br.left - w / 2;
     x = Math.max(first.offsetLeft - 4, Math.min(last.offsetLeft + 4, x));
     thumb.style.transform = 'translate(' + x + 'px,' + a.offsetTop + 'px)';
-    thumb.classList.add('lg-grow');
+    if (lens) lens.tx = br.left + (x + w / 2) * (br.width / (bar.offsetWidth || br.width));   /* 第 309 次：透镜跟手 */
+    else thumb.classList.add('lg-grow');
     var h = nearest(e.clientX);
     if (h !== drag.hover) {
       if (drag.hover) drag.hover.classList.remove('lg-hover');
@@ -273,7 +502,9 @@
     place(false); updateRefraction();
   };
   LD.refresh = function () { if (bar) { place(false); updateRefraction(); } };
-  LD._state = function () { return { refract: refractOn, thumb: !!(thumb && thumb.classList.contains('on')), map: mapKey }; };
+  LD._pin = function (o) { lensPin = o || null; if (lens) lensApply(); };
+  LD._state = function () { return { refract: refractOn, thumb: !!(thumb && thumb.classList.contains('on')), map: mapKey,
+    lens: lens ? { mode: lens.mode, phase: lens.phase, s: Math.round(lens.s * 1000) / 1000, m: Math.round(lens.m * 1000) / 1000, x: Math.round(lens.x * 10) / 10 } : null }; };
 
   global.LiquidDock = LD;
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', function () { setTimeout(LD.init, 0); });
