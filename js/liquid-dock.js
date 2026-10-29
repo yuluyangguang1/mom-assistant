@@ -151,7 +151,7 @@
   var LENS_MX = 34;                            /* 贴图里 ±127 对应的最大偏移（CSS px，绿通道基准） */
   var LENS_PAD = 60;                           /* 透镜元素四周留白：外沿取样最远 ≈ 30 × 1.12 × 1.315（蓝）≈ 44px，再加余量 */
   var LENS_K = 2;                              /* 贴图分辨率：每 CSS px 2 像素 */
-  var LENS_W = 112, LENS_DH = 20;              /* 透镜宽 112（≈ 页签 2 倍、比灰胶囊略宽，宽高比约 1.33）；高 = 栏高 + 20（上下各冒出栏 10px，与定稿同比） */
+  var LENS_W = 124, LENS_DH = 20;              /* 透镜宽 112（≈ 页签 2 倍、比灰胶囊略宽，宽高比约 1.33）；高 = 栏高 + 20（上下各冒出栏 10px，与定稿同比） */
   var IOR_D = [-0.03, 0, 0.035];               /* n − 1.5，n = [1.47, 1.5, 1.535] */
   var lens = null, lensEl = null, lensKey = '', lensRaf = 0;
 
@@ -257,6 +257,8 @@
     var body = el.firstChild;
     el.style.width = (W + 2 * LENS_PAD) + 'px'; el.style.height = (H + 2 * LENS_PAD) + 'px';
     body.style.left = body.style.top = LENS_PAD + 'px'; body.style.width = W + 'px'; body.style.height = H + 'px';
+    /* 第 310 次：四周留白只为折射取样用，画面只留透镜本身（Chromium 的 backdrop 在留白区会出一道倒影） */
+    el.style.clipPath = 'inset(' + (LENS_PAD - 1) + 'px round ' + (H / 2 + 1) + 'px)';
     el.classList.remove('svg', 'gl', 'plain'); el.classList.add(mode);
     var x = tabCenter(t), n = nowMs();
     lens = { mode: mode, W: W, H: H, x: x, tx: x, s: 0, m: 0, phase: 'grow', t0: n, last: n, pw: t.offsetWidth, ph: t.offsetHeight, tab: t };

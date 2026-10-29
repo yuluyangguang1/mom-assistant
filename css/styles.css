@@ -7055,3 +7055,30 @@ body .tabbar.lg.lg-lensing .tab.dk-tab .dk-l {
 body.hc .lg-lens-el { display: none !important; }
 @media (prefers-reduced-transparency: reduce) { .lg-lens-el { display: none !important; } }
 @media (prefers-reduced-motion: reduce) { .lg-lens-el { display: none !important; } body .tabbar.lg .lg-thumb.lg-lhide { opacity: 1 !important; } }
+
+/* ============================================================
+   第 310 次：dock 放大 + 图标下加文字（像 iOS 26 原生标签栏）
+   页签 56×46 → 72×56，图标 34 → 30 腾出文字行；文字 10.5px 粗 600，选中项用主色。
+   透镜宽跟着放到 124（liquid-dock.js LENS_W），高仍是栏高 + 20。
+   ============================================================ */
+body .tabbar .tab.dk-tab { width: 72px; min-width: 72px; max-width: 72px; height: 56px; min-height: 56px;
+  flex-direction: column; gap: 1px; justify-content: center; align-items: center; padding: 0; }
+body .tabbar .tab.dk-tab .dk-ic { width: 30px; height: 30px; }
+body .tabbar .tab.dk-tab .dk-ic .dk-l { width: 25px; height: 25px; }
+body .tabbar .tab.dk-tab .dk-ic .dk-c { width: 30px; height: 30px; }
+body .tabbar .tab.dk-tab .dk-baby .dk-c { width: 32px; height: 32px; inset: -1px; }
+.dk-t { display: block; font-style: normal; font-size: 10.5px; line-height: 13px; font-weight: 600; letter-spacing: .02em; color: #6E5547; pointer-events: none; white-space: nowrap; }
+body.dark .dk-t { color: #D9C6B5; }
+body .tabbar .tab.dk-tab.active .dk-t, body .tabbar .tab.dk-tab.lg-hover .dk-t { color: var(--primary-text, var(--primary)); font-weight: 700; }
+body .tabbar.lg-drag .tab.dk-tab.active:not(.lg-hover) .dk-t { color: #6E5547; font-weight: 600; }
+body.dark .tabbar.lg-drag .tab.dk-tab.active:not(.lg-hover) .dk-t { color: #D9C6B5; }
+body.hc .dk-t { color: var(--text); }
+@media (max-width: 360px) {
+  body .tabbar .tab.dk-tab { width: 64px; min-width: 64px; max-width: 64px; }
+}
+/* 栏变高后 ＋ 珠也变大（--dock-bh），整组居中的偏移跟着珠子大小算，不再写死 35px */
+@media (min-width: 361px) {
+  body.has-orb #tabbar.lg:not(.is-vertical), body.sub-anchor #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 258px) / 2 - (var(--dock-bh, 62px) + 8px) / 2); }
+  #dockOrb.dock-orb { left: calc(50% + var(--dock-w, 240px) / 2 - (var(--dock-bh, 62px) - 8px) / 2); }
+  body.has-orb:not(.dock-simple) .dock-live { left: calc(50% - (var(--dock-bh, 62px) + 8px) / 2); }
+}

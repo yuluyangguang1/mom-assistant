@@ -16,7 +16,7 @@
   var TABS = [
     { id: 'baby', title: '宝宝', ico: 'baby' },
     { id: 'home', title: '首页', ico: 'home' },
-    { id: 'calendar', title: '日期记录', ico: 'cal' }
+    { id: 'calendar', title: '日期记录', ico: 'cal', lb: '日历' }
   ];
   var DK_SVG = function (b) { return '<svg class="ico dk-l" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + b + '</svg>'; };
   /* 第 306 次：未选中线条图标跟图标 v3 同一语言——暖可可色主线 + 一处暖色点缀（.ia / .iaf，颜色见 CSS --ic-a）。
@@ -388,7 +388,7 @@
       /* 第 141 次：底栏统一为「纯图标」——页签不再带文字。
          文字去掉后必须补 aria-label，否则读屏只剩一个无名按钮。 */
       b.className += ' dk-tab';
-      b.innerHTML = dockIco(t.ico);
+      b.innerHTML = dockIco(t.ico) + '<b class="dk-t" aria-hidden="true">' + (t.lb || t.title) + '</b>'; /* 第 310 次：图标下加文字 */
       b.setAttribute('aria-label', t.title);
       b.setAttribute('title', t.title);
       b.setAttribute('data-tab', t.id);
