@@ -36,6 +36,11 @@
  *   DR.lens 带上不透明度并当场同步重画（GL 透镜与 CSS 外形同一帧）；透镜内部由 GL 画成放大 1.06、略提亮的玻璃体。
  *   浅色「白胶囊」/ 深色「黑胶囊」的真凶是触屏 :hover 粘住 + .tab:hover{background:var(--surface)}，CSS 第 313 次段落清掉。
  *
+ * 第 314 次（用户：「仅仅是一块玻璃，没有液态感」）：透镜改成弹簧物理（PHYS：鼓起欠阻尼过冲、拖动临界阻尼跟手、松手欠阻尼吸附、
+ *   速度形变 +12% / −11% 带果冻回弹、两端橡皮筋）；凸透镜光学（中心放大 1.15、外沿 bezel 14 往里取样 18 / 11px 的拉丝折射带、色散只在边上随速度）；
+ *   动态高光（随运动方向 / 速度、按下亮弧）；iOS 上透镜里的彩色图标由 GL 的「透镜图标层」画，DOM 图标按透镜形状挖洞；与 dock 的 smooth-min 融合在着色器里。
+ *   Chromium 路径：一张贴图（静止尺寸）+ 元素 scale 形变，融合不做（CSS 做不了 smooth-min，降级为两个形状叠放）。
+ *
  * 不改 app.js 的构建逻辑：MutationObserver 盯着 #tabbar，每次重建后补回指示器、
  * 把它从上一次的位置滑到新位置（FLIP）。减少动态效果 / 高对比 / 减少透明度时降级。
  */
@@ -135,7 +140,9 @@
      ② Glass-HQ regular 磨砂：模糊 7.33 + 23px 宽模糊 lighten 混 34% + 色调曲线 + chroma 1.10（替掉第 235 次的 saturate 1.9，
         真机上那会把背后的字糊成灰黑斑块）；深色 = 21.8px darken 混 65%；
      ③ 固定光照角的边缘 rim light，高光处背景提饱和 7 倍（kube.io specular saturation）。 */
-  var DOCK_OPT = { bezel: 18, maxPx: 14, spec: { width: 2.4, power: 2, base: 0.2 }, white: 0.5, satA: 0.7 };
+  /* 第 314 次：最大位移 14 → 20（与 iOS 着色器同值）。iOS 着色器另在外沿几 px 减轻磨砂让折弯看得清；Chromium 试过同样叠一层「外沿清晰带」
+     （多一张 feImage + merge），整条 dock 滤镜每帧变重、拖累同屏其它动画（第 290 次面板回弹测试超时），所以 Chromium 只加大位移 */
+  var DOCK_OPT = { bezel: 18, maxPx: 20, spec: { width: 2.4, power: 2, base: 0.2 }, white: 0.5, satA: 0.7 };
   function buildDockFilter(w, h, dark) {
     var GO = global.GlassOptics, svg = ensureDefs();
     var old = doc.getElementById('lgDock'); if (old) old.parentNode.removeChild(old);
@@ -183,60 +190,87 @@
   }
 
 
-  /* ---------- 第 309 次：拖动透镜（定稿 mock303n · 第十四版） ---------- */
-  var LENS_RIM = { rb: 10, re: 20, rev: 30 };  /* 第 312 次：bezel 7 → 10、左右 17 → 20（Snell 表在最外 1px 不是峰值，加宽才看得出厚玻璃边）；拖动时偏移 ×(1+0.12·速度） */
-  var LENS_MAG = 0;                            /* 第 312 次：透镜中心放大（0 = 1:1；图标放大由 --lz 负责） */
-  var LENS_MX = 34;                            /* 贴图里 ±127 对应的最大偏移（CSS px，绿通道基准） */
-  var LENS_PAD = 60;                           /* 透镜元素四周留白：外沿取样最远 ≈ 30 × 1.12 × 1.315（蓝）≈ 44px，再加余量 */
+  /* ---------- 第 309 次：拖动透镜；第 314 次：液态透镜（弹簧物理 + 形变 + 清透放大 + 宽折射带 + 动态高光） ---------- */
+  /* 第 314 次参数来自支付宝原生录屏（16:57，1180×330@60fps，3 倍屏）逐帧量化：
+     · 静止 / 慢拖：透镜约 105pt 宽、74~84pt 高（dock 64pt），上下各冒出 5~7pt；中心对背景放大约 1.2×；
+     · 快拖（≳570pt/s）：高度塌到约 dock 高（−11~−20%），宽 +5~8%；内容放大更强、边缘出现 10~13pt 宽的拉丝折射带；
+     · 按下 → 透镜出现 ≤50ms、冒出 ~70ms；减速后 250~300ms 鼓回最高并轻微回落；松手 120~130ms 收回胶囊。
+     这里：透镜宽 136（第 313 次用户认可的宽扁），静止比栏高 10（上下各 5），快拖时宽 +12%、高 −11%；中心放大 1.15（≈ 第 311 次认可的图标 1.15），
+     外沿 bezel 14px、往里取样最多 18px（左右）/ 11px（上下，再大会把页签文字翻折到透镜下沿成碎块）——凸透镜的边：靠边的内容被拉长、翻折成拉丝带，而不是 313 那样往外压成一条细线。 */
+  var LENS_RIM = { rb: 14, re: 18, rev: 11 };  /* bezel / 左右 / 上下最大往里位移（CSS px，静止；快拖 ×(1+0.35·m)） */
+  var LENS_MAG = 0.15;                         /* 第 314 次：透镜中心放大 15%（Chromium 贴图里的「放大镜」；iOS 着色器 uLO.z 同值） */
+  var LENS_MX = 44;                            /* 贴图里 ±127 对应的最大偏移（CSS px）：rim 18 + 放大 68·0.15/1.15 ≈ 27，再加色散 / 速度余量 */
+  var LENS_PAD = 60;                           /* 透镜元素四周留白（贴图同尺寸；clip-path 只留透镜本身） */
   var LENS_K = 2;                              /* 贴图分辨率：每 CSS px 2 像素 */
-  var LENS_W = 136, LENS_DH = 6, LENS_ZOOM = .15;               /* 第 311 次：宽 132、高 = 栏高 + 14（原 124 / +20 显得太圆）；
-                                                                 第 313 次：真机仍偏圆偏高 → 宽 136、高 = 栏高 + 6（上下各只冒出 3px，对照支付宝录屏 19:05：透镜只比栏高约 8pt / 63pt） */
-  /* 第 313 次：iOS（gl）透镜外沿不再画「dock 图标纹理」。真机上图标纹理（2 倍图、快照坐标）和 DOM 图标对不齐：
-     外沿出现碎块、像素块、半个字 / 两份字（「日|」）。按用户的退路：外沿只折射背景，DOM 图标在透镜边上干净地换色、文字照常显示 */
+  var LENS_W = 136, LENS_DH = 10, LENS_ZOOM = .15;   /* 第 313 次：136 × 栏高+6；第 314 次：静止栏高 + 10（上下各冒出 5，对照支付宝 5~7pt），快拖时由形变压回约栏高 */
+  /* 第 313 次：iOS 透镜外沿不画「dock 线条图标纹理」（和 DOM 图标对不齐 → 碎块 / 双字）。保持关闭。
+     第 314 次：换成「透镜图标层」——透镜里的彩色图标 + 选中色文字整块由 GL 从一张纹理画（中心放大、边上一起被折弯），
+     DOM 图标只在透镜外（每个页签 clip-path 挖掉透镜形状），两份内容不再在同一处叠着，透镜边就是唯一的分界 */
   var LENS_ICON_TEX = false;
-  var IOR_D = [-0.03, 0, 0.035];               /* n − 1.5，n = [1.47, 1.5, 1.535] */
+  var LENS_TEX = true;
+  var IOR_D = [-0.03, 0, 0.035];               /* n − 1.5，n = [1.47, 1.5, 1.535]；第 314 次只乘很小的 chx（1.2 → 3.6），色散只在边上、随速度增强、保持淡 */
   var lens = null, lensEl = null, lensKey = '', lensRaf = 0;
 
-  /* 定稿 rim 算法：中间 0 偏移；外沿 rb 内沿外法线往外取样，把透镜外的内容压成贴边的彩带（透镜吸走邻近图标）。
-     第 312 次：偏移曲线换成 glass-optics.js 的凸 squircle + Snell 位移表（bezel 10px，左右 20 / 上下 30px），
-     和 dock 本体、iOS 着色器同一张表。R/G = 绿通道（n=1.5）的偏移，B = 透镜形状遮罩（滤镜里只在透镜内用折射结果，其余原样）。
-     LENS_MAG > 0 时中心再叠一张「放大镜」位移（默认 0：中间 1:1，图标放大交给 DOM 的 --lz，两者不叠加）。 */
+  /* 第 314 次：弹簧（质量-弹簧-阻尼，单位质量；k = 刚度 /s²，z = 阻尼比）。全部参数集中在这里，测试 / 截图读同一份 */
+  var PHYS = {
+    grow: { k: 520, z: 0.58 },     /* 按下鼓起：约 0.11s 到 1、0.17s 过冲峰（~10%） */
+    drag: { k: 2200, z: 1 },       /* 拖动跟手：临界阻尼，ω≈47/s（滞后 ~20ms） */
+    snap: { k: 380, z: 0.72 },     /* 松手吸附：轻微过冲一次（甩动速度先限到 ±700px/s，不会甩过头） */
+    shape: { k: 420, z: 0.38 },    /* 形变：果冻回弹 1~2 次（第二个峰 < 8%） */
+    shrink: { k: 900, z: 1 },      /* 收回胶囊：~130ms，不回弹（参照支付宝） */
+    vFull: 0.9,                    /* px/ms：达到满形变的速度（≈ 900pt/s） */
+    stretch: 0.12, squash: 0.11,   /* 沿速度方向拉长 / 垂直方向压扁上限 */
+    rubber: 26, rubberC: 0.55,     /* 两端橡皮筋：最多拉出 26px，系数同 iOS 0.55 */
+    fuse: 8                        /* 透镜与 dock 的 smooth-min 融合半径（px） */
+  };
+  /* 半隐式欧拉，4ms 子步；v 单位 px/s */
+  function springStep(x, v, target, p, dt, crit) {
+    var k = p.k, z = crit ? Math.max(1, p.z) : p.z, c = 2 * z * Math.sqrt(k);
+    var n = Math.max(1, Math.ceil(dt / 4)), h = dt / 1000 / n;
+    for (var i = 0; i < n; i++) { v += (-k * (x - target) - c * v) * h; x += v * h; }
+    return [x, v];
+  }
+  /* 速度 → 形变目标（体积大致守恒：1.12 × 0.89 ≈ 1） */
+  function deformTarget(vx, rb, red) {
+    if (red) return [1, 1, 0];
+    var a = Math.min(1, Math.abs(vx) / 1000 / PHYS.vFull); a = a * (2 - a);
+    var r = Math.min(1, Math.abs(rb || 0) / PHYS.rubber);
+    return [1 + PHYS.stretch * a + 0.10 * r, 1 - PHYS.squash * a - 0.05 * r, a];
+  }
+  /* 离线模拟（测试 / 调参用）：返回按 dt 采样的状态序列 */
+  LD._simulate = function (o) {
+    o = o || {}; var dt = o.dt || 16, out = [], red = !!o.reduced;
+    if (o.kind === 'grow') { var s = 0, vs = 0; for (var t = 0; t <= (o.ms || 500); t += dt) { out.push(s); var q = springStep(s, vs, 1, PHYS.grow, dt, red); s = q[0]; vs = q[1]; } return out; }
+    if (o.kind === 'deform') { var tg = deformTarget(o.vx || 0, o.rb || 0, red); return { sx: tg[0], sy: tg[1], a: tg[2] }; }
+    if (o.kind === 'release') {   /* 以速度 vx 甩动中松手：形变从对应目标回到 1 的果冻曲线 */
+      var t0 = deformTarget(o.vx || 1200, 0, red), sx = t0[0], vsx = 0;
+      for (var u = 0; u <= (o.ms || 700); u += dt) { out.push(sx); var r2 = springStep(sx, vsx, 1, PHYS.shape, dt, red); sx = r2[0]; vsx = r2[1]; }
+      return out;
+    }
+    return null;
+  };
+
+  /* 位移贴图（Chromium #lgLens）：第 314 次改成凸透镜——外沿 bezel 内沿内法线「往里」取样（Snell 表），中心再叠一张放大 LENS_MAG 的位移；
+     R/G = 绿通道（n=1.5）的偏移，B = 透镜形状遮罩。和 iOS 着色器同一张表、同一组参数。 */
   LD.buildLensMap = function (w, h, pad, K, maxDown) {
     pad = pad == null ? LENS_PAD : pad; K = K || LENS_K;
-    /* 视口外没有背景可取（backdrop 是透明的，会折出一道黑 / 彩线）：透镜下沿离屏幕底不远时，往下取样不超过屏幕底
-       （按最重的蓝通道 + 拖动加重 1.63 × 1.12 留余量）。真机有 home 条安全区，一般用不到。 */
-    var KMAX = (1 + IOR_D[2] * 18) * 1.12, P = LENS_RIM, GO = global.GlassOptics;
+    var P = LENS_RIM, GO = global.GlassOptics;
     if (GO) {
-      var mp = GO.dispMap(w, h, { pad: pad, K: K, dir: -1, bezel: P.rb, maxPx: P.re, maxPxV: P.rev, mx: LENS_MX, mask: true,
-        zoom: LENS_MAG, maxDown: maxDown, kmax: KMAX });
+      var mp = GO.dispMap(w, h, { pad: pad, K: K, dir: 1, bezel: Math.min(P.rb, h / 2 - 1), maxPx: P.re, maxPxV: P.rev, mx: LENS_MX, mask: true, zoom: LENS_MAG });
       return mp ? { url: mp.url, mx: LENS_MX, W: mp.W, H: mp.H } : null;
     }
-    var lim = maxDown == null ? 1e9 : maxDown;
+    /* 没有光学模块：退回只有中心放大的贴图 */
     var CW = Math.round((w + 2 * pad) * K), CH = Math.round((h + 2 * pad) * K);
     var c = doc.createElement('canvas'); c.width = CW; c.height = CH;
     var g = c.getContext('2d'); if (!g) return null;
-    var img = g.createImageData(CW, CH), dd = img.data;
-    var hx = w / 2, hy = h / 2, r = Math.min(hx, hy);
-    for (var j = 0; j < CH; j++) {
-      for (var i = 0; i < CW; i++) {
-        var x = (i + 0.5) / K - pad - hx, y = (j + 0.5) / K - pad - hy;
-        var sd = sdRoundRect(x, y, hx, hy, r), d = -sd, ox = 0, oy = 0;
-        if (sd < 1.5 && d < P.rb) {
-          var gx = sdRoundRect(x + 0.5, y, hx, hy, r) - sdRoundRect(x - 0.5, y, hx, hy, r);
-          var gy = sdRoundRect(x, y + 0.5, hx, hy, r) - sdRoundRect(x, y - 0.5, hx, hy, r);
-          var nl = Math.sqrt(gx * gx + gy * gy) || 1, nx = gx / nl, ny = gy / nl, ay = Math.abs(ny);
-          var t = 1 - Math.max(d, 0) / P.rb;
-          var off = (P.re * (1 - ay) + P.rev * ay) * Math.pow(t, 1.6 + ay * 0.8);
-          ox = nx * off; oy = ny * off;
-          var yl = (h / 2 + lim - 0.5 - y) / KMAX;
-          if (oy > yl) { var sc = Math.max(0, yl) / oy; oy *= sc; ox *= sc; }
-        }
-        var k = (j * CW + i) * 4;
-        dd[k] = Math.round(128 + 127 * Math.max(-1, Math.min(1, ox / LENS_MX)));
-        dd[k + 1] = Math.round(128 + 127 * Math.max(-1, Math.min(1, oy / LENS_MX)));
-        dd[k + 2] = Math.round(255 * Math.max(0, Math.min(1, 0.5 - sd)));
-        dd[k + 3] = 255;
-      }
+    var img = g.createImageData(CW, CH), dd = img.data, hx = w / 2, hy = h / 2, r = Math.min(hx, hy);
+    for (var j = 0; j < CH; j++) for (var i = 0; i < CW; i++) {
+      var x = (i + 0.5) / K - pad - hx, y = (j + 0.5) / K - pad - hy, sd = sdRoundRect(x, y, hx, hy, r), ox = 0, oy = 0;
+      if (sd < 0) { ox = -x * LENS_MAG / (1 + LENS_MAG); oy = -y * LENS_MAG / (1 + LENS_MAG); }
+      var k = (j * CW + i) * 4;
+      dd[k] = Math.round(128 + 127 * Math.max(-1, Math.min(1, ox / LENS_MX)));
+      dd[k + 1] = Math.round(128 + 127 * Math.max(-1, Math.min(1, oy / LENS_MX)));
+      dd[k + 2] = Math.round(255 * Math.max(0, Math.min(1, 0.5 - sd))); dd[k + 3] = 255;
     }
     g.putImageData(img, 0, 0);
     return { url: c.toDataURL('image/png'), mx: LENS_MX, W: w + 2 * pad, H: h + 2 * pad };
@@ -251,13 +285,13 @@
     if (canRefract() && settingsAllow()) return 'svg';
     return 'plain';
   }
-  function ensureLensFilter(W, H, maxDown) {
-    var key = W + 'x' + H + '/' + maxDown + (isDark() ? 'd' : 'l');
+  function ensureLensFilter(W, H) {
+    var key = W + 'x' + H + (isDark() ? 'd' : 'l');
     if (key === lensKey && doc.getElementById('lgLens')) return true;
-    var mp = LD.buildLensMap(W, H, LENS_PAD, LENS_K, maxDown);
+    var mp = LD.buildLensMap(W, H, LENS_PAD, LENS_K);
     if (!mp) return false;
     var GO = global.GlassOptics;
-    var sp = GO ? GO.specMap(W, H, { pad: LENS_PAD, K: LENS_K, width: 3, power: 2, base: 0.25 }) : null;
+    var sp = GO ? GO.specMap(W, H, { pad: LENS_PAD, K: LENS_K, width: 2.6, power: 2, base: 0.22 }) : null;
     var svg = ensureDefs(), old = doc.getElementById('lgLens');
     if (old) old.parentNode.removeChild(old);
     var ch = ['R', 'G', 'B'], m = '';
@@ -272,10 +306,9 @@
     f.innerHTML = '<feImage x="0" y="0" width="' + mp.W + '" height="' + mp.H + '" preserveAspectRatio="none" href="' + mp.url + '" result="m"/>' + m
       + '<feComposite in="cR" in2="cG" operator="arithmetic" k2="1" k3="1" result="rg"/>'
       + '<feComposite in="rg" in2="cB" operator="arithmetic" k2="1" k3="1" result="rgb"/>'
-      /* 定稿：透镜里的内容略提亮、提饱和（brightness 1.07 / saturate 1.3）；第 313 次：1.07 → 1.03（背后的 dock 磨砂已经提到 0.94，再 ×1.07 就成了一块奶白） */
-      + '<feColorMatrix in="rgb" type="saturate" values="1.3" result="sat"/>'
+      /* 第 314 次：清透——提饱和 1.3 → 1.12，亮度保持 1.03（透镜本身几乎不加料，中心就是被放大的 dock / 背景） */
+      + '<feColorMatrix in="rgb" type="saturate" values="1.12" result="sat"/>'
       + '<feComponentTransfer in="sat" result="lit"><feFuncR type="linear" slope="1.03"/><feFuncG type="linear" slope="1.03"/><feFuncB type="linear" slope="1.03"/></feComponentTransfer>'
-      /* 第 312 次：固定光照角的厚玻璃 rim light + 高光处背景提饱和（kube.io），两条路径同一套参数 */
       + (sp ? '<feImage x="0" y="0" width="' + mp.W + '" height="' + mp.H + '" preserveAspectRatio="none" href="' + sp.url + '" result="sp"/>'
         + GO.specSVG('h', 'lit', 'sp', { white: isDark() ? 0.35 : 0.6, satA: 0.8 }) : '')
       + '<feColorMatrix in="m" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0" result="mk"/>'
@@ -298,105 +331,149 @@
     if (bar && bar.parentNode && lensEl.parentNode !== bar.parentNode) bar.parentNode.insertBefore(lensEl, bar.nextSibling);
     return lensEl;
   }
-  function nowMs() { return global.performance ? performance.now() : Date.now(); }
+  function nowMs() { return LD._now ? LD._now() : (global.performance ? performance.now() : Date.now()); }
   function tabCenter(t) { var r = t.getBoundingClientRect(); return r.left + r.width / 2; }
+  /* 第 314 次：每个页签的线条图标 / 文字在栏内（未缩放）坐标里的左上角——按下时量一次，拖动时不再逐帧 getBoundingClientRect */
+  function iconBoxes() {
+    var br = bar.getBoundingClientRect(), k = bar.offsetWidth ? br.width / bar.offsetWidth : 1, out = [];
+    tabsOf().forEach(function (t) {
+      var els = t.querySelectorAll('.dk-l, .dk-t');
+      for (var i = 0; i < els.length; i++) { var r = els[i].getBoundingClientRect(); out.push({ el: els[i], x: (r.left - br.left) / k, y: (r.top - br.top) / k }); }
+    });
+    return out;
+  }
   function lensStart(t) {
     if (lens || !bar || !t || !t.classList.contains('dk-tab') || bar.classList.contains('is-sub') || bar.classList.contains('is-vertical')) return false;
     var mode = lensMode();
     if (!mode) return false;
     var W = LENS_W, H = Math.round(bar.offsetHeight + LENS_DH);
-    var br0 = bar.getBoundingClientRect();
-    var maxDown = Math.max(0, Math.floor(global.innerHeight - (br0.top + br0.height / 2 + H / 2)));
-    if (maxDown > 60) maxDown = 60;   /* 够远就不限（贴图键稳定，不反复重建） */
-    if (mode === 'svg' && !ensureLensFilter(W, H, maxDown >= 60 ? null : maxDown)) mode = 'plain';
+    if (mode === 'svg' && !ensureLensFilter(W, H)) mode = 'plain';
     var el = ensureLensEl();
     var body = el.firstChild;
     el.style.width = (W + 2 * LENS_PAD) + 'px'; el.style.height = (H + 2 * LENS_PAD) + 'px';
     body.style.left = body.style.top = LENS_PAD + 'px'; body.style.width = W + 'px'; body.style.height = H + 'px';
-    /* 第 310 次：四周留白只为折射取样用，画面只留透镜本身（Chromium 的 backdrop 在留白区会出一道倒影） */
     el.style.clipPath = 'inset(' + (LENS_PAD - 1) + 'px round ' + (H / 2 + 1) + 'px)';
     el.classList.remove('svg', 'gl', 'plain'); el.classList.add(mode);
     var x = tabCenter(t), n = nowMs();
-    lens = { mode: mode, W: W, H: H, x: x, tx: x, s: 0, m: 0, phase: 'grow', t0: n, last: n, pw: t.offsetWidth, ph: t.offsetHeight, tab: t };
+    lens = { mode: mode, W: W, H: H, x: x, vx: 0, tx: x, s: 0, vs: 0, sx: 1, vsx: 0, sy: 1, vsy: 0, rb: 0, m: 0, a: 0, hl: 0, flash: 1,
+      phase: 'grow', t0: n, last: n, pw: t.offsetWidth, ph: t.offsetHeight, tab: t, boxes: mode === 'gl' ? iconBoxes() : [] };
     bar.classList.remove('lg-lensend'); bar.classList.add('lg-lensing');
+    bar.classList.toggle('lg-lens-gl', mode === 'gl');
     if (thumb) { thumb.classList.add('lg-lhide'); thumb.classList.remove('lg-grow'); }
     lensApply();
     el.classList.add('on');
-    if (!lensRaf) lensRaf = global.requestAnimationFrame(lensFrame);
+    if (!lensRaf && !LD._manual) lensRaf = global.requestAnimationFrame(lensFrame);
     return true;
   }
   function lensRelease(x) {
     if (!lens || lens.phase === 'settle' || lens.phase === 'shrink') return;
     if (x != null) lens.tx = x;
-    lens.phase = 'settle'; lens.ts = nowMs();
-    if (!lensRaf) lensRaf = global.requestAnimationFrame(lensFrame);
+    lens.rb = 0; lens.vx = Math.max(-700, Math.min(700, lens.vx));
+    lens.phase = 'settle'; lens.ts = lens.last;   /* 透镜自己的时间轴（手动时钟下与墙钟不同） */
+    if (!lensRaf && !LD._manual) lensRaf = global.requestAnimationFrame(lensFrame);
   }
   function lensEnd() {
     if (lensRaf) { global.cancelAnimationFrame(lensRaf); lensRaf = 0; }
+    var L = lens;
     lens = null;
     if (lensEl) { lensEl.classList.remove('on', 'fast'); lensEl.style.opacity = ''; }
+    if (L && L.boxes) L.boxes.forEach(function (b) { ['--hx', '--hy', '--hw', '--hh'].forEach(function (k) { b.el.style.removeProperty(k); }); });
     if (bar) {
-      /* 第 313 次：收起那一刻彩色图标从「透镜里 opacity 1 !important」退回普通态，带着 .16s 渐隐 / .34s 缩小过渡，
-         没选中的页签会闪一下彩色图标（截图 260ms 处三个彩色图标同时出现）——先关掉过渡，两帧后再还原 */
+      /* 第 313 次：收起那一刻关掉图标过渡两帧，没选中的页签不闪彩色图标 */
       var b0 = bar;
       b0.classList.add('lg-lensend');
-      b0.classList.remove('lg-lensing'); b0.style.removeProperty('--lz');
+      b0.classList.remove('lg-lensing', 'lg-lens-gl'); b0.style.removeProperty('--lz');
       var rq = global.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
       rq(function () { rq(function () { if (!lens) b0.classList.remove('lg-lensend'); }); });
     }
     if (thumb) thumb.classList.remove('lg-lhide');
-    /* 第 313 次：同步收掉 WebGL 里的透镜（DR.lens 当场重画），透镜元素和 GL 透镜同一帧消失，不留一帧残影 */
     if (global.DockRefract && DockRefract.lens) DockRefract.lens(null);
   }
-  function ease(k) { return 1 - Math.pow(1 - k, 3); }
-  function lensFrame() {
-    lensRaf = 0;
-    if (!lens) return;
-    if (!bar || !bar.isConnected) { lensEnd(); return; }
-    var n = nowMs(), dt = Math.min(48, Math.max(1, n - lens.last)); lens.last = n;
-    var px = lens.x;
-    /* 拖动时跟手（只留一点点平滑）；松手后像被磁吸一样落到页签中心 */
-    var tau = (lens.phase === 'settle' || lens.phase === 'shrink') ? 55 : 14;
-    lens.x += (lens.tx - lens.x) * (1 - Math.exp(-dt / tau));
-    var v = Math.abs(lens.x - px) / dt;                          /* px / ms */
-    var mt = Math.min(1, v / 0.45);
-    lens.m += (mt - lens.m) * (1 - Math.exp(-dt / (mt > lens.m ? 40 : 170)));
-    if (lens.phase === 'grow') {
-      var k = (n - lens.t0) / 150;
-      if (k >= 1) { k = 1; lens.phase = 'hold'; }
-      lens.s = ease(k);
-    } else if (lens.phase === 'hold') {
-      lens.s += (1 - lens.s) * (1 - Math.exp(-dt / 40));
-    } else if (lens.phase === 'settle') {
-      lens.s += (1 - lens.s) * (1 - Math.exp(-dt / 40));
-      if (n - lens.ts > 260 || (n - lens.ts > 110 && Math.abs(lens.tx - lens.x) < 0.6 && lens.m < 0.15)) {
-        lens.phase = 'shrink'; lens.t1 = n; lens.s1 = lens.s;
+  /* 第 314 次：一帧物理（dt ms）。拖动 = 临界阻尼跟手；松手 = 欠阻尼吸附；鼓起 / 形变 = 欠阻尼弹簧；收回 = 临界阻尼 */
+  function lensStep(dt) {
+    var L = lens, n = L.last, red = reduced;
+    var q;
+    if (L.phase === 'grow' || L.phase === 'hold') {
+      q = springStep(L.s, L.vs, 1, PHYS.grow, dt, red); L.s = q[0]; L.vs = q[1];
+      if (L.phase === 'grow' && n - L.t0 > 150) L.phase = 'hold';
+      q = springStep(L.x, L.vx, L.tx, PHYS.drag, dt, true); L.x = q[0]; L.vx = q[1];
+    } else if (L.phase === 'settle') {
+      q = springStep(L.s, L.vs, 1, PHYS.grow, dt, red); L.s = q[0]; L.vs = q[1];
+      q = springStep(L.x, L.vx, L.tx, PHYS.snap, dt, red); L.x = q[0]; L.vx = q[1];
+      var el = n - L.ts;
+      if ((el > 140 && Math.abs(L.tx - L.x) < 0.6 && Math.abs(L.vx) < 40 && Math.abs(L.sx - 1) < 0.02 && Math.abs(L.sy - 1) < 0.02) || el > 520) {
+        L.phase = 'shrink'; L.t1 = n; L.vs = Math.min(0, L.vs);
         if (thumb) {
           try { thumb.getAnimations().forEach(function (a) { a.finish(); }); } catch (e) { /* 老内核 */ }
           thumb.classList.remove('lg-lhide');
         }
       }
-    } else if (lens.phase === 'shrink') {
-      var q = (n - lens.t1) / 160;
-      if (q >= 1) { lensEnd(); return; }
-      lens.s = lens.s1 * (1 - ease(q));
+    } else if (L.phase === 'shrink') {
+      q = springStep(L.s, L.vs, -0.25, PHYS.shrink, dt, true); L.s = q[0]; L.vs = q[1];
+      q = springStep(L.x, L.vx, L.tx, PHYS.snap, dt, true); L.x = q[0]; L.vx = q[1];
+      if (L.s <= 0.02 || n - L.t1 > 400) return false;
     }
-    lensApply();
-    lensRaf = global.requestAnimationFrame(lensFrame);
+    var tg = deformTarget(L.vx, L.rb, red);
+    if (red) { L.sx = L.sy = 1; L.vsx = L.vsy = 0; }
+    else {
+      q = springStep(L.sx, L.vsx, tg[0], PHYS.shape, dt); L.sx = q[0]; L.vsx = q[1];
+      q = springStep(L.sy, L.vsy, tg[1], PHYS.shape, dt); L.sy = q[0]; L.vsy = q[1];
+    }
+    L.a = tg[2];
+    L.m += (tg[2] - L.m) * (1 - Math.exp(-dt / (tg[2] > L.m ? 40 : 170)));
+    var dir = L.vx > 0 ? 1 : L.vx < 0 ? -1 : 0;
+    L.hl += (dir * tg[2] - L.hl) * (1 - Math.exp(-dt / 60));
+    L.flash *= Math.exp(-dt / 260);
+    return true;
   }
-  var lensPin = null;   /* 测试 / 截图用：钉住鼓起比例 s 与速度 m（截图要几百毫秒，逐帧状态等不到） */
+  function lensFrame() {
+    lensRaf = 0;
+    if (!lens) return;
+    if (!bar || !bar.isConnected) { lensEnd(); return; }
+    var n = nowMs(), dt = Math.min(100, Math.max(1, n - lens.last)); lens.last = n;   /* 4ms 子步积分，长帧也稳定；上限 100ms 只防后台切回 */
+    if (!lensStep(dt)) { lensEnd(); return; }
+    lensApply();
+    if (!LD._manual) lensRaf = global.requestAnimationFrame(lensFrame);
+  }
+  /* 测试 / 截图：手动时钟（不跑 rAF，按 ms 推进物理并当场画一帧） */
+  LD._manualMode = function (on) {
+    LD._manual = !!on;
+    if (on && lensRaf) { global.cancelAnimationFrame(lensRaf); lensRaf = 0; }
+    if (!on && lens && !lensRaf) { lens.last = nowMs(); lensRaf = global.requestAnimationFrame(lensFrame); }
+  };
+  LD._step = function (ms) {
+    if (!lens) return null;
+    var left = ms;
+    while (left > 0 && lens) {
+      var d = Math.min(16, left); left -= d; lens.last += d;
+      if (!lensStep(d)) { lensEnd(); return null; }
+    }
+    if (lens) lensApply();
+    return LD._state().lens;
+  };
+  var lensPin = null;   /* 测试 / 截图用：钉住 s（鼓起）/ m（速度 0..1）/ vx（px/s，形变直接取目标）/ hl / flash */
   function lensApply() {
     if (!lens || !lensEl) return;
-    if (lensPin) { if (lensPin.s != null) lens.s = lensPin.s; if (lensPin.m != null) lens.m = lensPin.m; }
-    var L = lens, br = bar.getBoundingClientRect(), cy = br.top + br.height / 2, s = L.s;
-    var w = L.pw + (L.W - L.pw) * s, h = L.ph + (L.H - L.ph) * s, sx = w / L.W, sy = h / L.H;
-    lensEl.style.transform = 'translate(' + (L.x - L.W / 2 - LENS_PAD) + 'px,' + (cy - L.H / 2 - LENS_PAD) + 'px) scale(' + sx + ',' + sy + ')';
+    var L = lens;
+    if (lensPin) {
+      if (lensPin.s != null) { L.s = lensPin.s; L.vs = 0; }
+      if (lensPin.m != null) L.m = lensPin.m;
+      if (lensPin.vx != null) { var tg = deformTarget(lensPin.vx, 0, reduced); L.vx = lensPin.vx; L.sx = tg[0]; L.sy = tg[1]; L.a = tg[2]; L.vsx = L.vsy = 0; }
+      if (lensPin.hl != null) L.hl = lensPin.hl;
+      if (lensPin.flash != null) L.flash = lensPin.flash;
+    }
+    var br = bar.getBoundingClientRect(), cy = br.top + br.height / 2, s = Math.max(0, L.s);
+    var w = (L.pw + (L.W - L.pw) * s) * L.sx, h = (L.ph + (L.H - L.ph) * s) * L.sy, sx = w / L.W, sy = h / L.H;
+    lensEl.style.transform = 'translate(' + (L.x - L.W / 2 - LENS_PAD) + 'px,' + (cy - L.H / 2 - LENS_PAD) + 'px) scale(' + sx.toFixed(4) + ',' + sy.toFixed(4) + ')';
     var op = L.phase === 'shrink' ? Math.min(1, s * 1.6) : Math.min(1, 0.35 + s * 1.3);
     lensEl.style.opacity = op;
-    /* 色散随速度：chx 9（静止）→ 18（快速拖动）；偏移 ×(1 + 0.12·m) */
-    var chx = 9 + 9 * L.m, gm = 1 + 0.12 * L.m;
-    /* 第 312 次：快速拖动时透镜彩虹环加重（CSS .lg-lens-el.fast，第 311 次写了样式但一直没人加这个类） */
+    /* 色散随速度、保持淡：rim 位移 ×(1 + 0.35·m)。Chromium 的贴图里放大和 rim 在同一张图，三通道 scale 差会连中心一起色散，
+       所以这里只给 chx 0.6 → 1.8（R/B 差 2%~6%）；iOS 着色器的色散只乘在 rim 带里（1.2 → 3.6） */
+    var chx = 0.6 + 1.2 * L.m, gm = 1 + 0.35 * L.m;
     if ((L.m > 0.45) !== lensEl.classList.contains('fast')) lensEl.classList.toggle('fast', L.m > 0.45);
+    /* 动态高光（CSS 路径）：高光朝运动方向偏移、随速度增强；按下时一道亮弧（flash） */
+    lensEl.style.setProperty('--lhx', L.hl.toFixed(3));
+    lensEl.style.setProperty('--lho', Math.min(1, L.m * 0.8 + L.flash).toFixed(3));
     if (L.mode === 'svg') {
       var f = doc.getElementById('lgLens');
       if (f) {
@@ -404,35 +481,49 @@
         for (var c = 0; c < 3 && c < dms.length; c++) dms[c].setAttribute('scale', (2 * LENS_MX * (1 + IOR_D[c] * chx) * gm).toFixed(2));
       }
     }
-    /* 栏的上下细边：透镜里两条水平直线（局部坐标里抵消缩放，始终贴在栏边上；只画栏的直边段） */
-    var lx = L.x - w / 2, R = br.height / 2;
-    var a = Math.max(14, (br.left + R - lx) / sx), b = Math.min(L.W - 14, (br.right - R - lx) / sx);
+    var lx = L.x - w / 2;
+    /* 栏的上下细边：只在 plain（没有真折射）时用两条直线示意；svg / gl 里栏边是被真折弯进来的 */
+    var R = br.height / 2;
+    var a0 = Math.max(14, (br.left + R - lx) / sx), b0 = Math.min(L.W - 14, (br.right - R - lx) / sx);
     var lines = lensEl.firstChild.children;
     for (var i = 0; i < lines.length; i++) {
       var ln = lines[i], yy = (i === 0 ? br.top : br.bottom) - cy;
       ln.style.top = (L.H / 2 + yy / sy) + 'px';
-      ln.style.left = a + 'px'; ln.style.width = Math.max(0, b - a) + 'px';
-      ln.style.opacity = b - a > 6 ? Math.min(1, s * s) : 0;
+      ln.style.left = a0 + 'px'; ln.style.width = Math.max(0, b0 - a0) + 'px';
+      ln.style.opacity = b0 - a0 > 6 ? Math.min(1, s * s) : 0;
     }
-    /* 透镜范围内的页签：彩色图标只在透镜里露出，线条图标只在透镜外（原位、原大，不缩放） */
-    /* 第 311 次：像支付宝那样，透镜里的图标放大约 1.15 倍（随鼓起程度 s 渐变；线条图标在透镜外，不放大） */
-    var zf = 1 + LENS_ZOOM * Math.max(0, Math.min(1, s));
+    /* 图标：
+       · gl：透镜里的彩色图标 + 文字由 GL 从「透镜图标层」画（随透镜放大、在边上一起被折弯）；DOM 图标每个页签用 clip-path 挖掉透镜形状，只露在透镜外。
+       · svg：DOM 彩色图标遮罩到透镜范围，透镜的 backdrop 把它们和背景一起放大 / 折弯（--lz = 1，不再二次放大）。
+       · plain：没有折射，DOM 彩色图标放大 1.15（第 311 次）。 */
+    var zf = L.mode === 'plain' ? 1 + LENS_ZOOM * Math.max(0, Math.min(1, s)) : 1;
     bar.style.setProperty('--lz', zf.toFixed(3));
-    /* 第 312 次：iOS（gl）路径里透镜外沿那圈由 WebGL 画「被折弯的图标」（dock 图标单独画进一张纹理），
-       DOM 的彩色图标只露在 rim 以内、文字在 rim 里让开，这样邻近图标在透镜边上是弯进去的，而不是被一刀切开 */
-    var lr = L.mode === 'gl' && LENS_ICON_TEX ? LENS_RIM.rb * sy + 1 : 0;   /* 第 313 次：LENS_ICON_TEX 关 → 0，DOM 图标 / 文字不让开 */
-    tabsOf().forEach(function (t) {
-      var els = t.querySelectorAll('.dk-c, .dk-l, .dk-t');
-      for (var j = 0; j < els.length; j++) {
-        var e = els[j], r = e.getBoundingClientRect(), isC = e.classList.contains('dk-c'), k = isC ? zf : 1;   /* 彩色图标被放大 zf 倍：屏幕坐标换回元素局部坐标 */
-        var ins = isC ? lr : 0;
-        e.style.setProperty('--la', ((lx + ins - r.left) / k).toFixed(2) + 'px');
-        e.style.setProperty('--lb', ((lx - ins - r.left + w) / k).toFixed(2) + 'px');
-        if (!isC && lr) e.style.setProperty('--lr', lr.toFixed(2) + 'px'); else e.style.removeProperty('--lr');
-      }
-    });
-    /* 第 313 次：把透镜元素的不透明度也交给 GL（收起时两者一起淡出，不再一实一虚）；DR.lens 当场同步重画，GL 透镜与 CSS 外形同一帧，不再错位成两条轮廓 */
-    if (L.mode === 'gl' && global.DockRefract && DockRefract.lens) DockRefract.lens({ x: lx, y: cy - h / 2, w: w, h: h }, L.m, sy, op);
+    if (L.mode === 'gl') {
+      /* 透镜（圆角胶囊）在每个元素局部坐标里的盒子 → CSS 遮罩挖洞（全图 − 矩形 ∪ 两个圆），透镜里只剩 GL 画的那份。
+         不用 clip-path：WPE WebKit 里页签一带 clip-path，栏里的 WebGL 画布整块不合成（实测） */
+      var kk = bar.offsetWidth ? br.width / bar.offsetWidth : 1;
+      var hx0 = (lx - br.left) / kk, hy0 = (cy - h / 2 - br.top) / kk, hw = (w / kk).toFixed(2) + 'px', hh = (Math.min(w, h) / kk).toFixed(2) + 'px';
+      L.boxes.forEach(function (b) {
+        var st = b.el.style;
+        st.setProperty('--hx', (hx0 - b.x).toFixed(2) + 'px'); st.setProperty('--hy', (hy0 - b.y).toFixed(2) + 'px');
+        st.setProperty('--hw', hw); st.setProperty('--hh', hh);
+      });
+    } else {
+      tabsOf().forEach(function (t) {
+        var els = t.querySelectorAll('.dk-c, .dk-l, .dk-t');
+        for (var j = 0; j < els.length; j++) {
+          var e = els[j], r = e.getBoundingClientRect(), isC = e.classList.contains('dk-c'), k = isC ? zf : 1;
+          e.style.setProperty('--la', ((lx - r.left) / k).toFixed(2) + 'px');
+          e.style.setProperty('--lb', ((lx - r.left + w) / k).toFixed(2) + 'px');
+          e.style.removeProperty('--lr');
+        }
+      });
+    }
+    /* GL：形状 / 折射 / 高光 / 融合全在着色器里按 uniform 尺寸算（不生成贴图）；DR.lens 当场同步重画，GL 与 CSS 外形同一帧 */
+    if (L.mode === 'gl' && global.DockRefract && DockRefract.lens) {
+      DockRefract.lens({ x: lx, y: cy - h / 2, w: w, h: h }, L.m, Math.max(0, Math.min(1, s)), op,
+        { hl: L.hl, flash: L.flash, fuse: reduced ? 0 : PHYS.fuse, a: L.a });
+    }
   }
 
   /* ---------- 3. 选中水滴：跟随 + 弹簧 ---------- */
@@ -525,10 +616,17 @@
     var tabs = tabsOf(); if (!tabs.length) return;
     var br = bar.getBoundingClientRect(), a = activeTab() || tabs[0];
     var w = a.offsetWidth, first = tabs[0], last = tabs[tabs.length - 1];
-    var x = e.clientX - br.left - w / 2;
-    x = Math.max(first.offsetLeft - 4, Math.min(last.offsetLeft + 4, x));
-    thumb.style.transform = 'translate(' + x + 'px,' + a.offsetTop + 'px)';
-    if (lens) lens.tx = br.left + (x + w / 2) * (br.width / (bar.offsetWidth || br.width));   /* 第 309 次：透镜跟手 */
+    var kx = br.width / (bar.offsetWidth || br.width);
+    var x = (e.clientX - br.left) / kx - w / 2;
+    /* 第 314 次：两端橡皮筋——超出首尾页签的部分按 iOS 公式 (1 − 1/(d·c/R + 1))·R 衰减（最多拉出 R = 26px），透镜同时朝那一端拉长 */
+    var lo = first.offsetLeft, hi = last.offsetLeft, rb = 0;
+    if (x < lo || x > hi) {
+      var d = x < lo ? lo - x : x - hi, R = PHYS.rubber;
+      rb = (1 - 1 / (d * PHYS.rubberC / R + 1)) * R * (x < lo ? -1 : 1);
+      x = (x < lo ? lo : hi) + rb;
+    }
+    thumb.style.transform = 'translate(' + Math.max(lo - 4, Math.min(hi + 4, x)) + 'px,' + a.offsetTop + 'px)';
+    if (lens) { lens.tx = br.left + (x + w / 2) * kx; lens.rb = rb; }   /* 第 309 次：透镜跟手 */
     else thumb.classList.add('lg-grow');
     var h = nearest(e.clientX);
     if (h !== drag.hover) {
@@ -585,10 +683,15 @@
   LD.refresh = function () { if (bar) { place(false); updateRefraction(); } };
   LD.RIM = LENS_RIM;   /* 第 312 次：iOS 着色器读同一组透镜 rim 参数 */
   LD.ICON_TEX = LENS_ICON_TEX;   /* 第 313 次：dock-refract.js 据此决定要不要栅格化图标层 */
-  LD.LENS = { W: LENS_W, DH: LENS_DH, ZOOM: LENS_ZOOM };
+  LD.LENS_TEX = LENS_TEX;     /* 第 314 次：GL 画透镜里的彩色图标 + 选中色文字（透镜图标层） */
+  LD.LENS = { W: LENS_W, DH: LENS_DH, ZOOM: LENS_ZOOM, MAG: LENS_MAG };
+  LD.PHYS = PHYS;
+  LD._phys = function () { return { reduced: reduced, PHYS: PHYS }; };
   LD._pin = function (o) { lensPin = o || null; if (lens) lensApply(); };
+  var r3 = function (v) { return Math.round(v * 1000) / 1000; };
   LD._state = function () { return { refract: refractOn, thumb: !!(thumb && thumb.classList.contains('on')), map: mapKey,
-    lens: lens ? { mode: lens.mode, phase: lens.phase, s: Math.round(lens.s * 1000) / 1000, m: Math.round(lens.m * 1000) / 1000, x: Math.round(lens.x * 10) / 10 } : null }; };
+    lens: lens ? { mode: lens.mode, phase: lens.phase, s: r3(lens.s), m: r3(lens.m), x: Math.round(lens.x * 10) / 10, vx: Math.round(lens.vx),
+      sx: r3(lens.sx), sy: r3(lens.sy), hl: r3(lens.hl), flash: r3(lens.flash), rb: Math.round(lens.rb * 10) / 10, tx: Math.round(lens.tx * 10) / 10 } : null }; };
 
   global.LiquidDock = LD;
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', function () { setTimeout(LD.init, 0); });

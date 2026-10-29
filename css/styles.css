@@ -7032,7 +7032,7 @@ html.lg-refract .lg-lens-el.svg { -webkit-backdrop-filter: url(#lgLens); backdro
   content: ''; position: absolute; top: 4px; height: 7px; border-radius: var(--radius-pill);
   background: linear-gradient(rgba(255, 255, 255, .95), rgba(255, 255, 255, 0));
 }
-.lg-lens-el > .lgl-body::before { left: 16%; right: 34%; opacity: .5; }
+.lg-lens-el > .lgl-body::before { left: 16%; right: 34%; opacity: calc(.45 + .5 * var(--lho, 0)); translate: calc(var(--lhx, 0) * 40%) 0; } /* 第 314 次：高光随运动方向偏移、随速度 / 按下变亮（--lhx / --lho） */
 .lg-lens-el > .lgl-body::after { /* 第 311 次：一圈很淡的彩虹细环（第 312 次合并） */
   left: 0; top: 0; width: 100%; height: 100%; opacity: .28; padding: 1.6px; box-sizing: border-box; border-radius: inherit;
   background: conic-gradient(from 200deg, rgba(255, 120, 160, .9), rgba(255, 210, 110, .9), rgba(140, 230, 170, .9), rgba(110, 180, 255, .9), rgba(190, 140, 255, .9), rgba(255, 120, 160, .9));
@@ -7161,3 +7161,32 @@ body.dark .lg-lens-el.svg > .lgl-body { box-shadow: 0 0 0 .6px rgba(255, 255, 25
   inset 2px 2.5px 2px -1px rgba(255, 255, 255, .4), inset 0 0 10px 0 rgba(255, 255, 255, .07); background: rgba(255, 255, 255, .03); }
 /* 第 313 次：透镜收起那两帧图标不走过渡（见 liquid-dock.js lensEnd），否则没选中的页签会闪一下彩色图标 */
 body .tabbar.lg.lg-lensend .tab.dk-tab .dk-c, body .tabbar.lg.lg-lensend .tab.dk-tab .dk-l { transition: none !important; }
+
+/* ============================================================
+   第 314 次：液态透镜（js/liquid-dock.js 弹簧物理 + js/dock-refract.js 着色器 + js/glass-optics.js 同一张 Snell 表）
+   · 形变 / 鼓起 / 吸附 / 收回全是弹簧（liquid-dock.js PHYS），CSS 不再给透镜任何过渡。
+   · iOS（.gl）：透镜的外形、折射、高光、投影、与 dock 的融合全由 WebGL 按 uniform 尺寸现算，CSS 外形不画任何东西（313 的细外轮廓 + 内侧亮边
+     会和 GL 形状错开成第二条轮廓）。透镜里的彩色图标 + 选中色文字也由 GL 画（透镜图标层），DOM 的线条图标 / 文字每个页签用 clip-path 挖掉透镜，
+     只露在透镜外；DOM 彩色图标此时不显示。
+   · Chromium（.svg）：栏边被真折射进透镜，不再画两条假直线；顶部窄高光随运动方向偏移、随速度 / 按下变亮（--lhx / --lho，JS 逐帧写）。
+   ============================================================ */
+.lg-lens-el.gl > .lgl-body, body.dark .lg-lens-el.gl > .lgl-body { box-shadow: none; background: none; }
+.lg-lens-el.gl > .lgl-body::before { display: none; }
+.lg-lens-el.svg .lgl-line { display: none; }
+body.dark .lg-lens-el > .lgl-body::before { opacity: calc(.1 + .3 * var(--lho, 0)); }
+body .tabbar.lg.lg-lensing.lg-lens-gl .tab.dk-tab .dk-c { opacity: 0 !important; }
+/* 挖洞遮罩：最上层全图，减去（矩形 ∪ 左圆 ∪ 右圆）= 透镜胶囊；--hx/--hy/--hw/--hh 由 JS 逐帧写（元素局部坐标） */
+body .tabbar.lg.lg-lensing.lg-lens-gl .tab.dk-tab .dk-l,
+html.lg-gl body .tabbar.lg.lg-lensing.lg-lens-gl .tab.dk-tab .dk-t {
+  -webkit-mask: linear-gradient(#000, #000) 0 0 / 100% 100% no-repeat,
+    linear-gradient(#000, #000) calc(var(--hx, -999px) + var(--hh, 0px) / 2) var(--hy, -999px) / calc(var(--hw, 0px) - var(--hh, 0px)) var(--hh, 0px) no-repeat,
+    radial-gradient(closest-side, #000 calc(100% - 1px), transparent) var(--hx, -999px) var(--hy, -999px) / var(--hh, 0px) var(--hh, 0px) no-repeat,
+    radial-gradient(closest-side, #000 calc(100% - 1px), transparent) calc(var(--hx, -999px) + var(--hw, 0px) - var(--hh, 0px)) var(--hy, -999px) / var(--hh, 0px) var(--hh, 0px) no-repeat;
+  -webkit-mask-composite: source-out, source-over, source-over, source-over;
+  mask: linear-gradient(#000, #000) 0 0 / 100% 100% no-repeat,
+    linear-gradient(#000, #000) calc(var(--hx, -999px) + var(--hh, 0px) / 2) var(--hy, -999px) / calc(var(--hw, 0px) - var(--hh, 0px)) var(--hh, 0px) no-repeat,
+    radial-gradient(closest-side, #000 calc(100% - 1px), transparent) var(--hx, -999px) var(--hy, -999px) / var(--hh, 0px) var(--hh, 0px) no-repeat,
+    radial-gradient(closest-side, #000 calc(100% - 1px), transparent) calc(var(--hx, -999px) + var(--hw, 0px) - var(--hh, 0px)) var(--hy, -999px) / var(--hh, 0px) var(--hh, 0px) no-repeat;
+  mask-composite: subtract, add, add, add;
+}
+html body .tabbar.lg-drag ~ .lg-lens-el.svg > .lgl-body::after, html body .lg-lens-el.svg.fast > .lgl-body::after { opacity: .3; } /* 第 314 次：快拖彩虹环 .45 → .3，色散保持淡 */
