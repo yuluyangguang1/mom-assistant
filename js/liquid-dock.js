@@ -32,6 +32,10 @@
  *   Glass-HQ regular 材质）。dock 本体凸面往里取样 + 磨砂 + rim light；透镜外沿用同一张 Snell 表往外取样 + 色散 + rim light；
  *   iOS 着色器（dock-refract.js）用同一张表（1D 纹理）、同样的色调与高光，并把 dock 图标画进单独纹理，让邻近图标在透镜边上真的弯进去。
  *
+ * 第 313 次（真机录屏修透镜）：透镜改成宽而扁（136 × 栏高+6）；iOS 透镜外沿不再画 dock 图标纹理（对不齐 → 碎块 / 重影，退回 DOM 图标干净换色）；
+ *   DR.lens 带上不透明度并当场同步重画（GL 透镜与 CSS 外形同一帧）；透镜内部由 GL 画成放大 1.06、略提亮的玻璃体。
+ *   浅色「白胶囊」/ 深色「黑胶囊」的真凶是触屏 :hover 粘住 + .tab:hover{background:var(--surface)}，CSS 第 313 次段落清掉。
+ *
  * 不改 app.js 的构建逻辑：MutationObserver 盯着 #tabbar，每次重建后补回指示器、
  * 把它从上一次的位置滑到新位置（FLIP）。减少动态效果 / 高对比 / 减少透明度时降级。
  */
@@ -185,7 +189,11 @@
   var LENS_MX = 34;                            /* 贴图里 ±127 对应的最大偏移（CSS px，绿通道基准） */
   var LENS_PAD = 60;                           /* 透镜元素四周留白：外沿取样最远 ≈ 30 × 1.12 × 1.315（蓝）≈ 44px，再加余量 */
   var LENS_K = 2;                              /* 贴图分辨率：每 CSS px 2 像素 */
-  var LENS_W = 132, LENS_DH = 14, LENS_ZOOM = .15;              /* 第 311 次：宽 132、高 = 栏高 + 14（对照支付宝录屏，原 124 / +20 显得太圆） */
+  var LENS_W = 136, LENS_DH = 6, LENS_ZOOM = .15;               /* 第 311 次：宽 132、高 = 栏高 + 14（原 124 / +20 显得太圆）；
+                                                                 第 313 次：真机仍偏圆偏高 → 宽 136、高 = 栏高 + 6（上下各只冒出 3px，对照支付宝录屏 19:05：透镜只比栏高约 8pt / 63pt） */
+  /* 第 313 次：iOS（gl）透镜外沿不再画「dock 图标纹理」。真机上图标纹理（2 倍图、快照坐标）和 DOM 图标对不齐：
+     外沿出现碎块、像素块、半个字 / 两份字（「日|」）。按用户的退路：外沿只折射背景，DOM 图标在透镜边上干净地换色、文字照常显示 */
+  var LENS_ICON_TEX = false;
   var IOR_D = [-0.03, 0, 0.035];               /* n − 1.5，n = [1.47, 1.5, 1.535] */
   var lens = null, lensEl = null, lensKey = '', lensRaf = 0;
 
@@ -264,9 +272,9 @@
     f.innerHTML = '<feImage x="0" y="0" width="' + mp.W + '" height="' + mp.H + '" preserveAspectRatio="none" href="' + mp.url + '" result="m"/>' + m
       + '<feComposite in="cR" in2="cG" operator="arithmetic" k2="1" k3="1" result="rg"/>'
       + '<feComposite in="rg" in2="cB" operator="arithmetic" k2="1" k3="1" result="rgb"/>'
-      /* 定稿：透镜里的内容略提亮、提饱和（brightness 1.07 / saturate 1.3） */
+      /* 定稿：透镜里的内容略提亮、提饱和（brightness 1.07 / saturate 1.3）；第 313 次：1.07 → 1.03（背后的 dock 磨砂已经提到 0.94，再 ×1.07 就成了一块奶白） */
       + '<feColorMatrix in="rgb" type="saturate" values="1.3" result="sat"/>'
-      + '<feComponentTransfer in="sat" result="lit"><feFuncR type="linear" slope="1.07"/><feFuncG type="linear" slope="1.07"/><feFuncB type="linear" slope="1.07"/></feComponentTransfer>'
+      + '<feComponentTransfer in="sat" result="lit"><feFuncR type="linear" slope="1.03"/><feFuncG type="linear" slope="1.03"/><feFuncB type="linear" slope="1.03"/></feComponentTransfer>'
       /* 第 312 次：固定光照角的厚玻璃 rim light + 高光处背景提饱和（kube.io），两条路径同一套参数 */
       + (sp ? '<feImage x="0" y="0" width="' + mp.W + '" height="' + mp.H + '" preserveAspectRatio="none" href="' + sp.url + '" result="sp"/>'
         + GO.specSVG('h', 'lit', 'sp', { white: isDark() ? 0.35 : 0.6, satA: 0.8 }) : '')
@@ -310,7 +318,7 @@
     el.classList.remove('svg', 'gl', 'plain'); el.classList.add(mode);
     var x = tabCenter(t), n = nowMs();
     lens = { mode: mode, W: W, H: H, x: x, tx: x, s: 0, m: 0, phase: 'grow', t0: n, last: n, pw: t.offsetWidth, ph: t.offsetHeight, tab: t };
-    bar.classList.add('lg-lensing');
+    bar.classList.remove('lg-lensend'); bar.classList.add('lg-lensing');
     if (thumb) { thumb.classList.add('lg-lhide'); thumb.classList.remove('lg-grow'); }
     lensApply();
     el.classList.add('on');
@@ -327,8 +335,17 @@
     if (lensRaf) { global.cancelAnimationFrame(lensRaf); lensRaf = 0; }
     lens = null;
     if (lensEl) { lensEl.classList.remove('on', 'fast'); lensEl.style.opacity = ''; }
-    if (bar) { bar.classList.remove('lg-lensing'); bar.style.removeProperty('--lz'); }
+    if (bar) {
+      /* 第 313 次：收起那一刻彩色图标从「透镜里 opacity 1 !important」退回普通态，带着 .16s 渐隐 / .34s 缩小过渡，
+         没选中的页签会闪一下彩色图标（截图 260ms 处三个彩色图标同时出现）——先关掉过渡，两帧后再还原 */
+      var b0 = bar;
+      b0.classList.add('lg-lensend');
+      b0.classList.remove('lg-lensing'); b0.style.removeProperty('--lz');
+      var rq = global.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
+      rq(function () { rq(function () { if (!lens) b0.classList.remove('lg-lensend'); }); });
+    }
     if (thumb) thumb.classList.remove('lg-lhide');
+    /* 第 313 次：同步收掉 WebGL 里的透镜（DR.lens 当场重画），透镜元素和 GL 透镜同一帧消失，不留一帧残影 */
     if (global.DockRefract && DockRefract.lens) DockRefract.lens(null);
   }
   function ease(k) { return 1 - Math.pow(1 - k, 3); }
@@ -374,7 +391,8 @@
     var L = lens, br = bar.getBoundingClientRect(), cy = br.top + br.height / 2, s = L.s;
     var w = L.pw + (L.W - L.pw) * s, h = L.ph + (L.H - L.ph) * s, sx = w / L.W, sy = h / L.H;
     lensEl.style.transform = 'translate(' + (L.x - L.W / 2 - LENS_PAD) + 'px,' + (cy - L.H / 2 - LENS_PAD) + 'px) scale(' + sx + ',' + sy + ')';
-    lensEl.style.opacity = L.phase === 'shrink' ? Math.min(1, s * 1.6) : Math.min(1, 0.35 + s * 1.3);
+    var op = L.phase === 'shrink' ? Math.min(1, s * 1.6) : Math.min(1, 0.35 + s * 1.3);
+    lensEl.style.opacity = op;
     /* 色散随速度：chx 9（静止）→ 18（快速拖动）；偏移 ×(1 + 0.12·m) */
     var chx = 9 + 9 * L.m, gm = 1 + 0.12 * L.m;
     /* 第 312 次：快速拖动时透镜彩虹环加重（CSS .lg-lens-el.fast，第 311 次写了样式但一直没人加这个类） */
@@ -402,7 +420,7 @@
     bar.style.setProperty('--lz', zf.toFixed(3));
     /* 第 312 次：iOS（gl）路径里透镜外沿那圈由 WebGL 画「被折弯的图标」（dock 图标单独画进一张纹理），
        DOM 的彩色图标只露在 rim 以内、文字在 rim 里让开，这样邻近图标在透镜边上是弯进去的，而不是被一刀切开 */
-    var lr = L.mode === 'gl' ? LENS_RIM.rb * sy + 1 : 0;
+    var lr = L.mode === 'gl' && LENS_ICON_TEX ? LENS_RIM.rb * sy + 1 : 0;   /* 第 313 次：LENS_ICON_TEX 关 → 0，DOM 图标 / 文字不让开 */
     tabsOf().forEach(function (t) {
       var els = t.querySelectorAll('.dk-c, .dk-l, .dk-t');
       for (var j = 0; j < els.length; j++) {
@@ -413,7 +431,8 @@
         if (!isC && lr) e.style.setProperty('--lr', lr.toFixed(2) + 'px'); else e.style.removeProperty('--lr');
       }
     });
-    if (L.mode === 'gl' && global.DockRefract && DockRefract.lens) DockRefract.lens({ x: lx, y: cy - h / 2, w: w, h: h }, L.m, sy);
+    /* 第 313 次：把透镜元素的不透明度也交给 GL（收起时两者一起淡出，不再一实一虚）；DR.lens 当场同步重画，GL 透镜与 CSS 外形同一帧，不再错位成两条轮廓 */
+    if (L.mode === 'gl' && global.DockRefract && DockRefract.lens) DockRefract.lens({ x: lx, y: cy - h / 2, w: w, h: h }, L.m, sy, op);
   }
 
   /* ---------- 3. 选中水滴：跟随 + 弹簧 ---------- */
@@ -565,6 +584,8 @@
   };
   LD.refresh = function () { if (bar) { place(false); updateRefraction(); } };
   LD.RIM = LENS_RIM;   /* 第 312 次：iOS 着色器读同一组透镜 rim 参数 */
+  LD.ICON_TEX = LENS_ICON_TEX;   /* 第 313 次：dock-refract.js 据此决定要不要栅格化图标层 */
+  LD.LENS = { W: LENS_W, DH: LENS_DH, ZOOM: LENS_ZOOM };
   LD._pin = function (o) { lensPin = o || null; if (lens) lensApply(); };
   LD._state = function () { return { refract: refractOn, thumb: !!(thumb && thumb.classList.contains('on')), map: mapKey,
     lens: lens ? { mode: lens.mode, phase: lens.phase, s: Math.round(lens.s * 1000) / 1000, m: Math.round(lens.m * 1000) / 1000, x: Math.round(lens.x * 10) / 10 } : null }; };

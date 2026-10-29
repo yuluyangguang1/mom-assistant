@@ -40,6 +40,9 @@
  *   高光 = 固定光照的 |n·L|² 边缘 rim + 高光处提饱和；透镜 rim 同一张表 + 厚玻璃亮边。
  *   dock 图标（线条图标 + 文字）单独画进一张纹理 uI：透镜外沿往外取样时邻近图标真的被折弯进来，DOM 那一圈让开（--lr）。
  *
+ * 第 313 次：透镜内部画成玻璃体（以中心放大 uMagI、提亮 uLB，不再透明露出页签底色）；外沿沿法线双点取样 + 栏外快照 1.5px 预滤波（压掉彩色噪点）；
+ *   透镜在场时画布不降到 1.5 倍、不继承栏圆角；DR.lens 同步重画、带整体不透明度 uLA；图标纹理随 LiquidDock.ICON_TEX（默认关）。
+ *
  * 何时开：仅 WebKit / 非 Chromium（Chromium 走第 235 次的 SVG 路径）；设置「真实玻璃折射」开、
  *   「dock 液态玻璃折射」开；高对比 / 减少透明度时关；减少动态效果时只在静止时重拍、不跟随动画、高光不动。
  *   「自动」档下快照连续两次超过 150ms 就关闭本次会话的折射；滚动 <45fps 逐档降画质。
@@ -82,7 +85,8 @@
   var press = { dock: 0, live: 0, tdock: 0, tlive: 0 };
   var lastT = 0;
   /* 第 309 次：拖动透镜（liquid-dock.js 逐帧给）：视口矩形、速度 0..1、鼓起比例（偏移随尺寸缩放） */
-  var lensR = null, lensM = 0, lensG = 1;
+  var lensR = null, lensM = 0, lensG = 1, lensA = 1;
+  var LENS_MAG_I = 1.06;    /* 第 313 次：透镜内部背景放大（图标另由 DOM 的 --lz 放大 1.15） */
 
   /* ---------- 开关判断 ---------- */
   function setting() {
@@ -450,6 +454,9 @@
     /* 第 312 次：uD = Snell 位移表（128×1，glass-optics.js 同一张）；uI = dock 图标层（栏内坐标）；uTone = 色调曲线线性近似（与 CSS 一致）；
        uSS = 高光处提饱和；uLR = 透镜 rim（bezel、左右、上下最大位移）；uSW = rim 白光强度 */
     'uniform sampler2D uD,uI;uniform vec3 uTone,uLR;uniform vec4 uIB;uniform float uHasI,uSS,uSW;',
+    /* 第 313 次：uMagI = 透镜内部背景放大倍数；uLB = 透镜玻璃体提亮（x = 混白比例，y = 乘数）；uLA = 透镜整体不透明度（跟透镜元素一起淡出） */
+    'uniform float uMagI,uLA;uniform vec2 uLB;',
+    'vec3 lbody(vec3 c){return min(mix(c*uLB.y,vec3(1.),uLB.x),1.);}',
     'float tabl(float t){return t>=1.?0.:texture2D(uD,vec2((clamp(t,0.,1.)*126.+.5)/128.,.5)).r;}',
     'vec3 satv(vec3 c,float s){float l=dot(c,vec3(.2126,.7152,.0722));return clamp(mix(vec3(l),c,s),0.,1.);}',
     'vec3 tone(vec3 c){return satv(clamp(((c-.5)*uTone.x+.5)*uTone.y,0.,1.),uTone.z);}',
@@ -476,7 +483,13 @@
     /* 第 312 次：栏内 = 同 CSS 的磨砂（模糊 + 色调曲线近似 + 底色）再叠上 dock 图标层——透镜外沿往外取样时，邻近图标是被折弯进来的 */
     '  if(sa<0.){c=vec3(0.);for(int i=0;i<7;i++){float a=float(i)*2.39996;vec2 k=i==0?vec2(0.):vec2(cos(a),sin(a))*8.*sqrt(float(i)/6.);c+=bg(p+k);}c/=7.;c=wfill(p,c);',
     '    c=mix(tone(c),uTint.rgb,uTint.a);vec4 ic=icon(p);c=c*(1.-ic.a)+ic.rgb;}',
-    '  else c=lift(bg(p));',
+    /* 第 313 次：栏外页面取样带一点 1.5px 的十字预滤波（快照只有 0.5 倍分辨率，透镜外沿又把它压缩几倍，单点取样是彩色噪点的来源） */
+    '  else{vec2 q=vec2(1.5,0.);c=lift((bg(p)*2.+bg(p+q)+bg(p-q)+bg(p+q.yx)+bg(p-q.yx))/6.);}',
+    '  return mix(c,uLine.rgb,uLine.a*(1.-smoothstep(.15,.9,abs(sa))));}',
+    /* 第 313 次：透镜内部用的场景——栏内只做 CSS 那层磨砂（5px 模糊 + 色调 + 底色，不叠 23px 宽模糊 lighten），比外沿更通透，能看见背后的字 */
+    'vec3 scnI(vec2 p){float sa=sdBox(p,uA,uRA);vec3 c;',
+    '  if(sa<0.){c=vec3(0.);for(int i=0;i<7;i++){float a=float(i)*2.39996;vec2 k=i==0?vec2(0.):vec2(cos(a),sin(a))*5.*sqrt(float(i)/6.);c+=bg(p+k);}c/=7.;c=mix(tone(c),uTint.rgb,uTint.a);}',
+    '  else{vec2 q=vec2(1.5,0.);c=lift((bg(p)*2.+bg(p+q)+bg(p-q)+bg(p+q.yx)+bg(p-q.yx))/6.);}',
     '  return mix(c,uLine.rgb,uLine.a*(1.-smoothstep(.15,.9,abs(sa))));}',
     'vec3 glass(vec2 v,vec2 o,float rad){',
     '  vec3 c=vec3(0.);float nt=0.;',
@@ -533,27 +546,35 @@
     /* 第 312 次：rim 的偏移曲线换成同一张 Snell 表（bezel 10、左右 20 / 上下 30，与 Chromium 的 #lgLens 一致）；
        加固定光照角的厚玻璃亮边 + 高光处提饱和，白底页面上透镜边也看得出是一圈玻璃，而不是一根细线 */
     '      float rb=max(1.,uLR.x*uLG);',
+    /* 第 313 次：透镜内部不再透明（真机上透明处露出页签的 :hover 实色底 / 只剩一圈空心线）——画成一块玻璃体：
+       同 dock 的磨砂（栏内）/ 页面（栏外），以透镜中心轻微放大（uMagI，离 rim 10px 内渐入，与 rim 无缝），再略提亮（uLB） */
+    '      vec2 c0=uT.xy+uT.zw*.5;',
     '      if(dt<rb){',
     '        vec2 nt=normalize(vec2(sdBox(v+e.xy,uT,uRT)-sdBox(v-e.xy,uT,uRT),sdBox(v+e.yx,uT,uRT)-sdBox(v-e.yx,uT,uRT))+1e-5);',
     '        float ay=abs(nt.y);',
     '        float off=mix(uLR.y,uLR.z,ay)*(1.+.12*uLM)*uLG*tabl(max(dt,0.)/rb);',
     '        float chx=9.+9.*uLM;vec2 o=nt*off;',
-    '        lc=vec4(scn(v+o*(1.-.03*chx)).r,scn(v+o).g,scn(v+o*(1.+.035*chx)).b,1.);',
+    /* 第 313 次：外沿把几十 px 的内容压进 10px，单点取样会走样成彩色噪点块——沿法线取两点（0.88 / 1.12 倍偏移）平均，相当于给压缩方向做了预滤波 */
+    '        vec3 ac=vec3(0.);',
+    '        for(int j=0;j<2;j++){vec2 oo=o*(.88+.24*float(j));ac.r+=scn(v+oo*(1.-.03*chx)).r;ac.g+=scn(v+oo).g;ac.b+=scn(v+oo*(1.+.035*chx)).b;}',
+    '        lc=vec4(lbody(ac*.5),1.);',
     '        float sk=(.25+.75*pow(abs(dot(nt,uL)),2.))*exp(-max(dt,0.)/3.);',
     '        lc.rgb=mix(lc.rgb,satv(lc.rgb,1.+uSS*.2),clamp(sk,0.,1.)*.8);',
     '        lc.rgb=min(lc.rgb+sk*uSW,1.);',
     '      }else{',
-    '        float sa=sdBox(v,uA,uRA);',
-    '        if(sa>-.5){float ia=clamp(sa+.5,0.,1.);lc=vec4(lift(bg(v))*ia,ia);}',
+    '        float mk=smoothstep(rb,rb+10.,dt);',
+    '        vec2 pm=v+(c0-v)*(1.-1./uMagI)*mk;',
+    '        lc=vec4(lbody(mix(scn(pm),scnI(pm),mk)),1.);',
     '      }',
-    '      outc=lc*at+outc*(1.-at);',
+    '      float la=at*uLA;',
+    '      outc=lc*la+outc*(1.-la);',
     '    }',
     '  }',
   '  gl_FragColor=outc;}'
   ].join('\n');
   var UNI = ['uP', 'uB', 'uCv', 'uPS', 'uScroll', 'uL', 'uBox', 'uStrip', 'uTint', 'uFade', 'uA', 'uBr', 'uCut', 'uT', 'uFadeC', 'uTaps', 'uS', 'uY0', 'uPageOn', 'uBand', 'uAmt', 'uDisp', 'uBlur', 'uSpec', 'uRim', 'uDbg',
     'uRA', 'uRB', 'uK', 'uHasB', 'uRC', 'uHasCut', 'uFill', 'uRT', 'uHasT', 'uBandB', 'uLM', 'uLG', 'uLine',
-    'uD', 'uI', 'uTone', 'uLR', 'uIB', 'uHasI', 'uSS', 'uSW', 'uWF'];
+    'uD', 'uI', 'uTone', 'uLR', 'uIB', 'uHasI', 'uSS', 'uSW', 'uWF', 'uMagI', 'uLA', 'uLB'];
 
   function mkTex(aux) {
     /* 第 312 次：aux = 位移表 / 图标层这两张小纹理，单独计数（texLive / texCreated 仍只算整页快照 + 底色条两张） */
@@ -684,9 +705,15 @@
     schedule();
   };
   /* 第 309 次：拖动透镜。rect = 视口坐标 {x,y,w,h}（null = 收起）；m = 拖动速度 0..1（色散 / 偏移加重）；g = 鼓起比例 */
-  DR.lens = function (rect, m, g) {
-    lensR = rect && rect.w > 6 && rect.h > 6 ? rect : null; lensM = m || 0; lensG = g == null ? 1 : g;
-    schedule();
+  DR.lens = function (rect, m, g, a) {
+    var had = !!lensR;
+    lensR = rect && rect.w > 6 && rect.h > 6 ? rect : null; lensM = m || 0; lensG = g == null ? 1 : g; lensA = a == null ? 1 : Math.max(0, Math.min(1, a));
+    /* 第 313 次：当场同步重画（不等下一帧 rAF）。liquid-dock.js 在同一个回调里刚改了透镜元素的 transform / 遮罩，
+       GL 也在这一刻画，两者进同一次合成——真机录屏里 GL 彩虹环落后 CSS 外形一两帧、成了两条错开的轮廓。 */
+    if ((had || lensR) && on && ready && !lost && gl && bar) {
+      if (raf) { global.cancelAnimationFrame(raf); raf = 0; }
+      draw();
+    } else schedule();
   };
   DR.press = function (id, down) {
     if (!on || reduced) return;
@@ -754,6 +781,7 @@
     return GO ? GO.toneLinear(dark) : (dark ? { contrast: 0.777, brightness: 0.848, chroma: 1.065 } : { contrast: 0.529, brightness: 1.223, chroma: 1.1 });
   }
   function specSat() { var GO = GOx(); return GO ? GO.MAT.specSat : 7; }
+  function iconTexOn() { return !!(global.LiquidDock && LiquidDock.ICON_TEX); }
   function lensRim() { return (global.LiquidDock && LiquidDock.RIM) || { rb: 10, re: 20, rev: 30 }; }
   /* dock 图标层：把每个页签的线条图标（.dk-l，内联 SVG，按计算样式内联颜色 / 线宽）和文字画进一张栏内坐标的 2 倍画布。
      只在页签集合 / 选中项 / 栏尺寸 / 深浅色变化时重画（SVG 转图片是异步的，画好再上传纹理）；拖动时不重画。 */
@@ -852,7 +880,11 @@
     gl.uniform1f(U.uSW, dark ? 0.22 : 0.42);
     var bb = bar.getBoundingClientRect();
     gl.uniform4f(U.uIB, bb.left, bb.top, Math.max(1, bb.width), Math.max(1, bb.height));
-    gl.uniform1f(U.uHasI, icReady ? 1 : 0);
+    gl.uniform1f(U.uHasI, icReady && iconTexOn() ? 1 : 0);
+    /* 第 313 次：透镜玻璃体——内部放大、提亮（深色多提一点，真机深色透镜里只剩黑底 + 空心细线）、整体不透明度 */
+    gl.uniform1f(U.uMagI, LENS_MAG_I);
+    gl.uniform2f(U.uLB, dark ? 0.03 : 0.045, dark ? 1.12 : 1.02);
+    gl.uniform1f(U.uLA, lensA);
     gl.uniform1f(U.uDisp, 0.22);
     gl.uniform1f(U.uBlur, 9);
     gl.uniform1f(U.uSpec, dark ? 0.18 : 0.32);
@@ -899,7 +931,9 @@
     var key = u ? [u.x - r.left, u.y - r.top, u.w, u.h, r.width].map(function (v) { return Math.round(v * 2) / 2; }).join(',') : '';
     if (cv._key === key) return;
     cv._key = key;
-    if (!u) { cv.style.left = cv.style.top = cv.style.width = cv.style.height = ''; return; }
+    /* 第 313 次：画布扩出去时不要再继承栏的胶囊圆角（会把栏两端的透镜上下沿裁掉一角）；形状全由着色器的距离场决定 */
+    if (!u) { cv.style.left = cv.style.top = cv.style.width = cv.style.height = cv.style.borderRadius = ''; return; }
+    cv.style.borderRadius = '0';
     var k = bar.offsetWidth ? r.width / bar.offsetWidth : 1;   /* 按下时 dock 有 scale */
     var bl = bar.clientLeft || 0, bt = bar.clientTop || 0;
     cv.style.left = ((u.x - r.left) / k - bl) + 'px'; cv.style.top = ((u.y - r.top) / k - bt) + 'px';
@@ -912,7 +946,7 @@
     if (scrolling && ts) frameCheck(ts);
     if (!on || !ready || lost || !gl || !bar) return;
     var moving = stepAnim(dt, now);
-    rasterIcons();   /* 第 312 次：只比对 key，没变就不动 */
+    if (iconTexOn()) rasterIcons();   /* 第 312 次：只比对 key，没变就不动；第 313 次：透镜外沿不画图标纹理时整个跳过 */
     var th = (quality >= 1 && !DR._debug) ? bar.querySelector('.lg-thumb.on') : null;
     var looping = moving || now < loopUntil || thumbMoving(th) || !!lensR;
     if (quality === 0 && scrolling) { if (looping) schedule(); return; }
@@ -948,7 +982,8 @@
       else job = { s: ts2, b: tb };
     }
     /* 画布扩到胶囊时像素多了一倍多：2 倍屏降到 1.5 倍（折射边本来就带模糊，看不出差别） */
-    var gdpr = u ? Math.min(dpr, 1.5) : dpr;
+    /* 第 313 次：透镜在场时不降（真机 3 倍屏上 1.5 倍画布把透镜边放大成锯齿 / 像素块）；只有胶囊在场时才降到 1.5 */
+    var gdpr = u && !LT ? Math.min(dpr, 1.5) : dpr;
     var W = Math.max(2, Math.round(box.w * gdpr)), H = Math.max(2, Math.round(box.h * gdpr));
     if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
     setCommon();
@@ -1230,7 +1265,7 @@
       strips: stats.strips, copies: stats.copies, frames: stats.frames,
       surfaces: Object.keys(surf).map(function (k) { var s = surf[k]; return { id: k, canvas: s.c ? [s.c.width, s.c.height] : null, on: s.c ? s.c.classList.contains('on') : !!(s.el && s.el.classList.contains('lg-band')), inDom: s.c ? s.c.isConnected : !!(s.el && s.el.isConnected), shape: !!s.shape, k: s.k }; }),
       light: { src: light.src, x: Math.round(light.x * 1000) / 1000, y: Math.round(light.y * 1000) / 1000 }, press: { dock: press.dock, live: press.live },
-      ext: cv && cv._key ? 1 : 0, lens: !!(bar && bar.classList.contains('lg-lens')), lensT: lensR ? { x: Math.round(lensR.x), y: Math.round(lensR.y), w: Math.round(lensR.w), h: Math.round(lensR.h), m: Math.round(lensM * 100) / 100 } : null,
+      ext: cv && cv._key ? 1 : 0, cvRadius: cv ? cv.style.borderRadius : '', lens: !!(bar && bar.classList.contains('lg-lens')), lensT: lensR ? { x: Math.round(lensR.x), y: Math.round(lensR.y), w: Math.round(lensR.w), h: Math.round(lensR.h), m: Math.round(lensM * 100) / 100, a: Math.round(lensA * 100) / 100 } : null,
       idle: !!(on && ready && !dirty && !rasterTimer && !stripeTimer && !settleTimer && !pend.length)
     };
   };

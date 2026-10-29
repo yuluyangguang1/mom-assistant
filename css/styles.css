@@ -7055,14 +7055,15 @@ body.dark .lg-lens-el.plain > .lgl-body { background: rgba(255, 255, 255, .08); 
 body .tabbar.lg.lg-lensing .tab.dk-tab .dk-c {
   opacity: 1 !important; scale: var(--lz, 1) !important; transform-origin: 50% 92%; /* 第 311 次：透镜里放大 */ transition: none !important; animation: none !important;
   filter: none; /* drop-shadow 叠遮罩在 WebKit / Chromium 里会露出图标方框，透镜里不要投影 */
-  -webkit-mask: linear-gradient(90deg, transparent var(--la, -999px), #000 var(--la, -999px), #000 var(--lb, -998px), transparent var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
-  mask: linear-gradient(90deg, transparent var(--la, -999px), #000 var(--la, -999px), #000 var(--lb, -998px), transparent var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
+  /* 第 313 次：透镜边上换色从「一刀切」改成 6px 交叉渐变（外沿不画图标纹理后靠这一下过渡；硬切时宝宝头像的一缕黑发在透镜边上成一块碎片） */
+  -webkit-mask: linear-gradient(90deg, transparent var(--la, -999px), #000 calc(var(--la, -999px) + 6px), #000 calc(var(--lb, -998px) - 6px), transparent var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
+  mask: linear-gradient(90deg, transparent var(--la, -999px), #000 calc(var(--la, -999px) + 6px), #000 calc(var(--lb, -998px) - 6px), transparent var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
 }
 body .tabbar.lg.lg-lensing .tab.dk-tab .dk-l {
   opacity: 1 !important; scale: 1 !important; transition: none !important;
   /* 单层硬边渐变（不用两层 exclude：透镜整个在图标外时 Chromium 会把整颗图标遮没） */
-  -webkit-mask: linear-gradient(90deg, #000 var(--la, -999px), transparent var(--la, -999px), transparent var(--lb, -998px), #000 var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
-  mask: linear-gradient(90deg, #000 var(--la, -999px), transparent var(--la, -999px), transparent var(--lb, -998px), #000 var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
+  -webkit-mask: linear-gradient(90deg, #000 var(--la, -999px), transparent calc(var(--la, -999px) + 6px), transparent calc(var(--lb, -998px) - 6px), #000 var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
+  mask: linear-gradient(90deg, #000 var(--la, -999px), transparent calc(var(--la, -999px) + 6px), transparent calc(var(--lb, -998px) - 6px), #000 var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
 }
 /* 降级：高对比 / 减少透明度不出透镜（JS 同样不建）；减少动态效果时按下不出透镜（liquid-dock.js 不响应按压） */
 body.hc .lg-lens-el { display: none !important; }
@@ -7132,3 +7133,31 @@ body.hc .tabbar.lg, html.lg-gl body.hc .tabbar.lg, html.lg-refract body.hc .tabb
 @media (prefers-reduced-transparency: reduce) {
   body .tabbar.lg, body.dark .tabbar.lg, html.lg-refract body .tabbar.lg, html.lg-gl body .tabbar.lg, html.lg-gl body.dark .tabbar.lg { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
+
+/* ============================================================
+   第 313 次：真机录屏（2026-10-29 19:00 / 19:01，iPhone PWA）修透镜
+   · 浅色透镜里冲出的「纯白实心胶囊」/ 深色里的「黑胶囊」不是透镜画的：触屏 @media (hover: none) 里
+     .tab:hover { background: var(--surface) }（第 91 次「取消粘住的 hover」）给按过的页签铺了实色底；
+     iOS 上按过 / 拖过的页签 :hover 会一直粘着，只有选中页签被第 235 次的 transparent 盖住，
+     所以按住「没选中的页签」鼓透镜时，这块白（深色 = 近黑）就露出来。dock 页签一律不要底色。
+   · iOS（.gl）路径：透镜的形状 / 折射 / 色散全由 WebGL 画，CSS 只留一条细外轮廓 + 内侧亮边；
+     CSS 的彩虹细环（::after）和栏边两条直线（.lgl-line）在 GL 里已经画了，再画就是第二条错开的轮廓 / 重线。
+   · 透镜边上的图标换色改成 6px 交叉渐变（改在第 309 段原规则里）；收起那两帧 .lg-lensend 关掉图标过渡，没选中的页签不再闪彩色图标。
+   ============================================================ */
+body .tabbar.lg .tab.dk-tab, body .tabbar.lg .tab.dk-tab:hover, body .tabbar.lg .tab.dk-tab:active,
+body .tabbar.lg .tab.dk-tab.active:hover, body .tabbar.lg .tab.dk-tab.lg-hover { background: transparent; }
+.lg-lens-el.gl > .lgl-body::after, .lg-lens-el.gl .lgl-line { display: none; }
+.lg-lens-el.gl > .lgl-body {
+  box-shadow: 0 0 0 .5px rgba(110, 100, 92, .26), 0 8px 18px -10px rgba(90, 60, 40, .22),
+    inset 0 0 0 .8px rgba(255, 255, 255, .7), inset 1.5px 2px 2px -1px rgba(255, 255, 255, .85), inset -1.5px -2px 2px -1px rgba(255, 255, 255, .55);
+}
+body.dark .lg-lens-el.gl > .lgl-body {
+  box-shadow: 0 0 0 .5px rgba(255, 255, 255, .22), 0 8px 18px -10px rgba(0, 0, 0, .5),
+    inset 0 0 0 .8px rgba(255, 255, 255, .26), inset 1.5px 2px 2px -1px rgba(255, 255, 255, .42), inset -1.5px -2px 2px -1px rgba(255, 255, 255, .2),
+    inset 0 0 10px 0 rgba(255, 255, 255, .06);
+}
+/* 深色 Chromium（svg）路径同样补一点玻璃体：内侧柔光，透镜不再只剩一圈空心细线 */
+body.dark .lg-lens-el.svg > .lgl-body { box-shadow: 0 0 0 .6px rgba(255, 255, 255, .2), 0 10px 22px -10px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 255, 255, .3),
+  inset 2px 2.5px 2px -1px rgba(255, 255, 255, .4), inset 0 0 10px 0 rgba(255, 255, 255, .07); background: rgba(255, 255, 255, .03); }
+/* 第 313 次：透镜收起那两帧图标不走过渡（见 liquid-dock.js lensEnd），否则没选中的页签会闪一下彩色图标 */
+body .tabbar.lg.lg-lensend .tab.dk-tab .dk-c, body .tabbar.lg.lg-lensend .tab.dk-tab .dk-l { transition: none !important; }
