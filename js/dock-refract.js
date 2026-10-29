@@ -35,6 +35,11 @@
  * 第 309 次：选中指示器换成定稿的拖动透镜（liquid-dock.js 逐帧调 DR.lens）：透镜中间 1:1（栏内透明、栏外照画页面），
  *   只有外沿约 7px 一圈按 mock303n 的 rim 公式往外取样 + R/G/B 三通道色散，栏边细灰线折进来是上下两条直线。
  *
+ * 第 312 次：「真液态玻璃」——共用 js/glass-optics.js：dock 边带改成凸 squircle + Snell 位移表（1D 纹理 uD）沿内法线往里取样，
+ *   色调换成 Glass-HQ regular 曲线的线性近似（与 CSS backdrop-filter 同系数，替掉 saturate 1.9 的灰黑斑块），
+ *   高光 = 固定光照的 |n·L|² 边缘 rim + 高光处提饱和；透镜 rim 同一张表 + 厚玻璃亮边。
+ *   dock 图标（线条图标 + 文字）单独画进一张纹理 uI：透镜外沿往外取样时邻近图标真的被折弯进来，DOM 那一圈让开（--lr）。
+ *
  * 何时开：仅 WebKit / 非 Chromium（Chromium 走第 235 次的 SVG 路径）；设置「真实玻璃折射」开、
  *   「dock 液态玻璃折射」开；高对比 / 减少透明度时关；减少动态效果时只在静止时重拍、不跟随动画、高光不动。
  *   「自动」档下快照连续两次超过 150ms 就关闭本次会话的折射；滚动 <45fps 逐档降画质。
@@ -57,6 +62,7 @@
   var HOT_M = BAND + 40;    /* 玻璃面采样范围外扩（边带 + 偏移 + 模糊 + 余量） */
 
   var bar = null, cv = null, gl = null, prog = null, buf = null, texP = null, texB = null, U = {};
+  var texD = null, texI = null, icCv = null, icKey = '', icReady = false, icGen = 0;   /* 第 312 次：位移表 / dock 图标层 */
   var pageCv = null, pctx = null, stripCv = null, sctx = null;
   var on = false, ready = false, lost = false, dirty = true, hiddenForNav = false;
   var raf = 0, rasterTimer = 0, stripeTimer = 0, staleTimer = 0, scrollIdleTimer = 0, scrolling = false, lastRaster = 0, lastStripe = 0, slowHits = 0, disabledReason = '';
@@ -441,6 +447,15 @@
     'precision highp float;',
     'uniform sampler2D uP,uB;uniform vec2 uCv,uPS,uScroll,uL;uniform vec4 uBox,uStrip,uTint,uFade,uA,uBr,uCut,uT;uniform vec3 uFadeC;',
     'uniform float uTaps,uS,uY0,uPageOn,uBand,uAmt,uDisp,uBlur,uSpec,uRim,uDbg,uRA,uRB,uK,uHasB,uRC,uHasCut,uFill,uRT,uHasT,uBandB,uLM,uLG;uniform vec4 uLine;',
+    /* 第 312 次：uD = Snell 位移表（128×1，glass-optics.js 同一张）；uI = dock 图标层（栏内坐标）；uTone = 色调曲线线性近似（与 CSS 一致）；
+       uSS = 高光处提饱和；uLR = 透镜 rim（bezel、左右、上下最大位移）；uSW = rim 白光强度 */
+    'uniform sampler2D uD,uI;uniform vec3 uTone,uLR;uniform vec4 uIB;uniform float uHasI,uSS,uSW;',
+    'float tabl(float t){return t>=1.?0.:texture2D(uD,vec2((clamp(t,0.,1.)*126.+.5)/128.,.5)).r;}',
+    'vec3 satv(vec3 c,float s){float l=dot(c,vec3(.2126,.7152,.0722));return clamp(mix(vec3(l),c,s),0.,1.);}',
+    'vec3 tone(vec3 c){return satv(clamp(((c-.5)*uTone.x+.5)*uTone.y,0.,1.),uTone.z);}',
+    /* Glass-HQ regular 的「23px 宽模糊 lighten 混 34%」（深色 darken 65%）：6 个点的宽环平均，压掉背后深色字的斑块 */
+    'uniform vec2 uWF;',
+    'vec4 icon(vec2 p){if(uHasI<.5)return vec4(0.);vec2 q=(p-uIB.xy)/uIB.zw;if(q.x<0.||q.y<0.||q.x>1.||q.y>1.)return vec4(0.);return texture2D(uI,q);}',
     'float sdR(vec2 p,vec2 b,float r){vec2 q=abs(p)-b+r;return length(max(q,0.))+min(max(q.x,q.y),0.)-r;}',
     'float sdBox(vec2 v,vec4 R,float r){return sdR(v-R.xy-R.zw*.5,R.zw*.5,r);}',
     /* smooth-min（多项式）：k=0 时就是普通并集 */
@@ -453,12 +468,14 @@
     '  vec3 c=p.rgb+b.rgb*(1.-p.a);',
     '  float fa=uFade.w>0.?clamp((v.y-uFade.x)/uFade.y,0.,1.)*uFade.w:0.;',
     '  return mix(c,uFadeC,fa);}',
+    'vec3 wfill(vec2 p,vec3 c){vec3 w=vec3(0.);for(int i=0;i<6;i++){float a=float(i)*1.0472+.4;w+=bg(p+vec2(cos(a),sin(a))*22.);}w/=6.;return mix(c,uWF.x>0.?max(c,w):min(c,w),abs(uWF.y));}',
     /* 第 309 次：透镜用的「场景」——栏里是毛玻璃（模糊 + 提饱和 + 栏底色），栏外是页面（略提亮提饱和，定稿 1.07 / 1.3），
        栏边一条细灰线（折进透镜后就是上下两条直线） */
     'vec3 lift(vec3 c){float l=dot(c,vec3(.2126,.7152,.0722));return clamp(mix(vec3(l),c,1.3)*1.07,0.,1.);}',
     'vec3 scn(vec2 p){float sa=sdBox(p,uA,uRA);vec3 c;',
-    '  if(sa<0.){c=vec3(0.);for(int i=0;i<5;i++){float a=float(i)*2.39996;vec2 k=i==0?vec2(0.):vec2(cos(a),sin(a))*5.*sqrt(float(i)/4.);c+=bg(p+k);}c/=5.;',
-    '    float l=dot(c,vec3(.2126,.7152,.0722));c=clamp(mix(vec3(l),c,1.9)*1.04,0.,1.);c=mix(c,uTint.rgb,uTint.a);}',
+    /* 第 312 次：栏内 = 同 CSS 的磨砂（模糊 + 色调曲线近似 + 底色）再叠上 dock 图标层——透镜外沿往外取样时，邻近图标是被折弯进来的 */
+    '  if(sa<0.){c=vec3(0.);for(int i=0;i<7;i++){float a=float(i)*2.39996;vec2 k=i==0?vec2(0.):vec2(cos(a),sin(a))*8.*sqrt(float(i)/6.);c+=bg(p+k);}c/=7.;c=wfill(p,c);',
+    '    c=mix(tone(c),uTint.rgb,uTint.a);vec4 ic=icon(p);c=c*(1.-ic.a)+ic.rgb;}',
     '  else c=lift(bg(p));',
     '  return mix(c,uLine.rgb,uLine.a*(1.-smoothstep(.15,.9,abs(sa))));}',
     'vec3 glass(vec2 v,vec2 o,float rad){',
@@ -468,9 +485,8 @@
     '    float a=float(i)*2.39996;float rr=i==0?0.:rad*sqrt(float(i)/(uTaps-1.));',
     '    vec2 k=vec2(cos(a),sin(a))*rr;',
     '    c.r+=bg(v+o*(1.+uDisp)+k).r;c.g+=bg(v+o+k).g;c.b+=bg(v+o*(1.-uDisp)+k).b;}',
-    '  c/=nt;',
-    '  float l=dot(c,vec3(.2126,.7152,.0722));c=clamp(mix(vec3(l),c,1.9)*1.04,0.,1.);',
-    '  return mix(c,uTint.rgb,uTint.a);}',
+    '  c/=nt;c=wfill(v+o,c);',
+    '  return mix(tone(c),uTint.rgb,uTint.a);}',
     'void main(){',
     '  vec2 v=uBox.xy+vec2(gl_FragCoord.x,uCv.y-gl_FragCoord.y)/uCv*uBox.zw;',
     '  vec2 e=vec2(.5,0.);',
@@ -493,13 +509,14 @@
     '    if(uDbg>.5)al=clamp(.5-sd,0.,1.);',
     '    if(al>.002){',
     '      vec2 n=normalize(vec2(field(v+e.xy)-field(v-e.xy),field(v+e.yx)-field(v-e.yx))+1e-5);',
-    '      float t=clamp(1.-d/band,0.,1.);',
-    '      float m=(1.-sqrt(max(0.,1.-t*t)))*uAmt;',
-    '      vec2 pc=v-uA.xy-uA.zw*.5;',
-    '      vec2 dir=normalize(n+.25*pc/max(length(pc),1e-3));',
-    '      vec3 c=glass(v,dir*m,uBlur);',
+    /* 第 312 次：凸 squircle + Snell 位移表，沿内法线「往里」取样（kube.io：凸面不会取到玻璃外面）；
+       高光 = |n·L|² 的边缘 rim light，高光处背景提饱和 */
+    '      float m=tabl(max(d,0.)/band)*uAmt;',
+    '      vec3 c=glass(v,-n*m,uBlur);',
     '      float ld=dot(n,uL);',
-    '      float sp=pow(abs(ld),3.)*(1.-smoothstep(0.,3.,d))*uSpec;',
+    '      float sk=pow(abs(ld),2.)*exp(-max(d,0.)/2.4);',
+    '      c=mix(c,satv(c,uSS),clamp(sk*.6,0.,1.));',
+    '      float sp=sk*uSpec;',
     /* 细光边（深色模式更亮）：迎光一侧亮、背光一侧弱 */
     '      float rim=(1.-smoothstep(.2,1.6,d))*(.25+.75*pow(max(ld,0.),1.5))*uRim;',
     '      c=min(c+sp+rim*vec3(1.,.97,.92),1.);',
@@ -513,13 +530,18 @@
     '    float st=sdBox(v,uT,uRT);',
     '    if(st<.5){',
     '      float dt=-st,at=clamp(.5-st,0.,1.);vec4 lc=vec4(0.);',
-    '      float rb=max(1.,7.*uLG);',
+    /* 第 312 次：rim 的偏移曲线换成同一张 Snell 表（bezel 10、左右 20 / 上下 30，与 Chromium 的 #lgLens 一致）；
+       加固定光照角的厚玻璃亮边 + 高光处提饱和，白底页面上透镜边也看得出是一圈玻璃，而不是一根细线 */
+    '      float rb=max(1.,uLR.x*uLG);',
     '      if(dt<rb){',
     '        vec2 nt=normalize(vec2(sdBox(v+e.xy,uT,uRT)-sdBox(v-e.xy,uT,uRT),sdBox(v+e.yx,uT,uRT)-sdBox(v-e.yx,uT,uRT))+1e-5);',
-    '        float tt=1.-max(dt,0.)/rb,ay=abs(nt.y);',
-    '        float off=mix(17.,30.,ay)*(1.+.12*uLM)*uLG*pow(tt,1.6+ay*.8);',
+    '        float ay=abs(nt.y);',
+    '        float off=mix(uLR.y,uLR.z,ay)*(1.+.12*uLM)*uLG*tabl(max(dt,0.)/rb);',
     '        float chx=9.+9.*uLM;vec2 o=nt*off;',
     '        lc=vec4(scn(v+o*(1.-.03*chx)).r,scn(v+o).g,scn(v+o*(1.+.035*chx)).b,1.);',
+    '        float sk=(.25+.75*pow(abs(dot(nt,uL)),2.))*exp(-max(dt,0.)/3.);',
+    '        lc.rgb=mix(lc.rgb,satv(lc.rgb,1.+uSS*.2),clamp(sk,0.,1.)*.8);',
+    '        lc.rgb=min(lc.rgb+sk*uSW,1.);',
     '      }else{',
     '        float sa=sdBox(v,uA,uRA);',
     '        if(sa>-.5){float ia=clamp(sa+.5,0.,1.);lc=vec4(lift(bg(v))*ia,ia);}',
@@ -530,10 +552,13 @@
   '  gl_FragColor=outc;}'
   ].join('\n');
   var UNI = ['uP', 'uB', 'uCv', 'uPS', 'uScroll', 'uL', 'uBox', 'uStrip', 'uTint', 'uFade', 'uA', 'uBr', 'uCut', 'uT', 'uFadeC', 'uTaps', 'uS', 'uY0', 'uPageOn', 'uBand', 'uAmt', 'uDisp', 'uBlur', 'uSpec', 'uRim', 'uDbg',
-    'uRA', 'uRB', 'uK', 'uHasB', 'uRC', 'uHasCut', 'uFill', 'uRT', 'uHasT', 'uBandB', 'uLM', 'uLG', 'uLine'];
+    'uRA', 'uRB', 'uK', 'uHasB', 'uRC', 'uHasCut', 'uFill', 'uRT', 'uHasT', 'uBandB', 'uLM', 'uLG', 'uLine',
+    'uD', 'uI', 'uTone', 'uLR', 'uIB', 'uHasI', 'uSS', 'uSW', 'uWF'];
 
-  function mkTex() {
-    var t = gl.createTexture(); stats.texCreated++; stats.texLive++;
+  function mkTex(aux) {
+    /* 第 312 次：aux = 位移表 / 图标层这两张小纹理，单独计数（texLive / texCreated 仍只算整页快照 + 底色条两张） */
+    var t = gl.createTexture();
+    if (aux) stats.texAux = (stats.texAux || 0) + 1; else { stats.texCreated++; stats.texLive++; }
     gl.bindTexture(gl.TEXTURE_2D, t);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -566,18 +591,27 @@
     UNI.forEach(function (k) { U[k] = gl.getUniformLocation(prog, k); });
     texP = mkTex(); texB = mkTex();
     gl.uniform1i(U.uP, 0); gl.uniform1i(U.uB, 1);
+    /* 第 312 次：Snell 位移表（128×1）只建一次；图标层纹理按需上传 */
+    texD = mkTex(true); texI = mkTex(true); icKey = '';
+    gl.bindTexture(gl.TEXTURE_2D, texD);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 128, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, tableBytes());
+    gl.bindTexture(gl.TEXTURE_2D, texI);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+    gl.uniform1i(U.uD, 2); gl.uniform1i(U.uI, 3);
     return true;
   }
   function freeGL(lose) {
     if (gl) {
       try {
         if (texP) gl.deleteTexture(texP); if (texB) gl.deleteTexture(texB);
+        if (texD) gl.deleteTexture(texD); if (texI) gl.deleteTexture(texI);
         if (buf) gl.deleteBuffer(buf); if (prog) gl.deleteProgram(prog);
       } catch (e) { /* */ }
       stats.texLive = 0;
       if (lose) { var ext = gl.getExtension('WEBGL_lose_context'); if (ext) ext.loseContext(); }
     }
-    gl = null; prog = null; buf = null; texP = null; texB = null; U = {}; stats.ctxLive = 0;
+    gl = null; prog = null; buf = null; texP = null; texB = null; texD = null; texI = null; U = {}; stats.ctxLive = 0; stats.texAux = 0; icKey = ''; icReady = false;
   }
 
   /* ---------- 玻璃面（第 277 次） ---------- */
@@ -705,6 +739,90 @@
     try { return !!(th && th.getAnimations && th.getAnimations().some(function (x) { return x.playState === 'running'; })); } catch (e) { return false; }
   }
 
+
+  /* ---------- 第 312 次：共享光学参数（js/glass-optics.js）与 dock 图标层 ---------- */
+  function GOx() { return global.GlassOptics || null; }
+  function tableBytes() {
+    var GO = GOx();
+    if (GO) return GO.tableBytes(GO.table());
+    var out = new Uint8Array(512);   /* 没有光学模块时退回 circleMap 形状（边上最大） */
+    for (var i = 0; i < 128; i++) { var t = 1 - i / 127, v = Math.round(255 * (1 - Math.sqrt(Math.max(0, 1 - t * t)))); out[i * 4] = out[i * 4 + 1] = out[i * 4 + 2] = v; out[i * 4 + 3] = 255; }
+    return out;
+  }
+  function toneOf(dark) {
+    var GO = GOx();
+    return GO ? GO.toneLinear(dark) : (dark ? { contrast: 0.777, brightness: 0.848, chroma: 1.065 } : { contrast: 0.529, brightness: 1.223, chroma: 1.1 });
+  }
+  function specSat() { var GO = GOx(); return GO ? GO.MAT.specSat : 7; }
+  function lensRim() { return (global.LiquidDock && LiquidDock.RIM) || { rb: 10, re: 20, rev: 30 }; }
+  /* dock 图标层：把每个页签的线条图标（.dk-l，内联 SVG，按计算样式内联颜色 / 线宽）和文字画进一张栏内坐标的 2 倍画布。
+     只在页签集合 / 选中项 / 栏尺寸 / 深浅色变化时重画（SVG 转图片是异步的，画好再上传纹理）；拖动时不重画。 */
+  var SVGNS_ATTR = ['stroke', 'fill', 'stroke-width', 'opacity', 'stroke-linecap', 'stroke-linejoin', 'fill-opacity', 'stroke-opacity', 'display'];
+  function svgUrl(el) {
+    var cl = el.cloneNode(true), src = [el].concat([].slice.call(el.querySelectorAll('*'))), dst = [cl].concat([].slice.call(cl.querySelectorAll('*')));
+    for (var i = 0; i < src.length && i < dst.length; i++) {
+      var cs = global.getComputedStyle(src[i]);
+      SVGNS_ATTR.forEach(function (a) { var v = cs.getPropertyValue(a); if (v) dst[i].setAttribute(a, v); });
+      dst[i].removeAttribute('class');
+      if (i > 0) dst[i].removeAttribute('vector-effect');
+    }
+    var r = el.getBoundingClientRect();
+    cl.setAttribute('xmlns', 'http://www.w3.org/2000/svg'); cl.setAttribute('width', Math.max(1, r.width)); cl.setAttribute('height', Math.max(1, r.height));
+    cl.removeAttribute('style');
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(cl));
+  }
+  function iconKeyNow() {
+    if (!bar) return '';
+    var tabs = bar.querySelectorAll('.tab.dk-tab'), k = [bar.offsetWidth, bar.offsetHeight, doc.body.classList.contains('dark') ? 1 : 0];
+    for (var i = 0; i < tabs.length; i++) k.push(tabs[i].offsetLeft + (tabs[i].classList.contains('active') ? 'a' : '') + (tabs[i].getAttribute('data-tab') || tabs[i].textContent.length));
+    return k.join('|');
+  }
+  function rasterIcons() {
+    if (!gl || !bar) return;
+    var key = iconKeyNow();
+    if (key === icKey) return;
+    icKey = key; var gen = ++icGen;
+    var br = bar.getBoundingClientRect(), W0 = bar.offsetWidth, H0 = bar.offsetHeight;
+    if (W0 < 20 || H0 < 20) return;
+    var k = br.width / W0 || 1, S = 2;
+    var jobs = [];
+    Array.prototype.forEach.call(bar.querySelectorAll('.tab.dk-tab'), function (t) {
+      if (!t.offsetParent) return;
+      var l = t.querySelector('.dk-l'), tx = t.querySelector('.dk-t');
+      if (l) { var r = l.getBoundingClientRect(); if (r.width > 1) jobs.push({ url: svgUrl(l), x: (r.left - br.left) / k, y: (r.top - br.top) / k, w: r.width / k, h: r.height / k }); }
+      if (tx) {
+        var q = tx.getBoundingClientRect(), cs = global.getComputedStyle(tx);
+        /* 选中项的文字在透镜外是主色、透镜里另有 DOM：这里按「不在透镜里」的样子画（线条图标同理） */
+        if (q.width > 1) jobs.push({ text: tx.textContent, font: cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily, color: cs.color, x: (q.left - br.left) / k + q.width / 2, y: (q.top - br.top) / k + q.height / 2 });
+      }
+    });
+    var pending = 0, imgs = [];
+    function finish() {
+      if (gen !== icGen || !gl) return;
+      if (!icCv) icCv = doc.createElement('canvas');
+      icCv.width = Math.round(W0 * S); icCv.height = Math.round(H0 * S);
+      var g = icCv.getContext('2d'); if (!g) return;
+      g.setTransform(S, 0, 0, S, 0, 0); g.clearRect(0, 0, W0, H0);
+      jobs.forEach(function (j, i) {
+        if (j.text) { g.font = j.font; g.fillStyle = j.color; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(j.text, j.x, j.y + 0.5); }
+        else if (imgs[i] && imgs[i].complete && imgs[i].naturalWidth) { try { g.drawImage(imgs[i], j.x, j.y, j.w, j.h); } catch (e) { /* */ } }
+      });
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, texI);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+      try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, icCv); icReady = true; stats.icons = (stats.icons || 0) + 1; } catch (e) { icReady = false; DR._err = 'icons:' + e; }
+      schedule();
+    }
+    jobs.forEach(function (j, i) {
+      if (!j.url) return;
+      pending++;
+      var im = new Image(); imgs[i] = im;
+      im.onload = im.onerror = function () { if (--pending === 0) finish(); };
+      im.src = j.url;
+    });
+    if (!pending) finish();
+  }
+
   /* ---------- 绘制 ---------- */
   function setCommon() {
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texP);
@@ -721,8 +839,22 @@
     gl.uniform1f(U.uY0, pageMeta.y0 || 0);
     gl.uniform1f(U.uPageOn, stripMeta.opaque ? 0 : 1);
     var dark = doc.body.classList.contains('dark');
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texD);
+    gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, texI);
+    gl.activeTexture(gl.TEXTURE0);
+    /* 第 312 次：色调与 CSS backdrop-filter 用同一组系数（glass-optics.js · Glass-HQ regular 的线性近似） */
+    var tl = toneOf(dark);
+    gl.uniform3f(U.uTone, tl.contrast, tl.brightness, tl.chroma);
+    gl.uniform1f(U.uSS, specSat());
+    gl.uniform2f(U.uWF, dark ? -1 : 1, dark ? 0.65 : 0.34);
+    var rim = lensRim();
+    gl.uniform3f(U.uLR, rim.rb, rim.re, rim.rev);
+    gl.uniform1f(U.uSW, dark ? 0.22 : 0.42);
+    var bb = bar.getBoundingClientRect();
+    gl.uniform4f(U.uIB, bb.left, bb.top, Math.max(1, bb.width), Math.max(1, bb.height));
+    gl.uniform1f(U.uHasI, icReady ? 1 : 0);
     gl.uniform1f(U.uDisp, 0.22);
-    gl.uniform1f(U.uBlur, 4.5);
+    gl.uniform1f(U.uBlur, 9);
     gl.uniform1f(U.uSpec, dark ? 0.18 : 0.32);
     gl.uniform1f(U.uRim, dark ? 0.42 : 0.16);
     if (dark) gl.uniform4f(U.uLine, 1, 1, 1, 0.16); else gl.uniform4f(U.uLine, 120 / 255, 106 / 255, 96 / 255, 0.36);
@@ -745,7 +877,7 @@
     gl.uniform1f(U.uBand, Math.max(2, Math.min(o.band + 2 * p, o.A.h / 2 - 2, o.A.w / 2 - 2)));
     gl.uniform1f(U.uBandB, o.B ? Math.max(2, Math.min(13 + 2 * p, o.B.h / 2 - 2, o.B.w / 2 - 2)) : 0);
     gl.uniform1f(U.uHasCut, 0);
-    gl.uniform1f(U.uAmt, 12 * (1 + 0.38 * p));
+    gl.uniform1f(U.uAmt, 14 * (1 + 0.38 * p));   /* 第 312 次：与 Chromium #lgDock 同为最大 14px（Snell 表峰值） */
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     stats.draws++;
   }
@@ -780,6 +912,7 @@
     if (scrolling && ts) frameCheck(ts);
     if (!on || !ready || lost || !gl || !bar) return;
     var moving = stepAnim(dt, now);
+    rasterIcons();   /* 第 312 次：只比对 key，没变就不动 */
     var th = (quality >= 1 && !DR._debug) ? bar.querySelector('.lg-thumb.on') : null;
     var looping = moving || now < loopUntil || thumbMoving(th) || !!lensR;
     if (quality === 0 && scrolling) { if (looping) schedule(); return; }
@@ -1089,7 +1222,7 @@
   DR._stats = function () {
     return {
       on: on, ready: ready, reason: disabledReason, ctxCreated: stats.ctxCreated, ctxLive: stats.ctxLive,
-      texLive: stats.texLive, texCreated: stats.texCreated, rasters: stats.rasters, rasterMs: stats.rasterMs, rasterMax: stats.rasterMax,
+      texLive: stats.texLive, texCreated: stats.texCreated, texAux: stats.texAux || 0, icons: icReady ? (stats.icons || 0) : 0, rasters: stats.rasters, rasterMs: stats.rasterMs, rasterMax: stats.rasterMax,
       quality: quality, downgrades: stats.downgrades || 0, nodes: stats.nodes, draws: stats.draws, drawMs: stats.drawMs, uploadsRealloc: stats.uploadsRealloc, uploadsSub: stats.uploadsSub,
       page: pageCv ? [pageCv.width, pageCv.height] : null, strip: stripCv ? [stripCv.width, stripCv.height] : null,
       canvas: cv ? [cv.width, cv.height] : null, inDom: !!(cv && cv.isConnected), err: DR._err || '',
