@@ -6986,3 +6986,7 @@ body.dock-sl #quickDock .qd-actions, body.dock-sr #quickDock .qd-actions { max-w
 .ico[data-i="swim"] { --ic-a: #F07A68; }
 .ico[data-i="jaundice"] .iaf { opacity: .55; }
 .ico[data-i="water"] .iaf, .ico[data-i="period"] .iaf, .ico[data-i="breast"] .iaf, .ico[data-i="sun"] .iaf, .ico[data-i="meds"] .iaf { opacity: .7; }
+
+/* 第 307 次：「正在进行」胶囊对准胶囊 dock 的中线（＋ 珠在右边，整组偏左 35px），像从 dock 顶上长出来 */
+body.has-orb:not(.dock-simple) .dock-live { left: calc(50% - 35px); max-width: calc(100vw - 40px - 70px); }
+@media (max-width: 360px) { body.has-orb:not(.dock-simple) .dock-live { left: calc(50% - 31px); } }
