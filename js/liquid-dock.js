@@ -215,9 +215,15 @@
   var PHYS = {
     grow: { k: 520, z: 0.58 },     /* 按下鼓起：约 0.11s 到 1、0.17s 过冲峰（~10%） */
     drag: { k: 2200, z: 1 },       /* 拖动跟手：临界阻尼，ω≈47/s（滞后 ~20ms） */
-    snap: { k: 380, z: 0.72 },     /* 松手吸附：轻微过冲一次（甩动速度先限到 ±700px/s，不会甩过头） */
+    snap: { k: 560, z: 0.74 },     /* 松手吸附：轻微过冲一次（甩动速度先限到 ±700px/s，不会甩过头）；第 316 次 380 → 560：拖完松手到胶囊 11 帧 → ~9 帧（支付宝 120~130ms） */
     shape: { k: 420, z: 0.38 },    /* 形变：果冻回弹 1~2 次（第二个峰 < 8%） */
-    shrink: { k: 900, z: 1 },      /* 收回胶囊：~130ms，不回弹（参照支付宝） */
+    shrink: { k: 1700, z: 1 },     /* 收回胶囊：第 316 次 900 → 1700，~70ms / 4 帧不回弹（支付宝 22:03 第 147→150 帧 3 帧、App Store 23:38 第 179→183 帧 4~5 帧；原来 6 帧） */
+    /* 第 316 次：点击（没拖）时透镜从旧页签滑到新页签用单独一根临界阻尼弹簧，ω≈24.5/s：+5 帧 ≈60%、+8 帧 ≈84%、+13 帧 ≈97%。
+       对照支付宝 22:03 逐帧（第 133 帧按下 → 137 ≈45%、140 ≈64%、145 ≈87%、150 到位收回）与 App Store 23:38（第 169 帧按下 → 172 ≈46%、175 ≈82%、≈178 到位）；
+       原来点击也走拖动的 drag 弹簧（ω≈47），4 帧就到 90%，「啪」地一下到位、没有支付宝那种先冲后缓的滑行 */
+    tap: { k: 600, z: 1 },
+    tapV: 0.45,                    /* 点击滑行时速度形变 / 速度高光只按 45% 算：支付宝点击滑行透镜不被压扁，原来满形变 + 速度高光 = 鼓起头几帧透镜上半截发白 */
+    exitPx: 2.5, exitV: 150, exitMs: 90,   /* 第 316 次：吸附基本到位（差 ≤2.5px、速度 ≤150px/s、松手 ≥90ms）就开始收回——支付宝在离中心还差约 6% 时就开始收回 */
     vFull: 0.9,                    /* px/ms：达到满形变的速度（≈ 900pt/s） */
     stretch: 0.12, squash: 0.11,   /* 沿速度方向拉长 / 垂直方向压扁上限 */
     rubber: 26, rubberC: 0.55,     /* 两端橡皮筋：最多拉出 26px，系数同 iOS 0.55 */
@@ -231,9 +237,9 @@
     return [x, v];
   }
   /* 速度 → 形变目标（体积大致守恒：1.12 × 0.89 ≈ 1） */
-  function deformTarget(vx, rb, red) {
+  function deformTarget(vx, rb, red, tap) {
     if (red) return [1, 1, 0];
-    var a = Math.min(1, Math.abs(vx) / 1000 / PHYS.vFull); a = a * (2 - a);
+    var a = Math.min(1, Math.abs(vx) * (tap ? PHYS.tapV : 1) / 1000 / PHYS.vFull); a = a * (2 - a);
     var r = Math.min(1, Math.abs(rb || 0) / PHYS.rubber);
     return [1 + PHYS.stretch * a + 0.10 * r, 1 - PHYS.squash * a - 0.05 * r, a];
   }
@@ -241,7 +247,7 @@
   LD._simulate = function (o) {
     o = o || {}; var dt = o.dt || 16, out = [], red = !!o.reduced;
     if (o.kind === 'grow') { var s = 0, vs = 0; for (var t = 0; t <= (o.ms || 500); t += dt) { out.push(s); var q = springStep(s, vs, 1, PHYS.grow, dt, red); s = q[0]; vs = q[1]; } return out; }
-    if (o.kind === 'deform') { var tg = deformTarget(o.vx || 0, o.rb || 0, red); return { sx: tg[0], sy: tg[1], a: tg[2] }; }
+    if (o.kind === 'deform') { var tg = deformTarget(o.vx || 0, o.rb || 0, red, !!o.tap); return { sx: tg[0], sy: tg[1], a: tg[2] }; }
     if (o.kind === 'release') {   /* 以速度 vx 甩动中松手：形变从对应目标回到 1 的果冻曲线 */
       var t0 = deformTarget(o.vx || 1200, 0, red), sx = t0[0], vsx = 0;
       for (var u = 0; u <= (o.ms || 700); u += dt) { out.push(sx); var r2 = springStep(sx, vsx, 1, PHYS.shape, dt, red); sx = r2[0]; vsx = r2[1]; }
@@ -359,7 +365,7 @@
        原来透镜直接在目标处冒出、旧胶囊当场消失 = 「生硬切换 + 闪」。 */
     var a0 = activeTab(), x0 = a0 && a0 !== t && a0.classList.contains('dk-tab') ? tabCenter(a0) : tabCenter(t), x = tabCenter(t), n = nowMs();
     lens = { mode: mode, W: W, H: H, x: x0, vx: 0, tx: x, s: 0, vs: 0, sx: 1, vsx: 0, sy: 1, vsy: 0, rb: 0, m: 0, a: 0, hl: 0, flash: 1,
-      phase: 'grow', t0: n, last: n, pw: t.offsetWidth, ph: t.offsetHeight, tab: t, boxes: mode === 'gl' ? iconBoxes() : [] };
+      phase: 'grow', tap: true, t0: n, last: n, pw: t.offsetWidth + THUMB_PX, ph: Math.max(t.offsetHeight, bar.offsetHeight - 2 * THUMB_INSET), tab: t, boxes: mode === 'gl' ? iconBoxes() : [] };
     bar.classList.remove('lg-lensend', 'lg-shrink'); bar.classList.add('lg-lensing');
     bar.classList.toggle('lg-lens-gl', mode === 'gl');
     if (thumb) { thumb.classList.add('lg-lhide'); thumb.classList.remove('lg-grow'); }
@@ -389,7 +395,7 @@
       var rq = global.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
       rq(function () { rq(function () { if (!lens) b0.classList.remove('lg-lensend'); }); });
     }
-    if (thumb) thumb.classList.remove('lg-lhide');
+    if (thumb) { thumb.classList.remove('lg-lhide'); thumb.style.removeProperty('opacity'); thumb.style.removeProperty('transition'); }
     if (global.DockRefract && DockRefract.lens) DockRefract.lens(null);
   }
   /* 第 314 次：一帧物理（dt ms）。拖动 = 临界阻尼跟手；松手 = 欠阻尼吸附；鼓起 / 形变 = 欠阻尼弹簧；收回 = 临界阻尼 */
@@ -399,27 +405,29 @@
     if (L.phase === 'grow' || L.phase === 'hold') {
       q = springStep(L.s, L.vs, 1, PHYS.grow, dt, red); L.s = q[0]; L.vs = q[1];
       if (L.phase === 'grow' && n - L.t0 > 150) L.phase = 'hold';
-      q = springStep(L.x, L.vx, L.tx, PHYS.drag, dt, true); L.x = q[0]; L.vx = q[1];
+      q = springStep(L.x, L.vx, L.tx, L.tap ? PHYS.tap : PHYS.drag, dt, true); L.x = q[0]; L.vx = q[1];
     } else if (L.phase === 'settle') {
       q = springStep(L.s, L.vs, 1, PHYS.grow, dt, red); L.s = q[0]; L.vs = q[1];
-      q = springStep(L.x, L.vx, L.tx, PHYS.snap, dt, red); L.x = q[0]; L.vx = q[1];
+      /* 第 316 次：点击 = 继续那根临界阻尼滑行弹簧（不回弹、不在中途换弹簧）；拖动后松手 = 欠阻尼吸附 */
+      q = springStep(L.x, L.vx, L.tx, L.tap ? PHYS.tap : PHYS.snap, dt, L.tap || red); L.x = q[0]; L.vx = q[1];
       var el = n - L.ts;
-      if ((el > 140 && Math.abs(L.tx - L.x) < 0.6 && Math.abs(L.vx) < 40 && Math.abs(L.sx - 1) < 0.02 && Math.abs(L.sy - 1) < 0.02) || el > 520) {
+      if ((el > PHYS.exitMs && Math.abs(L.tx - L.x) < PHYS.exitPx && Math.abs(L.vx) < PHYS.exitV && Math.abs(L.sx - 1) < 0.03 && Math.abs(L.sy - 1) < 0.03) || el > 520) {
         L.phase = 'shrink'; L.t1 = n; L.vs = Math.min(0, L.vs);
         /* 第 315 次：开始收回时 DOM 先换成最终样子（选中页签的填色图标 + 选中色文字原位露出），GL 透镜在它上面缩小、放大回到 1:1 再淡出——
            原来收回期间透镜里的图标跟着透镜一起淡出、DOM 那份还被遮着，松手后图标先变淡再「啪」地出现 */
         if (bar) bar.classList.add('lg-shrink');
         if (thumb) {
           try { thumb.getAnimations().forEach(function (a) { a.finish(); }); } catch (e) { /* 老内核 */ }
+          thumb.style.transition = 'none'; thumb.style.opacity = '0';
           thumb.classList.remove('lg-lhide');
         }
       }
     } else if (L.phase === 'shrink') {
       q = springStep(L.s, L.vs, -0.25, PHYS.shrink, dt, true); L.s = q[0]; L.vs = q[1];
-      q = springStep(L.x, L.vx, L.tx, PHYS.snap, dt, true); L.x = q[0]; L.vx = q[1];
+      q = springStep(L.x, L.vx, L.tx, L.tap ? PHYS.tap : PHYS.snap, dt, true); L.x = q[0]; L.vx = q[1];
       if (L.s <= 0.02 || n - L.t1 > 400) return false;
     }
-    var tg = deformTarget(L.vx, L.rb, red);
+    var tg = deformTarget(L.vx, L.rb, red, L.tap);
     if (red) { L.sx = L.sy = 1; L.vsx = L.vsy = 0; }
     else {
       q = springStep(L.sx, L.vsx, tg[0], PHYS.shape, dt); L.sx = q[0]; L.vsx = q[1];
@@ -474,6 +482,10 @@
     /* 第 315 次：鼓起时一开始就不透明（透镜从胶囊同尺寸起步，原来 0.35 起淡入 = 按下第 1~3 帧选中图标半透明「闪一下」） */
     var op = L.phase === 'shrink' ? Math.min(1, s * 1.6) : 1;
     lensEl.style.opacity = op;
+    /* 第 316 次：收回时静止胶囊按透镜的鼓起比例逐帧显出（1 − s），不再靠 CSS 0.2s 淡入——
+       原来 4 帧收回里胶囊只淡到 ~1/3、透镜消失后还要再淡 0.13s；中途透镜里又能看见一圈完整的胶囊轮廓（第 16~17 帧两道轮廓）。
+       支付宝 22:03 第 147→150 帧：透镜缩进去的同时胶囊出现，透镜一没胶囊就是实的 */
+    if (thumb && L.phase === 'shrink') { thumb.style.transition = 'none'; thumb.style.opacity = Math.max(0, Math.min(1, 1 - s)).toFixed(3); }
     /* 色散随速度、保持淡：rim 位移 ×(1 + 0.35·m)。Chromium 的贴图里放大和 rim 在同一张图，三通道 scale 差会连中心一起色散，
        所以这里只给 chx 0.6 → 1.8（R/B 差 2%~6%）；iOS 着色器的色散只乘在 rim 带里（1.2 → 3.6） */
     var chx = 0.6 + 1.2 * L.m, gm = 1 + 0.35 * L.m;
@@ -539,6 +551,14 @@
   }
 
   /* ---------- 3. 选中水滴：跟随 + 弹簧 ---------- */
+  /* 第 316 次：静止选中胶囊按原生比例——高 = 栏高 − 2×THUMB_INSET（上下各留约 4px），宽 = 页签宽 + THUMB_PX。
+     对照：支付宝 22:03 深色胶囊约 83×55pt（栏 62pt，上下各约 3.5pt）、App Store 23:38 约 85pt 宽几乎贴栏高；第 315 次是页签本身 64×44（栏 60，上下各 8），
+     比原生小一圈、看着「缩在里面」。透镜从这块胶囊同尺寸鼓起（lensStart 的 pw / ph）。 */
+  var THUMB_INSET = 4, THUMB_PX = 12;
+  function thumbBox(a) {
+    var H = bar.offsetHeight, h = Math.max(a.offsetHeight, H - 2 * THUMB_INSET), w = a.offsetWidth + THUMB_PX;
+    return { x: a.offsetLeft - THUMB_PX / 2, y: (bar.clientHeight - h) / 2, w: w, h: h };
+  }
   function activeTab() {
     if (!bar || bar.classList.contains('is-sub')) return null;
     var a = bar.querySelector('.tab.active:not(.tab-plus)');
@@ -555,7 +575,7 @@
     }
     var a = activeTab();
     if (!a) { thumb.classList.remove('on'); return; }
-    var r = { x: a.offsetLeft, y: a.offsetTop, w: a.offsetWidth, h: a.offsetHeight };
+    var r = thumbBox(a);
     thumb.style.width = r.w + 'px'; thumb.style.height = r.h + 'px';
     thumb.style.transform = 'translate(' + r.x + 'px,' + r.y + 'px)';
     var was = thumb.classList.contains('on');
@@ -640,8 +660,9 @@
       rb = (1 - 1 / (d * PHYS.rubberC / R + 1)) * R * (x < lo ? -1 : 1);
       x = (x < lo ? lo : hi) + rb;
     }
-    thumb.style.transform = 'translate(' + Math.max(lo - 4, Math.min(hi + 4, x)) + 'px,' + a.offsetTop + 'px)';
-    if (lens) { lens.tx = br.left + (x + w / 2) * kx; lens.rb = rb; }   /* 第 309 次：透镜跟手 */
+    var tb = thumbBox(a);
+    thumb.style.transform = 'translate(' + (Math.max(lo - 4, Math.min(hi + 4, x)) - THUMB_PX / 2) + 'px,' + tb.y + 'px)';
+    if (lens) { lens.tx = br.left + (x + w / 2) * kx; lens.rb = rb; lens.tap = false; }   /* 第 309 次：透镜跟手 */
     else thumb.classList.add('lg-grow');
     var h = nearest(e.clientX);
     if (h !== drag.hover) {
@@ -700,13 +721,14 @@
   LD.ICON_TEX = LENS_ICON_TEX;   /* 第 313 次：dock-refract.js 据此决定要不要栅格化图标层 */
   LD.LENS_TEX = LENS_TEX;     /* 第 314 次：GL 画透镜里的彩色图标 + 选中色文字（透镜图标层） */
   LD.LENS = { W: LENS_W, DH: LENS_DH, ZOOM: LENS_ZOOM, MAG: LENS_MAG };
+  LD.THUMB = { INSET: THUMB_INSET, PX: THUMB_PX };
   LD.PHYS = PHYS;
   LD._phys = function () { return { reduced: reduced, PHYS: PHYS }; };
   LD._pin = function (o) { lensPin = o || null; if (lens) lensApply(); };
   var r3 = function (v) { return Math.round(v * 1000) / 1000; };
   LD._state = function () { return { refract: refractOn, thumb: !!(thumb && thumb.classList.contains('on')), map: mapKey,
     lens: lens ? { mode: lens.mode, phase: lens.phase, s: r3(lens.s), m: r3(lens.m), x: Math.round(lens.x * 10) / 10, vx: Math.round(lens.vx),
-      sx: r3(lens.sx), sy: r3(lens.sy), hl: r3(lens.hl), flash: r3(lens.flash), rb: Math.round(lens.rb * 10) / 10, tx: Math.round(lens.tx * 10) / 10 } : null }; };
+      sx: r3(lens.sx), sy: r3(lens.sy), tap: !!lens.tap, hl: r3(lens.hl), flash: r3(lens.flash), rb: Math.round(lens.rb * 10) / 10, tx: Math.round(lens.tx * 10) / 10 } : null }; };
 
   global.LiquidDock = LD;
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', function () { setTimeout(LD.init, 0); });

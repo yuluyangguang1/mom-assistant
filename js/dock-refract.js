@@ -574,8 +574,11 @@
     '      vec2 Ld=normalize(vec2(uL.x+1.6*uLX.x,uL.y));',
     '      float ndl=dot(nt,Ld);',
     '      float edge=exp(-max(dt,0.)/2.2);',
-    '      float sp=(.3+.7*pow(max(ndl,0.),2.)+.25*pow(max(-ndl,0.),3.))*edge*uSW*(1.+.9*uLM);',
-    '      float arc=uLX.y*smoothstep(.15,.85,-nt.y)*exp(-max(dt,0.)/3.5)*.85;',
+    /* 第 316 次：高光 / 亮弧 / 投影随鼓起比例渐显（gr）——按下第 1 帧透镜还是胶囊大小时就带满亮边和投影，像「啪」地换成一块玻璃；
+       支付宝 22:03 第 133~136 帧胶囊先只是变大，第 137 帧鼓成透镜才有亮边 */
+    '      float gr=smoothstep(.05,.5,uLG);',
+    '      float sp=(.3+.7*pow(max(ndl,0.),2.)+.25*pow(max(-ndl,0.),3.))*edge*uSW*(1.+.9*uLM)*gr;',
+    '      float arc=uLX.y*smoothstep(.15,.85,-nt.y)*exp(-max(dt,0.)/3.5)*.85*gr;',
     '      float sk=clamp(sp*1.4+arc,0.,1.);',
     '      lc=mix(lc,satv(lc,1.+uSS*.15),sk*.6);',
     '      lc=min(lc+vec3(sp+arc),1.);',
@@ -584,7 +587,7 @@
     '      outc=vec4(lc,1.)*la+outc*(1.-la);',
     '    }else if(uLO.x>0.){',
     '      float ss=sdBox(v-vec2(0.,3.5),uT,uRT);',
-    '      float sa=uLO.x*exp(-max(ss,0.)/5.)*(1.-smoothstep(6.,13.,ss))*uLA*smoothstep(-.5,.5,st);',
+    '      float sa=uLO.x*exp(-max(ss,0.)/5.)*(1.-smoothstep(6.,13.,ss))*uLA*smoothstep(-.5,.5,st)*smoothstep(.05,.5,uLG);',
     '      outc=vec4(outc.rgb*(1.-sa),outc.a+sa*(1.-outc.a));',
     '    }',
     '  }',

@@ -7208,3 +7208,13 @@ html.lg-gl body .tabbar.lg.lg-lensing.lg-lens-gl.lg-shrink .tab.dk-tab.active .d
 /* 第 315 次：GL 透镜在场时，透镜没盖到的图标 / 文字不套任何遮罩（只有 .lg-hole 才挖洞），远处页签的渲染方式全程不变 */
 body .tabbar.lg.lg-lensing.lg-lens-gl .tab.dk-tab .dk-l:not(.lg-hole),
 html.lg-gl body .tabbar.lg.lg-lensing.lg-lens-gl .tab.dk-tab .dk-t:not(.lg-hole) { -webkit-mask: none; mask: none; }
+
+/* ============================================================
+   第 316 次：细节打磨（对照支付宝 22:03 / 16:57 与 App Store 23:38 原生录屏逐帧）
+   · dock 双轮廓：WebGL 画布在画（canvas.lg-gl.on）时，着色器已经在 dock 外缘画了一圈随光线变化的细光边（uRim）；
+     CSS 的 1px 高光描边（::before）和内光（::after）画在 padding 边（比 border 边往里约 3~4px），两道叠出「外一圈 + 里一圈」的双线
+     （WebKit 深色逐像素：外缘棕金一道、往里 4px 又一道灰白细线）。原生只有一道细光边 → GL 在画时把 CSS 这两层藏掉；GL 没在画（滚动中 / 关掉）时照旧。
+   · 静止选中胶囊放大到原生比例（JS 里按 栏高 − 8、页签宽 + 12 定尺寸，见 liquid-dock.js 第 316 次）。
+   ============================================================ */
+html.lg-gl body .tabbar.lg:has(> canvas.lg-gl.on)::before,
+html.lg-gl body .tabbar.lg:has(> canvas.lg-gl.on)::after { opacity: 0; }
