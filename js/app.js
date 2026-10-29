@@ -11,14 +11,41 @@
 
   // 底部导航栏只保留 2 个主入口；其余功能模块（首页磁贴现为 13 个，含白噪音）统一在「首页-全部功能」网格中一键直达（2026-09-19 精简）
   /* 第 236 次：dock 一级页签 = 首页 / 日期记录 / 搜索 / 设置（搜索从首页右上角搬进来，设置从齿轮钮变成正式页签） */
+  /* 第 304 次（新 dock）：宝宝并进胶囊当第一个页签，顺序「宝宝 · 首页 · 日历」；只有右侧 ＋ 还弹出。
+     页签图标两套：未选中是线条，水滴（透镜）停在上面时换成立体彩色（咿呀头像 / 小房子 / 日历）。 */
   var TABS = [
-    { id: 'home', title: '首页', ico: 'dk-home' },
-    { id: 'calendar', title: '日期记录', ico: 'dk-cal' }
+    { id: 'baby', title: '宝宝', ico: 'baby' },
+    { id: 'home', title: '首页', ico: 'home' },
+    { id: 'calendar', title: '日期记录', ico: 'cal' }
   ];
+  var DK_SVG = function (b) { return '<svg class="ico dk-l" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + b + '</svg>'; };
+  /* 第 306 次：未选中线条图标跟图标 v3 同一语言——暖可可色主线 + 一处暖色点缀（.ia / .iaf，颜色见 CSS --ic-a）。
+     宝宝按咿呀本人重画：蓬松刘海、眯眼大笑、粉脸蛋；房子冒一缕炊烟、门上小爱心；日历顶栏浅色块 + 爱心。 */
+  var DK_LINE = {
+    baby: DK_SVG('<path d="M6.9 15.6c.4-5 4.3-8.6 9.1-8.6s8.8 3.6 9.2 8.6c-1.2-.4-2.4-1.3-3.2-2.6-1.3 1.6-3.3 2.5-5.5 2.6.5-.7.7-1.5.5-2.4-1 1.7-2.8 2.8-4.8 3 .6-.7.8-1.6.4-2.6-1.2 1.8-3.2 3-5.7 3.4Z" fill="currentColor" stroke="none" opacity=".22"/>'
+      + '<circle cx="16" cy="17.6" r="9.4"/>'
+      + '<path stroke-width="1.8" d="M6.9 15.6c2.4-.4 4.4-1.6 5.6-3.4.4 1 .2 1.9-.4 2.6 2-.2 3.8-1.3 4.8-3 .2.9 0 1.7-.5 2.4 2.2-.1 4.2-1 5.5-2.6.8 1.3 2 2.2 3.2 2.6"/>'
+      + '<path stroke-width="1.8" d="M15 7.2c.2-1.8 1.7-2.9 3.4-2.6"/>'
+      + '<path stroke-width="1.7" d="M6.7 17q-1.7.4-1.5 2.1t2 1.9M25.3 17q1.7.4 1.5 2.1t-2 1.9"/>'
+      + '<path d="M11.3 19.8q1.3-1.4 2.6 0M18.1 19.8q1.3-1.4 2.6 0"/>'
+      + '<ellipse class="iaf" cx="10.3" cy="22.2" rx="1.6" ry=".95" stroke="none"/><ellipse class="iaf" cx="21.7" cy="22.2" rx="1.6" ry=".95" stroke="none"/>'
+      + '<path d="M13.7 22.1h4.6c0 1.8-1 2.9-2.3 2.9s-2.3-1.1-2.3-2.9Z" fill="currentColor" stroke="none" opacity=".9"/>'),
+    home: DK_SVG('<path d="M8.2 13.4 16 7l7.8 6.4v9.8a3 3 0 0 1-3 3H11.2a3 3 0 0 1-3-3Z" fill="currentColor" stroke="none" opacity=".1"/>'
+      + '<path d="M21.4 9V6.8h2.6v4.4"/><path class="ia" stroke-width="1.6" d="M22.7 4.8c-.7-.7.2-1.4-.3-2.2"/>'
+      + '<path d="M4.9 15.6 14.6 7.6a2.2 2.2 0 0 1 2.8 0l9.7 8"/><path d="M7.8 13.6v9.6a3.4 3.4 0 0 0 3.4 3.4h9.6a3.4 3.4 0 0 0 3.4-3.4v-9.6"/>'
+      + '<path d="M13.4 26.5v-3.3a2.6 2.6 0 0 1 5.2 0v3.3"/>'
+      + '<path class="iaf" stroke="none" d="M16 15.3c.6-1 2.3-.8 2.3.6 0 1.1-1.5 2-2.3 2.5-.8-.5-2.3-1.4-2.3-2.5 0-1.4 1.7-1.6 2.3-.6Z"/>'),
+    cal: DK_SVG('<path d="M10.4 8.2h11.2a5 5 0 0 1 5 5V14H5.4v-.8a5 5 0 0 1 5-5Z" fill="currentColor" stroke="none" opacity=".12"/>'
+      + '<rect x="5.4" y="8.2" width="21.2" height="18.4" rx="5"/><path d="M5.6 14h20.8"/><path d="M11.2 5.6v4.4M20.8 5.6v4.4"/>'
+      + '<path class="iaf" stroke="none" d="M16 18.3c.6-1 2.3-.8 2.3.6 0 1.1-1.5 2-2.3 2.5-.8-.5-2.3-1.4-2.3-2.5 0-1.4 1.7-1.6 2.3-.6Z"/>')
+  };
+  function dockIco(k) {
+    return '<i class="dk-ic ' + ({ baby: 'dk-baby', home: 'dk-home', cal: 'dk-cal' }[k] || '') + '">' + (DK_LINE[k] || '') + '<img class="dk-c" src="assets/dock/' + k + '.webp" alt="" draggable="false" decoding="async"></i>';
+  }
   /* 第 276 次（用户同意）：搜索移出 dock（一级、二级都去掉）。入口改成：首页到顶后继续下拉（pull-search.js）、
      菜单面板顶部搜索框（第 290 次起；原侧拉页）、「全部功能」页搜索框。搜索页路由保留，改算二级页（有返回、侧滑回首页）。 */
   /* 第 245 次：设置改成二级页（有返回、能侧滑回来）；第 290 次起设置入口在菜单面板（宝宝圆钮弹出）里 */
-  function isTopTab(id) { return id === 'home' || id === 'calendar'; }
+  function isTopTab(id) { return id === 'baby' || id === 'home' || id === 'calendar'; }
 
   var current = 'home';
 
@@ -198,12 +225,21 @@
     return document.body.classList.contains('dark') ? [41, 43, 65, 1] : [167, 189, 236, 1];
   }
 
+  function mountPageSky(view) {
+    var el = document.createElement('div');
+    el.className = 'home-sky page-sky';
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = '<canvas class="sky-canvas"></canvas><div class="sky-veil"></div><div class="sky-cap"></div>';
+    view.insertBefore(el, view.firstChild);
+    view.classList.add('has-psky');
+    try { if (global.Sky && Sky.mount) Sky.mount(el.querySelector('canvas')); } catch (e) { /* 画布失败留静态渐变兜底 */ }
+  }
   function syncStatusColor() {
     try {
       var b = document.body; if (!b) return;
       var c = '';
       var ovl = overlayStack();
-      var sky = b.classList.contains('in-home') && document.querySelector('.home-sky');
+      var sky = (b.classList.contains('in-home') && document.querySelector('#view .home-sky')) || document.querySelector('#view > .page-sky'); /* 第 304 次：宝宝页 / 日期页也有天空 */
       var cv = sky && sky.querySelector('.sky-canvas');
       var r = cv && cv.getBoundingClientRect();
       if (cv && r.height && r.top <= 0 && r.bottom > 80 && cv.width && cv.height) {
@@ -314,6 +350,7 @@
   }
 
   var _dockNodes = {};
+  var _dkLast = null;
   function buildTabbar() {
     var bar = document.getElementById('tabbar');
     /* 第 135 次（底部胶囊 dock）：宝宝切换 / 设置 / 返回三个顶栏按钮要搬进胶囊。
@@ -331,7 +368,8 @@
        切回正常排列时 getElementById 全部取不到，宝宝切换、设置、返回就丢了。
        同时两种模式的按钮内容也不一样（竖排没有快捷槽位，＋ 的颜色也另一套）。
        现在三种排列共用同一份按钮清单与同一套节点，左右手只是 CSS 把胶囊竖起来。 */
-    if (hand !== 'normal') bar.classList.add('is-vertical'); else bar.classList.remove('is-vertical');
+    bar.classList.remove('is-vertical'); /* 第 304 次：不再有竖排 */
+    document.body.classList.remove('dock-peek'); /* 切页 / 重建时收起简洁模式长按弹出的 dock */
     /* 第 135 次：胶囊最左 = 宝宝切换（原顶栏左上角头像）。 */
     /* 第 239 次：正常横排时，宝宝切换单独做一颗玻璃圆钮放在 dock 左边（#dockOrb），
        和首页页签分开，免得点首页时误触切换宝宝；左右手竖排仍留在胶囊里。 */
@@ -341,18 +379,22 @@
       orb.id = 'dockOrb'; orb.className = 'tabbar lg dock-orb';
       if (bar.parentNode) bar.parentNode.insertBefore(orb, bar.nextSibling);
     }
-    if (avEl) { avEl.classList.add('dock-btn'); (hand === 'normal' ? orb : bar).appendChild(avEl); }
+    /* 第 304 次：宝宝是胶囊里的页签了，旧头像钮留在 DOM（id / 绑定不变）但不显示 */
+    if (avEl) { avEl.classList.add('dock-btn'); avEl.hidden = true; bar.appendChild(avEl); }
     TABS.forEach(function (t) {
       var b = document.createElement('button');
       b.className = 'tab' + (t.id === current ? ' active' : '');
       b.type = 'button';
       /* 第 141 次：底栏统一为「纯图标」——页签不再带文字。
          文字去掉后必须补 aria-label，否则读屏只剩一个无名按钮。 */
-      b.innerHTML = icon(t.ico || t.id);
+      b.className += ' dk-tab';
+      b.innerHTML = dockIco(t.ico);
       b.setAttribute('aria-label', t.title);
       b.setAttribute('title', t.title);
       b.setAttribute('data-tab', t.id);
       if (t.id === current) b.setAttribute('aria-current', 'page'); /* 无障碍：标记当前页签 */
+      /* 第 304 次：刚切到这一页时，彩色图标做一下自己的小动作（同页原地重画不重播） */
+      if (t.id === current && _dkLast !== null && _dkLast !== current) { b.classList.add('dk-pop'); setTimeout(function () { b.classList.remove('dk-pop'); }, 700); }
       b.addEventListener('click', function () { showTab(t.id); });
       bar.appendChild(b);
     });
@@ -390,7 +432,23 @@
     plus.innerHTML = icon('dk-plus');
     plus.setAttribute('aria-expanded', document.body.classList.contains('qd-open') ? 'true' : 'false');
     plus.setAttribute('aria-controls', 'qdActions');
+    /* 第 304 次：简洁模式下长按 ＋ 弹出整条 dock（再长按 / 点别处收起）；长按后的那次 click 吞掉 */
+    var lpT = 0, lpFired = false;
+    plus.addEventListener('pointerdown', function () {
+      lpFired = false; clearTimeout(lpT);
+      if (handMode() === 'normal' || !isTopTab(current) || subExit) return;
+      lpT = setTimeout(function () {
+        lpFired = true;
+        if (document.body.classList.contains('qd-open') && App._qdClose) { try { App._qdClose(true); } catch (eQ) {} }
+        document.body.classList.toggle('dock-peek');
+        try { if (navigator.vibrate) navigator.vibrate(12); } catch (eV) {}
+        try { if (global.LiquidDock) LiquidDock.refresh(); } catch (eL) {}
+      }, 420);
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) { plus.addEventListener(ev, function () { clearTimeout(lpT); }); });
+    plus.addEventListener('contextmenu', function (e) { if (handMode() !== 'normal') e.preventDefault(); });
     plus.addEventListener('click', function (e) {
+      if (lpFired) { lpFired = false; e.preventDefault(); return; }
       if (Util.hapEcho && Util.hapEcho(e)) return; /* 第 286 次：触感层回声不当第二下（否则开了马上又关） */
       var f = document.getElementById('qdFab');
       if (f && f.click) f.click();
@@ -399,11 +457,12 @@
     if (gearEl) { gearEl.classList.add('dock-btn'); gearEl.hidden = true; bar.appendChild(gearEl); }
     /* 返回在 ＋ 之前：二级页里 CSS 让「返回靠左、＋ 靠右」，DOM 顺序即视觉顺序 */
     if (backEl) { backEl.classList.add('dock-btn'); bar.appendChild(backEl); }
-    bar.appendChild(plus);
+    _dkLast = current;
+    bar.appendChild(plus); /* 第 304 次：一级页由 syncOrb 把它挪进右边那颗玻璃珠 */
     /* 第 236 次：所有计时（含白噪音）统一放到 dock 上方的「正在进行」胶囊 */
     try { if (global.DockLive) DockLive.render(); } catch (e) { /* 胶囊异常不影响底栏 */ }
     syncOrb();
-    if (hand === 'normal') {
+    if (true) { /* 第 304 次：没有竖排了，三种模式都走横排布局 */
       try { document.documentElement.style.setProperty('--dock-h', '0px'); } catch (e) {}
       bar.style.left = ''; bar.style.right = ''; bar.style.top = ''; bar.style.bottom = ''; bar.style.transform = '';
       return;
@@ -579,16 +638,18 @@
        第 118 次：alltools / search 也清除——它们不是"某个模块"，
        页内每个磁贴自带 data-accent（.tool-item），页级再挂一个无对应 [data-accent] 规则的
        值只会让页头的 --tile 走 fallback、颜色与页内磁贴对不上。 */
-    if (id === 'home' || id === 'calendar' || id === 'alltools' || id === 'search') view.removeAttribute('data-accent');
+    if (id === 'home' || id === 'calendar' || id === 'alltools' || id === 'search' || id === 'baby') view.removeAttribute('data-accent');
     else view.setAttribute('data-accent', id);
     try {
       Modules[id].render(view);
     } catch (e) {
       view.innerHTML = '<div class="card"><p>加载出错：' + Util.escapeHtml(e && e.message ? e.message : e) + '</p></div>';
     }
+    /* 第 304 次：天气天空铺到 dock 的三个页面——宝宝页、日期记录页在页面最底层也画一片天空（随页面滚动，宽屏左右铺满） */
+    if (id === 'baby' || id === 'calendar') mountPageSky(view); else view.classList.remove('has-psky');
     /* 模块页身份页头：记录类模块页（非首页/日历/设置）自动补一行「图标 + 标题」，
        让进入模块第一眼就有身份感，消除「顶部无标题」的空白。设置页已有 .page-head，不重复。 */
-    if (id !== 'home' && id !== 'calendar' && id !== 'settings' && Modules[id] && Modules[id].title) {
+    if (id !== 'home' && id !== 'calendar' && id !== 'settings' && id !== 'baby' && Modules[id] && Modules[id].title) {
       var head = document.createElement('div');
       head.className = 'mod-head';
       head.setAttribute('data-accent', id);
@@ -747,11 +808,13 @@
     if (global.syncStatusColor) global.syncStatusColor();
     /* dock-left/right 用 add/remove 而非 toggle(cls, force)：QA 桩的 toggle 不吃 force
        会退化成「反转」（与 showTab in-module 同款处理），真实语义两者等价且幂等 */
+    /* 第 304 次：左右手竖排退役，left / right 改为「简洁模式 · 左 / 右」——一级页只留一颗 ＋ 在同侧角落，
+       点一下快记，长按弹出整条 dock。旧的 dock-left / dock-right 类不再挂（竖排样式整套不生效）。 */
     var hand = handMode();
-    if (hand === 'left') document.body.classList.add('dock-left');
-    else document.body.classList.remove('dock-left');
-    if (hand === 'right') document.body.classList.add('dock-right');
-    else document.body.classList.remove('dock-right');
+    document.body.classList.remove('dock-left'); document.body.classList.remove('dock-right');
+    if (hand === 'left') document.body.classList.add('dock-sl'); else document.body.classList.remove('dock-sl');
+    if (hand === 'right') document.body.classList.add('dock-sr'); else document.body.classList.remove('dock-sr');
+    if (hand !== 'normal') document.body.classList.add('dock-simple'); else { document.body.classList.remove('dock-simple'); document.body.classList.remove('dock-peek'); }
     /* 第 103 次（OP-GAP-03）：字号倍率。与上面三处同款处理——
        add/remove 而非 toggle(force)，因为 QA 桩的 toggle 不吃 force 会退化成反转。 */
     applyFontScale();
@@ -952,6 +1015,91 @@
       second: birthDates(s).some(function (bd) { return bd < base && bd <= today; })
     };
   }
+
+  /* ———— 宝宝页（第 304 次，取代宝宝圆钮弹出的菜单面板）————
+     dock 第一个页签。整页、一级页（和首页 / 日期记录平级，不登记 history）。
+     只放：宝宝信息卡（含切换、设置）→ 搜索 → 常用（当前宝宝的记录，先 8 个，可展开全部）→ 孕期 → 妈妈和全家。
+     首页、日期记录已在 dock 上，不重复。一个入口都不丢：孕期、妈妈和全家点开就地展开。 */
+  var babyOpen = { more: false, preg: false, mom: false };
+  function bpEsc(x) { return Util.escapeHtml(x == null ? '' : String(x)); }
+  function bpTile(it) {
+    var key = ICON_KEY[it.id] || it.id;
+    return '<button type="button" class="bp-t" data-accent="' + bpEsc(it.id === 'whitenoise' ? 'sleep' : it.id) + '" data-go="' + bpEsc(it.id) + '">'
+      + '<span class="bp-ti">' + (global.icon ? icon(key) : '') + '</span><span class="bp-tn">' + bpEsc(it.name) + '</span></button>';
+  }
+  function bpRow(k, ico, title, sub, items, open) {
+    return '<section class="bp-card bp-fold' + (open ? ' open' : '') + '" data-fold="' + k + '">'
+      + '<button type="button" class="bp-row" data-bp="' + k + '" aria-expanded="' + (open ? 'true' : 'false') + '">'
+      + '<span class="bp-ri" data-accent="' + bpEsc(ico === 'heart' ? 'mood' : ico) + '">' + (global.icon ? icon(ico) : '') + '</span>'
+      + '<span class="bp-rt"><b>' + bpEsc(title) + '</b><small>' + bpEsc(sub) + '</small></span>'
+      + '<span class="bp-chv" aria-hidden="true">' + (global.icon ? icon('chevron-right') : '') + '</span></button>'
+      + (open ? '<div class="bp-grid">' + items.map(bpTile).join('') + '</div>' : '') + '</section>';
+  }
+  function renderBabyPage(view) {
+    var d = Storage.get();
+    var b = Storage.activeBaby ? Storage.activeBaby() : null;
+    var name = (Storage.babyLabel && b) ? Storage.babyLabel(b) : ((d.settings.baby && (d.settings.baby.nickname || d.settings.baby.name)) || '宝宝');
+    var bd = (b && b.birthDate) || (d.settings.baby && d.settings.baby.birthDate) || null;
+    var gr = (d.growth || []).slice().sort(function (x, y) { return (String(y.date || '') + (y.at || '')).localeCompare(String(x.date || '') + (x.at || '')); });
+    var hh = null, ww = null;
+    gr.forEach(function (r) { if (hh == null && r.heightCm != null) hh = r.heightCm; if (ww == null && r.weightKg != null) ww = r.weightKg; });
+    var dayN = null;
+    if (bd && bd <= Util.todayISO()) dayN = Util.daysBetween(bd, Util.todayISO()) + 1;
+    var ava = (b && b.photo) ? '<img src="' + bpEsc(b.photo) + '" alt="">' : '<img class="bp-yiya" src="assets/dock/baby-lg.webp" alt="">';
+    var kids = (d.babies || []).length;
+    var stat = function (v, l) { return '<div><b>' + (v == null ? '—' : bpEsc(v)) + '</b>' + bpEsc(l) + '</div>'; };
+    var h = '<div class="bp">'
+      + '<section class="bp-hero">'
+      + '<button type="button" class="bp-gear" data-bp="settings" aria-label="设置">' + (global.icon ? icon('settings') : '') + '</button>'
+      + '<div class="bp-hrow"><button type="button" class="bp-ava" data-bp="profile" aria-label="' + bpEsc('宝宝资料：' + name) + '">' + ava + '</button>'
+      + '<div class="bp-hn"><div class="bp-nm"><button type="button" class="bp-nmb" data-bp="profile">' + bpEsc(name) + '</button>'
+      + '<button type="button" class="bp-sw" data-bp="swap" aria-label="切换宝宝">' + '切换 <span aria-hidden="true">⌄</span></button></div>'
+      + '<div class="bp-meta">' + bpEsc(babyAge(bd)) + '</div></div></div>'
+      + '<div class="bp-stats">' + stat(hh, '身长 cm') + stat(ww, '体重 kg') + stat(dayN, '出生天数') + '</div>'
+      + '</section>'
+      + '<button type="button" class="bp-search" data-bp="search"><span class="si-ico">' + (global.icon ? icon('search') : '') + '</span><span>搜索全部记录</span></button>';
+    var AT = global.Modules && Modules.alltools;
+    var groups = (AT && AT._groupsFor) ? AT._groupsFor(d) : [];
+    var g = function (k) { for (var i = 0; i < groups.length; i++) if (groups[i].key === k) return groups[i]; return null; };
+    var gb = g('baby'), gp = g('pregnancy'), gm = g('mom');
+    var items = gb ? gb.items.map(function (it) { return it.id === 'whitenoise' ? { id: it.id, name: '哄睡声音' } : it; }) : [];
+    var showAll = babyOpen.more || items.length <= 8;
+    var preg = pregInfo(d);
+    var pregBlock = preg && gp ? bpRow('preg', 'pregnancy', '孕期', preg.t + ' · ' + preg.s.replace(/^预产期 [^·]+· /, '距预产期 ').replace('还有 ', ''), gp.items, babyOpen.preg) : '';
+    /* 孕期中（还没生）孕期排在常用前面 */
+    var pregFirst = preg && !bd;
+    if (pregFirst) h += pregBlock;
+    h += '<section class="bp-card bp-common"><div class="bp-ch"><span>' + bpEsc(gb ? gb.title : '常用') + '</span>'
+      + '<button type="button" class="bp-edit" data-bp="edit">编辑首页</button></div>'
+      + '<div class="bp-grid">' + (showAll ? items : items.slice(0, 8)).map(bpTile).join('') + '</div>'
+      + (items.length > 8 ? '<button type="button" class="bp-more" data-bp="more" aria-expanded="' + (showAll ? 'true' : 'false') + '">' + (showAll ? '收起' : '全部 ' + items.length + ' 项') + ' <span aria-hidden="true">' + (showAll ? '⌃' : '⌄') + '</span></button>' : '')
+      + '</section>';
+    if (!pregFirst) h += pregBlock;
+    if (!preg && gp) h += bpRow('preg', 'pregnancy', '孕期', '孕周 · 胎动 · 产检 · 待产包', gp.items, babyOpen.preg);
+    if (gm) h += bpRow('mom', 'heart', gm.title, gm.items.map(function (x) { return x.name.replace('妈妈', ''); }).join(' · '), gm.items, babyOpen.mom);
+    h += '</div>';
+    view.innerHTML = h;
+    view.onclick = function (e) {
+      var t = e.target && e.target.closest ? e.target.closest('[data-go],[data-bp]') : null;
+      if (!t || !view.contains(t)) return;
+      var go = t.getAttribute('data-go'), act = t.getAttribute('data-bp');
+      if (go) { showTab(go); return; }
+      if (act === 'search') { if (App.openSearch) App.openSearch(); else showTab('search'); return; }
+      if (act === 'swap') { openBabySheet(); return; }
+      if (act === 'profile') { App.openSettingsGroup('称呼与阶段'); return; }
+      if (act === 'settings') { showTab('settings'); return; }
+      if (act === 'edit') { if (global.Modules && Modules.home) Modules.home._edit = true; showTab('home', { noVT: true }); return; }
+      if (act === 'more' || act === 'preg' || act === 'mom') {
+        var key = act === 'more' ? 'more' : act;
+        babyOpen[key] = !babyOpen[key];
+        var y = global.pageYOffset || 0;
+        renderBabyPage(view);
+        try { global.scrollTo(0, y); } catch (eY) {}
+      }
+    };
+  }
+  global.Modules = global.Modules || {};
+  global.Modules.baby = { id: 'baby', title: '宝宝', render: function (view) { renderBabyPage(view); } };
 
   /* ---------------- 首次引导（O 系列规范） ----------------
      检索结论（出处见《哄睡白噪音与首次引导_功能研究与落地设计》）：
@@ -1982,27 +2130,32 @@
           if (arrName === 'diapers' && DM && typeof DM._autoUse === 'function') DM._autoUse(d2, r);
           if (Storage.pushFor(bb.id, arrName, r)) made.push([bb.id, r.id, r]);
         });
-        if (Storage.save()) Util.toast(msg + ' · ' + made.length + ' 个宝宝都记了', 'ok', { label: '撤销', onClick: function () {
+        var savedAll = Storage.save();
+        close(); detachOutside();
+        if (savedAll) Util.toast(msg + ' · ' + made.length + ' 个宝宝都记了', 'ok', { label: '撤销', onClick: function () {
           made.forEach(function (m) {
             if (m[2].used && DM && typeof DM._applyUse === 'function') DM._applyUse(Storage.get(), DM._validUsed(Storage.get(), m[2].used), -1);
             Storage.removeFor(m[0], arrName, m[1]);
           });
           Storage.save(); rerender(); Util.toast('已撤销', 'ok');
         } });
-        close(); detachOutside(); rerender();
+        rerender();
         return;
       }
       if (arrName === 'diapers' && DM && typeof DM._autoUse === 'function') msg += DM._autoUse(d2, rec);
       if ((d2.babies || []).length >= 2) msg += ' · 记给' + Storage.babyLabel();
       d2[arrName].push(rec);
-      if (Storage.save()) Util.toast(msg, 'ok', { label: '撤销', onClick: function () {
+      /* 第 303 次：先收起快记面板再发提示，提示才会从 dock 长出来（以前面板还开着，提示被挤到顶上） */
+      var saved = Storage.save();
+      close(); detachOutside();
+      if (saved) Util.toast(msg, 'ok', { label: '撤销', onClick: function () {
         var arr = Storage.get()[arrName];
         var gone = null;
         for (var i = arr.length - 1; i >= 0; i--) if (arr[i].id === rec.id) { gone = arr.splice(i, 1)[0]; break; }
         if (gone && gone.used && DM && typeof DM._applyUse === 'function') DM._applyUse(Storage.get(), DM._validUsed(Storage.get(), gone.used), -1);
         Storage.save(); rerender(); Util.toast('已撤销', 'ok');
       } });
-      close(); detachOutside(); rerender();
+      rerender();
     }
 
     fab.addEventListener('click', function (ev) {
@@ -2213,7 +2366,9 @@
         if (has) { close(true, { nav: true }); detachOutside(); }
       }).observe(mr, { childList: true });
     }
-    global.App.openMenu = openMenu;
+    /* 第 304 次：宝宝不再弹面板，「打开菜单」就是去宝宝页；旧面板保留为 _openMenuPanel（没有界面入口） */
+    global.App._openMenuPanel = openMenu;
+    global.App.openMenu = function () { closeMenu(true); showTab('baby'); };
     global.App.closeMenu = closeMenu;
     global.App.menuOpen = function () { return mode === 'menu' && root.classList.contains('open') && !root.classList.contains('qd-closing'); };
     /* 宝宝圆钮：开 / 关菜单（点按委托在按钮上，回声过滤） */
@@ -2319,6 +2474,13 @@
 
     /* 全局快捷记录 dock（展开式 FAB，所有页面可用） */
     buildQuickDock();
+    /* 第 304 次：简洁模式长按弹出的 dock，点 dock / ＋ 以外任何地方收起 */
+    document.addEventListener('pointerdown', function (e) {
+      if (!document.body.classList.contains('dock-peek')) return;
+      var t = e.target;
+      if (t && t.closest && t.closest('#tabbar, #dockOrb')) return;
+      document.body.classList.remove('dock-peek');
+    }, true);
     /* 模块页返回按钮（第 42 次）：就近的「回首页」出口，不依赖底栏 */
     /* 第 95 次：返回按钮改顶栏内圆形图标（与设置齿轮同语言），fixed 定位漂移根治。
        图标在这里注入；显示/隐藏仍由 showTab 切 hidden。 */
@@ -2551,7 +2713,15 @@
   function syncOrb() {
     var orb = document.getElementById('dockOrb'), bar = document.getElementById('tabbar');
     if (!orb || !bar) return;
-    var use = handMode() === 'normal' && isTopTab(current) && !subExit;
+    var use = isTopTab(current) && !subExit;
+    /* 第 304 次：一级页 ＋ 单独一颗玻璃珠放在胶囊右边（#dockOrb，原来放宝宝圆钮的那颗）；
+       二级页（含页内二级）、左右手竖排时 ＋ 回到胶囊里（和返回钮一左一右） */
+    var plus = bar.querySelector('.tab-plus[data-qd-toggle]') || orb.querySelector('[data-qd-toggle]');
+    Array.prototype.forEach.call(orb.querySelectorAll('[data-qd-toggle]'), function (x) { if (x !== plus) orb.removeChild(x); }); /* 重建后旧的那颗不留 */
+    if (plus) {
+      if (use && plus.parentNode !== orb) orb.appendChild(plus);
+      else if (!use && plus.parentNode !== bar) bar.appendChild(plus);
+    }
     orb.hidden = !use;
     if (use) document.body.classList.add('has-orb'); else document.body.classList.remove('has-orb');
     /* 第 244 次：二级页 dock 左缘对齐一级页（见 styles.css sub-anchor） */

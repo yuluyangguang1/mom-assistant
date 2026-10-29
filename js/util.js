@@ -1448,6 +1448,10 @@
     } catch (eD) { return null; }
   }
   Util._toastDockRect = toastDockRect;
+  function dockBlockedByOverlay() {
+    var bc = document.body.classList;
+    return bc.contains('sheet-open') || bc.contains('qd-open') || bc.contains('menu-open') || !!document.querySelector('#modalRoot .modal-mask');
+  }
   function dockCardW() { return Math.min(360, (global.innerWidth || 360) - 24); }
   function dockPlace(root, r) {
     var vw = global.innerWidth || 0, vh = global.innerHeight || 0, w = dockCardW();
@@ -1475,6 +1479,13 @@
   }
   Util._dockpopOff = dockpopOff;
   function toastShow(e, ms, opt) {
+    /* 第 303 次：带按钮的提示常在「保存 → 关面板」的同一拍里发出——那一刻面板还算开着，
+       dock 被判成被遮住、提示就跑去了顶部。挡住 dock 的只是正在关的面板时，等这一拍跑完
+       （面板的 MutationObserver 微任务已更新 sheet-open）再决定位置。 */
+    if (e.action && !(opt && opt._settled) && !toastDockRect() && dockBlockedByOverlay()) {
+      setTimeout(function () { if (!e.acted) toastShow(e, ms, Object.assign({}, opt || {}, { _settled: true })); }, 0);
+      return;
+    }
     var root = toastRoot();
     var el = TST.el;
     var dockR = e.action ? toastDockRect() : null;

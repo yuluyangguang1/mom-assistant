@@ -4730,7 +4730,7 @@ body .tabbar.is-vertical .tab-plus { margin-top: 8px; }
    ============================================================ */
 #dockOrb.dock-orb {
   --orb: var(--dock-bh, 62px);
-  left: calc(50% - var(--dock-w, 240px) / 2 - 35px); transform: none;
+  left: calc(50% + var(--dock-w, 240px) / 2 - 27px); transform: none; /* 第 304 次：＋ 玻璃珠在胶囊右边 */
   width: var(--orb); height: var(--orb); max-width: none; padding: 0;
   display: flex; align-items: center; justify-content: center;
 }
@@ -4743,24 +4743,24 @@ body .tabbar.is-vertical .tab-plus { margin-top: 8px; }
 html.lg-refract body #dockOrb.lg { -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.04); backdrop-filter: blur(14px) saturate(190%) brightness(1.04); }
 /* 第 240 次：右移改用 left，不再写进 transform。iOS 按下时 dock 的 scale 回弹走合成层，
    WebKit 合成层解析 translateX(calc(-50% + 35px)) 会丢掉 px 部分，整条 dock 往左缩一下再弹回。 */
-body.has-orb #tabbar:not(.is-vertical) { left: calc(50% + 35px); }
+body.has-orb #tabbar:not(.is-vertical) { left: calc(50% - 35px); }
 /* 第 246 次（真机录屏：首页 / 日期 / 搜索互切时 dock 闪到左边、压在宝宝圆钮上）：
    iOS Safari 给带 view-transition-name 的元素拍快照时，translateX(-50%) 会被再算一次，
    新快照整条往左偏半个 dock 宽。一级页也改成和二级页一样：left 直接算出左缘，transform 不放位移。 */
-body.has-orb #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 258px) / 2 + 35px); transform: none; transform-origin: 50% 50%; }
+body.has-orb #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 258px) / 2 - 35px); transform: none; transform-origin: 50% 50%; }
 body.ftf-open #dockOrb { visibility: hidden; }
 /* 第 244 次：二级页 dock 左缘钉在一级页 dock 的左缘（圆钮右边 8px），进出二级页 dock 不再左移 / 右移，
    只是右侧收短；按下缩放回到以中心为原点。 */
-body.sub-anchor #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 258px) / 2 + 35px); transform: none; transform-origin: 50% 50%; }
+body.sub-anchor #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 258px) / 2 - 35px); transform: none; transform-origin: 50% 50%; }
 html[data-nav] #dockOrb:not([hidden]) { view-transition-name: dock-orb; }
 ::view-transition-group(dock-orb) { animation: none; }
 ::view-transition-old(dock-orb) { animation: vtFadeOut .16s ease-out both; } /* 第 244 次：进二级页时圆钮淡出，不再瞬间消失 */
 ::view-transition-new(dock-orb) { animation: none; }
 @media (max-width: 360px) {
-  #dockOrb.dock-orb { --orb: 54px; left: calc(50% - var(--dock-w, 240px) / 2 - 31px); bottom: calc(14px + env(safe-area-inset-bottom)); }
-  body.has-orb #tabbar:not(.is-vertical) { left: calc(50% + 31px); }
-  body.has-orb #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 240px) / 2 + 31px); }
-  body.sub-anchor #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 240px) / 2 + 31px); }
+  #dockOrb.dock-orb { --orb: 54px; left: calc(50% + var(--dock-w, 240px) / 2 - 23px); bottom: calc(14px + env(safe-area-inset-bottom)); }
+  body.has-orb #tabbar:not(.is-vertical) { left: calc(50% - 31px); }
+  body.has-orb #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 240px) / 2 - 31px); }
+  body.sub-anchor #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 240px) / 2 - 31px); }
 }
 
 /* ============================================================
@@ -5346,11 +5346,13 @@ body .toast-island .toast-action { margin-left: 0; min-height: 36px; padding: 7p
 .toast-yiya {
   --ty-c: var(--tile, var(--primary));
   position: relative; flex: none; width: 36px; height: 36px; border-radius: 50%;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ty-c) 60%, var(--surface)), 0 2px 6px -2px rgba(90, 74, 62, .35);
+  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--ty-c) 75%, var(--surface)), 0 2px 6px -2px rgba(90, 74, 62, .35);
   background: #FCD98A;
 }
 .toast-yiya img { display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; -webkit-user-drag: none; }
 .toast-yiya .ty-badge {
+  /* 第 303 次：角标去掉（压脸、挪出去又跌出条外）。类型颜色只靠头像外圈表达，图标只留给读屏之外的 DOM */
+  display: none !important;
   position: absolute; right: -4px; bottom: -3px; width: 17px; height: 17px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--tile-fill, var(--ty-c)); color: #FFF; box-shadow: 0 0 0 2px var(--surface-solid, var(--surface));
@@ -6829,3 +6831,158 @@ p.backfill-note::before { top: 10px; }
   .toast-island.show[data-face] .toast-yiya img { animation: none !important; }
   #tabbar { transition: none; }
 }
+
+/* ============================================================
+   第 304 次 · 新 dock：「宝宝 · 首页 · 日历」三页签 + 右侧 ＋ 玻璃珠；宝宝页整页
+   页签：未选中线条图标，水滴（透镜）停在上面 / 手指拖过时换成立体彩色图标（咿呀 / 小房子 / 日历）。
+   ============================================================ */
+body .tabbar .tab.dk-tab { width: 56px; min-width: 56px; max-width: 56px; height: 46px; min-height: 46px; color: var(--muted); touch-action: none; -webkit-touch-callout: none; }
+body .tabbar.is-vertical .tab.dk-tab { width: 46px; min-width: 46px; max-width: 46px; height: 52px; min-height: 52px; }
+.dk-ic { position: relative; display: block; font-style: normal; width: 34px; height: 34px; pointer-events: none; }
+.dk-ic .dk-l { position: absolute; left: 50%; top: 50%; width: 27px; height: 27px; margin: 0; translate: -50% -50%; color: currentColor;
+  transition: opacity .18s var(--ease), scale .28s cubic-bezier(.34, 1.56, .64, 1); }
+body .tabbar .tab.dk-tab .dk-l { width: 27px; height: 27px; stroke-width: 2; color: #6E5547; --ic-a: #EF8E86; } /* 第 306 次：暖可可主线 + 珊瑚粉点缀 */
+body.dark .tabbar .tab.dk-tab .dk-l { color: #D9C6B5; --ic-a: #F2A09A; }
+.dk-baby .dk-l { --ic-a: #F49AAA; }
+body.hc .tabbar .tab.dk-tab .dk-l { color: var(--text); }
+body .tabbar .tab.dk-tab.active .dk-l { color: var(--muted); }
+.dk-ic .dk-c { position: absolute; inset: 0; width: 34px; height: 34px; object-fit: contain; opacity: 0; scale: .55; transform-origin: 50% 70%;
+  transition: opacity .16s var(--ease), scale .34s cubic-bezier(.34, 1.56, .64, 1);
+  filter: drop-shadow(0 2px 3px rgba(90, 60, 40, .22)); -webkit-user-drag: none; }
+.dk-baby .dk-c { width: 36px; height: 36px; inset: -1px; }
+body .tabbar .tab.dk-tab.active .dk-l, body .tabbar .tab.dk-tab.lg-hover .dk-l { opacity: 0; scale: .6; }
+body .tabbar .tab.dk-tab.active .dk-c, body .tabbar .tab.dk-tab.lg-hover .dk-c { opacity: 1; scale: 1; }
+/* 拖动水滴经过别的页签时：原选中页签退回线条 */
+body .tabbar.lg-drag .tab.dk-tab.active:not(.lg-hover) .dk-l { opacity: 1; scale: 1; }
+body .tabbar.lg-drag .tab.dk-tab.active:not(.lg-hover) .dk-c { opacity: 0; scale: .55; }
+/* 选中小动作：宝宝弹一下、房子屋顶一压一弹、日历翻一下 */
+body .tabbar .tab.dk-tab.dk-pop .dk-baby .dk-c { animation: dkBaby .62s cubic-bezier(.3, .7, .3, 1); }
+body .tabbar .tab.dk-tab.dk-pop .dk-home .dk-c { animation: dkHome .56s cubic-bezier(.3, .7, .3, 1); }
+body .tabbar .tab.dk-tab.dk-pop .dk-cal .dk-c { animation: dkCal .6s cubic-bezier(.3, .7, .3, 1); }
+@keyframes dkBaby { 0% { translate: 0 0; rotate: 0deg; } 30% { translate: 0 -5px; rotate: -6deg; } 55% { translate: 0 0; rotate: 4deg; } 75% { translate: 0 -1.5px; rotate: -1deg; } 100% { translate: 0 0; rotate: 0deg; } }
+@keyframes dkHome { 0% { transform: scale(1, 1); } 25% { transform: scale(1.12, .84); } 55% { transform: scale(.94, 1.1); } 80% { transform: scale(1.02, .98); } 100% { transform: scale(1, 1); } }
+@keyframes dkCal { 0% { transform: perspective(80px) rotateX(0); } 35% { transform: perspective(80px) rotateX(-38deg); } 70% { transform: perspective(80px) rotateX(10deg); } 100% { transform: perspective(80px) rotateX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .dk-ic .dk-l, .dk-ic .dk-c { transition: none; }
+  body .tabbar .tab.dk-tab.dk-pop .dk-c { animation: none !important; }
+}
+body.hc .dk-ic .dk-c { filter: none; }
+
+/* ＋ 玻璃珠：在胶囊右边（原宝宝圆钮的位置换到右侧），两者合起来居中 */
+#dockOrb .tab-plus { margin: 0 !important; }
+@media (max-width: 360px) {
+  body .tabbar .tab.dk-tab { width: 50px; min-width: 50px; max-width: 50px; }
+}
+
+/* ———— 宝宝页 ———— */
+.bp { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 8px; }
+.bp-card, .bp-hero { background: var(--surface); border-radius: var(--radius-lg); box-shadow: 0 10px 26px -16px rgba(80, 55, 40, .3); }
+body.dark .bp-card, body.dark .bp-hero { box-shadow: none; border: 1px solid var(--border); }
+.bp-hero { position: relative; padding: 18px 18px 16px; }
+.bp-gear { position: absolute; right: 12px; top: 12px; width: 40px; height: 40px; border: 0; border-radius: 50%; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); cursor: pointer; }
+.bp-gear .ico { width: 20px; height: 20px; opacity: .75; }
+.bp-gear:active { transform: scale(.92); }
+.bp-hrow { display: flex; align-items: center; gap: 14px; padding-right: 40px; }
+.bp-ava { flex: none; width: 68px; height: 68px; padding: 0; border: 0; border-radius: var(--radius-lg); overflow: hidden; display: grid; place-items: center; cursor: pointer;
+  background: linear-gradient(#fbe4e2, #f5cfd0); }
+.bp-ava img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bp-ava img.bp-yiya { width: 58px; height: 58px; object-fit: contain; }
+body.dark .bp-ava { background: linear-gradient(#5a4448, #4a3a40); }
+.bp-hn { min-width: 0; }
+.bp-nm { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.bp-nmb { min-width: 0; padding: 0; border: 0; background: none; color: var(--text); font-family: inherit; font-size: calc(24px * var(--fs-mul, 1)); font-weight: 800; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; text-align: left; }
+.bp-sw { flex: none; min-height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--primary-text);
+  font-family: inherit; font-size: calc(12.5px * var(--fs-mul, 1)); font-weight: 700; white-space: nowrap; cursor: pointer; }
+.bp-sw:active { transform: scale(.95); }
+.bp-meta { margin-top: 3px; font-size: calc(13px * var(--fs-mul, 1)); font-weight: 600; color: var(--muted); }
+.bp-stats { display: flex; margin-top: 14px; padding: 10px 4px; border-radius: var(--radius-md); background: color-mix(in srgb, var(--text) 4%, transparent); }
+.bp-stats div { flex: 1; text-align: center; font-size: calc(11.5px * var(--fs-mul, 1)); font-weight: 600; color: var(--muted); }
+.bp-stats b { display: block; font-size: calc(17px * var(--fs-mul, 1)); color: var(--text); font-variant-numeric: tabular-nums; }
+.bp-search { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 46px; padding: 0 16px; border: 0; border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface) 78%, transparent); box-shadow: inset 0 0 0 .6px color-mix(in srgb, var(--text) 16%, transparent);
+  color: var(--muted); font-family: inherit; font-size: calc(15px * var(--fs-mul, 1)); text-align: left; cursor: pointer; }
+.bp-search .si-ico { display: inline-flex; }
+.bp-search .ico { width: 18px; height: 18px; }
+.bp-search:active { transform: scale(.985); }
+.bp-common { padding: 14px 12px 10px; }
+.bp-ch { display: flex; align-items: center; justify-content: space-between; padding: 0 6px 10px; font-size: calc(15px * var(--fs-mul, 1)); font-weight: 800; color: var(--text); }
+.bp-edit { min-height: 32px; padding: 0 4px; border: 0; background: none; color: var(--muted); font-family: inherit; font-size: calc(12.5px * var(--fs-mul, 1)); font-weight: 700; cursor: pointer; }
+.bp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 4px; }
+.bp-fold .bp-grid { padding: 4px 12px 14px; }
+.bp-t { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; padding: 4px 0; border: 0; background: none; color: var(--text);
+  font-family: inherit; font-size: calc(12.5px * var(--fs-mul, 1)); font-weight: 700; cursor: pointer; }
+.bp-ti { width: 50px; height: 50px; border-radius: var(--radius-md); display: grid; place-items: center; background: var(--tile-weak, color-mix(in srgb, var(--text) 6%, transparent)); color: var(--tile, var(--text)); }
+.bp-ti .ico { width: 27px; height: 27px; }
+.bp-tn { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bp-t:active .bp-ti { transform: scale(.92); }
+.bp-more { display: block; width: 100%; margin-top: 10px; padding: 9px 0 2px; border: 0; border-top: 1px solid color-mix(in srgb, var(--text) 7%, transparent); background: none;
+  color: var(--primary-text); font-family: inherit; font-size: calc(12.5px * var(--fs-mul, 1)); font-weight: 700; cursor: pointer; }
+.bp-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 62px; padding: 0 16px; border: 0; background: none; color: var(--text); font-family: inherit; text-align: left; cursor: pointer; }
+.bp-ri { flex: none; width: 38px; height: 38px; border-radius: var(--radius-sm); display: grid; place-items: center; background: var(--tile-weak, color-mix(in srgb, var(--text) 6%, transparent)); color: var(--tile, var(--text)); }
+.bp-ri .ico { width: 20px; height: 20px; }
+.bp-rt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.bp-rt b { font-size: calc(15px * var(--fs-mul, 1)); }
+.bp-rt small { font-size: calc(12px * var(--fs-mul, 1)); font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bp-chv { flex: none; display: inline-flex; color: var(--muted); opacity: .6; transition: transform .24s var(--ease); }
+.bp-chv .ico { width: 16px; height: 16px; }
+.bp-fold.open .bp-chv { transform: rotate(90deg); }
+@media (max-width: 350px) { .bp-grid { grid-template-columns: repeat(3, 1fr); } }
+.bp-ti .ico, .bp-ri .ico { color: var(--tile, var(--primary)); }
+
+/* ———— 第 304 次 · 天空铺到 dock 的三个页面 + 宽屏 / 双屏 ———— */
+#view.has-psky { position: relative; isolation: isolate; }
+.home-sky.page-sky {
+  position: absolute; z-index: -1; top: calc(-64px - var(--sat-pad)); left: calc(50% - 50vw); width: 100vw; margin: 0; padding: 0;
+  height: calc(var(--sat-pad) + 64px + 320px); min-height: 0; pointer-events: none;
+}
+/* 宝宝页 / 日期页在天空上：卡片之间的空隙透出天色，信息卡保持实色 */
+#view.has-psky .bp-search { background: color-mix(in srgb, var(--surface) 70%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+/* 宽屏：首页天空左右铺满整个窗口，内容仍在中间一列 */
+@media (min-width: 700px) {
+  .home-sky:not(.page-sky) { margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); padding-left: calc(50vw - 50% + 18px); padding-right: calc(50vw - 50% + 18px); }
+}
+/* 双屏（Surface Duo 等，横向两段）预留：内容放左屏，天空横跨两屏，dock 跟内容居左屏中间 */
+@media (horizontal-viewport-segments: 2) {
+  :root { --seg-l: env(viewport-segment-width 0 0, 50vw); --seg-r0: env(viewport-segment-left 1 0, 50vw); }
+  .view, .app-header { max-width: none; width: var(--seg-l); margin-left: 0; margin-right: 0; }
+  body.has-orb #tabbar.lg:not(.is-vertical) { left: calc(var(--seg-l) / 2 - var(--dock-w, 258px) / 2 - 35px); }
+  #dockOrb.dock-orb { left: calc(var(--seg-l) / 2 + var(--dock-w, 240px) / 2 - 27px); }
+}
+
+/* 首页「今日宝宝」卡：没照片时黏土咿呀 */
+.tb-ava img.tb-yiya { width: 86%; height: 86%; margin: 7%; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(140, 70, 60, .22)); }
+
+/* ———— 第 304 次 · 简洁模式（左 / 右）：一级页只留 ＋，点按快记、长按弹出整条 dock ———— */
+body.dock-sl #dockOrb.dock-orb { left: 18px; }
+body.dock-sr #dockOrb.dock-orb { left: auto; right: 18px; }
+body.dock-simple.has-orb #tabbar.lg:not(.is-vertical) {
+  bottom: calc(10px + env(safe-area-inset-bottom) + var(--dock-bh, 62px) + 10px); transform: none;
+  opacity: 0; visibility: hidden; pointer-events: none; translate: 0 14px; scale: .86;
+  transition: opacity .18s var(--ease), translate .34s cubic-bezier(.34, 1.56, .64, 1), scale .34s cubic-bezier(.34, 1.56, .64, 1), visibility 0s linear .18s;
+}
+body.dock-sl.has-orb #tabbar.lg:not(.is-vertical) { left: 18px; right: auto; transform-origin: 0 100%; }
+body.dock-sr.has-orb #tabbar.lg:not(.is-vertical) { left: auto; right: 18px; transform-origin: 100% 100%; }
+body.dock-simple.dock-peek.has-orb #tabbar.lg:not(.is-vertical) { opacity: 1; visibility: visible; pointer-events: auto; translate: 0 0; scale: 1; transition-delay: 0s; }
+body.dock-sl #tabbar.is-sub { left: 18px; right: auto; transform: none; }
+body.dock-sr #tabbar.is-sub { left: auto; right: 18px; transform: none; }
+body.dock-sl #quickDock .qd-actions, body.dock-sr #quickDock .qd-actions { max-width: calc(100vw - 24px); }
+@media (prefers-reduced-motion: reduce) { body.dock-simple.has-orb #tabbar.lg:not(.is-vertical) { transition: none; } }
+
+/* ———— 第 305 次 · 图标 v3 点缀色：主线跟模块色，点缀（.ia 描边 / .iaf 填充）各有一种暖色 ———— */
+.ico .ia { stroke: var(--ic-a, currentColor); }
+.ico .iaf { fill: var(--ic-a, currentColor); }
+.ico[data-i="feeding"], .ico[data-i="pump"], .ico[data-i="finance"], .ico[data-i="milestone"] { --ic-a: #EFA83C; }
+.ico[data-i="breast"], .ico[data-i="growth"], .ico[data-i="fetal"], .ico[data-i="diaper"] { --ic-a: #F193AE; }
+.ico[data-i="sleep"], .ico[data-i="mood"] { --ic-a: #F6A2AE; }
+.ico[data-i="noise"], .ico[data-i="whitenoise"], .ico[data-i="sun"], .ico[data-i="jaundice"], .ico[data-i="formula"] { --ic-a: #F5BE3E; }
+.ico[data-i="solid"] { --ic-a: #86C46E; }
+.ico[data-i="temp"], .ico[data-i="packing"] { --ic-a: #EE6A6A; }
+.ico[data-i="vaccine"] { --ic-a: #F2B83E; }
+.ico[data-i="meds"], .ico[data-i="supplement"] { --ic-a: #F2925E; }
+.ico[data-i="period"], .ico[data-i="prenatal"], .ico[data-i="contraction"], .ico[data-i="pregnancy"], .ico[data-i="supplies"], .ico[data-i="momweight"] { --ic-a: #EE7A9C; }
+.ico[data-i="bath"], .ico[data-i="water"] { --ic-a: #6EBFE6; }
+.ico[data-i="swim"] { --ic-a: #F07A68; }
+.ico[data-i="jaundice"] .iaf { opacity: .55; }
+.ico[data-i="water"] .iaf, .ico[data-i="period"] .iaf, .ico[data-i="breast"] .iaf, .ico[data-i="sun"] .iaf, .ico[data-i="meds"] .iaf { opacity: .7; }

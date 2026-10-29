@@ -183,15 +183,62 @@
     if (!t || !bar.contains(t)) return;
     bar.classList.add('lg-press');
     if (thumb && t.classList.contains('active')) thumb.classList.add('lg-grow');
+    dragStart(e, t);
     /* 第 277 次：按下时玻璃轻微放大（CSS scale 1.02），边缘折射同步增强（dock-refract.js 逐帧缓动） */
     if (global.DockRefract && DockRefract.press) DockRefract.press('dock', true);
   }
-  function onUp() {
+  function onUp(e) {
     if (!bar) return;
+    dragEnd(e && e.type === 'pointercancel');
     var was = bar.classList.contains('lg-press');
     bar.classList.remove('lg-press');
     if (thumb) thumb.classList.remove('lg-grow');
     if (was && global.DockRefract && DockRefract.press) DockRefract.press('dock', false);
+  }
+
+  /* 第 304 次：按住页签左右拖，水滴跟着手指走；经过哪个页签哪个就换成彩色图标，松手切到那一页 */
+  var drag = null, swallowUntil = 0;
+  function tabsOf() { return bar ? Array.prototype.filter.call(bar.querySelectorAll('.tab.dk-tab'), function (t) { return t.offsetParent; }) : []; }
+  function dragStart(e, t) {
+    if (!t.classList.contains('dk-tab') || bar.classList.contains('is-sub') || bar.classList.contains('is-vertical')) return;
+    drag = { id: e.pointerId, x0: e.clientX, on: false, hover: null };
+  }
+  function nearest(x) {
+    var best = null, bd = 1e9;
+    tabsOf().forEach(function (t) { var r = t.getBoundingClientRect(), c = r.left + r.width / 2, dd = Math.abs(c - x); if (dd < bd) { bd = dd; best = t; } });
+    return best;
+  }
+  function onMove(e) {
+    if (!drag || e.pointerId !== drag.id || !bar || !thumb) return;
+    var dx = e.clientX - drag.x0;
+    if (!drag.on) {
+      if (Math.abs(dx) < 8) return;
+      drag.on = true; bar.classList.add('lg-drag');
+    }
+    var tabs = tabsOf(); if (!tabs.length) return;
+    var br = bar.getBoundingClientRect(), a = activeTab() || tabs[0];
+    var w = a.offsetWidth, first = tabs[0], last = tabs[tabs.length - 1];
+    var x = e.clientX - br.left - w / 2;
+    x = Math.max(first.offsetLeft - 4, Math.min(last.offsetLeft + 4, x));
+    thumb.style.transform = 'translate(' + x + 'px,' + a.offsetTop + 'px)';
+    thumb.classList.add('lg-grow');
+    var h = nearest(e.clientX);
+    if (h !== drag.hover) {
+      if (drag.hover) drag.hover.classList.remove('lg-hover');
+      if (h) h.classList.add('lg-hover');
+      drag.hover = h;
+    }
+    if (global.DockRefract && DockRefract.kick) DockRefract.kick(120);
+  }
+  function dragEnd(cancel) {
+    var d = drag; drag = null;
+    if (!d || !d.on || !bar) return;
+    bar.classList.remove('lg-drag');
+    if (d.hover) d.hover.classList.remove('lg-hover');
+    var t = d.hover;
+    if (!cancel && t && !t.classList.contains('active')) { try { t.click(); } catch (e) {} }
+    else { place(true); }
+    swallowUntil = Date.now() + 450; /* 拖完松手浏览器还会补一下 click，吞掉 */
   }
 
   function refresh() { place(true); updateRefraction(); }
@@ -219,6 +266,8 @@
     }
     if (global.ResizeObserver) { ro = new ResizeObserver(function () { place(false); updateRefraction(); }); ro.observe(bar); }
     bar.addEventListener('pointerdown', onDown, { passive: true });
+    global.addEventListener('pointermove', onMove, { passive: true });
+    bar.addEventListener('click', function (e) { if (Date.now() < swallowUntil) { e.stopPropagation(); e.preventDefault(); swallowUntil = 0; } }, true);
     global.addEventListener('pointerup', onUp, { passive: true });
     global.addEventListener('pointercancel', onUp, { passive: true });
     place(false); updateRefraction();

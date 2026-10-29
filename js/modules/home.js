@@ -859,7 +859,7 @@
       (function () {
         var ab = (Storage.activeBaby) ? Storage.activeBaby() : null;
         var ava = (ab && ab.photo) ? '<img class="tb-photo" src="' + Util.escapeHtml(ab.photo) + '" alt="">'
-          : (global.illo ? illo('avatar') : '');
+          : '<img class="tb-yiya" src="assets/dock/baby-lg.webp" alt="">'; /* 第 304 次：没照片时用黏土咿呀（和 dock / 宝宝页同一套） */
         var big = '', sub = [], foot = '';
         if (ageDays !== null && ageDays >= 0) {
           var bD0 = new Date(bd + 'T00:00:00');

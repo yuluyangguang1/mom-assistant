@@ -1071,15 +1071,16 @@
         + (('wakeLock' in navigator) ? '' : '<b>当前浏览器不支持</b>，iPhone 需 iOS 16.4 以上。') + '</p>';
       /* 第 100 次：底栏五口排列（取代第 87 次只镜像快记钮的「左手模式」开关）——
          left/right 时首页、日期记录、快记＋、宝宝切换、设置五口收进同侧竖排胶囊 */
-      var HAND_OPTS = [['normal', '正常排列'], ['left', '左手模式'], ['right', '右手模式']];
+      /* 第 304 次：左右手竖排退役，改为简洁模式（只留一颗 ＋，点按快记、长按弹出整条 dock） */
+      var HAND_OPTS = [['normal', '完整'], ['left', '简洁 · 左'], ['right', '简洁 · 右']];
       var curHand = (s.settings.handMode === 'left' || s.settings.handMode === 'right') ? s.settings.handMode : 'normal';
-      html += '<span class="lbl-text">底栏排列</span><div class="seg seg-wrap2" id="sHandSeg">'
+      html += '<span class="lbl-text">底栏样式</span><div class="seg seg-wrap2" id="sHandSeg">'
         + HAND_OPTS.map(function (m) {
           return '<button type="button" class="seg-btn' + (curHand === m[0] ? ' active' : '') + '" data-hand-mode="' + m[0] + '">' + m[1] + '</button>';
         }).join('')
         + '</div>';
-      html += '<p class="hint">「左手 / 右手」把整条底栏竖起来贴在屏幕同侧（单手抱娃时拇指够得着），'
-        + '按钮和「正常排列」完全一样，只是方向不同。</p>';
+      html += '<p class="hint">简洁模式只在屏幕左下或右下留一颗 ＋：点一下快速记录，长按弹出宝宝 / 首页 / 日历。'
+        + '单手抱娃时拇指够得着，画面也更干净。</p>';
       /* 第 97 次：底栏右侧自定义快捷槽位——两页签之后加一个直达常用记录的入口 */
       var SLOT_OPTS = [
         ['', '不显示'], ['feeding', '喂养'], ['diaper', '尿布'], ['sleep', '睡眠'],
