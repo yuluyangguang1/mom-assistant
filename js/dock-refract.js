@@ -92,7 +92,7 @@
   var lensR = null, lensM = 0, lensG = 1, lensA = 1;
   /* 第 314 次：透镜动态量（liquid-dock.js 逐帧给）：hl = 运动方向 × 速度（−1..1，高光朝运动方向偏）、flash = 按下亮弧（1 → 0）、fuse = 与 dock 的 smooth-min 半径、a = 形变速度 0..1 */
   var lensFx = { hl: 0, flash: 0, fuse: 0, a: 0 };
-  var LENS_MAG_I = 1.15;    /* 第 314 次：透镜中心放大 1.06 → 1.15（清透放大镜；图标也由 GL 一起放大，不再靠 DOM 的 --lz） */
+  var LENS_MAG_I = 0.97;    /* 第 317 次：1.15 放大 → 0.97 缩小（支付宝 22:03 第 13 帧背后字行互相关：取样比例 1.02，即显示约 0.98×；透镜外内容压进边带，整体是缩小）。图标层不缩（gIc） */
   var LENS_SHADOW = 14;     /* 第 314 次：画布在透镜四周多留的边（投影 + 融合圆角） */
 
   /* ---------- 开关判断 ---------- */
@@ -471,7 +471,9 @@
     'vec3 tone(vec3 c){return satv(clamp(((c-.5)*uTone.x+.5)*uTone.y,0.,1.),uTone.z);}',
     /* Glass-HQ regular 的「23px 宽模糊 lighten 混 34%」（深色 darken 65%）：6 个点的宽环平均，压掉背后深色字的斑块 */
     'uniform vec2 uWF;',
-    'vec4 icon(vec2 p){if(uHasI<.5)return vec4(0.);vec2 q=(p-uIB.xy)/uIB.zw;if(q.x<0.||q.y<0.||q.x>1.||q.y>1.)return vec4(0.);return texture2D(uI,q);}',
+    /* 第 317 次：gIc = 图标层相对背景取样点的偏移——背景在透镜里缩小 uMagI（0.97），彩色图标层不缩（支付宝 16:57 透镜里「推荐」圆钮内外同为 110px） */
+    'vec2 gIc=vec2(0.);',
+    'vec4 icon(vec2 p){if(uHasI<.5)return vec4(0.);p+=gIc;vec2 q=(p-uIB.xy)/uIB.zw;if(q.x<0.||q.y<0.||q.x>1.||q.y>1.)return vec4(0.);return texture2D(uI,q);}',
     'float sdR(vec2 p,vec2 b,float r){vec2 q=abs(p)-b+r;return length(max(q,0.))+min(max(q.x,q.y),0.)-r;}',
     'float sdBox(vec2 v,vec4 R,float r){return sdR(v-R.xy-R.zw*.5,R.zw*.5,r);}',
     /* smooth-min（多项式）：k=0 时就是普通并集 */
@@ -485,13 +487,14 @@
     '  vec4 b=texture2D(uB,(v-uStrip.xy)/uStrip.zw);',
     '  vec4 p=texture2D(uP,(v+uScroll-vec2(0.,uY0))*uS/uPS)*uPageOn;',
     '  vec3 c=p.rgb+b.rgb*(1.-p.a);',
-    '  float fa=uFade.w>0.?clamp((v.y-uFade.x)/uFade.y,0.,1.)*uFade.w:0.;',
+    '  float fa=uFade.w>0.&&uDbg<1.5?clamp((v.y-uFade.x)/uFade.y,0.,1.)*uFade.w:0.;',
     '  return mix(c,uFadeC,fa);}',
     'vec3 wfill(vec2 p,vec3 c){vec3 w=vec3(0.);for(int i=0;i<6;i++){float a=float(i)*1.0472+.4;w+=bg(p+vec2(cos(a),sin(a))*22.);}w/=6.;return mix(c,uWF.x>0.?max(c,w):min(c,w),abs(uWF.y));}',
     /* 第 309 次：透镜用的「场景」——栏里是毛玻璃（模糊 + 提饱和 + 栏底色），栏外是页面（略提亮提饱和，定稿 1.07 / 1.3），
        栏边一条细灰线（折进透镜后就是上下两条直线） */
     'vec3 lift(vec3 c){float l=dot(c,vec3(.2126,.7152,.0722));return clamp(mix(vec3(l),c,1.3)*1.07,0.,1.);}',
-    'vec3 scn(vec2 p){float sa=sdBox(p,uA,uRA);vec3 c;',
+    /* 第 317 次：uDbg = 2 时透镜里直接显示原快照（不磨砂、不调色、不叠图标）——测试 / 对比图核对折射几何（横线是否仍直、缩放比例） */
+    'vec3 scn(vec2 p){if(uDbg>1.5)return bg(p);float sa=sdBox(p,uA,uRA);vec3 c;',
     /* 第 312 次：栏内 = 同 CSS 的磨砂（模糊 + 色调曲线近似 + 底色）再叠上 dock 图标层——透镜外沿往外取样时，邻近图标是被折弯进来的 */
     '  if(sa<0.){c=vec3(0.);for(int i=0;i<7;i++){float a=float(i)*2.39996;vec2 k=i==0?vec2(0.):vec2(cos(a),sin(a))*8.*sqrt(float(i)/6.);c+=bg(p+k);}c/=7.;c=wfill(p,c);',
     '    c=mix(tone(c),uTint.rgb,uTint.a);vec4 ic=icon(p);c=c*(1.-ic.a)+ic.rgb;}',
@@ -549,7 +552,7 @@
     /* 第 309 次：拖动透镜（定稿第十四版）——中间 1:1：栏内透明（下面就是 DOM 的毛玻璃和原位图标），栏外照原样画页面（盖住栏的投影，不出灰团）；
        只有外沿 rb≈7px 一圈折射：沿外法线往外取样 17px（左右）/ 30px（上下）× t^(1.6+0.8|ny|)，R/G/B 按 IOR 1.47/1.5/1.535 分开（chx 9→18 随速度） */
     /* 第 314 次：液态透镜——清透的凸透镜：
-       · 中心以透镜中心放大 uMagI（1.15，快拖 +0.06），dock 范围里看到的是 dock 的磨砂 + 透镜图标层（彩色图标 + 选中色文字），冒出 dock 的部分是页面；
+       · （第 317 次改：中心缩小 0.97、行对齐往外取样，见下方 tx/ty）中心以透镜中心放大 uMagI（1.15，快拖 +0.06），dock 范围里看到的是 dock 的磨砂 + 透镜图标层（彩色图标 + 选中色文字），冒出 dock 的部分是页面；
        · 外沿 bezel uLR.x（14px）内沿内法线往里取样（同一张 Snell 表，左右最多 18 / 上下 11px，快拖 ×1.35）：靠边的内容被拉长、翻折成拉丝带，
          栏边细线 / 卡片字在透镜边上明显弯进来；R/B 两通道的偏移差只有 4%~13%（随速度），色散只在边上、保持淡；
        · 形状 = lf()：形变后的圆角矩形 + 冒出部分与 dock 的 smooth-min 融合；
@@ -561,10 +564,18 @@
     '      vec2 nt=normalize(vec2(lf(v+e.xy)-lf(v-e.xy),lf(v+e.yx)-lf(v-e.yx))+1e-5);',
     '      vec2 c0=uT.xy+uT.zw*.5;',
     '      float B=max(2.,uLR.x*uLG);',
-    '      float tb=tabl(clamp(max(dt,0.)/B,0.,1.));',
-    '      float ay=abs(nt.y);',
-    '      vec2 base=v+(c0-v)*(1.-1./uMagI);',
-    '      vec2 o=-nt*mix(uLR.y,uLR.z,ay)*(1.+.35*uLM)*uLG*tb;',
+    /* 第 317 次：行对齐折射（对照支付宝 22:03 / 16:57、App Store 23:38 逐帧：背后的横线 / 一行字穿过透镜仍是水平直线，
+       内部几乎 1:1 略缩小，只在左右两端水平压缩、上下边带竖直压缩）——
+       · 内部：以透镜中心缩小 uMagI（0.97），取样点比像素离中心更远；
+       · 横向位移只看「这一行里离左右边的距离」（xe = 本行透镜半宽，胶囊两端按圆弧算），纵向位移只看 y（离上下边的距离），与 x 无关 → 横线不弯；
+       · 都往外取样（透镜外的内容被压进边带 = 缩小），取样点随像素单调外移，不翻折。 */
+    '      vec2 hz=uT.zw*.5,q=v-c0;float rr=min(uRT,hz.y),ya=abs(q.y),yc=max(ya-(hz.y-rr),0.);',
+    '      float xe=hz.x-rr+sqrt(max(rr*rr-yc*yc,0.));',
+    '      float tx=tabl(clamp((xe-abs(q.x))/B,0.,1.)),ty=tabl(clamp((hz.y-ya)/B,0.,1.));',
+    '      float tb=max(tx,ty);',
+    '      vec2 base=c0+q/uMagI;',
+    '      vec2 o=vec2(sign(q.x)*uLR.y*tx,sign(q.y)*uLR.z*ty)*(1.+.35*uLM)*uLG;',
+    '      gIc=v-base;',
     '      vec3 lc;',
     '      if(tb>.01){vec3 ac=vec3(0.);float cs=.035*(1.2+2.4*uLM);',
     '        for(int j=0;j<2;j++){vec2 oo=o*(.94+.12*float(j));ac.r+=scn(base+oo*(1.-cs)).r;ac.g+=scn(base+oo).g;ac.b+=scn(base+oo*(1.+cs)).b;}',
@@ -876,7 +887,7 @@
   }
 
   /* 第 314 次：「透镜图标层」——透镜里看到的样子：每个页签的彩色图标（.dk-c，按 .dk-ic 盒子原位原大）+ 选中色粗体文字，画进一张栏内坐标的
-     devicePixelRatio 倍画布。着色器在透镜里按折射后的取样点读它，所以图标随透镜中心放大 1.15、在边上和背景一起被拉弯；
+     devicePixelRatio 倍画布。着色器在透镜里按折射后的取样点读它，第 317 次起图标层不缩放（背景缩小 0.97、图标原大，对照支付宝），只在边带和背景一起被压缩；
      DOM 图标此时只露在透镜外（liquid-dock.js 给每个页签 clip-path 挖掉透镜），同一处不会有两份图标。
      .dk-c 是同源 webp（<img>，已解码），同步 drawImage，不走 313 那条 SVG → 图片的异步路径；只在页签 / 尺寸 / 深浅色变化时重画。 */
   function lensTexOn() { return !!(global.LiquidDock && LiquidDock.LENS_TEX); }
@@ -955,7 +966,7 @@
     /* 第 313 次：透镜玻璃体——内部放大、提亮（深色多提一点，真机深色透镜里只剩黑底 + 空心细线）、整体不透明度 */
     var fx = lensFx || {};
     /* 第 315 次：放大倍数随鼓起比例（收回胶囊时回到 1:1，和下面已换回的 DOM 选中图标对齐，透镜淡出时不闪图标） */
-    gl.uniform1f(U.uMagI, 1 + (LENS_MAG_I - 1 + 0.06 * (fx.a || 0)) * Math.max(0, Math.min(1, lensG)));
+    gl.uniform1f(U.uMagI, 1 + (LENS_MAG_I - 1) * Math.max(0, Math.min(1, lensG)));
     /* 第 314 次：清透——透镜本身几乎不加料（313 是混白 4.5% / 深色 ×1.12 的「玻璃体」） */
     gl.uniform2f(U.uLB, 0.02, dark ? 1.06 : 1.0);
     gl.uniform4f(U.uLX, reduced ? 0 : (fx.hl || 0), reduced ? 0 : (fx.flash || 0), fx.fuse || 0, fx.a || 0);
@@ -968,7 +979,7 @@
     if (dark) gl.uniform4f(U.uLine, 1, 1, 1, 0.16); else gl.uniform4f(U.uLine, 120 / 255, 106 / 255, 96 / 255, 0.36);
     gl.uniform1f(U.uLM, lensM); gl.uniform1f(U.uLG, lensG);
     gl.uniform2f(U.uL, light.x, light.y);
-    gl.uniform1f(U.uDbg, DR._debug ? 1 : 0);   /* 调试：整块显示快照本身（不折射、不调色），用来核对快照与页面是否对齐 */
+    gl.uniform1f(U.uDbg, DR._debug ? (DR._debug === 2 ? 2 : 1) : 0);   /* 调试：整块显示快照本身（不折射、不调色），用来核对快照与页面是否对齐 */
   }
   function rect4(u, r) { gl.uniform4f(u, r.x, r.y, r.w, r.h); }
   /* 画一块玻璃面：box = 画布在视口里的位置；A = 本体形状；B = 融合对象（k>0）；cut = 挖掉的形状；T = 透镜 */
@@ -1041,10 +1052,10 @@
     var dockShape = { x: r.left - 1, y: r.top - 1, w: r.width + 2, h: r.height + 2 };
     var u = null;
     /* 第 309 次：透镜比栏高，画布也要扩到透镜（和胶囊一样走外接矩形） */
-    var LT = lensR && !DR._debug ? lensR : null;
+    var LT = lensR && DR._debug !== 1 && DR._debug !== true ? lensR : null;   /* 第 317 次：_debug = 2（折射几何调试）照画透镜 */
     /* 第 315 次：画布一直按「dock 四周固定外扩」的尺寸（不再只在透镜在场时扩）——透镜出现 / 收起那一帧画布尺寸和像素映射一变，
        整条 dock 背景（离透镜很远的地方也算）都被重新取样一次，WebKit 逐帧帧差 2.6（支付宝透镜外纹丝不动） */
-    var FIX = !DR._debug && quality >= 1;
+    var FIX = (!DR._debug || DR._debug === 2) && quality >= 1;
     if (lshape || LT || FIX) {
       var x0 = dockShape.x, y0 = dockShape.y, x1 = dockShape.x + dockShape.w, y1 = dockShape.y + dockShape.h;
       if (FIX) { x0 -= 64; x1 += 64; y0 -= 32; y1 += 32; }

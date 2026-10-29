@@ -198,7 +198,7 @@
      这里：透镜宽 136（第 313 次用户认可的宽扁），静止比栏高 10（上下各 5），快拖时宽 +12%、高 −11%；中心放大 1.15（≈ 第 311 次认可的图标 1.15），
      外沿 bezel 14px、往里取样最多 18px（左右）/ 11px（上下，再大会把页签文字翻折到透镜下沿成碎块）——凸透镜的边：靠边的内容被拉长、翻折成拉丝带，而不是 313 那样往外压成一条细线。 */
   var LENS_RIM = { rb: 14, re: 18, rev: 11 };  /* bezel / 左右 / 上下最大往里位移（CSS px，静止；快拖 ×(1+0.35·m)） */
-  var LENS_MAG = 0.15;                         /* 第 314 次：透镜中心放大 15%（Chromium 贴图里的「放大镜」；iOS 着色器 uLO.z 同值） */
+  var LENS_MAG = -0.03;                        /* 第 317 次：+0.15 放大 → −0.03 缩小（显示 0.97×，与 iOS 着色器 LENS_MAG_I 同值；对照支付宝 / App Store 透镜里背景约 0.98×、边带压缩） */
   var LENS_MX = 44;                            /* 贴图里 ±127 对应的最大偏移（CSS px）：rim 18 + 放大 68·0.15/1.15 ≈ 27，再加色散 / 速度余量 */
   var LENS_PAD = 60;                           /* 透镜元素四周留白（贴图同尺寸；clip-path 只留透镜本身） */
   var LENS_K = 2;                              /* 贴图分辨率：每 CSS px 2 像素 */
@@ -262,7 +262,7 @@
     pad = pad == null ? LENS_PAD : pad; K = K || LENS_K;
     var P = LENS_RIM, GO = global.GlassOptics;
     if (GO) {
-      var mp = GO.dispMap(w, h, { pad: pad, K: K, dir: 1, bezel: Math.min(P.rb, h / 2 - 1), maxPx: P.re, maxPxV: P.rev, mx: LENS_MX, mask: true, zoom: LENS_MAG });
+      var mp = GO.dispMap(w, h, { pad: pad, K: K, dir: 1, bezel: Math.min(P.rb, h / 2 - 1), maxPx: P.re, maxPxV: P.rev, mx: LENS_MX, mask: true, zoom: LENS_MAG, rows: true });
       return mp ? { url: mp.url, mx: LENS_MX, W: mp.W, H: mp.H } : null;
     }
     /* 没有光学模块：退回只有中心放大的贴图 */

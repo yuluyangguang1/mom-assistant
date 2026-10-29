@@ -5062,6 +5062,9 @@ html:not(.is-booting) .boot { display: none; }
     .edge-strip-top { top: 0; background-color: var(--status-color, var(--header-bg-top, #FDF9F4)); }
     .edge-strip-bottom { bottom: 0; background-color: var(--edge-bottom-color, var(--bg-end, #F2EBDF)); }
     html.is-booting .edge-strip { background-color: #221E1A; }
+    /* 第 317 次：浅色启动层（.boot-light，第 300 次）时状态栏 / 底边取色也跟着浅米色——原来这条规则不分深浅，
+       浅色主题冷启动时 WebKit 读到深棕，状态栏和底边是两条深棕带压在浅米启动层上，拆层那一帧再跳成天空色 */
+    html.is-booting.boot-light .edge-strip { background-color: #FBF6F0; }
     /* 第 263 次（真机：底部仍是一条渐隐带）：主屏应用里不再用 body::after 把内容压暗到底色，
        卡片直接从悬浮胶囊后面滑过去（与 iOS 26 系统应用一致），底边只剩 edge-strip 取色 */
     body::after { display: none; }

@@ -92,7 +92,8 @@
      o.bezel   折射边宽（CSS px）    o.maxPx 最大位移（水平法线方向；o.maxPxV 竖直方向，默认同 maxPx）
      o.dir     +1 = 凸面往里取样（dock 本体），−1 = 往外取样（透镜：把透镜外的内容压成贴边的彩带）
      o.pad     四周留白（透镜往外取样要用）   o.K 每 CSS px 像素数   o.mask B 通道写形状遮罩
-     o.zoom    中心放大（0 = 1:1；0.06 = 放大 6%，第二张「放大镜」位移叠在同一张图里）
+     o.zoom    中心放大（0 = 1:1；0.06 = 放大 6%；负数 = 缩小，第 317 次透镜 −0.03，第二张位移叠在同一张图里）
+     o.rows    第 317 次：行对齐折射（横向位移只与本行离左右边距离有关、纵向只与 y 有关，往外取样），横线不弯
      o.maxDown 往下取样最远到哪（视口底下没有背景）
      o.scaleHead 编码余量：±127 对应 ±(maxPx·scaleHead)
      返回 { url, scale(= feDisplacementMap 的 scale), W, H } */
@@ -112,7 +113,16 @@
       for (var i = 0; i < CW; i++) {
         var x = (i + 0.5) / K - pad - hx, y = (j + 0.5) / K - pad - hy;
         var sd = GO.sdRR(x, y, hx, hy, r), d = -sd, ox = 0, oy = 0;
-        if (sd < 1.5 && d < bezel) {
+        if (o.rows && sd < 1.5) {
+          /* 第 317 次：行对齐（透镜用）——横向位移只看本行离左右边的距离、纵向只看 y，都往外取样：横线穿过透镜仍是直线，边带是压缩（缩小） */
+          var rr = Math.min(r, hy), ya = Math.abs(y), yc = Math.max(0, ya - (hy - rr));
+          var xe = hx - rr + Math.sqrt(Math.max(0, rr * rr - yc * yc));
+          var ex = xe - Math.abs(x), ey = hy - ya;
+          if (ex < bezel) ox = (x < 0 ? -1 : 1) * GO.sample(tab, Math.max(0, Math.min(1, ex / bezel))) * mH;
+          if (ey < bezel) oy = (y < 0 ? -1 : 1) * GO.sample(tab, Math.max(0, Math.min(1, ey / bezel))) * mV;
+          var yl2 = (hy + lim - 0.5 - y) / kmax;
+          if (oy > yl2) oy = Math.max(0, yl2);
+        } else if (sd < 1.5 && d < bezel) {
           var nv = GO.normalRR(x, y, hx, hy, r), ay = Math.abs(nv[1]);
           var m = GO.sample(tab, Math.max(0, d) / bezel) * (mH * (1 - ay) + mV * ay);
           if (dir > 0) { ox = -nv[0] * m; oy = -nv[1] * m; } else { ox = nv[0] * m; oy = nv[1] * m; }

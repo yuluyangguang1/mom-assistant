@@ -457,13 +457,21 @@
     var meteors = [];
     var sprites = []; /* 精灵缓存与分摊重建状态（spriteKey/spriteImgs/rebuildLeft）见下方第 49 次块 */
 
+    /* 第 317 次（逐帧审查：切到宝宝 / 日历 / 首页后第 1~2 帧天空闪成 CSS 兜底浅蓝）：ResizeObserver 挂上后一定先回调一次，
+       原来不管尺寸变没变都重设 canvas.width——这会清空刚当场画好的第一帧，而帧循环 30ms 内不重画，于是露出兜底渐变 2 帧。
+       尺寸没变就不碰画布；真变了清掉 lastPaint，下一个 rAF 立即重画。 */
     function resize() {
       var rect = canvas.getBoundingClientRect();
-      W = Math.max(1, rect.width); H = Math.max(1, rect.height);
-      canvas.width = Math.round(W * dpr);
-      canvas.height = Math.round(H * dpr);
+      var nw = Math.max(1, rect.width), nh = Math.max(1, rect.height);
+      var cw = Math.round(nw * dpr), ch = Math.round(nh * dpr);
+      W = nw; H = nh;
+      if (canvas.width === cw && canvas.height === ch && canvas.__skySized) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); return; }
+      canvas.__skySized = 1;
+      canvas.width = cw;
+      canvas.height = ch;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       spriteKey = null; /* 尺寸变了，精灵按新宽度重渲染 */
+      lastPaint = 0;
     }
     resize();
     var ro = null;
