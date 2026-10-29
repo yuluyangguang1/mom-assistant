@@ -895,9 +895,12 @@
     Array.prototype.forEach.call(bar.querySelectorAll('.tab.dk-tab'), function (t) {
       if (!t.offsetParent) return;
       var ic = t.querySelector('.dk-ic'), im = t.querySelector('img.dk-c'), tx = t.querySelector('.dk-t');
+      /* 第 315 次：彩色图标换成和线条版同路径的填色 SVG（js/dock-icons.js）——GL 用它预解码好的位图，按 .dk-c 盒子原位原大画 */
+      var sv = t.querySelector('svg.dk-c'), dk = sv && sv.getAttribute('data-dk');
+      if (sv && dk && global.DockIcons) { im = DockIcons.img(dk, doc.body.classList.contains('dark')); ic = sv; }
       if (ic && im) {
         var r = ic.getBoundingClientRect(), x = (r.left - br.left) / k, y = (r.top - br.top) / k, w = r.width / k, h = r.height / k;
-        if (ic.classList.contains('dk-baby')) { x -= 1; y -= 1; w += 2; h += 2; }
+        if (!sv && ic.classList.contains('dk-baby')) { x -= 1; y -= 1; w += 2; h += 2; }
         if (im.complete && im.naturalWidth) {
           var iw = im.naturalWidth, ih = im.naturalHeight, f = Math.min(w / iw, h / ih);
           try { g.drawImage(im, x + (w - iw * f) / 2, y + (h - ih * f) / 2, iw * f, ih * f); } catch (e) { /* 解码中 */ }
@@ -948,7 +951,8 @@
     gl.uniform1f(U.uHasI, icReady && (iconTexOn() || lensTexOn()) ? 1 : 0);
     /* 第 313 次：透镜玻璃体——内部放大、提亮（深色多提一点，真机深色透镜里只剩黑底 + 空心细线）、整体不透明度 */
     var fx = lensFx || {};
-    gl.uniform1f(U.uMagI, LENS_MAG_I + 0.06 * (fx.a || 0));
+    /* 第 315 次：放大倍数随鼓起比例（收回胶囊时回到 1:1，和下面已换回的 DOM 选中图标对齐，透镜淡出时不闪图标） */
+    gl.uniform1f(U.uMagI, 1 + (LENS_MAG_I - 1 + 0.06 * (fx.a || 0)) * Math.max(0, Math.min(1, lensG)));
     /* 第 314 次：清透——透镜本身几乎不加料（313 是混白 4.5% / 深色 ×1.12 的「玻璃体」） */
     gl.uniform2f(U.uLB, 0.02, dark ? 1.06 : 1.0);
     gl.uniform4f(U.uLX, reduced ? 0 : (fx.hl || 0), reduced ? 0 : (fx.flash || 0), fx.fuse || 0, fx.a || 0);
@@ -1035,8 +1039,12 @@
     var u = null;
     /* 第 309 次：透镜比栏高，画布也要扩到透镜（和胶囊一样走外接矩形） */
     var LT = lensR && !DR._debug ? lensR : null;
-    if (lshape || LT) {
+    /* 第 315 次：画布一直按「dock 四周固定外扩」的尺寸（不再只在透镜在场时扩）——透镜出现 / 收起那一帧画布尺寸和像素映射一变，
+       整条 dock 背景（离透镜很远的地方也算）都被重新取样一次，WebKit 逐帧帧差 2.6（支付宝透镜外纹丝不动） */
+    var FIX = !DR._debug && quality >= 1;
+    if (lshape || LT || FIX) {
       var x0 = dockShape.x, y0 = dockShape.y, x1 = dockShape.x + dockShape.w, y1 = dockShape.y + dockShape.h;
+      if (FIX) { x0 -= 64; x1 += 64; y0 -= 32; y1 += 32; }
       /* 第 314 次：透镜在场时画布按「dock 四周固定外扩」一次定好尺寸，整段按压 / 拖动不再逐帧改 canvas 宽高——
          逐帧改尺寸 = 每帧重新分配绘制缓冲；WPE WebKit 实测改完尺寸后的绘制要等下一次样式失效才合成（GL 透镜停在旧位置 = 真机录屏里的第二条轮廓） */
       if (LT) { x0 = Math.min(x0, dockShape.x - 44); x1 = Math.max(x1, dockShape.x + dockShape.w + 44); y0 = Math.min(y0, dockShape.y - 32); y1 = Math.max(y1, dockShape.y + dockShape.h + 32);
@@ -1057,7 +1065,7 @@
     }
     /* 画布扩到胶囊时像素多了一倍多：2 倍屏降到 1.5 倍（折射边本来就带模糊，看不出差别） */
     /* 第 313 次：透镜在场时不降（真机 3 倍屏上 1.5 倍画布把透镜边放大成锯齿 / 像素块）；只有胶囊在场时才降到 1.5 */
-    var gdpr = u && !LT ? Math.min(dpr, 1.5) : dpr;
+    var gdpr = lshape && !LT ? Math.min(dpr, 1.5) : dpr;
     var W = Math.max(2, Math.round(box.w * gdpr)), H = Math.max(2, Math.round(box.h * gdpr));
     if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
     setCommon();
@@ -1094,8 +1102,9 @@
   }
   function schedule() { if (on && !raf) raf = global.requestAnimationFrame(draw); }
 
-  function doRaster() {
+  function doRaster(force) {
     rasterTimer = 0;
+    if (force === true && !scrolling) { animWait = 99; }
     if (!on || !gl || lost) return;
     if (scrolling) { rasterTimer = setTimeout(doRaster, 220); return; }
     if (doc.documentElement.hasAttribute('data-nav')) { rasterTimer = setTimeout(doRaster, 160); return; }
@@ -1110,9 +1119,10 @@
         if (an) { animWait++; rasterTimer = setTimeout(doRaster, 120); return; }
       } catch (eA) { /* */ }
     }
+    var forced = animWait === 99;
     animWait = 0;
     /* 启动动画还在播：不和它抢主线程，等它结束 */
-    if (doc.documentElement.classList.contains('is-booting')) { rasterTimer = setTimeout(doRaster, 300); return; }
+    if (!forced && doc.documentElement.classList.contains('is-booting')) { rasterTimer = setTimeout(doRaster, 300); return; }
     var t0 = performance.now();
     stats.nodes = 0;
     try {
@@ -1130,7 +1140,7 @@
       if (++slowHits >= 2) { disabledReason = 'slow:' + Math.round(ms) + 'ms'; DR.stop(); return; }
     } else slowHits = 0;
     /* 换页后的第一次快照之后，1.2 秒再补拍一次：图片晚到、进场位移、天气卡异步填充都会让版面再动一下 */
-    if (hiddenForNav) { hiddenForNav = false; settleTimer = setTimeout(function () { settleTimer = 0; markDirty(); }, 1200); }
+    if (hiddenForNav || navSettle) { hiddenForNav = false; navSettle = false; settleTimer = setTimeout(function () { settleTimer = 0; markDirty(); }, 1200); }
     cv.classList.add('on');
     draw();
   }
@@ -1145,6 +1155,22 @@
       if (global.requestIdleCallback && !urgent) global.requestIdleCallback(doRaster, { timeout: 800 }); else doRaster();
     }, wait);
   }
+  var navSettle = false;
+  function navDirty() {
+    dirty = true;
+    if (!on) return;
+    navSettle = true;
+    if (rasterTimer) clearTimeout(rasterTimer);
+    rasterTimer = 0;
+    /* 换页的 MutationObserver 回调在点击处理完、下一次绘制之前跑：当场同步重拍，新页第一帧 dock 里就是新快照
+       （等到下一帧再拍：第一帧 GL 用旧快照判断「dock 不在快照范围」会把画布藏一帧，透镜也跟着消失 = WebKit 逐帧第 9 帧） */
+    if (doc.documentElement.hasAttribute('data-nav')) { rasterTimer = setTimeout(doRaster, 160); return; }
+    /* 进 / 出二级页仍有整页入场淡入：此刻拍是半透明的，照旧等入场跑完（画布留着旧快照，不藏） */
+    var vw = doc.getElementById('view');
+    if (vw && vw.classList.contains('view-enter')) { rasterTimer = setTimeout(doRaster, 120); return; }
+    doRaster(true);
+  }
+  DR._navDirty = navDirty;
   /* ---------- 局部重拍（第 277 次） ---------- */
   function noteMut(el) {
     if (!on) return;
@@ -1263,7 +1289,10 @@
     var view = doc.getElementById('view');
     if (global.MutationObserver) {
       mo = new MutationObserver(function (list) {
-        for (var i = 0; i < list.length; i++) if (list[i].target === view && list[i].type === 'childList') { markDirty(true); return; }
+        /* 第 315 次：换页（#view 子节点整换）不再 markDirty(true) 把 GL 画布藏起来等 120ms+ 再拍——真机逐帧（21:56 第 193~199 帧）
+           藏起来的那几帧整条 dock 背景退回 CSS 磨砂（色调 / 边缘高光 / 折射全变），拍好后再跳回 GL = 「整条 dock 闪一下」。
+           现在画布留着上一张快照，下一帧就重拍、同一帧换上（只有透出来的页面内容变，和支付宝换页时一样） */
+        for (var i = 0; i < list.length; i++) if (list[i].target === view && list[i].type === 'childList') { navDirty(); return; }
         for (var j = 0; j < list.length; j++) noteMut(list[j].target);
       });
       if (view) mo.observe(view, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'src', 'hidden', 'open'], characterData: true });
@@ -1274,6 +1303,9 @@
         if (k === bodyKey) return;   /* in-home / qd-open 之类不影响背后的画面 */
         bodyKey = k; markDirty(true);
       });
+      /* 第 315 次：bodyKey 起始就按当前状态记下——原来是空串，开机后第一次 body class 变化（第一次切页 in-home 去掉）就被当成换主题，
+         markDirty(true) 把 GL 画布藏起来重拍 = 第一次点 dock 整条背景闪一下 */
+      var cl0 = doc.body.classList; bodyKey = [cl0.contains('dark'), cl0.contains('hc'), cl0.contains('dock-left'), cl0.contains('dock-right')].join();
       moBody.observe(doc.body, { attributes: true, attributeFilter: ['class'] });
     }
     if (global.ResizeObserver) {

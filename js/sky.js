@@ -880,7 +880,13 @@
     }
 
     if (reduced) { paintStatic(); }
-    else { canvas.__skyId = requestAnimationFrame(frame); }
+    /* 第 315 次：挂上就当场画第一帧（原来等下一个 rAF：新页第一帧天空画布是空的，露出 CSS 兜底渐变 + 状态栏取到兜底浅蓝，
+       真机 21:56 录屏第 1198→1199 帧顶部一条浅蓝带闪成夜空色）。画布还没进文档 / 没尺寸时退回 rAF。 */
+    else {
+      var pr = canvas.isConnected && canvas.getBoundingClientRect();
+      if (pr && pr.width > 1 && pr.height > 1) { try { frame(global.performance ? performance.now() : 0); } catch (e) { canvas.__skyId = requestAnimationFrame(frame); } }
+      else canvas.__skyId = requestAnimationFrame(frame);
+    }
 
     canvas.__skyStop = cleanup;
   };

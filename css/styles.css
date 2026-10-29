@@ -724,7 +724,7 @@ body.dark .list li .ing-tag.ing-staple { color: #E3C88E; background: rgba(227, 2
   border-radius: var(--radius-pill);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .38), inset 0 -1px 0 rgba(255, 255, 255, .10),
     0 12px 32px -14px rgba(90, 74, 62, .40);
-  padding: 8px 10px;
+  padding: 7px 10px; /* 第 315 次：8 → 7（dock 74 → 60pt，对照支付宝 62pt 放五个页签） */
   user-select: none;
 }
 /* 老内核（微信 X5 低版等）不支持 backdrop-filter：回落实色胶囊，布局不动 */
@@ -2810,7 +2810,7 @@ body::after {
   background: linear-gradient(to bottom, transparent 0%, var(--bg-end, #F2EBDF) 78%);
   pointer-events: none;
 }
-.view { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
+.view { padding-bottom: calc(98px + env(safe-area-inset-bottom)); } /* 第 315 次：dock 74 → 60，留白 112 → 98 */
 /* 第 192 次（左/右手模式实测）：竖排胶囊高约 262px，沿用横排的 112px 留白时，
    滚到底最后两三行（首页「妈妈情绪」、设置末项等）永远压在胶囊下面点不到。
    竖排时留白 = 胶囊真实高度（--dock-h，buildTabbar 注入）+ 胶囊离底 16px + 12px 呼吸。 */
@@ -4699,7 +4699,7 @@ body.qd-open .dock-live { opacity: 0; visibility: hidden; }
   .dl-cycle { min-width: 34px; padding: 0 2px; }
 }
 /* 有胶囊时页面底部多留一截，最后一张卡不会被挡 */
-body.has-live .view { padding-bottom: calc(176px + env(safe-area-inset-bottom)); }
+body.has-live .view { padding-bottom: calc(162px + env(safe-area-inset-bottom)); }
 /* 左右手竖排：胶囊贴底、让开竖条 */
 body.dock-left .dock-live { left: 84px; right: 12px; transform: none; bottom: calc(10px + env(safe-area-inset-bottom)); min-width: 0; width: auto; animation: none; }
 body.dock-right .dock-live { left: 12px; right: 84px; transform: none; bottom: calc(10px + env(safe-area-inset-bottom)); min-width: 0; width: auto; animation: none; }
@@ -6839,7 +6839,8 @@ p.backfill-note::before { top: 10px; }
    页签：未选中线条图标，水滴（透镜）停在上面 / 手指拖过时换成立体彩色图标（咿呀 / 小房子 / 日历）。
    ============================================================ */
 /* 第 312 次：第 310 次的 72×56 竖排（图标 + 文字）合并到这里（同一选择器只写一处） */
-body .tabbar .tab.dk-tab { width: 72px; min-width: 72px; max-width: 72px; height: 56px; min-height: 56px; color: var(--muted); touch-action: none; -webkit-touch-callout: none;
+/* 第 315 次：72×56 → 64×44（支付宝 22:03 / 16:57 录屏量：栏高 61.7pt、页签间距 64.7pt、图标 22pt、文字约 10pt；我们三页签 + ＋ 珠按同一比例收紧） */
+body .tabbar .tab.dk-tab { width: 64px; min-width: 64px; max-width: 64px; height: 44px; min-height: 44px; color: var(--muted); touch-action: none; -webkit-touch-callout: none;
   flex-direction: column; gap: 1px; justify-content: center; align-items: center; padding: 0; }
 body .tabbar.is-vertical .tab.dk-tab { width: 46px; min-width: 46px; max-width: 46px; height: 52px; min-height: 52px; }
 .dk-ic { position: relative; display: block; font-style: normal; width: 34px; height: 34px; pointer-events: none; }
@@ -6873,9 +6874,9 @@ body .tabbar .tab.dk-tab.dk-pop .dk-cal .dk-c { animation: dkCal .6s cubic-bezie
 body.hc .dk-ic .dk-c { filter: none; }
 
 /* ＋ 玻璃珠：在胶囊右边（原宝宝圆钮的位置换到右侧），两者合起来居中 */
-#dockOrb .tab-plus { margin: 0 !important; }
+#dockOrb .tab-plus { margin: 0 !important; width: 40px; height: 40px; min-width: 40px; } /* 第 315 次：珠子随栏 74 → 60，＋ 44 → 40 */
 @media (max-width: 360px) {
-  body .tabbar .tab.dk-tab { width: 64px; min-width: 64px; max-width: 64px; } /* 第 310 次的 64px，第 312 次合并到这里 */
+  body .tabbar .tab.dk-tab { width: 58px; min-width: 58px; max-width: 58px; } /* 第 310 次的 64px，第 312 次合并到这里；第 315 次随栏收紧到 58 */
 }
 
 /* ———— 宝宝页 ———— */
@@ -7056,14 +7057,15 @@ body .tabbar.lg.lg-lensing .tab.dk-tab .dk-c {
   opacity: 1 !important; scale: var(--lz, 1) !important; transform-origin: 50% 92%; /* 第 311 次：透镜里放大 */ transition: none !important; animation: none !important;
   filter: none; /* drop-shadow 叠遮罩在 WebKit / Chromium 里会露出图标方框，透镜里不要投影 */
   /* 第 313 次：透镜边上换色从「一刀切」改成 6px 交叉渐变（外沿不画图标纹理后靠这一下过渡；硬切时宝宝头像的一缕黑发在透镜边上成一块碎片） */
-  -webkit-mask: linear-gradient(90deg, transparent var(--la, -999px), #000 calc(var(--la, -999px) + 6px), #000 calc(var(--lb, -998px) - 6px), transparent var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
-  mask: linear-gradient(90deg, transparent var(--la, -999px), #000 calc(var(--la, -999px) + 6px), #000 calc(var(--lb, -998px) - 6px), transparent var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
+  /* 第 315 次：线条版 / 填色版同路径同线条色后，透镜边上不再需要 6px 交叉渐变（那 6px 里两份半透明叠着 = 发虚），改 1px 抗锯齿硬切 */
+  -webkit-mask: linear-gradient(90deg, transparent var(--la, -999px), #000 calc(var(--la, -999px) + 1px), #000 calc(var(--lb, -998px) - 1px), transparent var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
+  mask: linear-gradient(90deg, transparent var(--la, -999px), #000 calc(var(--la, -999px) + 1px), #000 calc(var(--lb, -998px) - 1px), transparent var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
 }
 body .tabbar.lg.lg-lensing .tab.dk-tab .dk-l {
   opacity: 1 !important; scale: 1 !important; transition: none !important;
   /* 单层硬边渐变（不用两层 exclude：透镜整个在图标外时 Chromium 会把整颗图标遮没） */
-  -webkit-mask: linear-gradient(90deg, #000 var(--la, -999px), transparent calc(var(--la, -999px) + 6px), transparent calc(var(--lb, -998px) - 6px), #000 var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
-  mask: linear-gradient(90deg, #000 var(--la, -999px), transparent calc(var(--la, -999px) + 6px), transparent calc(var(--lb, -998px) - 6px), #000 var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
+  -webkit-mask: linear-gradient(90deg, #000 var(--la, -999px), transparent calc(var(--la, -999px) + 1px), transparent calc(var(--lb, -998px) - 1px), #000 var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
+  mask: linear-gradient(90deg, #000 var(--la, -999px), transparent calc(var(--la, -999px) + 1px), transparent calc(var(--lb, -998px) - 1px), #000 var(--lb, -998px)) 0 50% / 100% 300% no-repeat;
 }
 /* 降级：高对比 / 减少透明度不出透镜（JS 同样不建）；减少动态效果时按下不出透镜（liquid-dock.js 不响应按压） */
 body.hc .lg-lens-el { display: none !important; }
@@ -7076,11 +7078,11 @@ body.hc .lg-lens-el { display: none !important; }
    透镜宽跟着放到 124（liquid-dock.js LENS_W），高仍是栏高 + 20。
    ============================================================ */
 /* 页签 72×56 的尺寸已合并进第 306 次那条 body .tabbar .tab.dk-tab（第 312 次） */
-body .tabbar .tab.dk-tab .dk-ic { width: 30px; height: 30px; }
-body .tabbar .tab.dk-tab .dk-ic .dk-l { width: 25px; height: 25px; }
-body .tabbar .tab.dk-tab .dk-ic .dk-c { width: 30px; height: 30px; }
-body .tabbar .tab.dk-tab .dk-baby .dk-c { width: 32px; height: 32px; inset: -1px; }
-.dk-t { display: block; font-style: normal; font-size: 10.5px; line-height: 13px; font-weight: 600; letter-spacing: .02em; color: #6E5547; pointer-events: none; white-space: nowrap; }
+/* 第 315 次：线条版 / 填色版同一 viewBox、同一盒子（24×24，像素对齐），透镜边切过时两份线条重合 */
+body .tabbar .tab.dk-tab .dk-ic { width: 24px; height: 24px; }
+body .tabbar .tab.dk-tab .dk-ic .dk-l { width: 24px; height: 24px; }
+body .tabbar .tab.dk-tab .dk-ic .dk-c, body .tabbar .tab.dk-tab .dk-baby .dk-c { width: 24px; height: 24px; inset: 0; }
+.dk-t { display: block; font-style: normal; font-size: 10px; line-height: 12px; font-weight: 600; letter-spacing: .02em; color: #6E5547; pointer-events: none; white-space: nowrap; }
 body.dark .dk-t { color: #D9C6B5; }
 body .tabbar .tab.dk-tab.active .dk-t, body .tabbar .tab.dk-tab.lg-hover .dk-t { color: var(--primary-text, var(--primary)); font-weight: 700; }
 body .tabbar.lg-drag .tab.dk-tab.active:not(.lg-hover) .dk-t { color: #6E5547; font-weight: 600; }
@@ -7190,3 +7192,19 @@ html.lg-gl body .tabbar.lg.lg-lensing.lg-lens-gl .tab.dk-tab .dk-t {
   mask-composite: subtract, add, add, add;
 }
 html body .tabbar.lg-drag ~ .lg-lens-el.svg > .lgl-body::after, html body .lg-lens-el.svg.fast > .lgl-body::after { opacity: .3; } /* 第 314 次：快拖彩虹环 .45 → .3，色散保持淡 */
+
+/* ============================================================
+   第 315 次：dock 去闪烁 + 点击滑动 + 紧凑 + 新图标（js/dock-icons.js）
+   · 图标：按原 3D 图标轮廓描的线条版（未选中）+ 同路径填色版（选中），同一 viewBox / 同一盒子 / 同线条色——
+     透镜边切过时两份线条重合，只差里面的填充；填色版不加投影（投影只在一边有 = 接缝处一道影子）。
+   · 收回胶囊（.lg-shrink）：DOM 先换成最终样子（选中页签的填色图标 / 选中色文字不再被透镜挖洞），GL 透镜在上面缩回 1:1 再淡出。
+   · 点击切页：透镜从当前胶囊滑到目标（liquid-dock.js 弹簧），dock 背景在透镜以外不变（不再整条按下放大 / 折射加强，换页不再藏 GL 画布）。
+   ============================================================ */
+body .tabbar .tab.dk-tab .dk-ic svg.dk-c { filter: none; overflow: visible; transform-origin: 50% 60%; }
+body .tabbar .tab.dk-tab .dk-ic svg.dk-l { overflow: visible; }
+body .tabbar.lg.lg-lensing.lg-lens-gl.lg-shrink .tab.dk-tab.active .dk-c { opacity: 1 !important; scale: 1 !important; -webkit-mask: none !important; mask: none !important; }
+body .tabbar.lg.lg-lensing.lg-lens-gl.lg-shrink .tab.dk-tab.active .dk-l { opacity: 0 !important; }
+html.lg-gl body .tabbar.lg.lg-lensing.lg-lens-gl.lg-shrink .tab.dk-tab.active .dk-t { -webkit-mask: none !important; mask: none !important; }
+/* 第 315 次：GL 透镜在场时，透镜没盖到的图标 / 文字不套任何遮罩（只有 .lg-hole 才挖洞），远处页签的渲染方式全程不变 */
+body .tabbar.lg.lg-lensing.lg-lens-gl .tab.dk-tab .dk-l:not(.lg-hole),
+html.lg-gl body .tabbar.lg.lg-lensing.lg-lens-gl .tab.dk-tab .dk-t:not(.lg-hole) { -webkit-mask: none; mask: none; }

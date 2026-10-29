@@ -40,7 +40,11 @@
       + '<path class="iaf" stroke="none" d="M16 18.3c.6-1 2.3-.8 2.3.6 0 1.1-1.5 2-2.3 2.5-.8-.5-2.3-1.4-2.3-2.5 0-1.4 1.7-1.6 2.3-.6Z"/>')
   };
   function dockIco(k) {
-    return '<i class="dk-ic ' + ({ baby: 'dk-baby', home: 'dk-home', cal: 'dk-cal' }[k] || '') + '">' + (DK_LINE[k] || '') + '<img class="dk-c" src="assets/dock/' + k + '.webp" alt="" draggable="false" decoding="async"></i>';
+    /* 第 315 次：线条版 / 填色版换成同一套路径的两颗内联 SVG（js/dock-icons.js，按原 3D 图标轮廓描的线）——
+       不再用 <img> webp：换页 / 重建时不用等异步解码（真机录屏：选中图标晚 10 帧才出来 = 「图标闪」） */
+    var cls = 'dk-ic ' + ({ baby: 'dk-baby', home: 'dk-home', cal: 'dk-cal' }[k] || '');
+    if (global.DockIcons) return '<i class="' + cls + '">' + DockIcons.lineSvg(k) + DockIcons.fillSvg(k) + '</i>';
+    return '<i class="' + cls + '">' + (DK_LINE[k] || '') + '<img class="dk-c" src="assets/dock/' + k + '.webp" alt="" draggable="false" decoding="async"></i>';
   }
   /* 第 276 次（用户同意）：搜索移出 dock（一级、二级都去掉）。入口改成：首页到顶后继续下拉（pull-search.js）、
      菜单面板顶部搜索框（第 290 次起；原侧拉页）、「全部功能」页搜索框。搜索页路由保留，改算二级页（有返回、侧滑回首页）。 */
@@ -254,12 +258,15 @@
            getImageData 是全 0，原来均值不看 alpha 就成了 #000。现在按 alpha 把画布像素叠在 .home-sky 自己的
            兜底渐变首色（浅 #A7BDEC / 深 #292B41）上：全透明 = 兜底色，画好后 = 画布色。 */
         var fb = skyFallback(sky);
-        var rgb = [0, 0, 0], n = 0;
+        var rgb = [0, 0, 0], n = 0, asum = 0;
+        /* 第 315 次：新页的天空画布还没画（alpha≈0）时，兜底色用上一次真实取到的天空色（原来是固定浅蓝 #A7BDEC：夜里切页状态栏闪一下浅蓝） */
+        if (global.__skyRgbLast) fb = global.__skyRgbLast.concat([1]);
         for (var i = 0; i < pxRow.length; i += 4) {
-          var al = pxRow[i + 3] / 255;
+          var al = pxRow[i + 3] / 255; asum += al;
           rgb[0] += pxRow[i] * al + fb[0] * (1 - al); rgb[1] += pxRow[i + 1] * al + fb[1] * (1 - al); rgb[2] += pxRow[i + 2] * al + fb[2] * (1 - al); n++;
         }
         rgb = n ? rgb.map(function (v) { return v / n; }) : fb.slice(0, 3);
+        if (n && asum / n > 0.9) global.__skyRgbLast = rgb.slice(0, 3);
         if (b.classList.contains('dark')) {
           var a = 0.40 * (global.__skyDim == null ? 1 : global.__skyDim), k = [34, 30, 26];
           rgb = rgb.map(function (v, j) { return v * (1 - a) + k[j] * a; });
@@ -351,8 +358,37 @@
 
   var _dockNodes = {};
   var _dkLast = null;
+  /* 第 315 次：底栏结构没变（同样的页签 / 槽位 / 排列）时只改选中态，不 innerHTML='' 重建——
+     真机逐帧（21:56 录屏第 193 帧）：每次切页 / 原地重画都整条重建，① dock 里的 WebGL 折射画布被摘下再挂回（至少一帧没有 = 整条 dock 背景闪成 CSS 兜底）；
+     ② 选中指示器 / 透镜被拆掉重建（透镜一帧内消失）；③ 彩色图标 <img> 重新异步解码（晚 10 帧才出来）。 */
+  function dockKey(slot) {
+    return [handMode(), slot || '', TABS.map(function (t) { return t.id; }).join(',')].join('|');
+  }
+  function syncTabbarActive(bar) {
+    Array.prototype.forEach.call(bar.querySelectorAll('.tab.dk-tab'), function (b) {
+      var id = b.getAttribute('data-tab'), on = id === current;
+      if (on !== b.classList.contains('active')) b.classList.toggle('active', on);
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+      if (on && _dkLast !== null && _dkLast !== current) { b.classList.add('dk-pop'); setTimeout(function () { b.classList.remove('dk-pop'); }, 700); }
+    });
+    _dkLast = current;
+  }
   function buildTabbar() {
     var bar = document.getElementById('tabbar');
+    var slot0 = null;
+    try { var d0 = Storage.get(); slot0 = (d0 && d0.settings) ? d0.settings.dockSlot : null; } catch (e0) { slot0 = null; }
+    if (!(slot0 && Modules[slot0] && slot0 !== current && !isTopTab(slot0) && (global.innerWidth || 400) >= 380)) slot0 = null;
+    var key0 = dockKey(slot0);
+    if (bar && bar._dkKey === key0 && bar.querySelector('.tab.dk-tab') && (document.querySelector('[data-qd-toggle]'))) {
+      document.body.classList.remove('dock-peek');
+      syncTabbarActive(bar);
+      var pl = document.querySelector('.tab-plus[data-qd-toggle]');
+      if (pl) pl.setAttribute('aria-expanded', document.body.classList.contains('qd-open') ? 'true' : 'false');
+      try { if (global.DockLive) DockLive.render(); } catch (eL) { /* 胶囊异常不影响底栏 */ }
+      syncOrb();
+      return;
+    }
+    if (bar) bar._dkKey = key0;
     /* 第 135 次（底部胶囊 dock）：宝宝切换 / 设置 / 返回三个顶栏按钮要搬进胶囊。
        必须在 innerHTML='' 之前取到引用——清空后它们在 DOM 里就找不到了
        （节点对象仍由这几个变量持有，重新 append 即「搬移」，id 与既有事件绑定全部保留）。 */
@@ -700,7 +736,10 @@
     // .view-enter .sky-canvas，整页卡片、列表与天空不再重播入场动画。
     // 此前每记一笔全页重新错落淡入一遍（连天空都眨一下），是「假忙碌」感的主源。
     view.classList.remove('view-enter');
-    if (!(opts && (opts.silent || opts._vt))) {
+    /* 第 315 次：dock 三个一级页（宝宝 / 首页 / 日历）互切不再播整页入场（真机逐帧：第 193 帧整页 opacity 0 = 一帧空白，194~198 帧半透明 = 「闪白」，
+       列表再逐行淡入）。像支付宝一样直接换成新页，切换感由 dock 透镜的滑动承担。进 / 出二级页仍保留方向性入场。 */
+    var topSwap = !!prevId && prevId !== id && isTopTab(prevId) && isTopTab(id);
+    if (!(opts && (opts.silent || opts._vt)) && !topSwap) {
       var dirX = '0px';
       if (prevId === 'home' && id !== 'home' && id !== 'calendar') dirX = '18px';
       else if (prevId && prevId !== 'home' && prevId !== 'calendar' && id === 'home') dirX = '-18px';

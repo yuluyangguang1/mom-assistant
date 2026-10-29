@@ -202,7 +202,7 @@
   var LENS_MX = 44;                            /* 贴图里 ±127 对应的最大偏移（CSS px）：rim 18 + 放大 68·0.15/1.15 ≈ 27，再加色散 / 速度余量 */
   var LENS_PAD = 60;                           /* 透镜元素四周留白（贴图同尺寸；clip-path 只留透镜本身） */
   var LENS_K = 2;                              /* 贴图分辨率：每 CSS px 2 像素 */
-  var LENS_W = 136, LENS_DH = 10, LENS_ZOOM = .15;   /* 第 313 次：136 × 栏高+6；第 314 次：静止栏高 + 10（上下各冒出 5，对照支付宝 5~7pt），快拖时由形变压回约栏高 */
+  var LENS_W = 110, LENS_DH = 12, LENS_ZOOM = .15;   /* 第 313 次：136 × 栏高+6；第 314 次：静止栏高 + 10（上下各冒出 5，对照支付宝 5~7pt），快拖时由形变压回约栏高 */
   /* 第 313 次：iOS 透镜外沿不画「dock 线条图标纹理」（和 DOM 图标对不齐 → 碎块 / 双字）。保持关闭。
      第 314 次：换成「透镜图标层」——透镜里的彩色图标 + 选中色文字整块由 GL 从一张纹理画（中心放大、边上一起被折弯），
      DOM 图标只在透镜外（每个页签 clip-path 挖掉透镜形状），两份内容不再在同一处叠着，透镜边就是唯一的分界 */
@@ -338,7 +338,7 @@
     var br = bar.getBoundingClientRect(), k = bar.offsetWidth ? br.width / bar.offsetWidth : 1, out = [];
     tabsOf().forEach(function (t) {
       var els = t.querySelectorAll('.dk-l, .dk-t');
-      for (var i = 0; i < els.length; i++) { var r = els[i].getBoundingClientRect(); out.push({ el: els[i], x: (r.left - br.left) / k, y: (r.top - br.top) / k }); }
+      for (var i = 0; i < els.length; i++) { var r = els[i].getBoundingClientRect(); out.push({ el: els[i], x: (r.left - br.left) / k, y: (r.top - br.top) / k, w: r.width / k, h: r.height / k }); }
     });
     return out;
   }
@@ -354,10 +354,13 @@
     body.style.left = body.style.top = LENS_PAD + 'px'; body.style.width = W + 'px'; body.style.height = H + 'px';
     el.style.clipPath = 'inset(' + (LENS_PAD - 1) + 'px round ' + (H / 2 + 1) + 'px)';
     el.classList.remove('svg', 'gl', 'plain'); el.classList.add(mode);
-    var x = tabCenter(t), n = nowMs();
-    lens = { mode: mode, W: W, H: H, x: x, vx: 0, tx: x, s: 0, vs: 0, sx: 1, vsx: 0, sy: 1, vsy: 0, rb: 0, m: 0, a: 0, hl: 0, flash: 1,
+    /* 第 315 次：点哪个页签，透镜都从「当前选中的胶囊」那里鼓起、用拖动弹簧（临界阻尼）滑到手指下的页签——
+       对照支付宝 22:03 深色录屏逐帧：点下第 1 帧胶囊就开始往目标走，约 8 帧（≈130ms）到位，途中鼓成透镜（比栏高）、到位后 ~120ms 收回胶囊。
+       原来透镜直接在目标处冒出、旧胶囊当场消失 = 「生硬切换 + 闪」。 */
+    var a0 = activeTab(), x0 = a0 && a0 !== t && a0.classList.contains('dk-tab') ? tabCenter(a0) : tabCenter(t), x = tabCenter(t), n = nowMs();
+    lens = { mode: mode, W: W, H: H, x: x0, vx: 0, tx: x, s: 0, vs: 0, sx: 1, vsx: 0, sy: 1, vsy: 0, rb: 0, m: 0, a: 0, hl: 0, flash: 1,
       phase: 'grow', t0: n, last: n, pw: t.offsetWidth, ph: t.offsetHeight, tab: t, boxes: mode === 'gl' ? iconBoxes() : [] };
-    bar.classList.remove('lg-lensend'); bar.classList.add('lg-lensing');
+    bar.classList.remove('lg-lensend', 'lg-shrink'); bar.classList.add('lg-lensing');
     bar.classList.toggle('lg-lens-gl', mode === 'gl');
     if (thumb) { thumb.classList.add('lg-lhide'); thumb.classList.remove('lg-grow'); }
     lensApply();
@@ -377,12 +380,12 @@
     var L = lens;
     lens = null;
     if (lensEl) { lensEl.classList.remove('on', 'fast'); lensEl.style.opacity = ''; }
-    if (L && L.boxes) L.boxes.forEach(function (b) { ['--hx', '--hy', '--hw', '--hh'].forEach(function (k) { b.el.style.removeProperty(k); }); });
+    if (L && L.boxes) L.boxes.forEach(function (b) { ['--hx', '--hy', '--hw', '--hh'].forEach(function (k) { b.el.style.removeProperty(k); }); if (b.el.classList.contains('lg-hole')) b.el.classList.remove('lg-hole'); });
     if (bar) {
       /* 第 313 次：收起那一刻关掉图标过渡两帧，没选中的页签不闪彩色图标 */
       var b0 = bar;
       b0.classList.add('lg-lensend');
-      b0.classList.remove('lg-lensing', 'lg-lens-gl'); b0.style.removeProperty('--lz');
+      b0.classList.remove('lg-lensing', 'lg-lens-gl', 'lg-shrink'); b0.style.removeProperty('--lz');
       var rq = global.requestAnimationFrame || function (f) { return setTimeout(f, 16); };
       rq(function () { rq(function () { if (!lens) b0.classList.remove('lg-lensend'); }); });
     }
@@ -403,6 +406,9 @@
       var el = n - L.ts;
       if ((el > 140 && Math.abs(L.tx - L.x) < 0.6 && Math.abs(L.vx) < 40 && Math.abs(L.sx - 1) < 0.02 && Math.abs(L.sy - 1) < 0.02) || el > 520) {
         L.phase = 'shrink'; L.t1 = n; L.vs = Math.min(0, L.vs);
+        /* 第 315 次：开始收回时 DOM 先换成最终样子（选中页签的填色图标 + 选中色文字原位露出），GL 透镜在它上面缩小、放大回到 1:1 再淡出——
+           原来收回期间透镜里的图标跟着透镜一起淡出、DOM 那份还被遮着，松手后图标先变淡再「啪」地出现 */
+        if (bar) bar.classList.add('lg-shrink');
         if (thumb) {
           try { thumb.getAnimations().forEach(function (a) { a.finish(); }); } catch (e) { /* 老内核 */ }
           thumb.classList.remove('lg-lhide');
@@ -465,7 +471,8 @@
     var br = bar.getBoundingClientRect(), cy = br.top + br.height / 2, s = Math.max(0, L.s);
     var w = (L.pw + (L.W - L.pw) * s) * L.sx, h = (L.ph + (L.H - L.ph) * s) * L.sy, sx = w / L.W, sy = h / L.H;
     lensEl.style.transform = 'translate(' + (L.x - L.W / 2 - LENS_PAD) + 'px,' + (cy - L.H / 2 - LENS_PAD) + 'px) scale(' + sx.toFixed(4) + ',' + sy.toFixed(4) + ')';
-    var op = L.phase === 'shrink' ? Math.min(1, s * 1.6) : Math.min(1, 0.35 + s * 1.3);
+    /* 第 315 次：鼓起时一开始就不透明（透镜从胶囊同尺寸起步，原来 0.35 起淡入 = 按下第 1~3 帧选中图标半透明「闪一下」） */
+    var op = L.phase === 'shrink' ? Math.min(1, s * 1.6) : 1;
     lensEl.style.opacity = op;
     /* 色散随速度、保持淡：rim 位移 ×(1 + 0.35·m)。Chromium 的贴图里放大和 rim 在同一张图，三通道 scale 差会连中心一起色散，
        所以这里只给 chx 0.6 → 1.8（R/B 差 2%~6%）；iOS 着色器的色散只乘在 rim 带里（1.2 → 3.6） */
@@ -503,8 +510,13 @@
          不用 clip-path：WPE WebKit 里页签一带 clip-path，栏里的 WebGL 画布整块不合成（实测） */
       var kk = bar.offsetWidth ? br.width / bar.offsetWidth : 1;
       var hx0 = (lx - br.left) / kk, hy0 = (cy - h / 2 - br.top) / kk, hw = (w / kk).toFixed(2) + 'px', hh = (Math.min(w, h) / kk).toFixed(2) + 'px';
+      var hwn = w / kk;
       L.boxes.forEach(function (b) {
         var st = b.el.style;
+        /* 第 315 次：只给透镜真正盖到的图标 / 文字开挖洞遮罩（.lg-hole）。原来一按下所有页签都套上遮罩——离透镜很远的图标 / 文字也换成遮罩合成，
+           抗锯齿方式一变就是「按下时远处的图标轻微闪一下」（Chromium 逐帧帧差 0.36） */
+        var hit = hx0 - 2 < b.x + (b.w || 0) && hx0 + hwn + 2 > b.x;
+        if (hit !== b.el.classList.contains('lg-hole')) b.el.classList.toggle('lg-hole', hit);
         st.setProperty('--hx', (hx0 - b.x).toFixed(2) + 'px'); st.setProperty('--hy', (hy0 - b.y).toFixed(2) + 'px');
         st.setProperty('--hw', hw); st.setProperty('--hh', hh);
       });
@@ -570,10 +582,13 @@
     if (reduced || !bar) return;
     var t = e.target && e.target.closest && e.target.closest('button');
     if (!t || !bar.contains(t)) return;
-    bar.classList.add('lg-press');
     dragStart(e, t);
     /* 第 309 次：页签上按下 → 灰胶囊鼓成透镜；不出透镜时（高对比 / 减少透明度）仍是旧的放大 */
-    if (!lensStart(t) && thumb && t.classList.contains('active')) thumb.classList.add('lg-grow');
+    if (lensStart(t)) return;
+    /* 第 315 次：出透镜时整条 dock 不再按下放大（CSS scale 1.02）、边缘折射也不加强——真机逐帧（21:56 第 186 / 188 帧）
+       离透镜很远的「宝宝」一带 dock 背景、图标、外轮廓都跟着变了（帧差 7）；支付宝透镜外的 dock 纹丝不动。只有不出透镜的降级路径保留旧按压 */
+    bar.classList.add('lg-press');
+    if (thumb && t.classList.contains('active')) thumb.classList.add('lg-grow');
     /* 第 277 次：按下时玻璃轻微放大（CSS scale 1.02），边缘折射同步增强（dock-refract.js 逐帧缓动） */
     if (global.DockRefract && DockRefract.press) DockRefract.press('dock', true);
   }
