@@ -103,6 +103,7 @@
   var fullEl = null, fullTick = null, fullDim = false, fullConfirm = false;
   function closeFull() {
     if (fullTick) { clearInterval(fullTick); fullTick = null; }
+    if (global.NightWin && fullEl) NightWin.unmount(fullEl);
     if (fullEl && fullEl.parentNode) fullEl.parentNode.removeChild(fullEl);
     if (fullEl) document.body.classList.remove('ftf-open'); /* 亲喂全屏也用这个类：没开过就别动它 */
     fullEl = null; fullConfirm = false;
@@ -151,6 +152,7 @@
           + '<button type="button" class="ftf-main-btn" data-f="pause">' + (s.isPaused ? '继续' : '暂停') + '</button>'
           + '<button type="button" class="ftf-rb" data-f="stop" aria-label="结束睡眠">' + (sv.stop || '') + '</button></div>')
       + '</div>';
+    if (global.NightWin) NightWin.mount(fullEl); /* 第 330 次：夜里（没关灯时）背景换成窗外真实夜空 */
     var si = fullEl.querySelector('input[data-f="start"]');
     if (si) si.addEventListener('change', function () {
       var dd = Storage.get(), o = dd.openSleep; if (!o || !/^\d{2}:\d{2}/.test(si.value)) return;

@@ -7436,3 +7436,28 @@ html.lg-gl body #tabbar.lg:not(.is-sub) > canvas.lg-gl { inset: -2px; width: cal
   /* 窄屏栏的 left 公式（− dock-w / 2 − 31px）在 dock-w + 2 时正好左移 1px = 原 GL 外沿，不用改；＋ 珠的公式会右移 1px，补回来 */
   html.lg-gl #dockOrb.dock-orb { left: calc(50% + var(--dock-w, 240px) / 2 - 24px); }
 }
+
+/* ============ 第 330 次：夜里的窗（js/nightwin.js） ============ */
+.ftf-bg.nw-on { background: #0C0810; }
+.nw-sky { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.ftf-bg.nw-on::after { background: linear-gradient(180deg, rgba(12,8,16,0) 0%, rgba(12,8,16,0) 44%, rgba(14,9,14,.82) 60%, #140B10 74%); }
+.ftf.is-dim .ftf-bg.nw-on::after { background: linear-gradient(180deg, rgba(10,5,8,.45) 0%, rgba(10,5,8,.55) 44%, rgba(10,5,8,.88) 60%, #0A0508 72%); }
+.nw-cap { position: absolute; z-index: 2; left: 72px; right: 72px; top: calc(var(--sat-pad, env(safe-area-inset-top)) + 10px);
+  text-align: center; pointer-events: none; color: rgba(255,244,230,.92); }
+.nw-cap p { margin: 0; text-wrap: balance; }
+.nw-moon { font-size: 12px; line-height: 1.5; letter-spacing: .02em; color: rgba(255,240,222,.58); }
+.nw-line { margin-top: 4px !important; font-size: 15px; line-height: 1.55; font-weight: 500; text-shadow: 0 1px 8px rgba(0,0,0,.45); }
+.nw-tel { pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; margin-top: 10px; min-height: 36px; padding: 0 16px;
+  border-radius: var(--radius-pill); background: rgba(255,240,222,.14); color: #FFF1E2; font-size: 14px; font-weight: 600; text-decoration: none;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.ftf.is-dim .nw-cap { opacity: .7; }
+/* 去睡吧：很暗的一层，2.6 秒自己淡掉；点穿（不挡撤销提示，提示层在它上面） */
+.nw-gn { position: fixed; inset: 0; z-index: 1150; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  background: radial-gradient(120% 80% at 50% 40%, rgba(22,14,26,.9), rgba(8,5,10,.96)); color: rgba(255,240,222,.9); opacity: 0; transition: opacity .6s ease; }
+.nw-gn.is-in { opacity: 1; }
+.nw-gn.is-out { opacity: 0; transition-duration: .85s; }
+.nw-gn p { margin: 0; font-size: 17px; letter-spacing: .04em; }
+.nw-gn-moon { width: 34px; height: 34px; border-radius: 50%; box-shadow: inset -9px -2px 0 0 #FFEFD6; transform: rotate(-20deg) translateY(-6px);
+  filter: drop-shadow(0 0 14px rgba(255,236,200,.45)); transition: transform 2.6s ease; }
+.nw-gn.is-in .nw-gn-moon { transform: rotate(-20deg) translateY(10px); }
+@media (prefers-reduced-motion: reduce) { .nw-gn, .nw-gn-moon { transition: none; } }

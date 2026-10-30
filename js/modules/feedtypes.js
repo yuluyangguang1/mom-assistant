@@ -263,6 +263,7 @@
 
   function closeFull() {
     if (fullTick) { clearInterval(fullTick); fullTick = null; }
+    if (global.NightWin && fullEl) NightWin.unmount(fullEl); /* 第 330 次：夜里的窗跟着全屏走 */
     if (fullEl && fullEl.parentNode) fullEl.parentNode.removeChild(fullEl);
     fullEl = null;
     document.body.classList.remove('ftf-open');
@@ -310,6 +311,7 @@
       + '<button type="button" class="ftf-main-btn" data-f="pause">' + (s.paused ? '继续' : '暂停') + '</button>'
       + '<button type="button" class="ftf-rb" data-f="stop" aria-label="停止并保存">' + SV.stop + '</button></div>'
       + '</div>';
+    if (global.NightWin) NightWin.mount(fullEl); /* 第 330 次：22:00–05:00 背景换成窗外真实夜空 */
     var si = fullEl.querySelector('input[data-f="start"]');
     if (si) si.addEventListener('change', function () {
       var dd = Storage.get(), tt = dd.feedingTimer; if (!tt || !/^\d{2}:\d{2}/.test(si.value)) return;
@@ -448,6 +450,7 @@
         dd.feedingTimer = null;
         if (Storage.save()) Util.toast('已记录亲喂 ' + fmtSec(c.L + c.R), 'ok', { label: '撤销', onClick: function () { undoT(rec.id); } });
         api.close(); closeFull(); global.App.rerender();
+        if (global.NightWin) NightWin.goodnight(); /* 第 330 次：夜里喂完，轻轻说一句「去睡吧」 */
       }
       box.querySelector('[data-save]').addEventListener('click', save);
       var hok = box.parentNode.parentNode.querySelector('.rs-head > [data-ok]'); if (hok) hok.addEventListener('click', save);
@@ -863,6 +866,7 @@
             dd.bottleTimer = null;
             if (Storage.save()) Util.toast('已记录瓶喂' + (v ? ' ' + v + ' ml' : '') + '，用时 ' + fmtMin((en - st) / 60000), 'ok');
             global.App.rerender();
+            if (global.NightWin) NightWin.goodnight();
           });
         });
       }

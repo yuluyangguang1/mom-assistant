@@ -407,6 +407,7 @@
       if (typeof s.lastReviewISO === 'string') base.settings.lastReviewISO = s.lastReviewISO;
       /* 第 45 次：保存触感开关（导入导出要能带走，否则换设备后设置丢失） */
       if (typeof s.hapticEnabled === 'boolean') base.settings.hapticEnabled = s.hapticEnabled;
+      if (typeof s.nightWindow === 'boolean') base.settings.nightWindow = s.nightWindow; /* 第 330 次：夜里的窗 */
       if (typeof s.keepAwake === 'boolean') base.settings.keepAwake = s.keepAwake; /* 第 194 次：计时常亮 */
       /* 第 97 次：底栏快捷槽位（字符串或 null；渲染时校验模块存在，随导入导出带走） */
       if (typeof s.dockSlot === 'string' || s.dockSlot === null) base.settings.dockSlot = s.dockSlot;

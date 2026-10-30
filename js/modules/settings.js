@@ -1065,6 +1065,10 @@
       html += '<p class="hint">保存成功轻震一下、失败震两下。<b>仅安卓手机有效</b>：iPhone 的所有浏览器'
         + '都未实现网页震动，电脑无震动马达；不影响记录与保存。</p>';
       /* 第 194 次：计时常亮开关（js/awake.js） */
+      /* 第 330 次：夜里的窗（js/nightwin.js） */
+      html += '<div class="row-switch"><label for="sNightWin">夜里的窗</label>' +
+        '<input type="checkbox" id="sNightWin"' + (s.settings.nightWindow !== false ? ' checked' : '') + '></div>';
+      html += '<p class="hint">22 点到 5 点，亲喂和睡眠的全屏计时背景换成窗外此刻真实的月亮和星星，窗顶有一句话。全在本机计算，不联网。</p>';
       html += '<div class="row-switch"><label for="sAwake">计时时屏幕常亮</label>' +
         '<input type="checkbox" id="sAwake"' + (s.settings.keepAwake !== false ? ' checked' : '') + '></div>';
       html += '<p class="hint">宫缩计时、胎动计数、亲喂计时进行中，屏幕不会自动变暗锁屏。睡眠计时不常亮，免得亮一整夜。'
@@ -1576,6 +1580,14 @@
         Storage.save();
         if (global.DockRefract) global.DockRefract.reset();
         if (global.LiquidDock && global.LiquidDock.refresh) global.LiquidDock.refresh();
+      });
+
+      var nwk = view.querySelector('#sNightWin');
+      if (nwk) nwk.addEventListener('change', function () {
+        var st = Storage.get();
+        st.settings.nightWindow = nwk.checked;
+        Storage.save();
+        Util.toast(nwk.checked ? '已开启：夜里的窗' : '已关闭夜里的窗', 'ok');
       });
 
       var awk = view.querySelector('#sAwake');
