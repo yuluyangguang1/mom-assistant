@@ -35,18 +35,21 @@ function arg(a) {
   if (a && typeof a === 'object') { if (a.$ != null) return OBJ[a.$]; if (a.$u) return uloc(a); }
   return a;
 }
+var resized = false;
 function replay(q) {
   var sawDock = false;
   for (var i = 0; i < q.length; i++) {
     var c = q[i], op = c[0];
+    /* 透镜在 Worker 里跑着：主线程这批里的 clear / drawArrays 不执行（它画的是旧镜像的透镜），只收状态（uniform / 纹理 / 尺寸），这一帧由 Worker 的 rAF 画一次 */
+    if (L && (op === 'drawArrays' || op === 'clear')) continue;
     try {
       if (op === 'create') {
         var t = c[1], o = null;
         if (t === 'Shader') o = gl.createShader(c[3]); else if (t === 'Program') o = gl.createProgram(); else if (t === 'Texture') o = gl.createTexture(); else if (t === 'Buffer') o = gl.createBuffer();
         OBJ[c[2]] = o;
       } else if (op === 'size') {
-        if (cvs.width !== c[1]) cvs.width = c[1];
-        if (cvs.height !== c[2]) cvs.height = c[2];
+        if (cvs.width !== c[1]) { cvs.width = c[1]; resized = true; }
+        if (cvs.height !== c[2]) { cvs.height = c[2]; resized = true; }
       } else if (op === '@dock') {
         mainProg = c[1]; dockDark = !!c[2]; dockRed = !!c[3]; haveDock = true; sawDock = true; drawsM++;
       } else if (op === 'lose') {
@@ -125,14 +128,14 @@ function frame() {
   var ds = dsNow(n);
   if (!ok) {
     drawLens(null);
-    frames.push({ t: Math.round(n), raw: Math.round(raw * 10) / 10, dt: Math.round(dt * 10) / 10, work: Math.round((performance.now() - t0) * 100) / 100, k: 'end', x: L.x });
+    frames.push({ t: Math.round(n), raw: Math.round(raw * 10) / 10, dt: Math.round(dt * 10) / 10, work: Math.round((performance.now() - t0) * 100) / 100, k: 'end', x: L.x, tx: L.tx, jcMax: L.jcMax || 0, rt: L.retargets || 0 });
     self.postMessage({ t: 'L', ev: 'end', L: snap(L), n: n });
     L = null;
     return;
   }
   var G = LP.geom(L, ds, red);
   drawLens(G);
-  frames.push({ t: Math.round(n), raw: Math.round(raw * 10) / 10, dt: Math.round(dt * 10) / 10, work: Math.round((performance.now() - t0) * 100) / 100, k: L.phase, x: Math.round(L.x * 100) / 100, s: Math.round(L.s * 1000) / 1000, held: L.held || 0 });
+  frames.push({ t: Math.round(n), raw: Math.round(raw * 10) / 10, dt: Math.round(dt * 10) / 10, work: Math.round((performance.now() - t0) * 100) / 100, k: L.phase, x: Math.round(L.x * 100) / 100, s: Math.round(L.s * 1000) / 1000, held: L.held || 0, jc: Math.round((L.jc || 0) * 1000) / 1000, jcMax: Math.round((L.jcMax || 0) * 1000) / 1000, rt: L.retargets || 0, tx: Math.round(L.tx * 100) / 100 });
   if (frames.length > 600) frames.shift();
   self.postMessage({ t: 'L', ev: ev, L: snap(L), n: n, ds: ds });
   raf = rAF(frame);
@@ -143,7 +146,7 @@ self.onmessage = function (e) {
   var d = e.data, t = d.t;
   if (t === 'init') {
     cvs = d.c; mainOrigin = d.mo || performance.timeOrigin;
-    try { gl = cvs.getContext('webgl', d.opts) || cvs.getContext('experimental-webgl', d.opts); } catch (er) { gl = null; info.err = String(er); }
+    try { gl = d.ft ? null : (cvs.getContext('webgl', d.opts) || cvs.getContext('experimental-webgl', d.opts)); } catch (er) { gl = null; info.err = String(er); }
     if (gl) {
       try {
         cvs.addEventListener('webglcontextlost', function (ev) { ev.preventDefault(); self.postMessage({ t: 'lost' }); }, false);
@@ -156,9 +159,11 @@ self.onmessage = function (e) {
   if (!gl) return;
   if (t === 'cmd') {
     var e0 = errs.length;
-    var saw = replay(d.q);
-    /* 透镜在 Worker 里跑着：主线程这一帧画的 dock（透镜 uniform 是它的旧镜像）之后马上用最新透镜重画一遍，同一个任务里只有最后一次会提交 */
-    if (saw && L) drawLens(LP.geom(L, dsNow(nowM()), red));
+    resized = false;
+    replay(d.q);
+    /* 画布尺寸变了会被清空：透镜在场就当场按最新透镜补画一次（同一个任务里提交），否则等下一个 rAF */
+    if (resized && L) drawLens(LP.geom(L, dsNow(nowM()), red));
+    else if (L) kick();
     if (errs.length > e0) self.postMessage({ t: 'err', errs: errs.slice(e0) });
     return;
   }

@@ -6536,7 +6536,7 @@ def test_r321(b):
 
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321', 'test_r322', 'test_r323', 'test_r324', 'test_r325', 'test_r326', 'test_r327')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321', 'test_r322', 'test_r323', 'test_r324', 'test_r325', 'test_r326', 'test_r327', 'test_r328')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -6579,7 +6579,7 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r301',),
           ('test_r302',),
           ('test_r309',),
-          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',), ('test_r322',), ('test_r323',), ('test_r324',), ('test_r325',), ('test_r326',), ('test_r327',))  # 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',), ('test_r322',), ('test_r323',), ('test_r324',), ('test_r325',), ('test_r326',), ('test_r327',), ('test_r328',))  # 第 328 次：Worker 透镜原型一组。第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 
@@ -7728,6 +7728,146 @@ def LiquidDock_phys_ok(ev):
         return False
     ph = ev("LiquidDock.PHYS.drag")
     return ph and ph['z'] >= 1 and ph['k'] >= 1000
+
+
+def test_r328(b):
+    """第 328 次（原型分支 proto-worker-lens，不进 main）：dock 透镜的 WebGL 渲染与物理搬进 Worker（OffscreenCanvas）。
+    ① Worker 路径启用（Chromium：transferControlToOffscreen + Worker 里 webgl）、静止时与主线程实现逐像素相同、画布 backing 仍 = CSS × 3；
+    ② 退化：Worker 里拿不到 webgl（lgWorkerFailTest 模拟）/ 没有 OffscreenCanvas / lgWorker = 0 → 主线程实现，透镜照常；
+    ③ 切页时主线程同步忙 200ms：Worker 透镜在忙碌窗口里照样出帧、落到目标页签；主线程实现在同一窗口里 0 帧（对照）；
+    ④ 节奏与参数一致：主线程 / Worker 加载同一份 js/lens-phys.js（PHYS 与 890721d 逐项相同、step / geom 源码一致），手动时钟 60Hz 参考 +4/+8/+12 帧 ≈ 48/83/95%；
+       连点改目标（第 321 次）、撞端果冻（第 322 次）在 Worker 里同样发生；整条 dock 按下放大改成合成器动画（scale），松手后不留内联样式。"""
+    import io, json as _json
+    import numpy as np
+    from PIL import Image as _Im
+    PHYS_890721D = {"grow":{"k":520,"z":0.58},"drag":{"k":6000,"z":1},"snap":{"k":560,"z":0.74},"shape":{"k":420,"z":0.38},"shrink":{"k":1700,"z":1},"tap":{"k":600,"z":1},"tapV":0.45,"exitPx":2.5,"exitV":150,"exitMs":90,"vFull":0.9,"stretch":0.12,"squash":0.11,"rubber":26,"rubberC":0.55,"fuse":8,"lead":{"k":1200,"z":1},"trail":{"k":560,"z":1},"trailHold":40,"tapGrow":{"k":1600,"z":1},"tapMaxW":104,"tapDH":-4,"tapBulge":8,"bigAfter":160,"press":{"k":1500,"z":0.8,"amp":0.038},"release":{"k":250,"z":0.6},"catchUp":1.5,"bigV":2400,"bigMax":0.15,"bigSq":0.08,"bigShape":{"k":1500,"z":1},"retargetTau":80,"jelly":{"k":250,"z":0.7},"hitGain":3.6,"hitZone":3,"hitV":120,"endInset":4,"jellySy":0.8,"jellyMax":0.18,"jellyDH":4,"endPullK":0.6,"endPullMax":7,"kEnd":10}
+    idx = (ROOT / 'index.html').read_text(encoding='utf-8'); sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
+    ld = (ROOT / 'js' / 'liquid-dock.js').read_text(encoding='utf-8'); lp = (ROOT / 'js' / 'lens-phys.js').read_text(encoding='utf-8')
+    dr = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8'); wk = (ROOT / 'js' / 'dock-worker.js').read_text(encoding='utf-8')
+    check('#328 源码：lens-phys.js 在 dock-refract / liquid-dock 之前加载、SW 预缓存 lens-phys.js 与 dock-worker.js；CSP worker-src self；liquid-dock.js 不再自带 PHYS / springStep',
+          idx.index('js/lens-phys.js') < idx.index('js/dock-refract.js') < idx.index('js/liquid-dock.js') and "'js/lens-phys.js'" in sw and "'js/dock-worker.js'" in sw
+          and "worker-src 'self'" in idx and 'var PHYS = {' not in ld and 'function springStep' not in ld and 'var PHYS = {' in lp and "importScripts('lens-phys.js')" in wk
+          and 'transferControlToOffscreen' in dr and "lgWorker" in dr, '')
+    INIT_BUSY = "document.addEventListener('click',e=>{if(window.__busyMs&&e.target.closest&&e.target.closest('#tabbar .dk-tab')){const t=performance.now();window.__busyAt=t;while(performance.now()-t<__busyMs);}},true);"
+    def page(dpr=3, worker='1', extra=None, fail=False):
+        ctx = b.new_context(viewport={'width': 393, 'height': 852}, device_scale_factor=dpr, service_workers='block')
+        ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
+        ctx.add_init_script(INIT_BUSY)
+        if extra: ctx.add_init_script(extra)
+        p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160]))
+        p.goto(URL); p.wait_for_timeout(500); p.evaluate('t=>Storage.importJSON(t)', SEED_V3)
+        p.evaluate("localStorage.setItem('lgGlForce','1');localStorage.setItem('lgWorker','%s');localStorage.setItem('lgWorkerFailTest','%s');Storage.get().settings.dockGlass='on';Storage.get().settings.theme='light';Storage.get().settings.themeMode='light';Storage.save()" % (worker, '1' if fail else '0'))
+        p.reload(); p.wait_for_timeout(1200)
+        _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0&&!document.getElementById('boot')", 9000)
+        p.wait_for_timeout(1800)
+        return ctx, p, errs
+    def tabs(p):
+        return {t[2]: t for t in p.evaluate("[...document.querySelectorAll('#tabbar .tab.dk-tab')].map(t=>{const r=t.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2,t.dataset.tab]})")}
+    def wperf(p, clear=False):
+        s0 = p.evaluate("DockRefract._wseq||0"); p.evaluate("DockRefract._wperf(%s)" % ('true' if clear else 'false'))
+        for _ in range(60):
+            if p.evaluate("DockRefract._wseq||0") > s0: break
+            p.wait_for_timeout(50)
+        return p.evaluate("DockRefract._wperf(false)")
+    def dockshot(p):
+        r = p.evaluate("(()=>{const r=document.getElementById('tabbar').getBoundingClientRect();return [Math.floor(r.top),Math.ceil(r.height)]})()")
+        return np.asarray(_Im.open(io.BytesIO(p.screenshot(clip={'x': 0, 'y': r[0] - 30, 'width': 393, 'height': r[1] + 40}))).convert('RGB')).astype(int)
+    # —— ① Worker 路径（3 倍屏）——
+    c1, p1, e1 = page(3, '1')
+    st = p1.evaluate("DockRefract._stats()"); ws = p1.evaluate("DockRefract._wstate()")
+    cvcss = p1.evaluate("(()=>{const c=document.querySelector('#tabbar canvas.lg-gl');const r=c.getBoundingClientRect();let tr=false;try{c.getContext('2d')}catch(e){tr=true}return [r.width,r.height,tr]})()")
+    check('#328 Worker 路径启用：stats.worker = on、Worker 里 webgl 建成（ready.ok）、画布已转交（主线程 getContext 抛错）、backing = CSS × 3（第 327 次）',
+          st['worker'] == 'on' and ws['info'] and ws['info']['ok'] and cvcss[2] and abs(st['canvas'][0] / cvcss[0] - 3) < 0.02 and abs(st['canvas'][1] / cvcss[1] - 3) < 0.02 and st['draws'] > 0, [st['worker'], ws, cvcss, st['canvas']])
+    wks = p1.workers
+    same = None
+    if wks:
+        wsrc = wks[0].evaluate("JSON.stringify({P:LensPhys.PHYS,s:String(LensPhys.step),g:String(LensPhys.geom),p:String(LensPhys.pace),d:String(LensPhys.dsCurve)})")
+        msrc = p1.evaluate("JSON.stringify({P:LensPhys.PHYS,s:String(LensPhys.step),g:String(LensPhys.geom),p:String(LensPhys.pace),d:String(LensPhys.dsCurve)})")
+        same = wsrc == msrc
+    a1 = dockshot(p1)
+    phys = p1.evaluate("JSON.stringify(LiquidDock.PHYS)")
+    check('#328 参数不变：LiquidDock.PHYS 与 890721d 逐项相同、就是 LensPhys.PHYS；Worker 与主线程的 PHYS / step / geom / pace / dsCurve 源码一致（同一个文件）',
+          _json.loads(phys) == PHYS_890721D and p1.evaluate("LiquidDock.PHYS===LensPhys.PHYS") and same, [same, phys[:80]])
+    # 60Hz 参考节奏（手动时钟走主线程物理，与 Worker 同一份代码）
+    T = tabs(p1); a0 = p1.evaluate("App.currentTab()"); tg = 'calendar' if a0 != 'calendar' else 'home'
+    x0 = p1.evaluate("(()=>{const a=document.querySelector('#tabbar .tab.dk-tab.active');const r=a.getBoundingClientRect();return r.left+r.width/2})()")
+    p1.evaluate("LiquidDock._manualMode(true)"); p1.mouse.move(T[tg][0], T[tg][1]); p1.mouse.down()
+    ref = [p1.evaluate("LiquidDock._state().lens")]
+    for i in range(5): ref.append(p1.evaluate("LiquidDock._step(1000/60)"))
+    p1.mouse.up()
+    for i in range(40):
+        s_ = p1.evaluate("LiquidDock._step(1000/60)"); ref.append(s_)
+        if not s_: break
+    p1.evaluate("LiquidDock._manualMode(false)")
+    tx = ref[0]['tx']; pr = [round((ref[k]['x'] - x0) / (tx - x0) * 100, 1) for k in (4, 8, 12)]
+    endk = next((i for i, f in enumerate(ref) if f is None), 99)
+    check('#328 17 帧点击节奏（60Hz 手动时钟）：+4 / +8 / +12 帧 ≈ 48 / 83 / 95%（±5），约 17~19 帧收完；手动时钟下不走 Worker 物理（lens 无 w 标记）',
+          abs(pr[0] - 48) <= 5 and abs(pr[1] - 83) <= 5 and abs(pr[2] - 95) <= 4 and 15 <= endk <= 21, [pr, endk])
+    c1.close()
+    c0, p0, e0 = page(3, '0')
+    check('#328 lgWorker = 0：走主线程实现（worker off）', p0.evaluate("DockRefract._stats().worker") == 'off', p0.evaluate("DockRefract._stats().worker"))
+    a0s = dockshot(p0)
+    dmax = int(np.abs(a1 - a0s).max()) if a1.shape == a0s.shape else 999
+    check('#328 静止时 Worker 画的 dock 与主线程实现逐像素一致（最大差 ≤ 2 级）', dmax <= 2, dmax)
+    c0.close()
+    # —— ③ 主线程忙 200ms（0.5 倍屏：软件 GL 不成瓶颈，只看主线程忙的影响）——
+    def busy_tap(p, wm):
+        T = tabs(p); cur = p.evaluate("App.currentTab()"); name = 'home' if cur != 'home' else 'baby'
+        p.evaluate("window.__busyMs=200; LiquidDock._perf(true)")
+        if wm: wperf(p, True)
+        p.mouse.move(T[name][0], T[name][1]); p.mouse.down(); p.wait_for_timeout(80); p.mouse.up(); p.wait_for_timeout(1300)
+        ba = p.evaluate("window.__busyAt")
+        fr = wperf(p)['frames'] if wm else [f for f in p.evaluate("LiquidDock._perf().frames") if not f['k'].startswith('w:')]
+        inwin = [f for f in fr if ba < f['t'] < ba + 200]
+        p.evaluate("window.__busyMs=0")
+        return name, fr, inwin, p.evaluate("App.currentTab()"), (fr[-1].get('tx') if fr and fr[-1].get('tx') is not None else T[name][0])
+    c2, p2, e2 = page(0.5, '1')
+    name, fr, inwin, cur, xt = busy_tap(p2, True)
+    gaps = [b_['t'] - a_['t'] for a_, b_ in zip(fr, fr[1:])]
+    check('#328 切页时主线程同步忙 200ms：Worker 透镜在忙碌窗口里照样出帧（≥ 2 帧；软件 GL 下每帧 30~70ms）、最大帧间隔 < 160ms（主线程实现 ≥ 200ms）、落到目标页签（终点 = 弹簧目标 tx，差 < 1.5px）、页面切过去',
+          len(inwin) >= 2 and gaps and max(gaps) < 160 and fr and fr[-1]['k'] == 'end' and abs(fr[-1]['x'] - xt) < 1.5 and cur == name, [len(inwin), max(gaps) if gaps else None, fr[-1] if fr else None, xt, cur, name])
+    # 连点（第 321 次）：0.06s 内先点日历再点宝宝 → Worker 里 retarget，透镜落在宝宝
+    T = tabs(p2); p2.wait_for_timeout(800); wperf(p2, True)
+    for nm in ('calendar', 'baby'):
+        p2.mouse.move(T[nm][0], T[nm][1]); p2.mouse.down(); p2.wait_for_timeout(40); p2.mouse.up(); p2.wait_for_timeout(30)
+    p2.wait_for_timeout(1300)
+    fr2 = wperf(p2)['frames']
+    check('#328 连点改目标（第 321 次）在 Worker 里：retarget ≥ 1、透镜终点落在第二次点的页签、页面也是它',
+          fr2 and max(f.get('rt', 0) for f in fr2) >= 1 and fr2[-1]['k'] == 'end' and abs(fr2[-1]['x'] - fr2[-1]['tx']) < 1.5 and abs(fr2[-1]['tx'] - T['baby'][0]) < 4 and p2.evaluate("App.currentTab()") == 'baby', [fr2[-1] if fr2 else None, T['baby'][0]])
+    # 撞端果冻（第 322 次）：点右端「日历」
+    p2.wait_for_timeout(800); T = tabs(p2); wperf(p2, True)
+    p2.mouse.move(T['calendar'][0], T['calendar'][1]); p2.mouse.down()
+    p2.wait_for_timeout(60)
+    anim = p2.evaluate("document.getElementById('tabbar').getAnimations().map(a=>a.effect&&a.effect.getKeyframes().map(k=>Object.keys(k)).flat()).flat().filter(k=>k==='scale').length")
+    p2.mouse.up(); p2.wait_for_timeout(1500)
+    fr3 = wperf(p2)['frames']
+    jm = max((f.get('jcMax', 0) for f in fr3), default=0)
+    left = p2.evaluate("(()=>{const b=document.getElementById('tabbar');return [b.getAnimations().length,b.style.scale||'']})()")
+    check('#328 撞端果冻（第 322 次）在 Worker 里同样发生（jc 峰值 > 0.03；60Hz 下 ≈0.15，软件 GL 帧粗时撞墙那一帧的前缘速度被摊平，峰值偏低）', jm > 0.03, jm)
+    check('#328 Worker 模式下整条 dock 按下放大 = 合成器 scale 动画（按住时在跑），松手停稳后不留动画 / 内联 scale', anim >= 1 and left == [0, ''], [anim, left])
+    check('#328 Worker 模式：顶部提示岛不画 GL（主线程读不到转交的画布），DR.surface(toast) 返回 false',
+          p2.evaluate("DockRefract.surface('toast',document.createElement('div'))") is False, '')
+    c2.close()
+    c3, p3, e3 = page(0.5, '0')
+    name3, fr4, inwin4, cur4, xt4 = busy_tap(p3, False)
+    check('#328 对照：主线程实现在同一个 200ms 忙碌窗口里透镜 0 帧（这就是 Worker 要解决的停顿）', len(inwin4) == 0 and cur4 == name3, [len(inwin4), len(fr4)])
+    c3.close()
+    # —— ② 退化 ——
+    c4, p4, e4 = page(0.5, '1', fail=True)
+    st4 = p4.evaluate("DockRefract._stats()")
+    T = tabs(p4); cur = p4.evaluate("App.currentTab()"); nm = 'home' if cur != 'home' else 'baby'
+    p4.evaluate("LiquidDock._perf(true)"); p4.mouse.move(T[nm][0], T[nm][1]); p4.mouse.down(); p4.wait_for_timeout(80); p4.mouse.up(); p4.wait_for_timeout(1200)
+    lf = [f for f in p4.evaluate("LiquidDock._perf().frames") if not f['k'].startswith('w:')]
+    check('#328 退化：Worker 里拿不到 webgl → 本次会话退回主线程实现（worker = fail、原因 no-webgl-in-worker、主线程 GL 在画），透镜走主线程 lensFrame、切页成功',
+          st4['worker'] == 'fail' and 'no-webgl-in-worker' in st4['wfail'] and st4['on'] and st4['ready'] and st4['draws'] > 0 and len(lf) >= 3 and lf[-1]['k'] == 'end' and p4.evaluate("App.currentTab()") == nm,
+          [st4['worker'], st4['wfail'], st4['draws'], len(lf)])
+    c4.close()
+    c5, p5, e5 = page(0.5, '1', extra="try{delete window.OffscreenCanvas;window.OffscreenCanvas=undefined}catch(e){}")
+    st5 = p5.evaluate("DockRefract._stats()")
+    check('#328 退化：没有 OffscreenCanvas → 不起 Worker，主线程实现照常画', st5['worker'] == 'off' and st5['on'] and st5['draws'] > 0, [st5['worker'], st5['draws']])
+    c5.close()
+    allerr = e1 + e0 + e2 + e3 + e4 + e5
+    check('#328 无页面错误', not allerr, allerr[:4])
 
 
 def run_tests(names):

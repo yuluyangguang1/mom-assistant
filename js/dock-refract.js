@@ -849,7 +849,7 @@
       return;
     }
     if (d.t === 'L') { if (global.LiquidDock && LiquidDock._wmsg) LiquidDock._wmsg(d); return; }
-    if (d.t === 'perf') { wPerf = d; return; }
+    if (d.t === 'perf') { wPerf = d; wPerf.seq = (DR._wseq = (DR._wseq || 0) + 1); return; }
     if (d.t === 'err') {
       wQ.errs = (wQ.errs || []).concat(d.errs).slice(-10);
       if (d.errs.some(function (x) { return /^(compile|link):/.test(x); })) workerFail('shader:' + d.errs[0]);
@@ -1750,15 +1750,16 @@
     cv.className = 'lg-gl'; cv.setAttribute('aria-hidden', 'true');
     cvW = cv.width; cvH = cv.height;
     /* 第 328 次：能用 Worker 就把画布交出去（之后主线程只往录制代理上画）；Worker 回报建不出 webgl 再整套退回主线程 */
-    wm = workerWanted(); wOK = 0; wInfo = null; wPerf = null;
+    wm = workerWanted(); if (wm) { wOK = 0; wInfo = null; } wPerf = null;
     if (wm) {
       try {
         var off = cv.transferControlToOffscreen();
         W_ = new Worker(WURL);
-        W_.onmessage = wMsg;
-        W_.onerror = function (ev) { workerFail('worker-error:' + (ev && ev.message || '')); };
+        W_.addEventListener('message', wMsg);
+        W_.addEventListener('error', function (ev) { workerFail('worker-error:' + (ev && ev.message || '')); });
         wQ = { batches: 0, cmds: 0, bitmaps: 0, bmMs: 0 };
-        W_.postMessage({ t: 'init', c: off, opts: GLOPTS, mo: global.performance && performance.timeOrigin || 0 }, [off]);
+        var ft = false; try { ft = global.localStorage.getItem('lgWorkerFailTest') === '1'; } catch (eF) { /* */ }   /* 测试：模拟 Worker 里拿不到 webgl */
+        W_.postMessage({ t: 'init', c: off, opts: GLOPTS, mo: global.performance && performance.timeOrigin || 0, ft: ft }, [off]);
       } catch (eW) {
         DR._wfail = 'spawn:' + eW; wm = false; wNo = true; W_ = null;
         cv = doc.createElement('canvas'); cv.className = 'lg-gl'; cv.setAttribute('aria-hidden', 'true'); cvW = cv.width; cvH = cv.height;
@@ -1875,7 +1876,7 @@
     if (fx && fx.br) geoC = { left: fx.br.left, top: fx.br.top, width: fx.br.width, height: fx.br.height, right: fx.br.right, bottom: fx.br.bottom };
     if (lensR && !had && on && ready && gl && lensTexOn()) rasterLensIcons();
   };
-  DR.workerMode = function () { return wm ? (wOK === 1 ? 'on' : wOK === 0 ? 'pending' : 'fail') : 'off'; };
+  DR.workerMode = function () { return wOK === -1 ? 'fail' : wm ? (wOK === 1 ? 'on' : 'pending') : 'off'; };
   DR._wperf = function (clear) { if (W_) W_.postMessage({ t: 'perf', clear: !!clear }); return wPerf; };
   DR._wstate = function () { return { wm: wm, wOK: wOK, info: wInfo, fail: DR._wfail || '', q: wQ, url: WURL }; };
   DR.isOn = function () { return on && ready; };

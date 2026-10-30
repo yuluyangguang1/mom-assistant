@@ -324,7 +324,7 @@
   }
   function nowMs() { return LD._now ? LD._now() : (global.performance ? performance.now() : Date.now()); }
   /* 第 319 次：整条 dock 按下时有 scale（以栏中心为原点）。透镜 / GL 一律用「未缩放」的栏坐标：读到的视口坐标按当前 scale 换回去 */
-  function unscaleX(x) { var g = barGeo(); return g.cx + (x - g.cx) / (DS.s || 1); }
+  function unscaleX(x) { var g = barGeo(); return g.cx + (x - g.cx) / dsCur(); }
   function tabCenter(t) { var r = t.getBoundingClientRect(); return unscaleX(r.left + r.width / 2); }
   /* 栏的未缩放矩形（视口坐标）。动画（透镜在场 / dock 缩放中）期间不读布局，用按下那一刻量好的缓存 */
   var geo = null;
@@ -333,7 +333,7 @@
   function bEx() { return bar ? Math.max(0, (bar.clientTop || 1) - 1) : 0; }
   function barGeo(fresh) {
     if (geo && !fresh && (lens || DS.on)) return geo;
-    var r = bar.getBoundingClientRect(), k = DS.s || 1, cx = r.left + r.width / 2, cy = r.top + r.height / 2, w = r.width / k, h = r.height / k;
+    var r = bar.getBoundingClientRect(), k = dsCur(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, w = r.width / k, h = r.height / k;
     geo = { left: cx - w / 2, top: cy - h / 2, width: w, height: h, right: cx + w / 2, bottom: cy + h / 2, cx: cx, cy: cy };
     return geo;
   }
@@ -382,9 +382,66 @@
     if (thumb) { thumb.classList.add('lg-lhide'); thumb.classList.remove('lg-grow'); }
     lensApply();
     el.classList.add('on');
-    if (!lensRaf && !LD._manual) lensRaf = global.requestAnimationFrame(lensFrame);
+    /* 第 328 次：Worker 能画透镜（且不是测试手动时钟）→ 物理 / 逐帧重画交给 Worker；主线程只转发事件、空闲帧按回传状态改 DOM */
+    if (mode === 'gl' && !LD._manual && global.DockRefract && DockRefract.wlOn && DockRefract.wlOn()) {
+      lens.w = true; wlDirty = false;
+      DockRefract.wl('ls', { L: wlClean(lens), red: reduced });
+    }
+    kickLens();
     return true;
   }
+  /* 第 328 次：透镜帧由谁推进——Worker 模式下主线程只跑一个轻量镜像循环（心跳 + 改 DOM），否则原来的 lensFrame */
+  function kickLens() {
+    if (!lens) return;
+    if (lens.w) { if (!wlRaf) wlRaf = global.requestAnimationFrame(wlFrame); return; }
+    if (!lensRaf && !LD._manual) lensRaf = global.requestAnimationFrame(lensFrame);
+  }
+  /* 发给 Worker 的透镜状态：数值字段 + 栏矩形 br + 两端页签中心 endC（DOM 引用 tab / boxes 不发） */
+  function wlClean(L) {
+    var o = {};
+    for (var k in L) { var v = L[k]; if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'string') o[k] = v; }
+    var b = L.br; o.br = { left: b.left, top: b.top, width: b.width, height: b.height, right: b.right, bottom: b.bottom, cx: b.cx, cy: b.cy };
+    o.endC = L.endC ? L.endC.slice() : null;
+    return o;
+  }
+  var wlRaf = 0, wlDirty = false, wlStat = { msgs: 0, applied: 0, lastN: 0, maxGap: 0, shrinkLag: [], held: 0 };
+  /* Worker 每帧回传（在主线程消息队列里排队：主线程忙的时候攒着，空闲了只用最新一条改 DOM） */
+  LD._wmsg = function (d) {
+    var L = lens;
+    if (!L || !L.w) return;
+    wlStat.msgs++;
+    var prev = L.phase;
+    for (var k in d.L) if (k !== 'w') L[k] = d.L[k];
+    if (d.ev === 'shrink') { shrinkDom(); wlStat.shrinkLag.push(Math.round((global.performance ? performance.now() : Date.now()) - d.n)); if (wlStat.shrinkLag.length > 20) wlStat.shrinkLag.shift(); }
+    else if (prev === 'shrink' && L.phase !== 'shrink' && bar && bar.classList.contains('lg-shrink')) {
+      /* Worker 已因连点回到滑行，而主线程刚按旧消息进了收回：撤回收回的 DOM（同 lensRetarget） */
+      bar.classList.remove('lg-shrink');
+      if (thumb) { thumb.style.removeProperty('opacity'); thumb.style.removeProperty('transition'); thumb.classList.add('lg-lhide'); }
+    }
+    wlStat.held = L.held || 0;
+    if (d.ev === 'end') { L.wEnd = true; lensEnd(); return; }
+    wlDirty = true;
+    if (!wlRaf) wlRaf = global.requestAnimationFrame(wlFrame);
+  };
+  function wlFrame() {
+    wlRaf = 0;
+    var L = lens;
+    if (!L || !L.w) return;
+    if (!bar || !bar.isConnected) { lensEnd(); return; }
+    var t0 = global.performance ? performance.now() : Date.now();
+    DockRefract.wl('hb');
+    if (wlStat.lastN) wlStat.maxGap = Math.max(wlStat.maxGap, t0 - wlStat.lastN);
+    wlStat.lastN = t0;
+    if (wlDirty) {
+      wlDirty = false; wlStat.applied++;
+      var G = LP.geom(L, dsCur(), reduced);
+      lensDom(G, false);
+      DockRefract.lensMirror(G.rect, L.m, G.g, G.op, G.fx);
+      perfPush({ t: Math.round(t0), raw: 0, dt: 0, work: Math.round(((global.performance ? performance.now() : Date.now()) - t0) * 100) / 100, k: 'w:' + L.phase });
+    }
+    wlRaf = global.requestAnimationFrame(wlFrame);
+  }
+  LD._wl = function (clear) { var o = JSON.parse(JSON.stringify(wlStat)); o.on = !!(lens && lens.w); if (clear) wlStat = { msgs: 0, applied: 0, lastN: 0, maxGap: 0, shrinkLag: [], held: 0 }; return o; };
   /* 第 321 次（Telegram 参考 A1）：透镜还在（鼓起 / 滑行 / 吸附 / 收回任一阶段）时再次按下别的（或同一个）页签——
      不重启：位置 x、速度 vx、左右两条边 eL / eR 和各自速度、鼓起 s 都保留，只改目标 tx；正在收回就回到滑行（s 从当前值接着鼓）；
      整条 dock 按下放大从当前缩放接着按（DS.s 不归 1）。原来 lensStart 见到 lens 在场直接返回 false，透镜照旧滑回第一次点的页签、页面却切到第二个 → 落定时胶囊一跳 */
@@ -405,20 +462,24 @@
       if (thumb) { thumb.style.removeProperty('opacity'); thumb.style.removeProperty('transition'); thumb.classList.add('lg-lhide'); }
     }
     L.retargets = (L.retargets || 0) + 1;
-    if (!lensRaf && !LD._manual) lensRaf = global.requestAnimationFrame(lensFrame);
+    if (L.w) DockRefract.wl('rt', { tx: L.tx, pw: L.pw, endSide: L.endSide });   /* 第 328 次：Worker 按同样的字段改动接着推进 */
+    kickLens();
     return true;
   }
   function lensRelease(x) {
     if (lens) lens.down = false;
+    if (lens && lens.w) { DockRefract.wl('rl', { x: x }); return; }   /* 第 328 次：Worker 判断阶段（镜像里的 phase 可能落后一两帧） */
     if (!lens || lens.phase === 'settle' || lens.phase === 'shrink') return;
     if (x != null) lens.tx = x;
     lens.rb = 0; lens.vx = Math.max(-700, Math.min(700, lens.vx));
     lens.phase = 'settle'; lens.ts = lens.last;   /* 透镜自己的时间轴（手动时钟下与墙钟不同） */
-    if (!lensRaf && !LD._manual) lensRaf = global.requestAnimationFrame(lensFrame);
+    kickLens();
   }
   function lensEnd() {
     if (lensRaf) { global.cancelAnimationFrame(lensRaf); lensRaf = 0; }
+    if (wlRaf) { global.cancelAnimationFrame(wlRaf); wlRaf = 0; }
     var L = lens;
+    if (L && L.w && !L.wEnd && global.DockRefract && DockRefract.wl) DockRefract.wl('lx');   /* 主线程这边先结束（栏被重建等）：让 Worker 也停 */
     lens = null;
     if (lensEl) { lensEl.classList.remove('on', 'fast'); lensEl.style.opacity = ''; }
     if (L && L.boxes) L.boxes.forEach(function (b) { ['--hx', '--hy', '--hw', '--hh'].forEach(function (k) { b.el.style.removeProperty(k); }); if (b.el.classList.contains('lg-hole')) b.el.classList.remove('lg-hole'); });
@@ -435,7 +496,7 @@
     if (L && L.endSide && Math.abs(L.jc || 0) > 0.004) thumbJelly(L.jc, L.vjc || 0, L.endSide);
     popNow();
     if (global.DockRefract && DockRefract.lens) DockRefract.lens(null);
-    if (DS.on && !DS.raf && !LD._manual) { DS.last = nowMs(); DS.raf = global.requestAnimationFrame(dsFrame); }
+    if (DS.on && !DS.raf && !LD._manual && !DSW) { DS.last = nowMs(); DS.raf = global.requestAnimationFrame(dsFrame); }
     settledCheck();
   }
   /* 第 322 次：撞端果冻的后半段——透镜收回时还没弹完的压缩（jc、速度 vjc）交给静止胶囊，同一个弹簧（k 250 ζ 0.7）离线算成关键帧：
@@ -515,8 +576,37 @@
   }
   /* ---------- 第 319 次：按下整条 dock 放大（整块合成层 scale，GL 画布作为子节点跟着缩放，不重新取样） ---------- */
   var DS = { s: 1, v: 0, down: false, on: false, raf: 0, last: 0, debt: 0 };
+  /* 第 328 次：Worker 透镜在场时，整条 dock 的按下放大改成合成器动画（WAAPI scale，关键帧 = LensPhys.dsCurve 离线算的同一根弹簧），主线程卡住也不停；
+     Worker 用同一条曲线、同一个起点时刻算着色器里的 uDS */
+  var DSW = null, dsAnim = null;
+  function dsCur() {
+    if (DSW) { var q = LP.curveAt(DSW.c, nowMs() - DSW.t0); DS.s = q[0]; DS.v = q[1]; }
+    return DS.s || 1;
+  }
+  function dsW(down) {
+    var t = nowMs(), cur = DSW ? LP.curveAt(DSW.c, t - DSW.t0) : [DS.s || 1, DS.v || 0];
+    if (DS.raf) { global.cancelAnimationFrame(DS.raf); DS.raf = 0; }
+    DS.down = !!down; DS.on = true; DS.s = cur[0]; DS.v = cur[1];
+    DSW = { t0: t, c: LP.dsCurve(cur[0], cur[1], !!down), down: !!down };
+    DockRefract.wl('ds', { down: !!down, at: t });
+    if (dsAnim) { try { dsAnim.cancel(); } catch (e) { /* */ } dsAnim = null; }
+    bar.style.removeProperty('scale'); bar.style.transition = 'box-shadow .3s';
+    var me = DSW;
+    try {
+      dsAnim = bar.animate(DSW.c.map(function (q) { return { scale: q[0].toFixed(5) }; }), { duration: Math.max(1, (DSW.c.length - 1) * FRAME), easing: 'linear', fill: 'forwards' });
+      if (!down) dsAnim.onfinish = function () {
+        if (DSW !== me) return;
+        DSW = null; try { dsAnim.cancel(); } catch (e) { /* */ } dsAnim = null;
+        DS.s = 1; DS.v = 0; DS.on = false;
+        if (bar) { bar.style.removeProperty('scale'); bar.style.removeProperty('transition'); }
+        settledCheck();
+      };
+    } catch (eA) { dsAnim = null; }
+  }
   function dsPress(down) {
     if (reduced || !bar) return;
+    if (lens && lens.w) { dsW(down); return; }
+    if (DSW) { dsCur(); DSW = null; if (dsAnim) { try { dsAnim.cancel(); } catch (e) { /* */ } dsAnim = null; } bar.style.scale = DS.s.toFixed(5); }
     DS.down = !!down;
     if (!DS.on) { DS.on = true; DS.last = nowMs(); DS.debt = 0; bar.style.transition = 'box-shadow .3s'; }
     if (!DS.raf && !lensRaf && !LD._manual) DS.raf = global.requestAnimationFrame(dsFrame);
@@ -551,7 +641,7 @@
     LD._manual = !!on;
     if (on && lensRaf) { global.cancelAnimationFrame(lensRaf); lensRaf = 0; }
     if (on && DS.raf) { global.cancelAnimationFrame(DS.raf); DS.raf = 0; }
-    if (!on && lens && !lensRaf) { lens.last = nowMs(); lensRaf = global.requestAnimationFrame(lensFrame); }
+    if (!on && lens && !lensRaf && !lens.w) { lens.last = nowMs(); lensRaf = global.requestAnimationFrame(lensFrame); }
     if (!on && DS.on && !DS.raf && !lens) { DS.last = nowMs(); DS.raf = global.requestAnimationFrame(dsFrame); }
   };
   LD._step = function (ms) {
@@ -779,7 +869,7 @@
     }
     var tb = thumbBox(a);
     thumb.style.transform = 'translate(' + (Math.max(lo - 4, Math.min(hi + 4, x)) - THUMB_PX / 2) + 'px,' + tb.y + 'px)';
-    if (lens) { lens.tx = lens.br.left + (x + w / 2); lens.rb = rb; lens.tap = false; }   /* 第 309 次：透镜跟手（第 319 次：未缩放坐标，dock 按下放大时不偏） */
+    if (lens) { lens.tx = lens.br.left + (x + w / 2); lens.rb = rb; lens.tap = false; if (lens.w) DockRefract.wl('mv', { tx: lens.tx, rb: rb }); }   /* 第 309 次：透镜跟手（第 319 次：未缩放坐标，dock 按下放大时不偏） */
     else thumb.classList.add('lg-grow');
     var h = nearest(e.clientX);
     if (h !== drag.hover) {
@@ -842,7 +932,7 @@
   LD.PHYS = PHYS;
   /* 第 319 次：dock 是否在动（透镜在场 / 按下缩放回弹中）——折射层据此推迟整页快照、不读布局；当前缩放；每帧耗时记录 */
   LD.animating = function () { return !!(lens || DS.on); };
-  LD.dockScale = function () { return DS.s || 1; };
+  LD.dockScale = function () { return dsCur(); };
   LD._perf = function (clear) { var o = { frames: perf.frames.slice(), long: perf.long.slice() }; if (clear) { perf.frames.length = 0; perf.long.length = 0; } return o; };
   LD._paceTest = function () { var o = {}; return [pace(o, 50), pace(o, 1000 / 60), pace(o, 1000 / 60)].map(function (v) { return Math.round(v * 100) / 100; }); };
   LD._ds = function () { return { s: DS.s, v: DS.v, on: DS.on, down: DS.down }; };
