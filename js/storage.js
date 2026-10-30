@@ -1512,16 +1512,23 @@
     /** 从 JSON 文本导入（逐字段清洗，坏字段回退默认而非搞坏整个应用） */
     /**
      * 第 187 次（P0：增量导入）：把备份文件「合并」进本机，而不是覆盖。
-     * 规则：只加本机没有的——有 id 的按 id 去重，没 id 的按整条内容去重；
-     *       疫苗/儿保已完成按剂次 key 只补缺；进行中的计时（openSleep 等）一律保留本机的。
-     * 宝宝对应：同 id → 同名同生日 → 双方都只有一个宝宝时视为同一个 → 否则作为新档案加入。
-     * opts.dryRun=true 时只算「会新增多少」，不改本机（导入预览用）。
-     * 返回 { total, parts: [{ name, n }], newBabies }。
+     * 第 333 次：宝宝只按 uuid 对应——
+     *   · 同 uuid → 合并进本机这个宝宝：记录按「宝宝 uuid + 类型 + id」去重，两边都有的同一条按 updatedAt 新者胜；
+     *   · uuid 不同 → 一律作为新宝宝档案导入，即使同名同生日也绝不按名字合并（预览里提示「这是另一个宝宝档案」）；
+     *   · 旧版备份里的旧短 id 先按第 332 次同一规则 sha256('yiya-baby|' + 旧 id) 换成 uuid 再比，所以自己的旧备份照样对得上；
+     *   · 第 80 次以前（还没有宝宝档案）的备份没有 id 可比：按文件内容确定性地生成 uuid，重复导入落到同一个档案里，不会越导越多；
+     *   · 本机一个宝宝都没有（新手机 / 清空后）：导入的宝宝按原 uuid 加进来，第一个成为当前宝宝。
+     * 家庭共享：只动 data（宝宝档案 + 记录），家庭密钥 / token / familyId 本来就不在 data 里；新导入的宝宝不进共享清单
+     *   （共享清单在 FamSync 自己的存储里，这里不碰）。
+     * 疫苗/儿保已完成按剂次 key 只补缺；进行中的计时（openSleep 等）一律保留本机的。
+     * opts.dryRun=true 时只算会新增 / 更新多少，不改本机（导入预览用）。
+     * 返回 { total, added, updated, parts: [{ name, n }], newBabies, babies: [{ id, name, mode:'merge'|'new', n }], sameNameOther: [name] }。
      */
     mergeJSON: function (text, opts) {
       opts = opts || {};
       var parsed = JSON.parse(text);
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('数据格式错误');
+      var preBabies = !Array.isArray(parsed.babies) || !parsed.babies.length;
       var keep = this.data;
       var inc;
       try {
@@ -1531,26 +1538,42 @@
         Meta.migrate(this.data);   /* 第 332 次：文件里的旧宝宝 id 按同一规则换成 uuid，才能和本机迁移过的 id 对上 */
         inc = this.data;
       } finally { this._noSnapshot = false; this.data = keep; }
+      /* 第 80 次以前的备份：迁移时现播种的宝宝 id 是随机的，换成按内容确定的 uuid（同一文件导几次都一样） */
+      if (preBabies && (inc.babies || []).length === 1) {
+        var ob0 = inc.babies[0], oldId = ob0.id;
+        ob0.id = uuidFrom('yiya-baby|legacy|' + (ob0.name || '') + '|' + (ob0.birthDate || '') + '|' + ((inc.feedings || [])[0] ? (inc.feedings[0].id || inc.feedings[0].time || '') : ''));
+        if (inc.settings && inc.settings.activeBabyId === oldId) inc.settings.activeBabyId = ob0.id;
+      }
       var cur = opts.dryRun ? sanitize(JSON.parse(JSON.stringify(keep))) : keep;
-      var counts = {};
+      var counts = {}, nAdd = 0, nUpd = 0;
       function bump(k, n) { if (n) counts[k] = (counts[k] || 0) + n; }
       function fp(x) { try { return JSON.stringify(x); } catch (e) { return String(Math.random()); } }
+      function newer(a, b) { var au = +a.updatedAt, bu = +b.updatedAt; return isFinite(au) && (!isFinite(bu) || au > bu); }
+      function strip(x) { var c = JSON.parse(JSON.stringify(x)); if (c && typeof c.by === 'string' && /^d_/.test(c.by)) c.by = 'fam'; return c; }
+      /* 有 id：同 id 两边都有 → updatedAt 新者胜（文件更新就替换，否则不动）；本机没有 → 加；没 id 的老记录按整条内容去重 */
       function mergeArr(dst, src) {
         if (!Array.isArray(src) || !src.length) return 0;
         var ids = {}, fps = {}, n = 0;
-        dst.forEach(function (x) { if (x && x.id != null) ids[x.id] = 1; else fps[fp(x)] = 1; });
+        dst.forEach(function (x, i) { if (x && x.id != null) ids[x.id] = i + 1; else fps[fp(x)] = 1; });
         src.forEach(function (x) {
           if (!x || typeof x !== 'object') return;
-          if (x.id != null) { if (ids[x.id]) return; ids[x.id] = 1; }
-          else { var f = fp(x); if (fps[f]) return; fps[f] = 1; }
-          dst.push(JSON.parse(JSON.stringify(x))); n++;
+          if (x.id != null) {
+            var at = ids[x.id];
+            if (at) {
+              var y = dst[at - 1];
+              if (y && y !== x && newer(x, y) && contentHash(x) !== contentHash(y)) { dst[at - 1] = strip(x); n++; nUpd++; }
+              return;
+            }
+            ids[x.id] = dst.length + 1;
+          } else { var f = fp(x); if (fps[f]) return; fps[f] = 1; }
+          dst.push(strip(x)); n++; nAdd++;
         });
         return n;
       }
       function mergeMap(dst, src) {
         var n = 0;
         if (!src || typeof src !== 'object') return 0;
-        Object.keys(src).forEach(function (k) { if (dst[k] == null && src[k] != null) { dst[k] = src[k]; n++; } });
+        Object.keys(src).forEach(function (k) { if (dst[k] == null && src[k] != null) { dst[k] = src[k]; n++; nAdd++; } });
         return n;
       }
       var LABEL = { feedings: '喂养', sleeps: '睡眠', diapers: '尿布', growth: '生长', meds: '吃药', milestones: '里程碑',
@@ -1600,45 +1623,54 @@
         cur.pregnancy.dateBasis = inc.pregnancy.dateBasis || null;
         bump('预产期', 1);
       }
-      /* 宝宝层 */
-      var incBabies = (inc.babies || []).slice();
+      /* 宝宝层（第 333 次：只按 uuid） */
+      var incBabies = (inc.babies || []).filter(function (b) { return b && typeof b.id === 'string'; });
       var incAct = inc.settings && inc.settings.activeBabyId;
       function incDataOf(b) { return (b.id === incAct || !b.rec) ? pickBaby(inc) : b.rec; }
-      if (!incBabies.length) incBabies = [{ id: null, name: '', birthDate: null, _top: true }];
-      var curBabies = cur.babies || [];
-      var curAct = cur.settings && cur.settings.activeBabyId;
-      var newBabies = 0;
-      /* 第 286 次（数据管理半屏）：opts.target 指定文件里「当前宝宝」那一份记录去哪：
-         'current' = 合并进本机当前宝宝（按 id 去重）；'new' = 新建一个宝宝档案放进去。文件里的其他宝宝仍按下面的规则对应。 */
-      var tgt = opts.target === 'current' || opts.target === 'new' ? opts.target : null;
+      if (!cur.settings || typeof cur.settings !== 'object') cur.settings = defaultData().settings;
+      var curBabies = Array.isArray(cur.babies) ? cur.babies : (cur.babies = []);
+      var curAct = cur.settings.activeBabyId;
+      var hasAct = curBabies.some(function (b) { return b && b.id === curAct; });
+      var newBabies = 0, babyRes = [], sameName = [];
+      function recCount(src) { var n = 0; ARR_BABY.forEach(function (k) { if (Array.isArray(src[k])) n += src[k].length; }); return n; }
+      /* 文件里没有宝宝档案、记录却在顶层（删光档案后导出的）：按内容定一个确定性的 uuid，当一个宝宝导入 */
+      if (!incBabies.length && recCount(pickBaby(inc))) {
+        var t0 = pickBaby(inc), f0 = (t0.feedings || [])[0] || (t0.diapers || [])[0] || (t0.sleeps || [])[0] || {};
+        incBabies = [{ id: uuidFrom('yiya-baby|legacy|top|' + (f0.id || f0.time || f0.start || '')), name: '宝宝', birthDate: null }];
+      }
       incBabies.forEach(function (ib) {
-        var src = ib._top ? pickBaby(inc) : incDataOf(ib);
-        if (tgt && (ib._top || ib.id === incAct || incBabies.length === 1)) {
-          if (tgt === 'current') { mergeBaby(cur, src); return; }
-          var fresh = { id: newUuid(), name: ib.name || '宝宝', photo: ib.photo || null,
-            birthDate: ib.birthDate || null, rec: JSON.parse(JSON.stringify(src)) };
-          curBabies.push(fresh); newBabies++;
-          var nNew = 0;
-          ARR_BABY.forEach(function (k) { if (Array.isArray(src[k])) nNew += src[k].length; });
-          bump('新宝宝档案的记录', nNew);
+        var src = incDataOf(ib);
+        var hit = curBabies.filter(function (b) { return b && b.id === ib.id; })[0];
+        if (hit) {
+          var c0 = nAdd + nUpd;
+          mergeBaby(hit.id === curAct || !hit.rec ? cur : hit.rec, src);
+          if (!hit.birthDate && ib.birthDate) hit.birthDate = ib.birthDate;
+          babyRes.push({ id: ib.id, name: hit.name || ib.name || '宝宝', mode: 'merge', n: nAdd + nUpd - c0 });
           return;
         }
-        var hit = curBabies.filter(function (b) { return ib.id && b.id === ib.id; })[0]
-          || curBabies.filter(function (b) { return ib.name && b.name === ib.name && b.birthDate && b.birthDate === ib.birthDate; })[0]
-          || ((incBabies.length === 1 && curBabies.length <= 1) ? (curBabies[0] || { id: curAct, _top: true }) : null);
-        if (hit) {
-          if (hit._top || hit.id === curAct || !hit.rec) mergeBaby(cur, src);
-          else mergeBaby(hit.rec, src);
-          if (!hit._top && !hit.birthDate && ib.birthDate) hit.birthDate = ib.birthDate;
+        var nm = String(ib.name || '宝宝');
+        var twin = curBabies.filter(function (b) { return b && (b.name || '宝宝') === nm; })[0];
+        if (twin && sameName.indexOf(nm) < 0) sameName.push(nm);
+        var nRec = recCount(src);
+        /* 文件里只有空档案（没有记录）且本机已有宝宝：不凭空加一个空的同名档案 */
+        if (!nRec && hasAct && twin) { babyRes.push({ id: ib.id, name: nm, mode: 'skip', n: 0 }); return; }
+        var nb = { id: ib.id, name: nm.slice(0, 12), photo: ib.photo || null, birthDate: ib.birthDate || null };
+        ['nickname', 'sex', 'preterm', 'birthGestWeeks', 'birthLunar'].forEach(function (k) { if (ib[k] != null) nb[k] = ib[k]; });
+        if (!hasAct) {
+          /* 本机还没有宝宝：这个宝宝直接成为当前宝宝，记录进顶层（新手机恢复备份） */
+          curBabies.push(nb); cur.settings.activeBabyId = nb.id; curAct = nb.id; hasAct = true;
+          mergeBaby(cur, src);
+          if (nb.birthDate && cur.settings.baby && typeof cur.settings.baby === 'object') { cur.settings.baby.birthDate = nb.birthDate; if (!cur.settings.baby.name) cur.settings.baby.name = nb.name; }
         } else {
-          var nb = { id: ib.id || newUuid(), name: ib.name || '宝宝', photo: ib.photo || null,
-            birthDate: ib.birthDate || null, rec: JSON.parse(JSON.stringify(src)) };
-          if (curBabies.filter(function (b) { return b.id === nb.id; }).length) nb.id = newUuid();
-          curBabies.push(nb); newBabies++;
-          var nRec = 0;
-          ARR_BABY.forEach(function (k) { if (Array.isArray(src[k])) nRec += src[k].length; });
-          bump('新宝宝档案的记录', nRec);
+          nb.rec = {};
+          var def = defaultData(); BABY_KEYS.forEach(function (k) { nb.rec[k] = JSON.parse(JSON.stringify(def[k])); });
+          ARR_BABY.forEach(function (k) { nb.rec[k] = Array.isArray(src[k]) ? src[k].map(strip) : []; });
+          ['vaccines', 'checkups'].forEach(function (k) { if (src[k] && typeof src[k] === 'object') nb.rec[k] = JSON.parse(JSON.stringify(src[k])); });
+          curBabies.push(nb);
+          nAdd += nRec; bump('新宝宝档案的记录', nRec);
         }
+        newBabies++;
+        babyRes.push({ id: ib.id, name: nm, mode: 'new', n: nRec });
       });
       cur.babies = curBabies;
       if (cur.settings && cur.settings.baby && !cur.settings.baby.birthDate) {
@@ -1654,7 +1686,7 @@
         Meta.migrate(this.data);
         this.save();
       }
-      return { total: total, parts: parts, newBabies: newBabies };
+      return { total: total, added: nAdd, updated: nUpd, parts: parts, newBabies: newBabies, babies: babyRes, sameNameOther: sameName };
     },
 
     importJSON: function (text) {

@@ -1772,6 +1772,30 @@
     return n;
   }
 
+  /* 第 333 次：整体覆盖抽出来，「数据管理」导入预览里的「整体覆盖本机…」也走这一个确认框 */
+  function overwriteFrom(text) {
+    var incoming = null;
+    try { incoming = JSON.parse(text); } catch (e) { incoming = null; }
+    function doImport() {
+      try {
+        Storage.importJSON(text);
+        Util.toast('导入成功，已恢复全部数据。', 'ok');
+        rerender();
+      } catch (e) {
+        Util.toast('导入失败：' + (e && e.message ? e.message : e), 'error');
+      }
+    }
+    if (!incoming || typeof incoming !== 'object') { doImport(); return; }
+    Util.confirm({
+      title: '导入前确认',
+      message: '导入会覆盖本机全部数据：现有 ' + countRecords(Storage.get()) + ' 条记录，将被替换为文件中的 ' + countRecords(incoming) + ' 条，覆盖后无法找回。',
+      okText: '仍要导入',
+      cancelText: '取消',
+      danger: true,
+      extra: { text: '先导出现有数据', onClick: function () { exportAll(); } },
+      onConfirm: doImport
+    });
+  }
   function importAll() {
     var inp = document.createElement('input');
     inp.type = 'file';
@@ -1781,32 +1805,10 @@
       var reader = new FileReader();
       reader.onload = function () {
         var text = String(reader.result);
-        function doImport() {
-          try {
-            Storage.importJSON(text);
-            Util.toast('导入成功，已恢复全部数据。', 'ok');
-            rerender();
-          } catch (e) {
-            Util.toast('导入失败：' + (e && e.message ? e.message : e), 'error');
-          }
-        }
         var incoming = null;
         try { incoming = JSON.parse(text); } catch (e) { /* 让 importJSON 给出解析错误 */ }
-        /* 第 187 次：默认「合并导入」——先算出会新增哪些，确认后只加本机没有的；
-           整体覆盖降为次要入口（换手机恢复备份时用）。 */
-        function askOverwrite() {
-          var cur = countRecords(Storage.get());
-          var inc = countRecords(incoming);
-          Util.confirm({
-            title: '导入前确认',
-            message: '导入会覆盖本机全部数据：现有 ' + cur + ' 条记录，将被替换为文件中的 ' + inc + ' 条，覆盖后无法找回。',
-            okText: '仍要导入',
-            cancelText: '取消',
-            danger: true,
-            extra: { text: '先导出现有数据', onClick: function () { exportAll(); } },
-            onConfirm: doImport
-          });
-        }
+        /* 第 187 次：默认「合并导入」——先算出会新增哪些，确认后只加本机没有的；整体覆盖降为次要入口。
+           第 333 次：宝宝只按 uuid 对应；同名但 uuid 不同的宝宝单独导入，预览里提示一句。 */
         var preview = null;
         if (incoming && typeof incoming === 'object' && !Array.isArray(incoming)) {
           try { preview = Storage.mergeJSON(text, { dryRun: true }); } catch (e) { preview = null; }
@@ -1814,14 +1816,15 @@
         if (preview) {
           var lines = preview.parts.slice(0, 6).map(function (p) { return p.name + ' ' + p.n; }).join('、')
             + (preview.parts.length > 6 ? ' 等' : '');
+          var twin = (preview.sameNameOther || []).length ? '「' + preview.sameNameOther.join('」「') + '」这是另一个宝宝档案，会单独导入。' : '';
           Util.confirm({
-            title: preview.total ? '合并导入：新增 ' + preview.total + ' 条' : '没有新记录',
+            title: preview.total ? '合并导入：' + preview.total + ' 条' : '没有新记录',
             message: preview.total
-              ? '只把文件里本机没有的记录加进来（' + lines + '）' + (preview.newBabies ? '，并新增 ' + preview.newBabies + ' 个宝宝档案' : '') + '。本机现有记录不改、不删。'
+              ? '把文件里本机没有的记录加进来（' + lines + '）' + (preview.newBabies ? '，并新增 ' + preview.newBabies + ' 个宝宝档案' : '') + '。同一条两边都改过的以较新的为准，本机记录不删。' + twin
               : '文件里的记录本机都已经有了。若想用文件整体替换本机数据，可以选「整体覆盖」。',
             okText: preview.total ? '合并导入' : '知道了',
             cancelText: '取消',
-            extra: { text: '整体覆盖…', onClick: askOverwrite },
+            extra: { text: '整体覆盖…', onClick: function () { overwriteFrom(text); } },
             onConfirm: function () {
               if (!preview.total) return;
               try {
@@ -1833,11 +1836,7 @@
               }
             }
           });
-        } else if (incoming && typeof incoming === 'object') {
-          askOverwrite();
-        } else {
-          doImport();
-        }
+        } else overwriteFrom(text);
       };
       reader.readAsText(inp.files[0]);
     });
@@ -2041,6 +2040,7 @@
     exportAll: exportAll,
     exportShare: exportShare,
     importAll: importAll,
+    overwriteFrom: overwriteFrom,
     resetAll: resetAll,
     applyTheme: applyTheme,
     buildTabbar: buildTabbar, /* 第 97 次：设置页改「底栏快捷入口」后即时重建底栏 */
