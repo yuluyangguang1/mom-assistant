@@ -1003,6 +1003,11 @@
   html += '<p class="hint">阶段由预产期/宝宝生日自动判定，这里可覆盖。</p></div>';
       html += '</details>';
 
+      /* 第 332 次：家庭共享（端到端加密中转）。内容由 js/famui.js 渲染进 #famBox；放在「称呼与阶段」之后，前面各组的序号不变 */
+      html += sgOpen('baby', '家庭共享', '和家人一起记 / 扫码加入 / 端到端加密');
+      html += '<div id="famBox" class="fam-box"></div>';
+      html += '</details>';
+
       html += sgOpen('sun', '外观', '主题 / 玻璃折射 / 触感 / 常亮 / 天空时刻预览');
       /* 主题四选（第 40 次移除顶栏按钮；第 41 次加「跟随系统」）：这里是唯一主题入口 */
       html += '<div class="card">';
@@ -1132,6 +1137,7 @@
          侧滑 / 系统返回 / 返回钮都回到目录（history 与转场由 App.enterSub 统一管理）。
          各组内容仍一次性渲染在 DOM 里，下面的事件绑定一行不用改；
          组内改设置触发 rerender（silent）时，按 _sgCur 原地回到同一组，不会被踢回目录。 */
+      if (global.FamUI) FamUI.mount(view.querySelector('#famBox'));
       var sgHead = view.querySelector('.page-head h1');
       var sgGroups = view.querySelectorAll('.set-group');
       function sgShow(idx, push) {
