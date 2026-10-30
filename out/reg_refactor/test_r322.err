@@ -1,0 +1,4 @@
+Skipping host requirements validation logic because `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS` env variable is set.
+/workspace/work/worker328/tests/regression.py:6670: DeprecationWarning: Image.Image.getdata is deprecated and will be removed in Pillow 14 (2027-10-15). Use get_flattened_data instead.
+  bb = strong.getbbox(); mx = max(sum(px) for px in dif.getdata()) if bb else 0
+@@TIME test_r322 79.3s

@@ -199,6 +199,8 @@ var ASSETS = [
   'assets/hero/whitenoise.webp',
   'js/glass.js',
   'js/glass-optics.js', /* 第 312 次：液态玻璃共用光学模块 */
+  'js/lens-phys.js', /* 第 328 次（原型）：透镜物理，主线程 / Worker 共用 */
+  'js/dock-worker.js', /* 第 328 次（原型）：dock 透镜 Worker 渲染 */
   'js/dock-refract.js', /* 第 275 次：iOS dock 真折射 */
   'js/dock-icons.js', /* 第 315 次：dock 线条 / 填色两套同路径图标 */
   'js/liquid-dock.js',
