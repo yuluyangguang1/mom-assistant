@@ -51,6 +51,11 @@
  *   「dock 液态玻璃折射」开；高对比 / 减少透明度时关；减少动态效果时只在静止时重拍、不跟随动画、高光不动。
  *   「自动」档下快照连续两次超过 150ms 就关闭本次会话的折射；滚动 <45fps 逐档降画质。
  *
+ * 第 328 次（原型分支 proto-worker-lens，不进 main）：支持 OffscreenCanvas + Worker WebGL 时，画布 transferControlToOffscreen 交给 js/dock-worker.js：
+ *   这里的 WebGL 调用全打到「录制代理」gl 上（同一份着色器 / uniform 代码），打包 postMessage 过去原样重放；画布纹理转 ImageBitmap（transferable）。
+ *   透镜的物理和逐帧重画也在 Worker（liquid-dock.js 只转发指针事件），切页时主线程再忙透镜也不停。不支持（没有 OffscreenCanvas / Worker 里拿不到 webgl）
+ *   自动退回原来的主线程实现；localStorage lgWorker = '0' 强制退回。顶部提示岛（要 drawImage 读 GL 画布）在 Worker 模式下只用 CSS 毛玻璃。
+ *
  * 资源：全程只有 1 个 WebGL 上下文、2 张纹理、1 个缓冲；提示岛在场时多 1 块 2D 小画布，消失即缩成 0×0 移除。
  *   关掉开关 / 降级时 stop()：取消 rAF 与定时器、断开观察器、删纹理 / 程序 / 缓冲、loseContext、移除全部画布。
  */
@@ -82,6 +87,8 @@
     stripes: 0, stripeMs: 0, stripeMax: 0, stripeRows: 0, deferred: 0, strips: 0, copies: 0, frames: 0 };
   var reduced = false;
   try { reduced = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* */ }
+  /* 第 328 次：Worker 渲染。wm = 本次 start 走 Worker；wOK 1 = Worker 里 webgl 建好了 / −1 = 失败（本次会话不再试）；cvW / cvH = 画布缓冲尺寸（转交后主线程不能再读写 cv.width） */
+  var W_ = null, wm = false, wOK = 0, wNo = false, wInfo = null, cvW = 0, cvH = 0, wPerf = null, wQ = null;
   var IMG = {};             /* 背景图 url → Image（同源，已在 SW 缓存里） */
   /* 第 277 次：玻璃面（live / toast；dock 自己不在表里）、局部重拍队列、动画循环、光线、按压 */
   var surf = {}, pend = [], stale = [], loopUntil = 0;
@@ -739,9 +746,131 @@
     if (t._w === src.width && t._h === src.height) { gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, src); stats.uploadsSub++; }
     else { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src); t._w = src.width; t._h = src.height; stats.uploadsRealloc++; }
   }
+  /* ---------- 第 328 次：Worker 渲染（录制代理 + 消息） ---------- */
+  function setCv(W, H) {
+    cvW = W; cvH = H;
+    if (wm) { if (gl && gl._size) gl._size(W, H); }
+    else { cv.width = W; cv.height = H; }
+  }
+  function workerWanted() {
+    if (wNo) return false;
+    try { if (global.localStorage.getItem('lgWorker') === '0') return false; } catch (e) { /* */ }
+    if (global.__lgNoWorker) return false;
+    return !!(global.Worker && global.OffscreenCanvas && global.HTMLCanvasElement && HTMLCanvasElement.prototype.transferControlToOffscreen && global.createImageBitmap && global.LensPhys);
+  }
+  /* 录制代理：和 WebGLRenderingContext 同样的调用，记下来按顺序发给 Worker。
+     · 创建对象 / 取 uniform 位置同步返回句柄（{$: id} / {$u: [程序 id, 名字]}），Worker 端懒解析；编译 / 链接状态乐观返回 true，真错误由 Worker 回报（→ 退回主线程实现）。
+     · 纹理源是画布 / 图片：createImageBitmap 转成 ImageBitmap（premultiply，对应原来的 UNPACK_PREMULTIPLY_ALPHA），等它好了再连同后面的命令一起发，顺序不乱
+       （快照纹理与它对应的 uPS / uS / uY0 一定同一批到）；ImageData / 数组拷一份、buffer transferable。 */
+  function mkProxy() {
+    var P = {}, q = [], ids = 0, sched = false;
+    var proto = global.WebGLRenderingContext && WebGLRenderingContext.prototype;
+    if (proto) for (var k in proto) { if (/^[A-Z][A-Z0-9_]*$/.test(k)) { try { P[k] = proto[k]; } catch (e) { /* */ } } }
+    function enc(a) {
+      if (a && typeof a === 'object') {
+        if (a.$ != null || a.$u) return a;
+        if (a instanceof Float32Array) return new Float32Array(a);
+        if (ArrayBuffer.isView(a)) return a.slice ? a.slice() : a;
+      }
+      return a;
+    }
+    function flush() {
+      sched = false;
+      if (!W_) { q.length = 0; return; }
+      var n = 0; while (n < q.length && !q[n].pend) n++;
+      if (!n) return;
+      var part = q.splice(0, n), cmds = [], tr = [];
+      for (var i = 0; i < part.length; i++) { cmds.push(part[i].a); if (part[i].tr) for (var j = 0; j < part[i].tr.length; j++) tr.push(part[i].tr[j]); }
+      try { W_.postMessage({ t: 'cmd', q: cmds }, tr); } catch (e) { DR._err = 'post:' + e; }
+      wQ.batches++; wQ.cmds += cmds.length;
+    }
+    function push(c) { q.push(c); if (!sched) { sched = true; Promise.resolve().then(flush); } }
+    function rec(name) { return function () { var a = [name]; for (var i = 0; i < arguments.length; i++) a.push(enc(arguments[i])); push({ a: a }); }; }
+    ['activeTexture', 'bindTexture', 'texParameteri', 'pixelStorei', 'uniform1f', 'uniform2f', 'uniform3f', 'uniform4f', 'uniform1i', 'uniform4fv', 'useProgram', 'viewport',
+      'clearColor', 'clear', 'drawArrays', 'deleteTexture', 'deleteShader', 'deleteProgram', 'deleteBuffer', 'attachShader', 'shaderSource', 'compileShader', 'linkProgram',
+      'bindBuffer', 'bufferData', 'enableVertexAttribArray', 'vertexAttribPointer', 'bindAttribLocation'].forEach(function (n) { P[n] = rec(n); });
+    function mk(type) { return function (x) { var id = ++ids; push({ a: ['create', type, id, x] }); return { $: id }; }; }
+    P.createShader = mk('Shader'); P.createProgram = mk('Program'); P.createTexture = mk('Texture'); P.createBuffer = mk('Buffer');
+    P.getUniformLocation = function (p, n) { return p ? { $u: [p.$, n] } : null; };
+    P.getAttribLocation = function () { return 0; };
+    P.getShaderParameter = P.getProgramParameter = function () { return true; };
+    P.getShaderInfoLog = P.getProgramInfoLog = function () { return ''; };
+    P.isContextLost = function () { return false; };
+    P.getExtension = function (n) { return n === 'WEBGL_lose_context' ? { loseContext: function () { push({ a: ['lose'] }); } } : null; };
+    function isSrc(x) { return x && typeof x === 'object' && (('getContext' in x) || ('naturalWidth' in x) || (global.ImageBitmap && x instanceof ImageBitmap)); }
+    function bitmap(c, idx, src) {
+      var w = src.width || src.naturalWidth || 0, h = src.height || src.naturalHeight || 0;
+      if (!w || !h) { c.a = ['nop']; return; }
+      c.pend = true; wQ.bitmaps++;
+      var t0 = global.performance ? performance.now() : Date.now();
+      global.createImageBitmap(src, { premultiplyAlpha: 'premultiply' }).then(function (bm) {
+        c.a[idx] = bm; c.tr = [bm]; c.pend = false;
+        wQ.bmMs = Math.round(((global.performance ? performance.now() : Date.now()) - t0) * 10) / 10;
+        flush();
+      }, function (e) { c.a = ['nop']; c.pend = false; DR._err = 'bitmap:' + e; flush(); });
+    }
+    function imgData(x) { return x && typeof x === 'object' && x.data && x.width != null && !('getContext' in x); }
+    P.texImage2D = function () {
+      var a = Array.prototype.slice.call(arguments);
+      if (a.length === 6) {
+        var src = a[5];
+        if (imgData(src)) { var u = new Uint8Array(src.data); push({ a: ['texImage2D', a[0], a[1], a[2], src.width, src.height, 0, a[3], a[4], u], tr: [u.buffer] }); return; }
+        var c = { a: ['texImage2D', a[0], a[1], a[2], a[3], a[4], null] };
+        push(c); if (isSrc(src)) bitmap(c, 6, src); else c.a = ['nop'];
+        return;
+      }
+      var arr = a[8] ? enc(a[8]) : null;
+      push({ a: ['texImage2D'].concat(a.slice(0, 8)).concat([arr]), tr: arr && arr.buffer ? [arr.buffer] : null });
+    };
+    P.texSubImage2D = function () {
+      var a = Array.prototype.slice.call(arguments);
+      if (a.length === 7) {
+        var src = a[6];
+        if (imgData(src)) { var u = new Uint8Array(src.data); push({ a: ['texSubImage2D', a[0], a[1], a[2], a[3], src.width, src.height, a[4], a[5], u], tr: [u.buffer] }); return; }
+        var c = { a: ['texSubImage2D', a[0], a[1], a[2], a[3], a[4], a[5], null] };
+        push(c); if (isSrc(src)) bitmap(c, 7, src); else c.a = ['nop'];
+        return;
+      }
+      var arr = enc(a[8]);
+      push({ a: ['texSubImage2D'].concat(a.slice(0, 8)).concat([arr]), tr: arr && arr.buffer ? [arr.buffer] : null });
+    };
+    P._size = function (w, h) { push({ a: ['size', w, h] }); };
+    P._mark = function (m) { push({ a: m }); };
+    P._flush = flush;
+    P._proxy = true;
+    return P;
+  }
+  function wMsg(e) {
+    var d = e.data || {};
+    if (d.t === 'ready') {
+      wInfo = d;
+      if (d.ok) { wOK = 1; return; }
+      workerFail('no-webgl-in-worker' + (d.err ? ':' + d.err : ''));
+      return;
+    }
+    if (d.t === 'L') { if (global.LiquidDock && LiquidDock._wmsg) LiquidDock._wmsg(d); return; }
+    if (d.t === 'perf') { wPerf = d; return; }
+    if (d.t === 'err') {
+      wQ.errs = (wQ.errs || []).concat(d.errs).slice(-10);
+      if (d.errs.some(function (x) { return /^(compile|link):/.test(x); })) workerFail('shader:' + d.errs[0]);
+      return;
+    }
+    if (d.t === 'lost') { lost = true; ready = false; if (cv) cv.classList.remove('on'); return; }
+    if (d.t === 'restored') { lost = false; freeGL(false); stats.ctxLive = 0; if (initGL()) markDirty(true); }
+  }
+  /* Worker 里建不出 webgl（WebKit 旧版 / 某些 GPU 黑名单）或着色器出错：本次会话退回主线程实现（换一块新画布重来） */
+  function workerFail(why) {
+    wOK = -1; wNo = true; DR._wfail = why;
+    if (!on) return;
+    var b = bar;
+    DR.stop();
+    if (global.LiquidDock && LiquidDock.refresh) LiquidDock.refresh(); else DR.start(b);
+  }
+  var GLOPTS = { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false, powerPreference: 'low-power' };
+  var WURL = (function () { try { var sc = doc.currentScript && doc.currentScript.src; if (sc) return sc.replace(/dock-refract\.js(\?.*)?$/, 'dock-worker.js'); } catch (e) { /* */ } return 'js/dock-worker.js'; })();
   function initGL() {
-    var opts = { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false, powerPreference: 'low-power' };
-    gl = cv.getContext('webgl', opts) || cv.getContext('experimental-webgl', opts);
+    var opts = GLOPTS;
+    gl = wm ? mkProxy() : (cv.getContext('webgl', opts) || cv.getContext('experimental-webgl', opts));
     if (!gl) return false;
     stats.ctxCreated++; stats.ctxLive = 1;
     function sh(type, src) { var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { DR._err = gl.getShaderInfoLog(s); return null; } return s; }
@@ -873,6 +1002,7 @@
       schedule();
       return true;
     }
+    if (wm) { delete surf[id]; return false; }   /* 第 328 次：Worker 模式下主线程读不到 GL 画布（不能 drawImage），提示岛只用 CSS 毛玻璃 */
     if (!s.c) {
       s.c = doc.createElement('canvas'); s.c.className = 'lg-gl2'; s.c.setAttribute('aria-hidden', 'true');
       s.g = s.c.getContext('2d');
@@ -987,9 +1117,9 @@
     var dpr = sd0 * (mv ? FZ_LOW : 1);
     var W = Math.max(2, Math.round(u.w * dpr)), H = Math.max(2, Math.round(u.h * dpr));
     fzSt.low = mv; fzSt.dpr = Math.round(dpr * 100) / 100;
-    if (cv.width !== W || cv.height !== H) {
-      var up = W > cv.width;
-      cv.width = W; cv.height = H;
+    if (cvW !== W || cvH !== H) {
+      var up = W > cvW;
+      setCv(W, H);
       /* 第 327 次：WebKit 改了画布缓冲尺寸后这一帧不一定立即合成（第 314 次注释）——升回满分辨率那一帧顺手改一个无视觉影响的样式，逼它合成新缓冲，不多停一帧糊图 */
       if (up) { cv.style.outlineOffset = (cv.style.outlineOffset === '0.001px' ? '0.002px' : '0.001px'); fzSt.ups = (fzSt.ups || 0) + 1; }
     }
@@ -1039,7 +1169,7 @@
   };
   DR.fuseOk = function () { return !!(on && ready && !lost && gl && progF); };
   DR.fuseDrawn = function () { return !!(fz && fzDrawn); };
-  DR._fz = function () { return { on: !!fz, drawn: fzDrawn, n: fz ? fz.list.length : 0, list: fz ? fz.list : null, ext: fz ? fz.ext : null, fill: fz ? fz.fill : null, tint: fz ? fz.tint : null, moving: fz ? fz.moving : null, err: fzErr, prog: !!progF, st: fzSt, canvas: cv ? [cv.width, cv.height] : null }; };
+  DR._fz = function () { return { on: !!fz, drawn: fzDrawn, n: fz ? fz.list.length : 0, list: fz ? fz.list : null, ext: fz ? fz.ext : null, fill: fz ? fz.fill : null, tint: fz ? fz.tint : null, moving: fz ? fz.moving : null, err: fzErr, prog: !!progF, st: fzSt, canvas: cv ? [cvW, cvH] : null }; };
   DR.press = function (id, down) {
     if (!on || reduced) return;
     press['t' + id] = down ? 1 : 0;
@@ -1231,7 +1361,7 @@
     L = L || U;
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texP);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texB);
-    gl.uniform2f(L.uCv, cv.width, cv.height);
+    gl.uniform2f(L.uCv, cvW, cvH);
     gl.uniform2f(L.uPS, pageMeta.w, pageMeta.h);
     gl.uniform2f(L.uScroll, global.scrollX || 0, global.scrollY || 0);
     gl.uniform4f(L.uStrip, stripMeta.x, stripMeta.y, stripMeta.w, stripMeta.h);
@@ -1381,7 +1511,7 @@
     if (!u && box.w <= 20) box = dockShape;
     /* 顶部提示岛（离 dock 很远、层级在面板之上）：同一块 WebGL 画布先按它的位置画一遍，drawImage 拷进它自己的小画布 */
     var dpr = surfDpr(), job = null, ts2 = surf.toast;
-    if (ts2 && ts2.el && ts2.el.isConnected && !ts2.el.hidden && ts2.c) {
+    if (ts2 && ts2.el && ts2.el.isConnected && !ts2.el.hidden && ts2.c && !wm) {
       if (ts2.c.parentNode !== ts2.el) ts2.el.insertBefore(ts2.c, ts2.el.firstChild);
       var tb = boxOf(ts2.el.getBoundingClientRect());
       if (tb.w < 10 || tb.h < 10 || blockedTop(tb) || (!stripMeta.opaque && !inWin(ts2.el.getBoundingClientRect())) || hiddenForNav) ts2.c.classList.remove('on');
@@ -1392,7 +1522,7 @@
     var gdpr = lshape && !LT ? Math.min(dpr, 1.5) : dpr;
     stats.box = box; stats.shape = dockShape;
     var W = Math.max(2, Math.round(box.w * gdpr)), H = Math.max(2, Math.round(box.h * gdpr));
-    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    if (cvW !== W || cvH !== H) setCv(W, H);
     setCommon();
     /* 第 320 次：融合程序预热——第一次用一个着色器程序画时驱动才真正编译（软件 GL 实测第一次推入卡 ~700ms，iOS 首帧也会卡一下）。
        空闲时（不在动）先用它画 1×1 一次，紧接着下面的 dock 正常画会整块清掉重画，看不见 */
@@ -1426,6 +1556,7 @@
       var T = LT;
       bar.classList.toggle('lg-lens', !!th);
       render({ box: box, A: dockShape, B: lshape, k: fk, T: T, tint: tintOf(bar), band: BAND, press: Math.max(press.dock, press.live), px: W / box.w });
+      if (wm && gl._mark) gl._mark(['@dock', prog.$, doc.body.classList.contains('dark') ? 1 : 0, reduced ? 1 : 0]);   /* 第 328 次：Worker 据此知道哪个程序是 dock 主程序、透镜帧在它上面只改透镜 uniform 重画 */
       setBand(ls, !!lshape && !hiddenForNav);
     }
     if (ls && !lsOn) setBand(ls, false);
@@ -1617,6 +1748,22 @@
     if (!bar) return false;
     cv = doc.createElement('canvas');
     cv.className = 'lg-gl'; cv.setAttribute('aria-hidden', 'true');
+    cvW = cv.width; cvH = cv.height;
+    /* 第 328 次：能用 Worker 就把画布交出去（之后主线程只往录制代理上画）；Worker 回报建不出 webgl 再整套退回主线程 */
+    wm = workerWanted(); wOK = 0; wInfo = null; wPerf = null;
+    if (wm) {
+      try {
+        var off = cv.transferControlToOffscreen();
+        W_ = new Worker(WURL);
+        W_.onmessage = wMsg;
+        W_.onerror = function (ev) { workerFail('worker-error:' + (ev && ev.message || '')); };
+        wQ = { batches: 0, cmds: 0, bitmaps: 0, bmMs: 0 };
+        W_.postMessage({ t: 'init', c: off, opts: GLOPTS, mo: global.performance && performance.timeOrigin || 0 }, [off]);
+      } catch (eW) {
+        DR._wfail = 'spawn:' + eW; wm = false; wNo = true; W_ = null;
+        cv = doc.createElement('canvas'); cv.className = 'lg-gl'; cv.setAttribute('aria-hidden', 'true'); cvW = cv.width; cvH = cv.height;
+      }
+    }
     if (!pageCv) {
       pageCv = doc.createElement('canvas');
       /* 第 277 次：局部重拍要回读一条横带，整页快照画布按「常回读」建（CPU 位图，读回不经 GPU） */
@@ -1624,9 +1771,11 @@
       if (!pctx) pctx = pageCv.getContext('2d');
     }
     if (!stripCv) { stripCv = doc.createElement('canvas'); sctx = stripCv.getContext('2d'); }
-    if (!pctx || !sctx || !initGL()) { freeGL(true); cv = null; disabledReason = disabledReason || 'no-webgl'; return false; }
-    cv.addEventListener('webglcontextlost', onLost, false);
-    cv.addEventListener('webglcontextrestored', onRestored, false);
+    if (!pctx || !sctx || !initGL()) { freeGL(true); cv = null; if (W_) { W_.terminate(); W_ = null; } wm = false; disabledReason = disabledReason || 'no-webgl'; return false; }
+    if (!wm) {
+      cv.addEventListener('webglcontextlost', onLost, false);
+      cv.addEventListener('webglcontextrestored', onRestored, false);
+    }
     on = true; ready = false;
     DR.attach(bar);
     doc.documentElement.classList.add('lg-gl');
@@ -1691,9 +1840,11 @@
     doc.removeEventListener('visibilitychange', onVis);
     if (cv) { cv.removeEventListener('webglcontextlost', onLost); cv.removeEventListener('webglcontextrestored', onRestored); }
     Object.keys(surf).forEach(function (k) { DR.unsurface(k); });
+    var px0 = gl;
     freeGL(true);
+    if (W_) { try { if (px0 && px0._flush) px0._flush(); W_.postMessage({ t: 'stop' }); } catch (eS) { /* */ } W_ = null; }
     if (cv && cv.parentNode) cv.parentNode.removeChild(cv);
-    if (cv) { cv.width = 0; cv.height = 0; }
+    if (cv && !wm) { cv.width = 0; cv.height = 0; }
     cv = null;
     if (bar) { bar.classList.remove('lg-lens'); bar.style.removeProperty('--lg-ang'); }
     if (pageCv) { pageCv.width = 0; pageCv.height = 0; } if (stripCv) { stripCv.width = 0; stripCv.height = 0; }
@@ -1714,14 +1865,27 @@
     return on;
   };
   DR.reset = function () { disabledReason = ''; slowHits = 0; };
+  /* 第 328 次：Worker 透镜接口（liquid-dock.js 用）——wlOn = 透镜交给 Worker 推进；wl = 转发事件；lensMirror = 只记下透镜形状（主线程之后画 dock 时画布外扩 / 镜像 uniform 用），不当场画 */
+  DR.wlOn = function () { return !!(wm && wOK === 1 && on && ready && !lost && W_); };
+  DR.wl = function (t, d) { if (!W_) return; var m = d || {}; m.t = t; try { W_.postMessage(m); } catch (e) { /* */ } };
+  DR.lensMirror = function (rect, m, g, a, fx) {
+    var had = !!lensR;
+    lensR = rect && rect.w > 6 && rect.h > 6 ? rect : null; lensM = m || 0; lensG = g == null ? 1 : g; lensA = a == null ? 1 : Math.max(0, Math.min(1, a));
+    lensFx = fx || { hl: 0, flash: 0, fuse: 0, a: 0 };
+    if (fx && fx.br) geoC = { left: fx.br.left, top: fx.br.top, width: fx.br.width, height: fx.br.height, right: fx.br.right, bottom: fx.br.bottom };
+    if (lensR && !had && on && ready && gl && lensTexOn()) rasterLensIcons();
+  };
+  DR.workerMode = function () { return wm ? (wOK === 1 ? 'on' : wOK === 0 ? 'pending' : 'fail') : 'off'; };
+  DR._wperf = function (clear) { if (W_) W_.postMessage({ t: 'perf', clear: !!clear }); return wPerf; };
+  DR._wstate = function () { return { wm: wm, wOK: wOK, info: wInfo, fail: DR._wfail || '', q: wQ, url: WURL }; };
   DR.isOn = function () { return on && ready; };
   DR._stats = function () {
     return {
-      on: on, ready: ready, reason: disabledReason, ctxCreated: stats.ctxCreated, ctxLive: stats.ctxLive,
+      on: on, ready: ready, reason: disabledReason, worker: DR.workerMode(), wfail: DR._wfail || '', ctxCreated: stats.ctxCreated, ctxLive: stats.ctxLive,
       texLive: stats.texLive, texCreated: stats.texCreated, texAux: stats.texAux || 0, icons: icReady ? (stats.icons || 0) : 0, rasters: stats.rasters, rasterMs: stats.rasterMs, rasterMax: stats.rasterMax,
       quality: quality, downgrades: stats.downgrades || 0, nodes: stats.nodes, draws: stats.draws, drawMs: stats.drawMs, uploadsRealloc: stats.uploadsRealloc, uploadsSub: stats.uploadsSub,
       page: pageCv ? [pageCv.width, pageCv.height] : null, strip: stripCv ? [stripCv.width, stripCv.height] : null,
-      canvas: cv ? [cv.width, cv.height] : null, inDom: !!(cv && cv.isConnected), err: DR._err || '',
+      canvas: cv ? [cvW, cvH] : null, inDom: !!(cv && cv.isConnected), err: DR._err || '',
       stripes: stats.stripes, stripeMs: stats.stripeMs, stripeMax: stats.stripeMax, stripeRows: stats.stripeRows, deferred: stats.deferred, pending: pend.length + stale.length,
       strips: stats.strips, copies: stats.copies, frames: stats.frames,
       deferredRasters: stats.deferredRasters || 0, rasterDeferredHits: stats.rasterDeferredHits || 0, pendRaster: pendRaster, lensIconRasters: stats.lensIconRasters || 0, lensWarm: stats.lensWarm || 0, fuseWarm: stats.fuseWarm || 0, lcKey: !!lcKey,
