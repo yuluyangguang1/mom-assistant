@@ -2696,6 +2696,8 @@
   }
   function init() {
     Storage.load();
+    /* 第 332 次：家庭共享——从 IndexedDB 读本机凭据（异步），在家里才开始同步；不在家里什么都不做、不联网 */
+    try { if (global.FamSync) FamSync.init(); } catch (eF) { /* 同步出错不挡启动 */ }
     /* 第 116 次：独立模式标记必须在【首屏渲染前】写入。
        晚于 buildTabbar()/首屏 showTab() 就会让首帧用错的内边距画一遍顶栏，
        用户看到「先挤后松」的跳变。放在 init 最开头，与 Storage.load() 同级。 */

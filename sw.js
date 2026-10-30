@@ -13,7 +13,11 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v292';
+var CACHE = 'baoma-static-v293';
+/* v293（第 332 次 · 家庭共享）：famcrypto.js（页面与 SW 共用的加密 + IndexedDB 密钥仓库）、famsync.js、famui.js、
+   js/vendor/qrcode.js（MIT）、js/vendor/jsqr.min.js（Apache-2.0）进预缓存；SW 新增 push / notificationclick：
+   推送用家庭密钥派生的推送子密钥解密，通知文字只有「称呼 + 动作」，任何一步不对就显示通用「咿呀：家里有新消息」。 */
+try { importScripts('js/famcrypto.js'); } catch (eImp) { /* 加载失败：推送退回通用文案，离线缓存照常 */ }
 var REVALIDATED = {}; /* 第 270 次：图片缓存优先，后台校验过的 URL */
 /* v90（第 129 次）：首屏降噪——对标 Cali 首屏设计（HomeWidgetSnapshot 无 reminder 字段，
    逾期只以 VaccineReminderPlan.pendingCount 计数存在）。疫苗逾期 / 儿保过参考时间 /
@@ -210,6 +214,11 @@ var ASSETS = [
   'js/modules/home.js',
   'js/modules/calendar.js',
   'js/modules/settings.js',
+  'js/famcrypto.js', /* 第 332 次：家庭共享 */
+  'js/famsync.js',
+  'js/famui.js',
+  'js/vendor/qrcode.js',
+  'js/vendor/jsqr.min.js',
   'js/modules/feeding.js',
   'js/modules/feedtypes.js',
   'js/modules/pump.js',
@@ -345,3 +354,29 @@ function netFirst(e, req) {
   e.waitUntil(network.catch(function () {}));
   return p;
 }
+
+
+/* ============ 第 332 次：家庭共享推送 ============
+   服务器转来的负载：{ t: kind, f: familyId, from: deviceId, ct, at }。
+   文字只由 FamPush.text() 生成（白名单动作 + 发送者称呼），绝不带记录内容；解密 / 校验任何一步不对 → 「咿呀：家里有新消息」。 */
+self.addEventListener('push', function (e) {
+  var data = null;
+  try { data = e.data ? e.data.json() : null; } catch (eJ) { data = null; }
+  var GEN = { title: '咿呀', body: '家里有新消息', ok: false };
+  var p = (self.FamPush && self.FamDB)
+    ? Promise.all([self.FamDB.get('cred'), self.FamDB.get('names')]).then(function (r) { return self.FamPush.text(data, r[0], r[1]); }).catch(function () { return GEN; })
+    : Promise.resolve(GEN);
+  e.waitUntil(p.then(function (m) {
+    return self.registration.showNotification(m.title, {
+      body: m.body, icon: 'assets/icon-192.png', badge: 'assets/icon-192.png',
+      tag: m.ok ? 'yiya-come' : 'yiya-family', renotify: true, data: { url: './' }
+    });
+  }));
+});
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+    for (var i = 0; i < list.length; i++) { if ('focus' in list[i]) return list[i].focus(); }
+    if (self.clients.openWindow) return self.clients.openWindow('./');
+  }));
+});
