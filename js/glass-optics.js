@@ -118,8 +118,13 @@
           var rr = Math.min(r, hy), ya = Math.abs(y), yc = Math.max(0, ya - (hy - rr));
           var xe = hx - rr + Math.sqrt(Math.max(0, rr * rr - yc * yc));
           var ex = xe - Math.abs(x), ey = hy - ya;
-          if (ex < bezel) ox = (x < 0 ? -1 : 1) * GO.sample(tab, Math.max(0, Math.min(1, ex / bezel))) * mH;
-          if (ey < bezel) oy = (y < 0 ? -1 : 1) * GO.sample(tab, Math.max(0, Math.min(1, ey / bezel))) * mV;
+          if (o.endA) {
+            /* 第 329 次：左右两端往里取样（靠边内容放大、往外拉）：A·(1−t)^p，t = ex / endB；端部竖向也放大 v·(1−t)^2p（与 iOS 着色器同式） */
+            var te = Math.max(0, Math.min(1, ex / (o.endB || bezel))), pe = Math.pow(1 - te, o.endP || 2);
+            ox = -(x < 0 ? -1 : 1) * o.endA * pe;
+            oy = -y * (o.endV || 0) * pe * pe;
+          } else if (ex < bezel) ox = (x < 0 ? -1 : 1) * GO.sample(tab, Math.max(0, Math.min(1, ex / bezel))) * mH;
+          if (ey < bezel) oy += (y < 0 ? -1 : 1) * GO.sample(tab, Math.max(0, Math.min(1, ey / bezel))) * mV;
           var yl2 = (hy + lim - 0.5 - y) / kmax;
           if (oy > yl2) oy = Math.max(0, yl2);
         } else if (sd < 1.5 && d < bezel) {

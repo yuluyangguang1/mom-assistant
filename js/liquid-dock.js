@@ -197,7 +197,20 @@
      · 按下 → 透镜出现 ≤50ms、冒出 ~70ms；减速后 250~300ms 鼓回最高并轻微回落；松手 120~130ms 收回胶囊。
      这里：透镜宽 136（第 313 次用户认可的宽扁），静止比栏高 10（上下各 5），快拖时宽 +12%、高 −11%；中心放大 1.15（≈ 第 311 次认可的图标 1.15），
      外沿 bezel 14px、往里取样最多 18px（左右）/ 11px（上下，再大会把页签文字翻折到透镜下沿成碎块）——凸透镜的边：靠边的内容被拉长、翻折成拉丝带，而不是 313 那样往外压成一条细线。 */
-  var LENS_RIM = { rb: 14, re: 18, rev: 11 };  /* bezel / 左右 / 上下最大往里位移（CSS px，静止；快拖 ×(1+0.35·m)） */
+  var LENS_RIM = { rb: 14, re: 18, rev: 11 };  /* bezel / 左右 / 上下最大往里位移（CSS px，静止；快拖 ×(1+0.35·m)）。第 329 次：左右两端改由 LENS_END 决定，re 只留给没有 LENS_END 的旧调用 */
+  /* 第 329 次：透镜左右两端的折射——对照 Telegram 13:20（240fps 录屏、60fps 内容）/ 支付宝 16:57 逐帧量（背后图标 / 文字相对真实位置的横向偏移，按离透镜边的距离分箱取中位数，dpr3 物理像素）：
+       · 方向：往透镜中心取样（靠边的内容被放大、往外拉，快时成拉丝），不是第 317 次的往外取样（透镜外内容压成一条细边）；
+       · 剖面：离边 10px 处 ≈ 10~19px，18px 处 ≈ 8~11，26px 处 ≈ 4，34px 处 ≈ 1，约 40px（≈13pt）归零，10→26px 近似线性（局部放大 ≈1.9×）→ A·(1−d/B)^1.6，B = 16 CSS px（叠上内部 0.97× 的外移，合计剖面贴原生）；
+       · 静止 / 慢时明显弱，400~800pt/s 最强 → a·(1 + k·m)，静止 a = 6.5 CSS px（边上 19.5 物理像素），点击 m≈.4 时 7.7，m = 1 时 9.6；
+       · 端部竖向也放大（中位 ×1.25~1.35）→ 取样 y 往中线收 v·(1−t)^3.2（只压在最外几 pt，中间 85% 横线仍直）；
+       · 前缘比后缘强（Telegram 中位约 1.7×，支付宝样本少、方向不一）→ 温和取 前缘 ×(1+.2|hl|)、后缘 ×(1−.12|hl|)；
+       · 色散：原生端部 R−G 中位 0.8 / p75 1.4 / p90 2.2 物理像素（静止胶囊底噪 0.4）→ R/B 相对位移 cs = .06 + .12·m（只乘在端部 |n.x| 大处；点击 m≈.4 时端部 R−G ≈ 2 物理像素、离边 10px 处 ≈ 1.3）
+     第 329 次（续）：第一轮静止就 +9~12（≈ 原生运动量的 2.5 倍鱼眼）、色散静止 R−B ≈ 2 / m=1 5~8 → 改成「静止轻、随速度拉满」：
+       · 速度门 mv = smoothstep(.2, .8, m)（m 由 |v|/900 缓出：400pt/s ≈ .69、800 ≈ .99）——静止 a = 4（离边 10px 处净位移 ≈ +3，≤ 原生 1/3），m ≥ .8 拉到 a·(1+k) = 9.5（与第一轮 m=1 同量）；
+       · 带宽 b 16 → 16.8（叠上 0.97× 内缩后 m≈.6~1 的 10~32px 剖面落在 Telegram 与支付宝之间）；
+       · 色散 cs = .044 + .04·mv：灰阶实测端部带 R−B 均值 静止 ≈ .66 / m=1 ≈ 2.4（R−G p90 ≈ 1.7，靠向原生 p90 2.2）。Chromium SVG 退化路径同一个门（chx / gm）。 */
+  var LENS_END = { a: 4.0, b: 16.8, p: 1.6, v: 0.23, k: 1.38, lead: 0.2, trail: 0.12, cs0: 0.044, csm: 0.04, g0: 0.2, g1: 0.8 };
+  function endGate(m) { var t = Math.max(0, Math.min(1, (m - LENS_END.g0) / (LENS_END.g1 - LENS_END.g0))); return t * t * (3 - 2 * t); }
   var LENS_MAG = -0.03;                        /* 第 317 次：+0.15 放大 → −0.03 缩小（显示 0.97×，与 iOS 着色器 LENS_MAG_I 同值；对照支付宝 / App Store 透镜里背景约 0.98×、边带压缩） */
   var LENS_MX = 44;                            /* 贴图里 ±127 对应的最大偏移（CSS px）：rim 18 + 放大 68·0.15/1.15 ≈ 27，再加色散 / 速度余量 */
   var LENS_PAD = 60;                           /* 透镜元素四周留白（贴图同尺寸；clip-path 只留透镜本身） */
@@ -306,7 +319,8 @@
     pad = pad == null ? LENS_PAD : pad; K = K || LENS_K;
     var P = LENS_RIM, GO = global.GlassOptics;
     if (GO) {
-      var mp = GO.dispMap(w, h, { pad: pad, K: K, dir: 1, bezel: Math.min(P.rb, h / 2 - 1), maxPx: P.re, maxPxV: P.rev, mx: LENS_MX, mask: true, zoom: LENS_MAG, rows: true });
+      var mp = GO.dispMap(w, h, { pad: pad, K: K, dir: 1, bezel: Math.min(P.rb, h / 2 - 1), maxPx: P.re, maxPxV: P.rev, mx: LENS_MX, mask: true, zoom: LENS_MAG, rows: true,
+        endA: LENS_END.a, endB: Math.min(LENS_END.b, w / 2 - 1), endP: LENS_END.p, endV: LENS_END.v });   /* 第 329 次：左右两端往里取样（与 iOS 着色器同一组 LENS_END） */
       return mp ? { url: mp.url, mx: LENS_MX, W: mp.W, H: mp.H } : null;
     }
     /* 没有光学模块：退回只有中心放大的贴图 */
@@ -747,7 +761,11 @@
     if (thumb && L.phase === 'shrink') { thumb.style.transition = 'none'; thumb.style.opacity = Math.max(0, Math.min(1, 1 - s)).toFixed(3); }
     /* 色散随速度、保持淡：rim 位移 ×(1 + 0.35·m)。Chromium 的贴图里放大和 rim 在同一张图，三通道 scale 差会连中心一起色散，
        所以这里只给 chx 0.6 → 1.8（R/B 差 2%~6%）；iOS 着色器的色散只乘在 rim 带里（1.2 → 3.6） */
-    var chx = 0.6 + 1.2 * L.m, gm = 1 + 0.35 * L.m;
+    /* 第 329 次：两端位移改成往里放大后（静止 6.5 CSS px），色散 chx 0.6 → 1.2 起、随速度到 3.2（R/B 差 8%~21%，端部 R−B ≈ 1.3~3.4 物理像素，对照原生 R−G p75 1.4）；
+       gm 同步按 LENS_END.k 增益（Chromium 一张图，前后缘不分） */
+    /* 第 329 次（续）：静止轻、随速度拉满——同一个速度门 endGate(m)；SVG 一张图里位移图的 gm 连 0.97× 内缩一起放大，所以只给 1 → 1.35（贴图烘的是静止 a，快时端部 ≈ a·1.35），
+       色散 chx 0.5 → 1.4（R/B 差 3%~9%） */
+    var mvG = endGate(L.m), chx = 0.5 + 0.9 * mvG, gm = 1 + 0.35 * mvG;
     if ((L.m > 0.45) !== lensEl.classList.contains('fast')) lensEl.classList.toggle('fast', L.m > 0.45);
     /* 动态高光（CSS 路径）：高光朝运动方向偏移、随速度增强；按下时一道亮弧（flash） */
     lensEl.style.setProperty('--lhx', L.hl.toFixed(3));
@@ -996,6 +1014,7 @@
   };
   LD.refresh = function () { if (bar) { place(false); updateRefraction(); } };
   LD.RIM = LENS_RIM;   /* 第 312 次：iOS 着色器读同一组透镜 rim 参数 */
+  LD.END = LENS_END;   /* 第 329 次：透镜两端折射（iOS 着色器 uLE / uLF、Chromium 位移图同一组） */
   LD.ICON_TEX = LENS_ICON_TEX;   /* 第 313 次：dock-refract.js 据此决定要不要栅格化图标层 */
   LD.LENS_TEX = LENS_TEX;     /* 第 314 次：GL 画透镜里的彩色图标 + 选中色文字（透镜图标层） */
   LD.LENS = { W: LENS_W, DH: LENS_DH, ZOOM: LENS_ZOOM, MAG: LENS_MAG };

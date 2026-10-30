@@ -472,6 +472,9 @@
     'uniform vec4 uEP;',
     /* 第 327 次：uPX = (每 CSS px 的画布像素数 = 1 物理像素的倒数, 深色 0/1)——抗锯齿 / 描边 / 亮边按物理像素算 */
     'uniform vec2 uPX;',
+    /* 第 329 次：透镜左右两端的折射（对照 Telegram 13:20 / 支付宝 16:57 逐帧量：端部是「往里取样 = 靠边内容被放大、往外拉」，不是第 317 次的往外压成细条）——
+       uLE = (端部最大位移 CSS px（静止）, 端部折射带宽 CSS px, 端部竖向放大系数, 速度增益)；uLF = (前缘加强, 后缘减弱, 色散基数, 色散随速度) */
+    'uniform vec4 uLE,uLF;',
     /* 第 327 次：轮廓抗锯齿 = 1 物理像素，按距离场梯度归一化（smooth-min 颈部 |∇f| < 1）；融合颈部（并集比两块原形状都深的地方）放宽到 2.5 物理像素，细颈不闪 */
     'float aaC(float sd,float g,float kn){return clamp(.5-sd*uPX.x/(max(g,.5)*mix(1.,2.5,clamp(kn/6.,0.,1.))),0.,1.);}',
     /* 第 327 次：1 物理像素暗描边（浅色，端帽重、直边轻）/ 深色 .16 亮细线；dn = 离轮廓的距离（CSS px，已按梯度归一化） */
@@ -598,15 +601,22 @@
        · 都往外取样（透镜外的内容被压进边带 = 缩小），取样点随像素单调外移，不翻折。 */
     '      vec2 hz=uT.zw*.5,q=v-c0;float rr=min(uRT,hz.y),ya=abs(q.y),yc=max(ya-(hz.y-rr),0.);',
     '      float xe=hz.x-rr+sqrt(max(rr*rr-yc*yc,0.));',
-    '      float tx=tabl(clamp((xe-abs(q.x))/B,0.,1.)),ty=tabl(clamp((hz.y-ya)/B,0.,1.));',
+    '      float ty=tabl(clamp((hz.y-ya)/B,0.,1.));',
+    /* 第 329 次：左右两端——本行离端点 ex，折射带宽 BE（16.8 CSS px ≈ 50 物理像素），剖面 (1−t)^1.6；往里取样 a·(1+k·mv)（第 329 次续：静止 4 → m ≥ .8 时 9.5 CSS px），
+       前缘（运动方向那端）× (1 + .2|hl|)、后缘 × (1 − .12|hl|)；端部竖向也放大（离中线越远取样越往中线收，(1−t)^3.2，最多 ×1.3），中间 85% 横线仍直 */
+    '      float BE=max(2.,uLE.y*uLG),sx=sign(q.x),te=clamp((xe-abs(q.x))/BE,0.,1.),pe=pow(1.-te,1.6),tx=pe;',
+    /* 第 329 次（续）：速度门 mv = smoothstep(.2,.8,m)（与 liquid-dock.js endGate 同式）——原生 <400pt/s 端部位移接近 0、400~800pt/s（m .69~.99）最强：
+       静止只留 a（≈ 原生 1/3 的轻微往里放大），m ≥ .8 拉满 a·(1+k)；色散同一个门 */
+    '      float mv=smoothstep(.2,.8,uLM);',
     '      float tb=max(tx,ty);',
     '      vec2 base=uDS.xy+(c0-uDS.xy)*uDS.z+q*uDS.z/uMagI;',
-    '      vec2 o=vec2(sign(q.x)*uLR.y*tx,sign(q.y)*uLR.z*ty)*(1.+.35*uLM)*uLG;',
+    '      float ld=1.+(sx*uLX.x>0.?uLF.x:-uLF.y)*abs(uLX.x);',
+    '      vec2 o=vec2(-sx*uLE.x*pe*(1.+uLE.w*mv)*ld,sign(q.y)*uLR.z*ty*(1.+.35*uLM)-q.y*uLE.z*pe*pe)*uLG;',
     '      gIc=v-base;',
     '      vec3 lc;',
     /* 第 319 次：透镜色散只在左右两端（|n.x| > ~0.7），上下边带限制彩度（gCh） */
     '      float wx=smoothstep(.55,.85,abs(nt.x));gCh=1.-.55*(ty>tx?1.:0.)*(1.-wx);',
-    '      if(tb>.01){vec3 ac=vec3(0.);float cs=.035*(1.2+2.4*uLM)*wx;',
+    '      if(tb>.01){vec3 ac=vec3(0.);float cs=(uLF.z+uLF.w*mv)*wx;',
     '        for(int j=0;j<2;j++){vec2 oo=o*(.94+.12*float(j));ac.r+=scn(base+oo*(1.-cs)).r;ac.g+=scn(base+oo).g;ac.b+=scn(base+oo*(1.+cs)).b;}',
     '        lc=ac*.5;}',
     '      else lc=scn(base);',
@@ -717,7 +727,7 @@
   var progF = null, UF = {}, fzErr = '', fzWarm = false;
   var UNI = ['uP', 'uB', 'uCv', 'uPS', 'uScroll', 'uL', 'uBox', 'uStrip', 'uTint', 'uFade', 'uA', 'uBr', 'uCut', 'uT', 'uFadeC', 'uTaps', 'uS', 'uY0', 'uPageOn', 'uBand', 'uAmt', 'uDisp', 'uBlur', 'uSpec', 'uRim', 'uDbg',
     'uRA', 'uRB', 'uK', 'uHasB', 'uRC', 'uHasCut', 'uFill', 'uRT', 'uHasT', 'uBandB', 'uLM', 'uLG', 'uLine',
-    'uD', 'uI', 'uTone', 'uLR', 'uIB', 'uHasI', 'uSS', 'uSW', 'uWF', 'uMagI', 'uLA', 'uLB', 'uLX', 'uLO', 'uDS', 'uEP', 'uPX'];
+    'uD', 'uI', 'uTone', 'uLR', 'uIB', 'uHasI', 'uSS', 'uSW', 'uWF', 'uMagI', 'uLA', 'uLB', 'uLX', 'uLO', 'uDS', 'uEP', 'uPX', 'uLE', 'uLF'];
   var UNIF = ['uP', 'uB', 'uD', 'uCv', 'uPS', 'uScroll', 'uL', 'uWF', 'uBox', 'uStrip', 'uTint', 'uFade', 'uFadeC', 'uTone', 'uTaps', 'uS', 'uY0', 'uPageOn', 'uAmt', 'uDisp', 'uBlur', 'uSpec', 'uRim', 'uDbg', 'uSS', 'uLine',
     'uFN', 'uFA', 'uFR', 'uFP', 'uFQ', 'uFT', 'uSh', 'uPX'];
 
@@ -1108,6 +1118,7 @@
   function specSat() { var GO = GOx(); return GO ? GO.MAT.specSat : 7; }
   function iconTexOn() { return !!(global.LiquidDock && LiquidDock.ICON_TEX); }
   function lensRim() { return (global.LiquidDock && LiquidDock.RIM) || { rb: 10, re: 20, rev: 30 }; }
+  function lensEnd() { return (global.LiquidDock && LiquidDock.END) || { a: 4.0, b: 16.8, p: 1.6, v: 0.23, k: 1.38, lead: 0.2, trail: 0.12, cs0: 0.044, csm: 0.04 }; }
   /* dock 图标层：把每个页签的线条图标（.dk-l，内联 SVG，按计算样式内联颜色 / 线宽）和文字画进一张栏内坐标的 2 倍画布。
      只在页签集合 / 选中项 / 栏尺寸 / 深浅色变化时重画（SVG 转图片是异步的，画好再上传纹理）；拖动时不重画。 */
   var SVGNS_ATTR = ['stroke', 'fill', 'stroke-width', 'opacity', 'stroke-linecap', 'stroke-linejoin', 'fill-opacity', 'stroke-opacity', 'display'];
@@ -1253,6 +1264,10 @@
     gl.uniform2f(L.uWF, dark ? -1 : 1, dark ? 0.65 : 0.34);
     var rim = lensRim();
     gl.uniform3f(L.uLR, rim.rb, rim.re, rim.rev);
+    /* 第 329 次：透镜两端折射（liquid-dock.js LENS_END 同一组数，Chromium 位移图也用它） */
+    var le = lensEnd();
+    if (L.uLE) gl.uniform4f(L.uLE, le.a, le.b, le.v, le.k);
+    if (L.uLF) gl.uniform4f(L.uLF, le.lead, le.trail, le.cs0, le.csm);
     gl.uniform1f(L.uSW, dark ? 0.22 : 0.42);
     var bb = barRect();
     gl.uniform4f(L.uIB, bb.left, bb.top, Math.max(1, bb.width), Math.max(1, bb.height));
