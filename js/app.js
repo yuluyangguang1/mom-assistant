@@ -369,12 +369,17 @@
   function dockKey(slot) {
     return [handMode(), slot || '', TABS.map(function (t) { return t.id; }).join(',')].join('|');
   }
+  /* 第 319 次：选中图标小动作——透镜在场时先记下，等透镜开始收回再播（liquid-dock.js popNow）；时长压到 ≤250ms */
+  function dkPop(b, bar) {
+    if (bar && bar.classList.contains('lg-lensing') && !bar.classList.contains('lg-shrink')) { b.setAttribute('data-pop-pending', '1'); return; }
+    b.classList.add('dk-pop'); setTimeout(function () { b.classList.remove('dk-pop'); }, 320);
+  }
   function syncTabbarActive(bar) {
     Array.prototype.forEach.call(bar.querySelectorAll('.tab.dk-tab'), function (b) {
       var id = b.getAttribute('data-tab'), on = id === current;
       if (on !== b.classList.contains('active')) b.classList.toggle('active', on);
       if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
-      if (on && _dkLast !== null && _dkLast !== current) { b.classList.add('dk-pop'); setTimeout(function () { b.classList.remove('dk-pop'); }, 700); }
+      if (on && _dkLast !== null && _dkLast !== current) dkPop(b, bar);
     });
     _dkLast = current;
   }
@@ -435,7 +440,7 @@
       b.setAttribute('data-tab', t.id);
       if (t.id === current) b.setAttribute('aria-current', 'page'); /* 无障碍：标记当前页签 */
       /* 第 304 次：刚切到这一页时，彩色图标做一下自己的小动作（同页原地重画不重播） */
-      if (t.id === current && _dkLast !== null && _dkLast !== current) { b.classList.add('dk-pop'); setTimeout(function () { b.classList.remove('dk-pop'); }, 700); }
+      if (t.id === current && _dkLast !== null && _dkLast !== current) dkPop(b, bar);
       b.addEventListener('click', function () { showTab(t.id); });
       bar.appendChild(b);
     });
@@ -733,6 +738,119 @@
     }
     showTabNow(id, opts);
   }
+  /* ---------- 第 319 次：一级页 DOM 缓存 ---------- */
+  var _topCache = { pages: {}, off: false, stats: { put: 0, hit: 0, miss: 0, renders: {} } };
+  var _viewGen = -1;   /* #view 当前内容是按哪一代数据渲染的（收进缓存时用它，不是收的那一刻的代号） */
+  function dataGen() { try { return Storage._gen || 0; } catch (e) { return 0; } }
+  function topCachePut(id, view) {
+    if (_topCache.veto === id) { _topCache.veto = null; return; }
+    if (!isTopTab(id) || !view.firstChild || _viewGen < 0) return;
+    var holder = document.createElement('div');
+    while (view.firstChild) holder.appendChild(view.firstChild);
+    _topCache.pages[id] = { holder: holder, gen: _viewGen, t: Date.now(), cls: { psky: view.classList.contains('has-psky'), hsky: view.classList.contains('has-hsky') } };
+    _topCache.stats.put++;
+  }
+  function topCacheDrop(id) { if (id) delete _topCache.pages[id]; }
+  function topCacheVeto(id) { topCacheDrop(id); _topCache.veto = id; }   /* 离开时状态被模块自己重置了（日期页 leave 清选中日）：这次不收 */
+  function topCacheTake(id) {
+    var c = _topCache.pages[id];
+    delete _topCache.pages[id];
+    if (!c || c.gen !== dataGen() || Date.now() - c.t > 120000 || !c.holder.firstChild) { _topCache.stats.miss++; return null; }
+    return c;
+  }
+  /* 挂回缓存的一级页：只做「换页」本身要做的轻活（类名、dock、状态栏、滚动），不调 Modules[id].render */
+  function topCacheRestore(id, view, c, opts) {
+    _topCache.stats.hit++;
+    view.innerHTML = '';
+    view.classList.remove('sg-in', 'view-enter');
+    view.removeAttribute('data-accent');
+    view.classList.toggle('has-psky', !!c.cls.psky);
+    view.classList.toggle('has-hsky', !!c.cls.hsky);
+    while (c.holder.firstChild) view.appendChild(c.holder.firstChild);
+    _viewGen = c.gen;
+    if (Modules[id] && typeof Modules[id].restore === 'function') { try { Modules[id].restore(); } catch (eR) { /* */ } }
+    /* 天空画布离开文档时自己停了，挂回来重新起——画布位图还在（第一帧不空），重起要当场画一帧（10~80ms），推到 dock 透镜 / 缩放落定之后 */
+    afterDockIdle(function () {
+      if (current !== id) return;
+      try { Array.prototype.forEach.call(view.querySelectorAll('canvas.sky-canvas'), function (cv) { if (cv.isConnected && global.Sky && Sky.mount) Sky.mount(cv); }); } catch (eS) { /* */ }
+      if (global.Glass) global.Glass.wake();
+      syncStatusColor();
+    });
+    var backBtn = document.getElementById('backBtn');
+    if (backBtn) backBtn.hidden = true;
+    var dockBar = document.getElementById('tabbar');
+    if (dockBar) dockBar.classList.remove('is-sub');
+    syncOrb();
+    syncCta();
+    if (id !== 'home') document.body.classList.add('in-module'); else document.body.classList.remove('in-module');
+    if (id === 'home') document.body.classList.add('in-home'); else document.body.classList.remove('in-home');
+    traceStart(id);
+    window.scrollTo(0, 0);
+    syncHeader();
+    if (global.Hero && Hero.onPage) { try { Hero.onPage(id, null); } catch (eH) {} }
+  }
+  /* 第 319 次：启动空闲时把另外两个一级页先渲染一遍、收进缓存——第一次点 dock 切过去也是「挂回」而不是当场整页渲染（真机前几次点击卡 2~4 帧）。
+     同一个任务里：当前页摘下 → 在 #view 里渲染目标页（天空当场画一帧）→ 摘进缓存 → 当前页挂回、滚动位置复原；中间不会绘制。 */
+  function prerenderTops() {
+    if (_topCache.off || !isTopTab(current) || subExit || _slide) return;
+    var view = document.getElementById('view');
+    if (!view || document.body.classList.contains('qd-open') || document.documentElement.classList.contains('is-booting')) return;
+    if (global.LiquidDock && LiquidDock.animating && LiquidDock.animating()) return;
+    var ae = document.activeElement;
+    if (ae && view.contains(ae) && ae !== document.body) return;
+    var todo = ['baby', 'home', 'calendar'].filter(function (id) { return id !== current && !_topCache.pages[id] && Modules[id]; });
+    if (!todo.length) return;
+    /* 当前页的子节点会被摘下再挂回：还有进场动画在跑就改天再来（挂回会让 CSS 动画从头再播）；跑完了就把 .view-enter 摘掉（终态与无动画一致），挂回时不重播 */
+    try {
+      if (view.getAnimations && view.getAnimations({ subtree: true }).some(function (a) { var t = a.effect && a.effect.getComputedTiming && a.effect.getComputedTiming(); return a.playState === 'running' && t && isFinite(t.endTime) && t.endTime < 5000; })) { schedulePrerender(1500); return; }
+    } catch (eA) { /* */ }
+    view.classList.remove('view-enter');
+    var sy = global.pageYOffset || 0, cur = current, keep = document.createElement('div'), gen0 = _viewGen;
+    var cls = { psky: view.classList.contains('has-psky'), hsky: view.classList.contains('has-hsky'), acc: view.getAttribute('data-accent') };
+    global.__drSkipNav = true;   /* dock-refract.js：这批 #view 子节点进出不当成换页、不重拍 */
+    while (view.firstChild) keep.appendChild(view.firstChild);
+    var bodyCls = [document.body.classList.contains('in-home'), document.body.classList.contains('in-module')];
+    try {
+      todo.forEach(function (id) {
+        var t0 = global.performance ? performance.now() : 0;
+        view.classList.remove('view-enter', 'has-psky', 'has-hsky'); view.removeAttribute('data-accent');
+        current = id;   /* 有的模块渲染时会读 App.currentTab() */
+        _viewGen = dataGen();
+        try { Modules[id].render(view); } catch (e) { while (view.firstChild) view.removeChild(view.firstChild); return; }
+        if (id === 'baby' || id === 'calendar') mountPageSky(view);
+        if (id === 'home') view.classList.add('has-hsky');
+        _topCache.stats.renders[id] = (_topCache.stats.renders[id] || 0) + 1;
+        topCachePut(id, view);
+        if (_topCache.pages[id]) _topCache.pages[id].pre = Math.round((global.performance ? performance.now() : 0) - t0);
+        _topCache.stats.pre = (_topCache.stats.pre || 0) + 1;
+      });
+    } finally {
+      current = cur; _viewGen = gen0;
+      while (view.firstChild) view.removeChild(view.firstChild);
+      while (keep.firstChild) view.appendChild(keep.firstChild);
+      view.classList.toggle('has-psky', cls.psky); view.classList.toggle('has-hsky', cls.hsky);
+      if (cls.acc) view.setAttribute('data-accent', cls.acc); else view.removeAttribute('data-accent');
+      if (bodyCls[0]) document.body.classList.add('in-home'); else document.body.classList.remove('in-home');
+      if (bodyCls[1]) document.body.classList.add('in-module'); else document.body.classList.remove('in-module');
+      if (Math.abs((global.pageYOffset || 0) - sy) > 0.5) global.scrollTo(0, sy);
+      /* 当前页的天空画布被摘下过一下（循环会停），重新起 */
+      try { Array.prototype.forEach.call(view.querySelectorAll('canvas.sky-canvas'), function (cv) { if (global.Sky && Sky.mount) Sky.mount(cv); }); } catch (eS) { /* */ }
+      Promise.resolve().then(function () { global.__drSkipNav = false; });
+    }
+  }
+  function schedulePrerender(ms) {
+    setTimeout(function () {
+      var run = function () { try { prerenderTops(); } catch (e) { /* 预渲染失败不影响正常切页（照旧当场渲染） */ } };
+      if (global.requestIdleCallback) global.requestIdleCallback(run, { timeout: 2000 }); else run();
+    }, ms);
+  }
+  /* 第 319 次：等 dock 透镜收起、按下缩放停稳（最多 1 秒）再做的非紧急活 */
+  function afterDockIdle(fn, n) {
+    n = n || 0;
+    var busy = global.LiquidDock && LiquidDock.animating && LiquidDock.animating();
+    if (busy && n < 20) { setTimeout(function () { afterDockIdle(fn, n + 1); }, 50); return; }
+    (global.requestAnimationFrame || setTimeout)(function () { try { fn(); } catch (e) { /* */ } });
+  }
   function showTabNow(id, opts) {
     /* 第 286 次：真正切页（不是原地重画）时快捷记录面板立即收起，不留在新页上 */
     if (!(opts && opts.silent) && id !== current && global.App && App._qdClose) { try { App._qdClose(true); } catch (eQ) {} }
@@ -775,6 +893,15 @@
     current = id;
     buildTabbar();
     var view = document.getElementById('view');
+    /* 第 319 次（真机卡帧）：三个一级页（宝宝 / 首页 / 日期）互切时保留 DOM——离开的那页整棵子树摘下来收进离屏的 holder，
+       切回来时原样挂回，不再 innerHTML='' + render 重建（真机第一次点击卡 4 帧的主因之一：切页同一帧整页渲染）。
+       数据变了（Storage.save 计数）/ 超过 2 分钟 / 原地重画（silent）/ 进出二级页都作废，回到原来的重建路径。 */
+    var topSwapNow = !!prevId && prevId !== id && isTopTab(prevId) && isTopTab(id) && !(opts && opts.silent);
+    if (topSwapNow && !_topCache.off) topCachePut(prevId, view);
+    else if (!(opts && opts.silent) && isTopTab(prevId) && prevId !== id) topCacheDrop(prevId);
+    if (opts && opts.silent) topCacheDrop(id);
+    var cached = topSwapNow ? topCacheTake(id) : null;
+    if (cached) { topCacheRestore(id, view, cached, opts); return; }
     view.innerHTML = '';
     if (!(opts && opts.silent)) view.classList.remove('sg-in'); /* 第 188 次：设置二级态标记不跨页残留 */
     /* 模块页「分色身份」：给记录类模块页打 data-accent，让列表/图标/标题继承其柔彩色；
@@ -784,6 +911,8 @@
        值只会让页头的 --tile 走 fallback、颜色与页内磁贴对不上。 */
     if (id === 'home' || id === 'calendar' || id === 'alltools' || id === 'search' || id === 'baby') view.removeAttribute('data-accent');
     else view.setAttribute('data-accent', id);
+    _topCache.stats.renders[id] = (_topCache.stats.renders[id] || 0) + 1;
+    _viewGen = dataGen();
     try {
       Modules[id].render(view);
     } catch (e) {
@@ -1900,6 +2029,9 @@
     _syncCta: function () { syncCta(); },
     currentTab: function () { return current; },
     _isTop: function () { return isTopTab(current) && !subExit; },
+    _topCache: function (off) { if (off != null) { _topCache.off = !!off; if (off) _topCache.pages = {}; } return { off: _topCache.off, pages: Object.keys(_topCache.pages), put: _topCache.stats.put, hit: _topCache.stats.hit, miss: _topCache.stats.miss, renders: JSON.parse(JSON.stringify(_topCache.stats.renders)) }; }, /* 第 319 次：一级页 DOM 缓存（QA） */
+    _dropTopCache: function (id) { topCacheVeto(id); },
+    _prerender: function () { prerenderTops(); return Object.keys(_topCache.pages); },
     _navSlide: function () { return navSlideState(); }, /* 第 318 次：二级页横推进行中（QA） */ /* 首页下拉搜索只在一级页 */
     _hpBusy: function () { return hpBusy(); }, /* 第 291 次：首页左滑跟手 / 收尾中（测试用） */
     _openBabySheet: function () { openBabySheet(); },
@@ -2748,6 +2880,7 @@
     showOnboarding();
     maybeWeeklyReview();
     if (global.Boot) Boot.done(); /* 第 259 次：首页画好后播启动动画 */
+    schedulePrerender(2600); /* 第 319 次：启动动画之后空闲时预渲染另外两个一级页 */
   }
 
   /* 备份提醒：**已从首页撤除**（第 145 次）。

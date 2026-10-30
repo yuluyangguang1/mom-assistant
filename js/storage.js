@@ -718,6 +718,7 @@
      *  也不会漏掉任何一条记录。Util.haptic 内部已守卫「设置里关掉」与
      *  「设备不支持（Safari/iOS）」，这里只负责在结果确定后调用一次。 */
     save: function () {
+      this._gen = (this._gen || 0) + 1;   /* 第 319 次：数据代号——一级页 DOM 缓存据此判断要不要重建 */
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
         if (global.Util && Util.haptic) Util.haptic('ok');

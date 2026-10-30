@@ -529,8 +529,9 @@
     title: '日期记录',
     _state: state,
     /* 离开日期页回到今天；去补记 / 去模块页改记录再回来时停在原来那天 */
-    leave: function () { if (!state.keep) state.sel = null; state.keep = false; closePop(); },
+    leave: function () { if (!state.keep && state.sel != null) { if (state.sel !== Util.todayISO() && global.App && App._dropTopCache) App._dropTopCache('calendar'); state.sel = null; } state.keep = false; closePop(); }, /* 第 319 次：选的不是今天才作废一级页 DOM 缓存（回来要重新从今天开始） */
     _shape: function (iso) { var d = Storage.get(); return { nums: dayNums(d, iso, iso === Util.todayISO()), segs: sleepSegs(d, iso, iso === Util.todayISO()) }; },
+    restore: function () { if (!state.sel) state.sel = Util.todayISO(); }, /* 第 319 次：一级页 DOM 缓存挂回时（不走 render）补回选中日 */
     render: function (view) {
       var today = Util.todayISO();
       if (!state.sel || Util.daysBetween(today, state.sel) > 0) state.sel = today;

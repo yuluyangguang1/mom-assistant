@@ -6879,9 +6879,10 @@ body .tabbar .tab.dk-tab.active .dk-c, body .tabbar .tab.dk-tab.lg-hover .dk-c {
 body .tabbar.lg-drag .tab.dk-tab.active:not(.lg-hover) .dk-l { opacity: 1; scale: 1; }
 body .tabbar.lg-drag .tab.dk-tab.active:not(.lg-hover) .dk-c { opacity: 0; scale: .55; }
 /* 选中小动作：宝宝弹一下、房子屋顶一压一弹、日历翻一下 */
-body .tabbar .tab.dk-tab.dk-pop .dk-baby .dk-c { animation: dkBaby .62s cubic-bezier(.3, .7, .3, 1); }
-body .tabbar .tab.dk-tab.dk-pop .dk-home .dk-c { animation: dkHome .56s cubic-bezier(.3, .7, .3, 1); }
-body .tabbar .tab.dk-tab.dk-pop .dk-cal .dk-c { animation: dkCal .6s cubic-bezier(.3, .7, .3, 1); }
+/* 第 319 次：.62 / .56 / .6s → .24s（支付宝落定后那一下约 6 帧），从透镜开始收回时播（liquid-dock.js popNow） */
+body .tabbar .tab.dk-tab.dk-pop .dk-baby .dk-c { animation: dkBaby .24s cubic-bezier(.3, .7, .3, 1); }
+body .tabbar .tab.dk-tab.dk-pop .dk-home .dk-c { animation: dkHome .24s cubic-bezier(.3, .7, .3, 1); }
+body .tabbar .tab.dk-tab.dk-pop .dk-cal .dk-c { animation: dkCal .24s cubic-bezier(.3, .7, .3, 1); }
 @keyframes dkBaby { 0% { translate: 0 0; rotate: 0deg; } 30% { translate: 0 -5px; rotate: -6deg; } 55% { translate: 0 0; rotate: 4deg; } 75% { translate: 0 -1.5px; rotate: -1deg; } 100% { translate: 0 0; rotate: 0deg; } }
 @keyframes dkHome { 0% { transform: scale(1, 1); } 25% { transform: scale(1.12, .84); } 55% { transform: scale(.94, 1.1); } 80% { transform: scale(1.02, .98); } 100% { transform: scale(1, 1); } }
 @keyframes dkCal { 0% { transform: perspective(80px) rotateX(0); } 35% { transform: perspective(80px) rotateX(-38deg); } 70% { transform: perspective(80px) rotateX(10deg); } 100% { transform: perspective(80px) rotateX(0); } }
@@ -7102,7 +7103,7 @@ body .tabbar .tab.dk-tab .dk-ic .dk-l { width: 24px; height: 24px; }
 body .tabbar .tab.dk-tab .dk-ic .dk-c, body .tabbar .tab.dk-tab .dk-baby .dk-c { width: 24px; height: 24px; inset: 0; }
 .dk-t { display: block; font-style: normal; font-size: 10px; line-height: 12px; font-weight: 600; letter-spacing: .02em; color: #6E5547; pointer-events: none; white-space: nowrap; }
 body.dark .dk-t { color: #D9C6B5; }
-body .tabbar .tab.dk-tab.active .dk-t, body .tabbar .tab.dk-tab.lg-hover .dk-t { color: var(--primary-text, var(--primary)); font-weight: 700; }
+body .tabbar .tab.dk-tab.active .dk-t, body .tabbar .tab.dk-tab.lg-hover .dk-t { color: var(--primary-text, var(--primary)); font-weight: 600; } /* 第 319 次：选中 / 未选中同为 600，只换颜色 */
 body .tabbar.lg-drag .tab.dk-tab.active:not(.lg-hover) .dk-t { color: #6E5547; font-weight: 600; }
 body.dark .tabbar.lg-drag .tab.dk-tab.active:not(.lg-hover) .dk-t { color: #D9C6B5; }
 body.hc .dk-t { color: var(--text); }
@@ -7282,3 +7283,25 @@ html[data-navx="pop"] .nav-ghost { z-index: 4; box-shadow: -8px 0 24px rgba(0, 0
 .nav-ghost-hdr.ng-mod .header-gear { display: none; }
 .nav-dim { position: fixed; inset: 0; z-index: 3; pointer-events: none; opacity: 0; background: rgba(40, 30, 22, .12); }
 body.dark .nav-dim { background: rgba(0, 0, 0, .32); }
+
+/* ============================================================
+   第 319 次：dock 流畅度与点击细节
+   · 字重：选中 / 未选中都是 600（原来 600 ↔ 700 在切页那一帧整体跳），只换颜色。
+   · 颜色随透镜形状擦过：透镜在场（还没开始收回）时，透镜外的 DOM 页签一律是未选中的样子，透镜里由 GL 的图标层画选中样子——
+     旧页签被透镜盖着的部分保持选中，透镜后缘离开它就退成灰；新页签被盖到就变色。收回（.lg-shrink）时 DOM 换成最终样子。
+     Chromium / 无折射（svg / plain）：文字用 --la / --lb 做同样的硬边擦除（background-clip: text）。
+   · 选中图标小动作 ≤ 250ms，从透镜收回时开始（.lg-shrink 期间的 animation:none !important 让开）。
+   · 整条 dock 按下放大由 liquid-dock.js 逐帧写 scale（弹簧），CSS 的 scale 过渡在此期间被内联 transition 覆盖。
+   ============================================================ */
+body .tabbar.lg.lg-lensing.lg-lens-gl:not(.lg-shrink) .tab.dk-tab.active .dk-t { color: #6E5547; }
+body.dark .tabbar.lg.lg-lensing.lg-lens-gl:not(.lg-shrink) .tab.dk-tab.active .dk-t { color: #D9C6B5; }
+body .tabbar.lg.lg-lensing:not(.lg-lens-gl):not(.lg-shrink) .tab.dk-tab .dk-t {
+  --dk-t0: #6E5547; --dk-t1: var(--primary-text, var(--primary));
+  color: transparent; -webkit-background-clip: text; background-clip: text;
+  background-image: linear-gradient(90deg, var(--dk-t0) var(--la, -999px), var(--dk-t1) var(--la, -999px), var(--dk-t1) var(--lb, -998px), var(--dk-t0) var(--lb, -998px));
+}
+body.dark .tabbar.lg.lg-lensing:not(.lg-lens-gl):not(.lg-shrink) .tab.dk-tab .dk-t { --dk-t0: #D9C6B5; }
+body .tabbar.lg.lg-lensing.lg-shrink .tab.dk-tab.active.dk-pop .dk-baby .dk-c { animation: dkBaby .24s cubic-bezier(.3, .7, .3, 1) !important; }
+body .tabbar.lg.lg-lensing.lg-shrink .tab.dk-tab.active.dk-pop .dk-home .dk-c { animation: dkHome .24s cubic-bezier(.3, .7, .3, 1) !important; }
+body .tabbar.lg.lg-lensing.lg-shrink .tab.dk-tab.active.dk-pop .dk-cal .dk-c { animation: dkCal .24s cubic-bezier(.3, .7, .3, 1) !important; }
+@media (prefers-reduced-motion: reduce) { body .tabbar.lg.lg-lensing.lg-shrink .tab.dk-tab.dk-pop .dk-c { animation: none !important; } }
