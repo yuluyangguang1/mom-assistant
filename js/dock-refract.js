@@ -96,6 +96,18 @@
   /* 第 320 次：二级页融合层分裂 / 合拢 / 侧滑跟手中也算「在动」（整页快照、回读像素推迟到落定，DockFuse 落定时调 DR.settled） */
   function busy() { return !!(lensR || (global.LiquidDock && LiquidDock.animating && LiquidDock.animating()) || (global.DockFuse && DockFuse.morphing && DockFuse.morphing())); }
   var geoC = null, pendRaster = 0, tintC = { k: '', v: null };
+  /* 第 329 次（续）：点 dock 切页时整页快照推迟到透镜落定（第 319 次），这 0.3~0.5 秒（连点时更久）快照还是上一页——
+     真机录屏 22:45：透镜 / 选中胶囊里折出上一页的字（「两个…」），dock 左端把宝宝页紫卡片折成一块粉色涂抹。
+     现在：快照因 dock 在动而过期时（navStale）不再把页面快照折进 dock / 透镜，只留 html / body 底色（strip，当场重拍，便宜），
+     新快照拍好后页面层 140ms 淡回（pageIn；按画出的帧推进，每帧最多记 34ms，主线程卡住也至少淡 5 帧） */
+  var navStale = false, pageIn = 0, pageK = 1;
+  function dockBusy() { return !!(lensR || (global.LiquidDock && LiquidDock.animating && LiquidDock.animating())); }
+  function markNavStale() {
+    if (navStale) return;
+    navStale = true; stats.navStale = (stats.navStale || 0) + 1;
+    try { if (stripCv && gl) { rasterStrip(); upload(texB, stripCv); } } catch (eN) { /* */ }
+    schedule();
+  }
   function barRect() {
     if (geoC && busy()) return geoC;
     var r = bar.getBoundingClientRect(), k = (global.LiquidDock && LiquidDock.dockScale) ? LiquidDock.dockScale() : 1;
@@ -604,14 +616,16 @@
     '      float ty=tabl(clamp((hz.y-ya)/B,0.,1.));',
     /* 第 329 次：左右两端——本行离端点 ex，折射带宽 BE（16.8 CSS px ≈ 50 物理像素），剖面 (1−t)^1.6；往里取样 a·(1+k·mv)（第 329 次续：静止 4 → m ≥ .8 时 9.5 CSS px），
        前缘（运动方向那端）× (1 + .2|hl|)、后缘 × (1 − .12|hl|)；端部竖向也放大（离中线越远取样越往中线收，(1−t)^3.2，最多 ×1.3），中间 85% 横线仍直 */
-    '      float BE=max(2.,uLE.y*uLG),sx=sign(q.x),te=clamp((xe-abs(q.x))/BE,0.,1.),pe=pow(1.-te,1.6),tx=pe;',
+    /* 第 329 次（续）：前 / 后缘系数 ld 同时乘带宽（原来只乘位移：前缘 m=1 时 9.5×1.2 = 11.4 > 带宽 / 1.6 = 10.5，最外 1~2pt 取样点回折 = 滑行中标签被切成乱形）；
+       位移再封顶 .94·带宽 / 1.6，取样点随像素单调（斜率 ≥ .06），任何参数下都不回折 */
+    '      float sx=sign(q.x),ld=1.+(sx*uLX.x>0.?uLF.x:-uLF.y)*abs(uLX.x);',
+    '      float BE=max(2.,uLE.y*uLG*ld),te=clamp((xe-abs(q.x))/BE,0.,1.),pe=pow(1.-te,1.6),tx=pe;',
     /* 第 329 次（续）：速度门 mv = smoothstep(.2,.8,m)（与 liquid-dock.js endGate 同式）——原生 <400pt/s 端部位移接近 0、400~800pt/s（m .69~.99）最强：
        静止只留 a（≈ 原生 1/3 的轻微往里放大），m ≥ .8 拉满 a·(1+k)；色散同一个门 */
     '      float mv=smoothstep(.2,.8,uLM);',
     '      float tb=max(tx,ty);',
     '      vec2 base=uDS.xy+(c0-uDS.xy)*uDS.z+q*uDS.z/uMagI;',
-    '      float ld=1.+(sx*uLX.x>0.?uLF.x:-uLF.y)*abs(uLX.x);',
-    '      vec2 o=vec2(-sx*uLE.x*pe*(1.+uLE.w*mv)*ld,sign(q.y)*uLR.z*ty*(1.+.35*uLM)-q.y*uLE.z*pe*pe)*uLG;',
+    '      vec2 o=vec2(-sx*min(uLE.x*(1.+uLE.w*mv)*ld,.94*uLE.y*ld/1.6)*pe,sign(q.y)*uLR.z*ty*(1.+.35*uLM)-q.y*uLE.z*pe*pe)*uLG;',
     '      gIc=v-base;',
     '      vec3 lc;',
     /* 第 319 次：透镜色散只在左右两端（|n.x| > ~0.7），上下边带限制彩度（gCh） */
@@ -1252,7 +1266,14 @@
     gl.uniform1f(L.uS, pageMeta.s);
     gl.uniform1f(L.uTaps, quality >= 2 ? 9 : 5);
     gl.uniform1f(L.uY0, pageMeta.y0 || 0);
-    gl.uniform1f(L.uPageOn, stripMeta.opaque ? 0 : 1);
+    /* 淡回按「画出来的帧」推进（每帧最多记 34ms）：拍完快照后主线程常被天空重起 / 预渲染占住 0.3~0.5 秒，按墙钟算下一帧已经超过 140ms = 直接跳满、等于没淡 */
+    if (pageIn && !navStale) {
+      var tN = performance.now(); pageK = Math.min(1, pageK + Math.min(34, Math.max(0, tN - pageIn)) / 140); pageIn = tN;
+      if (stats.pageFade && stats.pageFade.length < 24) stats.pageFade.push(Math.round(pageK * 100) / 100);
+      if (pageK >= 1) pageIn = 0; else schedule();
+    }
+    var pin = navStale ? 0 : pageK;
+    gl.uniform1f(L.uPageOn, stripMeta.opaque ? 0 : pin * pin * (3 - 2 * pin));
     var dark = doc.body.classList.contains('dark');
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texD);
     gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, texI);
@@ -1454,7 +1475,7 @@
     if (force === true && !scrolling) { animWait = 99; }
     if (!on || !gl || lost) return;
     /* 第 319 次：透镜在场 / dock 弹簧在动 → 推迟到落定（DR.settled），这 0.2~0.5 秒用旧快照，看不出来；同一帧不和透镜抢主线程 */
-    if (busy()) { pendRaster = Math.max(pendRaster, force === true || animWait === 99 ? 2 : 1); stats.rasterDeferredHits = (stats.rasterDeferredHits || 0) + 1; return; }
+    if (busy()) { pendRaster = Math.max(pendRaster, force === true || animWait === 99 ? 2 : 1); stats.rasterDeferredHits = (stats.rasterDeferredHits || 0) + 1; if ((navSettle || hiddenForNav) && dockBusy()) markNavStale(); return; }
     if (scrolling) { rasterTimer = setTimeout(doRaster, 220); return; }
     if (doc.documentElement.hasAttribute('data-nav')) { rasterTimer = setTimeout(doRaster, 160); return; }
     /* 第 318 次：二级页横推进行中（html.nav-anim / 侧滑拖动 html.nav-drag）：#view 在动、旧页在 body 上的另一张纸里，此刻拍的是半截——
@@ -1485,6 +1506,7 @@
     var ms = performance.now() - t0;
     stats.rasters++; stats.rasterMs = Math.round(ms * 10) / 10; stats.rasterMax = Math.max(stats.rasterMax, stats.rasterMs);
     lastRaster = Date.now(); dirty = false; ready = true;
+    if (navStale) { navStale = false; pageIn = performance.now(); pageK = 0; stats.pageFade = []; }
     if (stripeTimer) { clearTimeout(stripeTimer); stripeTimer = 0; }
     if (staleTimer) { clearTimeout(staleTimer); staleTimer = 0; }
     /* 自动档的性能闸门：连续两次快照都慢 → 本次会话关掉折射 */
@@ -1530,7 +1552,7 @@
     /* 进 / 出二级页仍有整页入场淡入：此刻拍是半透明的，照旧等入场跑完（画布留着旧快照，不藏） */
     var vw = doc.getElementById('view');
     if (vw && vw.classList.contains('view-enter')) { rasterTimer = setTimeout(doRaster, 120); return; }
-    if (busy()) { pendRaster = 2; stats.rasterDeferredHits = (stats.rasterDeferredHits || 0) + 1; return; }   /* 第 319 次：点 dock 切页——透镜在场，落定再拍 */
+    if (busy()) { pendRaster = 2; stats.rasterDeferredHits = (stats.rasterDeferredHits || 0) + 1; if (dockBusy()) markNavStale(); return; }   /* 第 319 次：点 dock 切页——透镜在场，落定再拍；第 329 次（续）：这期间不折旧快照 */
     doRaster(true);
   }
   DR._navDirty = navDirty;
@@ -1739,7 +1761,7 @@
       canvas: cv ? [cv.width, cv.height] : null, inDom: !!(cv && cv.isConnected), err: DR._err || '',
       stripes: stats.stripes, stripeMs: stats.stripeMs, stripeMax: stats.stripeMax, stripeRows: stats.stripeRows, deferred: stats.deferred, pending: pend.length + stale.length,
       strips: stats.strips, copies: stats.copies, frames: stats.frames,
-      deferredRasters: stats.deferredRasters || 0, rasterDeferredHits: stats.rasterDeferredHits || 0, pendRaster: pendRaster, lensIconRasters: stats.lensIconRasters || 0, lensWarm: stats.lensWarm || 0, fuseWarm: stats.fuseWarm || 0, lcKey: !!lcKey,
+      navStale: navStale, navStales: stats.navStale || 0, pageIn: !!pageIn, pageK: Math.round(pageK * 1000) / 1000, pageFade: stats.pageFade || [], deferredRasters: stats.deferredRasters || 0, rasterDeferredHits: stats.rasterDeferredHits || 0, pendRaster: pendRaster, lensIconRasters: stats.lensIconRasters || 0, lensWarm: stats.lensWarm || 0, fuseWarm: stats.fuseWarm || 0, lcKey: !!lcKey,
       surfaces: Object.keys(surf).map(function (k) { var s = surf[k]; return { id: k, canvas: s.c ? [s.c.width, s.c.height] : null, on: s.c ? s.c.classList.contains('on') : !!(s.el && s.el.classList.contains('lg-band')), inDom: s.c ? s.c.isConnected : !!(s.el && s.el.isConnected), shape: !!s.shape, k: s.k }; }),
       light: { src: light.src, x: Math.round(light.x * 1000) / 1000, y: Math.round(light.y * 1000) / 1000 }, press: { dock: press.dock, live: press.live },
       ext: cv && cv._key ? 1 : 0, cvRadius: cv ? cv.style.borderRadius : '', lens: !!(bar && bar.classList.contains('lg-lens')), ep: stats.ep || 0, lensT: lensR ? { x: Math.round(lensR.x), y: Math.round(lensR.y), w: Math.round(lensR.w), h: Math.round(lensR.h), m: Math.round(lensM * 100) / 100, a: Math.round(lensA * 100) / 100, fuse: lensFx.fuse || 0, hl: Math.round((lensFx.hl || 0) * 100) / 100, flash: Math.round((lensFx.flash || 0) * 100) / 100 } : null,
