@@ -215,7 +215,8 @@
   var LENS_MX = 44;                            /* 贴图里 ±127 对应的最大偏移（CSS px）：rim 18 + 放大 68·0.15/1.15 ≈ 27，再加色散 / 速度余量 */
   var LENS_PAD = 60;                           /* 透镜元素四周留白（贴图同尺寸；clip-path 只留透镜本身） */
   var LENS_K = 2;                              /* 贴图分辨率：每 CSS px 2 像素 */
-  var LENS_W = 110, LENS_DH = 12, LENS_ZOOM = .15;   /* 第 313 次：136 × 栏高+6；第 314 次：静止栏高 + 10（上下各冒出 5，对照支付宝 5~7pt），快拖时由形变压回约栏高 */
+  /* 第 331 次：栏改为 GL / CSS 同一边框盒 62 后，透镜绝对高度保持真机原样 72（第 327 次起 GL 模式就是外观栏高 62 + 10）——LENS_DH 12 → 10，透镜光学（r329 端部折射剖面）不变 */
+  var LENS_W = 110, LENS_DH = 10, LENS_ZOOM = .15;   /* 第 313 次：136 × 栏高+6；第 314 次：静止栏高 + 10（上下各冒出 5，对照支付宝 5~7pt），快拖时由形变压回约栏高 */
   /* 第 313 次：iOS 透镜外沿不画「dock 线条图标纹理」（和 DOM 图标对不齐 → 碎块 / 双字）。保持关闭。
      第 314 次：换成「透镜图标层」——透镜里的彩色图标 + 选中色文字整块由 GL 从一张纹理画（中心放大、边上一起被折弯），
      DOM 图标只在透镜外（每个页签 clip-path 挖掉透镜形状），两份内容不再在同一处叠着，透镜边就是唯一的分界 */
@@ -247,7 +248,7 @@
        宽 = 两边之差（上限 104），中心 = 两边均值；鼓起 s 改临界阻尼（不过冲），约第 4 帧到 75% 才像透镜。 */
     lead: { k: 1200, z: 1 }, trail: { k: 560, z: 1 }, trailHold: 40,
     tapGrow: { k: 1600, z: 1 },
-    tapMaxW: 104, tapDH: -4, tapBulge: 8, bigAfter: 160,   /* 按住超过 160ms 算长按（点击一般 80~120ms）→ 第十四版大透镜 */
+    tapMaxW: 130, tapDH: -4, tapBulge: 8, bigAfter: 160,   /* 按住超过 160ms 算长按（点击一般 80~120ms）→ 第十四版大透镜 */
     /* 第 319 次：按下整条 dock 放大（对照支付宝 22:03 +3.6% / App Store 23:38 +3.7%）——整块合成层 scale，GL 画布跟着一起缩放、不重新取样。
        按下 k 1500 ζ 0.8 朝 1.038；松手 k 250 ζ 0.6 回 1：83ms 松手时峰值 +3.6%（≈92ms）、≈268ms 回到 1、下冲 −0.32%（≈340ms）、≈470ms 停稳 */
     press: { k: 1500, z: 0.8, amp: 0.038 }, release: { k: 250, z: 0.6 },
@@ -403,7 +404,8 @@
   var geo = null;
   /* 第 327 次：GL 模式下一级栏的透明边框 1 → 2px（styles.css 第 327 次段，GL 轮廓 = 边框盒、外观尺寸不变）——透镜高、点击胶囊高、水滴高、栏内壁 / 果冻这些
      「按栏高 / 栏端算」的量扣掉多出来的这 1px（ex），和原来逐像素相同 */
-  function bEx() { return bar ? Math.max(0, (bar.clientTop || 1) - 1) : 0; }
+  /* 第 331 次：GL / CSS 同一边框盒（styles.css 第 331 次段），栏高 / 栏端直接按边框盒算，不再扣 1px */
+  function bEx() { return 0; }
   function barGeo(fresh) {
     if (geo && !fresh && (lens || DS.on)) return geo;
     var r = bar.getBoundingClientRect(), k = DS.s || 1, cx = r.left + r.width / 2, cy = r.top + r.height / 2, w = r.width / k, h = r.height / k;
@@ -445,7 +447,7 @@
     var a0 = activeTab(), x0 = a0 && a0 !== t && a0.classList.contains('dk-tab') ? tabCenter(a0) : tabCenter(t), x = tabCenter(t), n = nowMs();
     var pw0 = t.offsetWidth + THUMB_PX;
     lens = { mode: mode, W: W, H: H, x: x0, vx: 0, tx: x, s: 0, vs: 0, sx: 1, vsx: 0, sy: 1, vsy: 0, rb: 0, m: 0, a: 0, hl: 0, flash: 1,
-      phase: 'grow', tap: true, t0: n, last: n, pw: pw0, ph: Math.max(t.offsetHeight, bar.offsetHeight - 2 * bEx() - 2 * THUMB_INSET), tab: t, ex: bEx(), boxes: mode === 'gl' ? iconBoxes() : [],
+      phase: 'grow', tap: true, t0: n, last: n, pw: pw0, ph: bar.offsetHeight - 2 * bEx() - 2 * THUMB_INSET, tab: t, ex: bEx(), boxes: mode === 'gl' ? iconBoxes() : [],
       /* 第 319 次：点击的两条边（未缩放视口 x）、长按 / 拖动的「大透镜」比例 bf（0 = 点击：栏内 56 高、宽 ≤104；1 = 第十四版：栏高 + 12、宽 110） */
       eL: x0 - pw0 / 2, eR: x0 + pw0 / 2, veL: 0, veR: 0, bf: 0, down: true, br: G, Ht: Math.round(bar.offsetHeight - 2 * bEx() + PHYS.tapDH), debt: 0, tp: n, retargets: 0,
       endSide: endSideOf(t), jc: 0, vjc: 0, jcMax: 0, endC: endCenters(), pull: 0, pullMax: 0 };
@@ -845,9 +847,12 @@
   /* 第 316 次：静止选中胶囊按原生比例——高 = 栏高 − 2×THUMB_INSET（上下各留约 4px），宽 = 页签宽 + THUMB_PX。
      对照：支付宝 22:03 深色胶囊约 83×55pt（栏 62pt，上下各约 3.5pt）、App Store 23:38 约 85pt 宽几乎贴栏高；第 315 次是页签本身 64×44（栏 60，上下各 8），
      比原生小一圈、看着「缩在里面」。透镜从这块胶囊同尺寸鼓起（lensStart 的 pw / ph）。 */
-  var THUMB_INSET = 4, THUMB_PX = 12;
+  /* 第 331 次：按原生重新量（Apple Music 10-31 / 照片 10-29，@3x）：选中胶囊 = 栏高 − 10（上下各 5）、宽 = 页签宽 + 8（页签 86 → 94，原生 93.7）；页签现在撑满栏高，高度不再取页签高。
+     与 styles.css 的 --dk-pill-in / --dk-pill-px 同值 */
+  var THUMB_INSET = 5, THUMB_PX = 8;
+  /* 第 331 次：页签 64 → 86、静止胶囊 76 → 94 后，点击透镜宽上限 104 → 130（余量 28 按页签间距 66 → 86 等比放到 36：前缘先走、后缘停 2 帧的起步节奏不被上限提前拖走；原生点击透镜 98~114pt 宽，见报告） */
   function thumbBox(a) {
-    var H = bar.offsetHeight - 2 * bEx(), h = Math.max(a.offsetHeight, H - 2 * THUMB_INSET), w = a.offsetWidth + THUMB_PX;
+    var H = bar.offsetHeight - 2 * bEx(), h = H - 2 * THUMB_INSET, w = a.offsetWidth + THUMB_PX;
     return { x: a.offsetLeft - THUMB_PX / 2, y: (bar.clientHeight - h) / 2, w: w, h: h };
   }
   function activeTab() {
