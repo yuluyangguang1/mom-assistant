@@ -6,7 +6,7 @@
  * 二、子密钥：HKDF-SHA256(家庭密钥, salt='yiya/v1/hkdf')，info 分别为
  *      'yiya/v1/msg'  → AES-256-GCM 消息密钥（不可导出）
  *      'yiya/v1/push' → AES-256-GCM 推送密钥（不可导出）
- *      'yiya/v1/fp'   → 256 位指纹（十六进制；二维码里放前 8 位，界面显示「a1b2-c3d4」给两台手机对一眼）
+ *      'yiya/v1/fp'   → 256 位指纹（十六进制；二维码里放前 16 位，界面显示「a1b2-c3d4-e5f6-0718」（64 位）给两台手机对一眼）
  *    三把互相独立：知道指纹推不出密钥，推送密钥泄露也解不开记录。
  * 三、密文格式：base64url( 0x01 版本字节 ‖ 随机 96 位 IV ‖ AES-GCM 密文+128 位标签 )
  *    消息 AAD = 'yiya/v1|<familyId>|<发送设备 ID>|<kind>'；推送 AAD = 'yiya/v1/push|<familyId>|<发送设备 ID>|<kind>'。

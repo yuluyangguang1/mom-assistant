@@ -8143,12 +8143,12 @@ def test_r332(b):
         A.locator('#famBox .fam-invite').screenshot(path=str(OUT / 'r332_qr.png'))
         code = A.evaluate("FamSync.invite().then(r=>r.code)")
         cred = A.evaluate("FamDB.get('cred')")
-        check('#332 家庭码格式 yiya://join?u=&f=&i=&k=&fp=（密钥 32 字节 base64url、指纹 8 位）',
+        check('#332 家庭码格式 yiya://join?u=&f=&i=&k=&fp=（密钥 32 字节 base64url、指纹 16 位）',
               code.startswith('yiya://join?u=') and ('&f=%s&' % cred['familyId']) in code and ('&k=%s&' % cred['k']) in code and '&fp=' in code, code[:60])
         devs = A.evaluate(f"fetch('{S}/v1/families/'+'{cred['familyId']}'+'/devices',{{headers:{{Authorization:'Bearer {cred['deviceId']}:{cred['token']}'}}}}).then(r=>r.json())")
         check('#332 服务器上的设备名一律空串（真实称呼只在加密消息里）', all(d['name'] == '' for d in devs['devices']), devs)
         # 解析：篡改指纹 / 非 https / 正常
-        bad_fp = B.evaluate("c=>FamSync.parseCode(c)", code.replace('&fp=', '&fp=0').replace('&fp=0', '&fp=00000000&x=', 1))
+        bad_fp = B.evaluate("c=>FamSync.parseCode(c)", code.replace('&fp=', '&fp=0').replace('&fp=0', '&fp=0000000000000000&x=', 1))
         bad_u = B.evaluate("c=>FamSync.parseCode(c)", code.replace('u=http%3A%2F%2F127.0.0.1', 'u=http%3A%2F%2Fevil.example'))
         bad_k = B.evaluate("c=>FamSync.parseCode(c)", code.replace('&k=' + cred['k'], '&k=' + cred['k'][:-2] + ('AA' if cred['k'][-2:] != 'AA' else 'BB')))
         check('#332 加入前校验：指纹对不上 / 服务器不是 https / 密钥被改 → 拒绝', bool(bad_fp.get('error')) and bool(bad_u.get('error')) and bool(bad_k.get('error')),

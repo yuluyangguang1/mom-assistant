@@ -35,7 +35,7 @@
   function isObj(v) { return v && typeof v === 'object' && !Array.isArray(v); }
   function cleanName(s) { return FC.cleanName(s).slice(0, NAME_MAX); }
   function originOf(fid) { return 'f:' + Meta.uuidFrom('yiya-origin|' + fid).replace(/-/g, '').slice(0, 8); }
-  function fmtFp(fp) { return fp ? fp.slice(0, 4) + '-' + fp.slice(4, 8) : ''; }
+  function fmtFp(fp) { return fp ? (fp.slice(0, 16).match(/.{4}/g) || []).join('-') : ''; }   /* 64 位，四组 */
   function serverOk(u) {
     if (typeof u !== 'string' || u.length > 200) return false;
     var x; try { x = new URL(u); } catch (e) { return false; }
@@ -522,7 +522,7 @@
     return api('POST', '/families/' + cred.familyId + '/invites', {}).then(function (j) {
       if (!INVITE_RE.test(j.invite)) throw new Error('服务器返回不对');
       var code = 'yiya://join?u=' + encodeURIComponent(cred.server) + '&f=' + cred.familyId + '&i=' + j.invite + '&k=' + cred.k
-        + '&fp=' + keys.fp.slice(0, 8) + (cred.myName ? '&n=' + encodeURIComponent(cred.myName) : '');
+        + '&fp=' + keys.fp.slice(0, 16) + (cred.myName ? '&n=' + encodeURIComponent(cred.myName) : '');
       return { code: code, expiresAt: j.expiresAt, fp: fmtFp(keys.fp) };
     });
   }
@@ -542,9 +542,9 @@
     if (!FAMILY_RE.test(q.f || '') || !INVITE_RE.test(q.i || '')) return Promise.resolve({ error: '家庭码不完整，请重新扫一次' });
     var raw = FC.unb64u(q.k || '');
     if (!raw || raw.length !== 32) return Promise.resolve({ error: '家庭码不完整，请重新扫一次' });
-    if (!/^[0-9a-f]{8}$/.test(q.fp || '')) return Promise.resolve({ error: '家庭码缺少指纹，请让家人重新生成' });
+    if (!/^[0-9a-f]{16}$/.test(q.fp || '')) return Promise.resolve({ error: '家庭码缺少指纹，请让家人重新生成' });
     return FC.deriveKeys(raw).then(function (k) {
-      if (k.fp.slice(0, 8) !== q.fp) return { error: '指纹对不上：家庭码可能被改过或没复制全' };
+      if (k.fp.slice(0, 16) !== q.fp) return { error: '指纹对不上：家庭码可能被改过或没复制全' };
       return { server: srv, familyId: q.f, invite: q.i, k: q.k, fp: k.fp, fpShow: fmtFp(k.fp), inviter: cleanName(q.n || '') };
     });
   }
