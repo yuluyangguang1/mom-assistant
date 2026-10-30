@@ -7534,7 +7534,7 @@ def test_r316(b):
     prog = [(x - act[0]) / dist for x in xs]
     n_total = len([s for s in seq if s])
     shrink = [s for s in seq if s and s['phase'] == 'shrink']
-    check('#316 点击总时长：按下到透镜收回胶囊 14~19 帧（支付宝 22:03 约 17 帧、App Store 约 14 帧；第 315 次 23 帧）', 14 <= n_total <= 19, n_total)
+    check('#316 点击总时长：按下到透镜收回胶囊 14~20 帧（支付宝 22:03 约 17 帧、App Store 约 14 帧；第 315 次 23 帧；第 331 次页签间距 66 → 86 多走一段，上限 19 → 20）', 14 <= n_total <= 20, n_total)
     check('#316 点击滑行先冲后缓：+4 帧 45%~75%、+8 帧 ≥75%、+12 帧 ≥88%，全程单调不越过目标（支付宝 +4≈45% / +12≈87%，App Store +3≈46% / +6≈82%）',
           len(prog) > 12 and 0.45 <= prog[4] <= 0.75 and prog[8] >= 0.75 and prog[12] >= 0.88 and all(prog[i + 1] >= prog[i] - 1e-3 for i in range(len(prog) - 1)) and max(prog) <= 1.01, [round(v, 3) for v in prog])
     check('#316 收回胶囊 ≤5 帧（支付宝 3 帧、App Store 4~5 帧；第 315 次 6 帧）', 1 <= len(shrink) <= 5, len(shrink))
