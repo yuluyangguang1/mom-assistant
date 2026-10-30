@@ -244,7 +244,15 @@
     bigV: 2400, bigMax: 0.15, bigSq: 0.08, bigShape: { k: 1500, z: 1 },
     /* 第 321 次收尾：连点改目标时，两条边的弹簧目标不再一步跳到新页签——目标从透镜当前位置按一阶低通（τ 80ms）滑过去，
        原来目标突变、前缘 k 1200 第二帧就冲出 21pt（相邻帧阈值 14pt）。只管改目标那一下，第一次按下的 17 帧节奏不受影响 */
-    retargetTau: 80
+    retargetTau: 80,
+    /* 第 322 次（Telegram 参考 B3）：撞端果冻——只在点到两端页签时：透镜外沿冲到栏内壁（栏端往里 endInset）还在往外走，
+       前缘的速度（px/s ÷ 透镜宽）× hitGain 一次性变成压缩比 jc 的初速度（「撞上去被压扁」），jc 走 k 250 ζ 0.7 的弹簧（压到 ≈15% 再弹回、略过冲 = 果冻），上限 0.18；
+       外沿始终夹在内壁上、内沿不动；竖向 sy = 1 + 0.8·jc（最多鼓出栏外 4pt）。透镜收回后余下的形变交给静止胶囊弹完。
+       透镜中心的物理位置（两条边的弹簧）不变 = 17 帧节奏、单调不越过目标都不受影响；中间页签 jc 恒 0，透镜仍在栏内 */
+    jelly: { k: 250, z: 0.7 }, hitGain: 3.6, hitZone: 3, hitV: 120, endInset: 4, jellySy: 0.8, jellyMax: 0.18, jellyDH: 4,
+    /* 第 322 次（Telegram 参考 A3）：长按 / 拖动把透镜顶过端点页签（越过它在栏内的静止位置）时，栏端被拉出：外凸 = 0.6 × 越界量，上限 7pt；
+       GL 里「透镜 × 一级 dock」这一对单独用 k_end = 10pt 的 smooth-min 并进去（dock-refract 的 dk()，不进二级融合的逐对 k 表）。无 GL（Chromium SVG）不外凸 */
+    endPullK: 0.6, endPullMax: 7, kEnd: 10
   };
   /* 半隐式欧拉，4ms 子步；v 单位 px/s */
   function springStep(x, v, target, p, dt, crit) {
@@ -394,6 +402,13 @@
     });
     return out;
   }
+  /* 第 322 次：t 是两端页签吗（−1 左端 / 1 右端 / 0 中间） */
+  function endSideOf(t) {
+    var ts = tabsOf();
+    if (ts.length < 2) return 0;
+    return t === ts[0] ? -1 : t === ts[ts.length - 1] ? 1 : 0;
+  }
+  function endCenters() { var ts = tabsOf(); return ts.length ? [tabCenter(ts[0]), tabCenter(ts[ts.length - 1])] : null; }
   function lensStart(t) {
     if (lens || !bar || !t || !t.classList.contains('dk-tab') || bar.classList.contains('is-sub')) return false;
     var mode = lensMode();
@@ -415,7 +430,9 @@
     lens = { mode: mode, W: W, H: H, x: x0, vx: 0, tx: x, s: 0, vs: 0, sx: 1, vsx: 0, sy: 1, vsy: 0, rb: 0, m: 0, a: 0, hl: 0, flash: 1,
       phase: 'grow', tap: true, t0: n, last: n, pw: pw0, ph: Math.max(t.offsetHeight, bar.offsetHeight - 2 * THUMB_INSET), tab: t, boxes: mode === 'gl' ? iconBoxes() : [],
       /* 第 319 次：点击的两条边（未缩放视口 x）、长按 / 拖动的「大透镜」比例 bf（0 = 点击：栏内 56 高、宽 ≤104；1 = 第十四版：栏高 + 12、宽 110） */
-      eL: x0 - pw0 / 2, eR: x0 + pw0 / 2, veL: 0, veR: 0, bf: 0, down: true, br: G, Ht: Math.round(bar.offsetHeight + PHYS.tapDH), debt: 0, tp: n, retargets: 0 };
+      eL: x0 - pw0 / 2, eR: x0 + pw0 / 2, veL: 0, veR: 0, bf: 0, down: true, br: G, Ht: Math.round(bar.offsetHeight + PHYS.tapDH), debt: 0, tp: n, retargets: 0,
+      endSide: endSideOf(t), jc: 0, vjc: 0, jcMax: 0, endC: endCenters(), pull: 0, pullMax: 0 };
+    jellyLast = null;
     bar.classList.remove('lg-lensend', 'lg-shrink'); bar.classList.add('lg-lensing');
     bar.classList.toggle('lg-lens-gl', mode === 'gl');
     if (thumb) { thumb.classList.add('lg-lhide'); thumb.classList.remove('lg-grow'); }
@@ -436,6 +453,7 @@
        鼓起速度 vs 清零——收回中的 vs 很负，不清零回到滑行后 s 还会先掉到 0.68 再鼓 */
     L.tab = t; L.tx = tabCenter(t); L.down = true; L.tap = true; L.tp = L.last || n; L.rb = 0;
     L.gx = L.x; L.gsm = true; L.vs = 0;
+    L.endSide = endSideOf(t); L.hit = false;   /* 第 322 次：连点改到端点页签同样撞端；改离端点时 jc 自己弹回 */
     L.pw = t.offsetWidth + THUMB_PX;
     if (L.phase === 'shrink' || L.phase === 'settle') {
       L.phase = 'hold';
@@ -470,11 +488,35 @@
       rq(function () { rq(function () { if (!lens) b0.classList.remove('lg-lensend'); }); });
     }
     if (thumb) { thumb.classList.remove('lg-lhide'); thumb.style.removeProperty('opacity'); thumb.style.removeProperty('transition'); }
+    if (L && L.endSide && Math.abs(L.jc || 0) > 0.004) thumbJelly(L.jc, L.vjc || 0, L.endSide);
     popNow();
     if (global.DockRefract && DockRefract.lens) DockRefract.lens(null);
     if (DS.on && !DS.raf && !LD._manual) { DS.last = nowMs(); DS.raf = global.requestAnimationFrame(dsFrame); }
     settledCheck();
   }
+  /* 第 322 次：撞端果冻的后半段——透镜收回时还没弹完的压缩（jc、速度 vjc）交给静止胶囊，同一个弹簧（k 250 ζ 0.7）离线算成关键帧：
+     宽 1 − jc、高 1 + 0.8·jc，以靠栏端那一侧为原点（外沿贴着栏端不动） */
+  var jellyLast = null;
+  function thumbJelly(j, vj, side) {
+    if (!thumb || !thumb.animate || reduced || !lastRect) return;
+    var w = parseFloat(thumb.style.width) || 0, h = parseFloat(thumb.style.height) || 0, r = lastRect;
+    var ox = side > 0 ? w : 0, oy = h / 2, fr = [], t = 0, x = j, v = vj, dt = 1000 / 60;
+    var tf = function (q) {
+      return 'translate(' + r.x + 'px,' + r.y + 'px) translate(' + ox + 'px,' + oy + 'px) scale(' + (1 - q).toFixed(4) + ',' + (1 + PHYS.jellySy * q).toFixed(4) + ') translate(' + (-ox) + 'px,' + (-oy) + 'px)';
+    };
+    while (t < 900) {
+      fr.push(x);
+      var q = springStep(x, v, 0, PHYS.jelly, dt); x = q[0]; v = q[1]; t += dt;
+      if (Math.abs(x) < 0.0008 && Math.abs(v) < 0.02) break;
+    }
+    fr.push(0);
+    jellyLast = { j0: j, frames: fr.length, peak: Math.max.apply(null, fr.map(Math.abs)), min: Math.min.apply(null, fr), side: side };
+    try {
+      thumb.animate(fr.map(function (q) { return { transform: tf(q) }; }), { duration: Math.round((fr.length - 1) * dt), easing: 'linear' });
+      if (global.DockRefract && DockRefract.kick) DockRefract.kick(Math.round(fr.length * dt) + 40);
+    } catch (e) { /* 老内核：不弹 */ }
+  }
+  LD._jelly = function () { return jellyLast; };
   /* 第 319 次：选中图标的小动作（dk-pop）在透镜开始收回时才播（原来 pointerup 就播、被透镜遮着，露出来只剩后 2/3 = 落定后又「抽」一下） */
   function popNow() {
     if (!bar) return;
@@ -527,6 +569,26 @@
       L.eL = L.x - L.pw / 2; L.eR = L.x + L.pw / 2; L.veL = L.veR = L.vx;
       exitOK = true;
     }
+    /* 第 322 次：撞端果冻——外沿冲到内壁那一帧把前缘速度换成 jc 的初速度（只撞一次）；之后 jc 走果冻弹簧。
+       cT = 不压的话外沿会越过内壁多少（比例）：jc 不小于它（外沿不穿墙） */
+    var cT = 0;
+    if (edges && L.endSide && !red) {
+      var wN = Math.max(1, Math.min(PHYS.tapMaxW, ((L.eR - L.eL) + PHYS.tapBulge * Math.max(0, L.s)) * L.sx));
+      var lim = L.endSide > 0 ? L.br.right - PHYS.endInset : L.br.left + PHYS.endInset;
+      var gap = L.endSide * (lim - (L.x + L.endSide * wN / 2));   /* 外沿离内壁还有多远（负 = 已越过） */
+      var vOut = L.endSide * (L.endSide > 0 ? L.veR : L.veL);
+      if (!L.hit && gap < PHYS.hitZone && vOut > PHYS.hitV) { L.hit = true; L.vjc += PHYS.hitGain * vOut / wN; L.hitV = Math.round(vOut); }
+      cT = Math.min(PHYS.jellyMax, Math.max(0, -gap) / wN);
+    }
+    if (red) { L.jc = 0; L.vjc = 0; }
+    else if (L.jc !== 0 || L.vjc !== 0 || cT > 0) {
+      q = springStep(L.jc, L.vjc, 0, PHYS.jelly, dt); L.jc = q[0]; L.vjc = q[1];
+      if (L.jc < cT) { L.jc = cT; if (L.vjc < 0) L.vjc = 0; }
+      if (L.jc > PHYS.jellyMax) { L.jc = PHYS.jellyMax; if (L.vjc > 0) L.vjc = 0; }
+      if (L.jc < -0.06) L.jc = -0.06;
+      if (cT === 0 && Math.abs(L.jc) < 0.0008 && Math.abs(L.vjc) < 0.02) { L.jc = 0; L.vjc = 0; }
+    }
+    if (L.jc > L.jcMax) L.jcMax = L.jc;
     if (L.phase === 'settle') {
       var el = n - L.ts;
       if ((el > PHYS.exitMs && exitOK && Math.abs(L.tx - L.x) < PHYS.exitPx && Math.abs(L.vx) < PHYS.exitV && Math.abs(L.sx - 1) < 0.03 && Math.abs(L.sy - 1) < 0.03) || el > 520) {
@@ -656,9 +718,22 @@
     var br = L.br, cy = br.top + br.height / 2, s = Math.max(0, L.s);
     /* 点击：宽 = 两条边之差 + 鼓起（≤104），高 = 胶囊高 → 栏高 − 4（56），都不过冲；长按 / 拖动（bf → 1）：第十四版大透镜 */
     var wT = Math.min(PHYS.tapMaxW, ((L.eR - L.eL) + PHYS.tapBulge * s) * L.sx), hT = Math.min(L.Ht, (L.ph + (L.Ht - L.ph) * s) * L.sy);
+    /* 第 322 次：撞端果冻——外沿夹在栏内壁、内沿不动，宽度按 jc 压；竖向 1 + 0.8·jc，最多鼓出栏外 jellyDH（4pt）。点击形态才有（bf → 1 时混掉） */
+    var xT = L.x;
+    if (L.jc && L.endSide) {
+      var limA = L.endSide > 0 ? br.right - PHYS.endInset : br.left + PHYS.endInset;
+      var eo = L.x + L.endSide * wT / 2;
+      if (L.endSide * (eo - limA) > 0) eo = limA;
+      var wJ = wT * (1 - L.jc);
+      xT = eo - L.endSide * wJ / 2; wT = wJ;
+      /* 竖向按点击透镜的满高（栏高 − 4）算：滑行中的速度压扁（sy < 1）撞上去时先被顶回满高，再按 1 + 0.8·jc 鼓出 */
+      var hJ = hT + Math.max(0, L.Ht - hT) * Math.max(0, Math.min(1, L.jc / 0.04));
+      hT = Math.min(br.height + 2 * PHYS.jellyDH, hJ * (1 + PHYS.jellySy * L.jc));
+    }
     var wB = (L.pw + (L.W - L.pw) * s) * L.sx, hB = (L.ph + (L.H - L.ph) * s) * L.sy;
     var w = wT + (wB - wT) * L.bf, h = hT + (hB - hT) * L.bf, sx = w / L.W, sy = h / L.H;
-    var ds = DS.s || 1, ex = br.cx + (L.x - br.cx) * ds, ey = br.cy + (cy - br.cy) * ds;
+    var lxC = xT + (L.x - xT) * L.bf;   /* 透镜中心（果冻时偏向内沿） */
+    var ds = DS.s || 1, ex = br.cx + (lxC - br.cx) * ds, ey = br.cy + (cy - br.cy) * ds;
     lensEl.style.transform = 'translate(' + (ex - L.W / 2 - LENS_PAD) + 'px,' + (ey - L.H / 2 - LENS_PAD) + 'px) scale(' + (sx * ds).toFixed(4) + ',' + (sy * ds).toFixed(4) + ')';
     /* 第 315 次：鼓起时一开始就不透明（透镜从胶囊同尺寸起步，原来 0.35 起淡入 = 按下第 1~3 帧选中图标半透明「闪一下」） */
     var op = L.phase === 'shrink' ? Math.min(1, s * 1.6) : 1;
@@ -681,7 +756,7 @@
         for (var c = 0; c < 3 && c < dms.length; c++) dms[c].setAttribute('scale', (2 * LENS_MX * (1 + IOR_D[c] * chx) * gm).toFixed(2));
       }
     }
-    var lx = L.x - w / 2;
+    var lx = lxC - w / 2;
     /* 栏的上下细边：只在 plain（没有真折射）时用两条直线示意；svg / gl 里栏边是被真折弯进来的 */
     var R = br.height / 2;
     var a0 = Math.max(14, (br.left + R - lx) / sx), b0 = Math.min(L.W - 14, (br.right - R - lx) / sx);
@@ -731,9 +806,17 @@
       });
     }
     /* GL：形状 / 折射 / 高光 / 融合全在着色器里按 uniform 尺寸算（不生成贴图）；DR.lens 当场同步重画，GL 与 CSS 外形同一帧 */
+    /* 第 322 次（A3）：栏端外凸量（带符号：右端 +、左端 −）——大透镜越过端点页签中心多少，0.6 倍、上限 7pt，按 bf 渐入 */
+    var pull = 0;
+    if (L.endC && L.bf > 0.5 && !reduced && L.phase !== 'shrink') {
+      var ovP = L.x > L.endC[1] ? L.x - L.endC[1] : L.x < L.endC[0] ? L.x - L.endC[0] : 0;
+      pull = (ovP > 0 ? 1 : -1) * Math.min(PHYS.endPullMax, PHYS.endPullK * Math.abs(ovP)) * Math.min(1, (L.bf - 0.5) * 2);
+      if (Math.abs(pull) < 0.05) pull = 0;
+    }
+    L.pull = pull; if (Math.abs(pull) > L.pullMax) L.pullMax = Math.abs(pull);
     if (L.mode === 'gl' && global.DockRefract && DockRefract.lens) {
       DockRefract.lens({ x: lx, y: cy - h / 2, w: w, h: h }, L.m, Math.max(0, Math.min(1, s)), op,
-        { hl: L.hl, flash: L.flash, fuse: reduced || L.bf < 0.5 ? 0 : PHYS.fuse, a: L.a, br: br, ds: DS.s || 1, sh: L.bf });   /* 点击透镜在栏内、不冒出：不融合、不投影（sh = bf） */   /* 点击透镜在栏内、不冒出，不需要融合 */
+        { hl: L.hl, flash: L.flash, fuse: reduced || L.bf < 0.5 ? 0 : PHYS.fuse, a: L.a, br: br, ds: DS.s || 1, sh: L.bf, ep: pull, ek: PHYS.kEnd });   /* 点击透镜在栏内、不冒出：不融合、不投影（sh = bf） */   /* 点击透镜在栏内、不冒出，不需要融合 */
     }
   }
 
@@ -926,7 +1009,7 @@
   var r3 = function (v) { return Math.round(v * 1000) / 1000; };
   LD._state = function () { return { refract: refractOn, thumb: !!(thumb && thumb.classList.contains('on')), map: mapKey,
     lens: lens ? { mode: lens.mode, phase: lens.phase, s: r3(lens.s), m: r3(lens.m), x: Math.round(lens.x * 10) / 10, vx: Math.round(lens.vx),
-      sx: r3(lens.sx), sy: r3(lens.sy), tap: !!lens.tap, eL: Math.round(lens.eL * 10) / 10, eR: Math.round(lens.eR * 10) / 10, bf: r3(lens.bf), retargets: lens.retargets || 0, w: Math.round((lens.eR - lens.eL) * 10) / 10, hl: r3(lens.hl), flash: r3(lens.flash), rb: Math.round(lens.rb * 10) / 10, tx: Math.round(lens.tx * 10) / 10 } : null }; };
+      sx: r3(lens.sx), sy: r3(lens.sy), tap: !!lens.tap, eL: Math.round(lens.eL * 10) / 10, eR: Math.round(lens.eR * 10) / 10, bf: r3(lens.bf), retargets: lens.retargets || 0, jc: r3(lens.jc || 0), jcMax: r3(lens.jcMax || 0), end: lens.endSide || 0, hitV: lens.hitV || 0, pull: Math.round((lens.pull || 0) * 100) / 100, pullMax: Math.round((lens.pullMax || 0) * 100) / 100, w: Math.round((lens.eR - lens.eL) * 10) / 10, hl: r3(lens.hl), flash: r3(lens.flash), rb: Math.round(lens.rb * 10) / 10, tx: Math.round(lens.tx * 10) / 10 } : null }; };
 
   global.LiquidDock = LD;
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', function () { setTimeout(LD.init, 0); });

@@ -468,6 +468,8 @@
     'uniform vec4 uLX;uniform vec3 uLO;',
     /* 第 319 次：uDS = (栏中心 x, y, 整条 dock 按下缩放 ds)——画布作为栏的子节点被合成器整块放大，透镜里按视觉位置取样，内部看起来仍是 0.97×（透镜外不重新取样） */
     'uniform vec3 uDS;',
+    /* 第 322 次（A3）：uEP = (栏端外凸量，带符号：右端 + / 左端 −；透镜 × dock 专用 k_end；—；—)。0 = 不外凸 */
+    'uniform vec4 uEP;',
     'vec3 lbody(vec3 c){return min(mix(c*uLB.y,vec3(1.),uLB.x),1.);}',
     'float tabl(float t){return t>=1.?0.:texture2D(uD,vec2((clamp(t,0.,1.)*126.+.5)/128.,.5)).r;}',
     'vec3 satv(vec3 c,float s){float l=dot(c,vec3(.2126,.7152,.0722));return clamp(mix(vec3(l),c,s),0.,1.);}',
@@ -481,11 +483,14 @@
     'float sdBox(vec2 v,vec4 R,float r){return sdR(v-R.xy-R.zw*.5,R.zw*.5,r);}',
     /* smooth-min（多项式）：k=0 时就是普通并集 */
     'float smin(float a,float b,float k){if(k<=.01)return min(a,b);float h=clamp(.5+.5*(b-a)/k,0.,1.);return mix(b,a,h)-k*h*(1.-h);}',
+    /* 第 322 次（A3）：一级 dock 的距离场 dk()——长按把透镜顶过端点时，栏端被拉出：在栏端放一颗 0.62 栏高的胶囊（外沿 = 栏端 + 外凸量），
+       与 dock 用 k_end（10pt）smooth-min 并起来 = 栏端中间局部外凸、上下圆滑接回直边。只作用于「透镜 × 一级 dock」，二级融合程序（FSF）不用它 */
+    'float dk(vec2 v){float a=sdBox(v,uA,uRA);if(abs(uEP.x)<.05)return a;float s=sign(uEP.x);float ex=s>0.?uA.x+uA.z:uA.x;float x0=ex-s*30.,x1=ex+uEP.x;float hh=uA.w*.62;vec4 P=vec4(min(x0,x1),uA.y+(uA.w-hh)*.5,abs(x1-x0),hh);return smin(a,sdBox(v,P,hh*.5),uEP.y);}',
     /* 融合半径只在两块玻璃的中线附近大（高斯衰减）：长而平的两条边之间不会整条糊成一块板，而是中间拉出一道颈 */
-    'float field(vec2 v){float a=sdBox(v,uA,uRA);if(uHasB<.5)return a;float cx=uBr.x+uBr.z*.5;float q=(v.x-cx)/(18.+uBr.z*.18);return smin(a,sdBox(v,uBr,uRB),uK*exp(-q*q));}',
+    'float field(vec2 v){float a=dk(v);if(uHasB<.5)return a;float cx=uBr.x+uBr.z*.5;float q=(v.x-cx)/(18.+uBr.z*.18);return smin(a,sdBox(v,uBr,uRB),uK*exp(-q*q));}',
     /* 第 314 次：透镜距离场——圆角矩形按 uniform 尺寸（形变后的宽高）现算；冒出 dock 的上下部分与 dock 边做 smooth-min（metaball），
        接缝处是一道圆滑的「液体粘连」而不是两个形状硬叠（dock 里面仍用透镜本身的形状） */
-    'float lf(vec2 v){float sL=sdBox(v,uT,uRT);if(uLX.z<.01)return sL;float sD=sdBox(v,uA,uRA);return mix(sL,smin(sD,sL,uLX.z),smoothstep(-2.,2.,sD));}',
+    'float lf(vec2 v){float sL=sdBox(v,uT,uRT);if(uLX.z<.01)return sL;float sD=dk(v);return mix(sL,smin(sD,sL,uLX.z),smoothstep(-2.,2.,sD));}',
     'vec3 bg(vec2 v){',
     '  vec4 b=texture2D(uB,(v-uStrip.xy)/uStrip.zw);',
     '  vec4 p=texture2D(uP,(v+uScroll-vec2(0.,uY0))*uS/uPS)*uPageOn;',
@@ -500,7 +505,7 @@
     /* 第 319 次：gCh = 背景彩度系数（透镜上下边带 < 1，压掉彩色模糊带）；gDisp = dock 本体色散（只在左右两端） */
     'float gCh=1.,gDisp=0.;',
     'vec3 chc(vec3 c,float k){return mix(vec3(dot(c,vec3(.2126,.7152,.0722))),c,k);}',
-    'vec3 scn(vec2 p){if(uDbg>1.5)return bg(p);float sa=sdBox(p,uA,uRA);vec3 c;',
+    'vec3 scn(vec2 p){if(uDbg>1.5)return bg(p);float sa=dk(p);vec3 c;',
     /* 第 312 次：栏内 = 同 CSS 的磨砂（模糊 + 色调曲线近似 + 底色）再叠上 dock 图标层——透镜外沿往外取样时，邻近图标是被折弯进来的 */
     /* 第 319 次：透镜里不预模糊（原来 7 点 8px 模糊 + 22px 宽环：dock 上方那行字被糊成一团灰影进透镜）——单点取样，色调 / 栏底色仍与 dock 同一套（材质不变，只是不糊） */
     '  if(sa<0.){c=chc(mix(tone(bg(p)),uTint.rgb,uTint.a),gCh);vec4 ic=icon(p);c=c*(1.-ic.a)+ic.rgb;}',
@@ -534,6 +539,8 @@
     '    float band=uBand;if(uHasB>.5){float da=sdBox(v,uA,uRA),db=sdBox(v,uBr,uRB);band=mix(uBandB,uBand,smoothstep(-4.,4.,db-da));}',
     '    float al=(1.-smoothstep(band*.45,band+5.,d))*clamp(.5-sd,0.,1.);',
     /* 融合颈部：在两块原形状之外、并集之内的部分没有 DOM 毛玻璃垫底，整块画满 */
+    /* 第 322 次（A3）：栏端被拉出的那一截在 DOM 毛玻璃外面，GL 画满 */
+    '    if(abs(uEP.x)>.05)al=max(al,smoothstep(-.5,.5,sdBox(v,uA,uRA))*clamp(.5-sd,0.,1.));',
     '    if(uHasB>.5&&uFill>.5){float mn=min(sdBox(v,uA,uRA),sdBox(v,uBr,uRB));al=max(al,smoothstep(-.5,.5,mn)*clamp(.5-sd,0.,1.)*clamp(uK/6.,0.,1.));}',
     '    if(uHasCut>.5)al*=smoothstep(-.5,.5,sdBox(v,uCut,uRC));',
     '    if(uDbg>.5)al=clamp(.5-sd,0.,1.);',
@@ -691,7 +698,7 @@
   var progF = null, UF = {}, fzErr = '', fzWarm = false;
   var UNI = ['uP', 'uB', 'uCv', 'uPS', 'uScroll', 'uL', 'uBox', 'uStrip', 'uTint', 'uFade', 'uA', 'uBr', 'uCut', 'uT', 'uFadeC', 'uTaps', 'uS', 'uY0', 'uPageOn', 'uBand', 'uAmt', 'uDisp', 'uBlur', 'uSpec', 'uRim', 'uDbg',
     'uRA', 'uRB', 'uK', 'uHasB', 'uRC', 'uHasCut', 'uFill', 'uRT', 'uHasT', 'uBandB', 'uLM', 'uLG', 'uLine',
-    'uD', 'uI', 'uTone', 'uLR', 'uIB', 'uHasI', 'uSS', 'uSW', 'uWF', 'uMagI', 'uLA', 'uLB', 'uLX', 'uLO', 'uDS'];
+    'uD', 'uI', 'uTone', 'uLR', 'uIB', 'uHasI', 'uSS', 'uSW', 'uWF', 'uMagI', 'uLA', 'uLB', 'uLX', 'uLO', 'uDS', 'uEP'];
   var UNIF = ['uP', 'uB', 'uD', 'uCv', 'uPS', 'uScroll', 'uL', 'uWF', 'uBox', 'uStrip', 'uTint', 'uFade', 'uFadeC', 'uTone', 'uTaps', 'uS', 'uY0', 'uPageOn', 'uAmt', 'uDisp', 'uBlur', 'uSpec', 'uRim', 'uDbg', 'uSS', 'uLine',
     'uFN', 'uFA', 'uFR', 'uFP', 'uFQ', 'uFT', 'uSh'];
 
@@ -1200,6 +1207,10 @@
     if (o.B) { rect4(U.uBr, o.B); gl.uniform1f(U.uRB, Math.min(o.B.w, o.B.h) / 2); }
     gl.uniform1f(U.uHasT, o.T ? 1 : 0);
     if (o.T) { rect4(U.uT, o.T); gl.uniform1f(U.uRT, Math.min(o.T.w, o.T.h) / 2); }
+    /* 第 322 次（A3）：栏端外凸只在一级 dock + 透镜这一遍（o.T）里给，其它玻璃面恒 0 */
+    var ep = o.T && lensFx && lensFx.ep ? lensFx.ep : 0;
+    if (U.uEP) gl.uniform4f(U.uEP, ep, ep ? (lensFx.ek || 10) : 0, 0, 0);
+    stats.ep = ep;
     var tint = o.tint || [255, 255, 255, 0.3];
     gl.uniform4f(U.uTint, tint[0] / 255, tint[1] / 255, tint[2] / 255, tint[3]);
     var p = o.press || 0;
@@ -1627,7 +1638,7 @@
       deferredRasters: stats.deferredRasters || 0, rasterDeferredHits: stats.rasterDeferredHits || 0, pendRaster: pendRaster, lensIconRasters: stats.lensIconRasters || 0, lensWarm: stats.lensWarm || 0, fuseWarm: stats.fuseWarm || 0, lcKey: !!lcKey,
       surfaces: Object.keys(surf).map(function (k) { var s = surf[k]; return { id: k, canvas: s.c ? [s.c.width, s.c.height] : null, on: s.c ? s.c.classList.contains('on') : !!(s.el && s.el.classList.contains('lg-band')), inDom: s.c ? s.c.isConnected : !!(s.el && s.el.isConnected), shape: !!s.shape, k: s.k }; }),
       light: { src: light.src, x: Math.round(light.x * 1000) / 1000, y: Math.round(light.y * 1000) / 1000 }, press: { dock: press.dock, live: press.live },
-      ext: cv && cv._key ? 1 : 0, cvRadius: cv ? cv.style.borderRadius : '', lens: !!(bar && bar.classList.contains('lg-lens')), lensT: lensR ? { x: Math.round(lensR.x), y: Math.round(lensR.y), w: Math.round(lensR.w), h: Math.round(lensR.h), m: Math.round(lensM * 100) / 100, a: Math.round(lensA * 100) / 100, fuse: lensFx.fuse || 0, hl: Math.round((lensFx.hl || 0) * 100) / 100, flash: Math.round((lensFx.flash || 0) * 100) / 100 } : null,
+      ext: cv && cv._key ? 1 : 0, cvRadius: cv ? cv.style.borderRadius : '', lens: !!(bar && bar.classList.contains('lg-lens')), ep: stats.ep || 0, lensT: lensR ? { x: Math.round(lensR.x), y: Math.round(lensR.y), w: Math.round(lensR.w), h: Math.round(lensR.h), m: Math.round(lensM * 100) / 100, a: Math.round(lensA * 100) / 100, fuse: lensFx.fuse || 0, hl: Math.round((lensFx.hl || 0) * 100) / 100, flash: Math.round((lensFx.flash || 0) * 100) / 100 } : null,
       idle: !!(on && ready && !dirty && !rasterTimer && !stripeTimer && !settleTimer && !pend.length)
     };
   };

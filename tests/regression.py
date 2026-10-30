@@ -1394,7 +1394,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v283（第 321 次升）', "var CACHE = 'baoma-static-v283';" in sw)
+    check('#275 SW 版本 v284（第 322 次升）', "var CACHE = 'baoma-static-v284';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求；第 300 次多一张浅色字图），整页 HTML < 60KB',
@@ -5760,7 +5760,7 @@ def test_r317(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#317 SW 版本 v279+（第 321 次升 v283）', "var CACHE = 'baoma-static-v283';" in sw)
+    check('#317 SW 版本 v279+（第 322 次升 v284）', "var CACHE = 'baoma-static-v284';" in sw)
     js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     check('#317 着色器：横向位移只看本行离左右边的距离、纵向位移只看 y（与 x 无关）、都往外取样；内部以中心缩小 uMagI；图标层不缩（gIc）',
           "float tx=tabl(clamp((xe-abs(q.x))/B,0.,1.)),ty=tabl(clamp((hz.y-ya)/B,0.,1.));" in js
@@ -5842,7 +5842,7 @@ def test_r318(b):
     _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
     p.wait_for_timeout(600)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#318 SW 版本 v280+（第 321 次升 v283）', "var CACHE = 'baoma-static-v283';" in sw)
+    check('#318 SW 版本 v280+（第 322 次升 v284）', "var CACHE = 'baoma-static-v284';" in sw)
     # —— A1 推入：逐帧采样（rAF）——
     ev("""(()=>{window.__nv=[];const v=document.getElementById('view');const L=()=>{const g=document.querySelector('.nav-ghost');const st=DockRefract._stats();const cv=document.querySelector('#tabbar canvas.lg-gl');
       const m=e=>{const t=getComputedStyle(e).transform;return t&&t!=='none'?new DOMMatrix(t).m41:0};
@@ -5969,7 +5969,7 @@ def test_r319(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#319 SW 版本 v281+（第 321 次升 v283）', "var CACHE = 'baoma-static-v283';" in sw)
+    check('#319 SW 版本 v281+（第 322 次升 v284）', "var CACHE = 'baoma-static-v284';" in sw)
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=3)
     ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
     p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
@@ -6026,9 +6026,12 @@ def test_r319(b):
     ds = [f['ds'] for f in fr]
     check('#319 按下整条 dock 整块放大：第 1 帧就开始，峰值 +3.0~4.0%（支付宝 +3.6%）', ds[0] > 1.003 and 1.03 <= max(ds) <= 1.04, [round(x, 4) for x in ds[:12]])
     check('#319 整条放大时透镜外的 dock（宝宝一带，GL 绘制缓冲）逐帧不变：画布作为栏的子节点由合成器缩放，不重新取样（帧差 < 0.3）', max(f['d'] for f in fr) < 0.3, [round(f['d'], 3) for f in fr])
-    Ts = [f['T'] for f in lens_fr if f['T']]
-    ws = [t['w'] for t in Ts]; hs = [t['h'] for t in Ts]
-    check('#319 点击透镜收在栏内：高 ≤ 栏高 − 4（56）、上下都不冒出栏、宽 ≤ 104', Ts and max(hs) <= BARH - 3.5 and max(ws) <= 104.5 and all(t['y'] >= br[1] - 0.5 and t['y'] + t['h'] <= br[3] + 0.5 for t in Ts), [BARH, max(hs), max(ws)])
+    # 第 322 次（B3 撞端果冻，用户同意放宽「点击透镜在栏内」）：点的是右端「日期」——没撞上栏端的帧仍在栏内（≤56），撞上的帧（jc > 0）竖向最多鼓出栏外 4pt
+    Ts = [f['T'] for f in lens_fr if f['T'] and not f['st'].get('jc')]
+    Tj = [f['T'] for f in lens_fr if f['T'] and f['st'].get('jc')]
+    ws = [t['w'] for t in Ts + Tj]; hs = [t['h'] for t in Ts]
+    check('#319 点击透镜收在栏内：高 ≤ 栏高 − 4（56）、上下都不冒出栏、宽 ≤ 104（第 322 次：撞端果冻那几帧另算，竖向 ≤ 栏外 4pt）', Ts and max(hs) <= BARH - 3.5 and max(ws) <= 104.5 and all(t['y'] >= br[1] - 0.5 and t['y'] + t['h'] <= br[3] + 0.5 for t in Ts)
+          and all(t['y'] >= br[1] - 4.5 and t['y'] + t['h'] <= br[3] + 4.5 for t in Tj), [BARH, max(hs), max(ws), [t['h'] for t in Tj]])
     ss = [f['st']['s'] for f in lens_fr]
     check('#319 点击鼓起不过冲（s ≤ 1.0，临界阻尼；原来 1.10）', max(ss) <= 1.0005, max(ss))
     e = [(f['st']['eL'], f['st']['eR']) for f in lens_fr]
@@ -6177,7 +6180,7 @@ def test_r320(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#320 SW 版本 v282+（第 321 次升 v283）、dock-fuse.js 进预缓存、index.html 引入', "var CACHE = 'baoma-static-v283';" in sw and "'js/dock-fuse.js'" in sw
+    check('#320 SW 版本 v282+（第 322 次升 v284）、dock-fuse.js 进预缓存、index.html 引入', "var CACHE = 'baoma-static-v284';" in sw and "'js/dock-fuse.js'" in sw
           and '<script src="js/dock-fuse.js" defer></script>' in (ROOT / 'index.html').read_text(encoding='utf-8'))
     # —— 1. 简洁模式移除 + 旧值迁移 ——
     src = {n: (ROOT / n).read_text(encoding='utf-8') for n in ('js/app.js', 'js/modules/settings.js', 'js/liquid-dock.js', 'js/dock-live.js', 'js/dock-refract.js', 'js/util.js', 'js/dock-fuse.js', 'css/styles.css')}
@@ -6422,7 +6425,7 @@ def test_r321(b):
     整条缩放从当前值接着按）；A2 长按 / 拖动速度形变 sx = 1 + min(0.15, |v|/2400)、sy ≈ 0.92/√sx（满形变），停手 120ms 内恢复、点击不做；
     A4 拖动中只换颜色不切页、抬手才切；17 帧点击节奏 / 0.97× / 点击透镜在栏内不变；SW v283。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#321 SW 版本 v283', "var CACHE = 'baoma-static-v283';" in sw)
+    check('#321 SW 版本 v283+（第 322 次升 v284）', "var CACHE = 'baoma-static-v284';" in sw)
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2)
     ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
     p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
@@ -6532,7 +6535,7 @@ def test_r321(b):
 
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321', 'test_r322')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -6575,9 +6578,132 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r301',),
           ('test_r302',),
           ('test_r309',),
-          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',))  # 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',), ('test_r322',))  # 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
+
+
+def test_r322(b):
+    """第 322 次（Telegram 参考 B3 / A3）：B3 撞端果冻——只在点两端页签时：前缘欠阻尼冲向栏端，被栏内壁（栏端往里 4pt）挡住，宽度压缩约 15%、
+    竖向 sy = 1 + 0.8·jc 最多鼓出栏外 4pt，透镜收回后胶囊用 k 250 ζ 0.7 弹完；中间页签透镜仍在栏内。
+    A3 长按顶过端点页签时栏端被拉出：外凸 = 0.6 × 越界量、上限 7pt，GL 里「透镜 × 一级 dock」单独 k_end = 10 的 smooth-min；Chromium SVG 退化为不外凸、不出错。
+    不变：17 帧点击节奏、0.97×、图标 0.24s；SW v284。"""
+    sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
+    check('#322 SW 版本 v284', "var CACHE = 'baoma-static-v284';" in sw)
+    drs = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
+    css = '\n'.join(pp.read_text(encoding='utf-8') for pp in (ROOT / 'css').glob('*.css'))
+    check('#322 不变：透镜内 0.97×、选中图标 dk-pop .24s、A3 只在主程序 dk()（二级融合程序 FSF 里不用 uEP）',
+          'var LENS_MAG_I = 0.97;' in drs and 'dkCal .24s' in css and 'float dk(vec2 v)' in drs and drs.index('var FSF') < drs.index("'uEP'") and 'uEP' not in drs[drs.index('var FSF'):drs.index("var progF")])
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2)
+    ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
+    p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
+    p.goto(URL); p.wait_for_timeout(600); ev('t=>Storage.importJSON(t)', SEED_V3)
+    ev("localStorage.setItem('lgGlForce','1');Storage.get().settings.dockGlass='on';Storage.get().settings.theme='light';Storage.save()")
+    p.reload(); p.wait_for_timeout(1500)
+    _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
+    p.wait_for_timeout(800)
+    ph = ev("LiquidDock.PHYS")
+    check('#322 参数：撞端把前缘速度换成压缩初速度（hitGain）、果冻回弹 k 250 ζ 0.7、栏内壁 4pt、sy 系数 0.8、竖向最多鼓出 4pt、外凸 0.6× 上限 7pt、k_end 10；点击节奏参数不变（tap 600 / lead 1200 临界 / trail 560 / 宽 ≤104 / 栏内 −4）',
+          'endLead' not in ph and ph['hitGain'] > 0 and ph['jelly'] == {'k': 250, 'z': 0.7} and ph['endInset'] == 4 and ph['jellySy'] == 0.8 and ph['jellyDH'] == 4
+          and ph['endPullK'] == 0.6 and ph['endPullMax'] == 7 and ph['kEnd'] == 10
+          and ph['tap']['k'] == 600 and ph['lead'] == {'k': 1200, 'z': 1} and ph['trail']['k'] == 560 and ph['tapMaxW'] == 104 and ph['tapDH'] == -4, ph)
+    tabs = {t[2]: t for t in ev("[...document.querySelectorAll('#tabbar .tab.dk-tab')].map(t=>{const r=t.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2,t.dataset.tab]})")}
+    bar = ev("(()=>{const r=document.getElementById('tabbar').getBoundingClientRect();return {l:r.left,r:r.right,t:r.top,b:r.bottom,h:r.height}})()")
+    ev("LiquidDock._manualMode(true)")
+
+    def vtw():
+        _poll(p, "!(()=>{try{return document.documentElement.matches(':active-view-transition')}catch(e){return false}})()", 2000, 40)
+
+    def tapseq(frm, to):
+        ev(f"App.showTab('{frm}',{{noVT:true}})"); p.wait_for_timeout(350)
+        x, y, _ = tabs[to]; p.mouse.move(x, y); p.mouse.down(); rec = []
+        anim = 0
+        for i in range(40):
+            if i == 5: p.mouse.up()
+            # 同一次 evaluate 里推进 + 读：胶囊果冻是 WAAPI（走墙钟），分开读时墙钟已经过去好几百毫秒
+            s, t, anim = ev("(()=>{LiquidDock._step(16.67);return [LiquidDock._state().lens, DockRefract._stats().lensT, document.querySelector('#tabbar .lg-thumb').getAnimations().length]})()")
+            if not s: break
+            rec.append((s, t))
+        jl = ev("LiquidDock._jelly()")
+        vtw()
+        return rec, jl, anim
+    out = {}
+    for frm, to in (('home', 'calendar'), ('home', 'baby'), ('baby', 'calendar')):
+        rec, jl, anim = tapseq(frm, to)
+        jm = max(s['jcMax'] for s, _ in rec)
+        side = rec[0][0]['end']
+        edge = max((t['x'] + t['w'] - bar['r']) if side > 0 else (bar['l'] - t['x']) for _, t in rec if t)
+        hmax = max(t['h'] for _, t in rec if t); top = min(t['y'] for _, t in rec if t); bot = max(t['y'] + t['h'] for _, t in rec if t)
+        out[frm + '>' + to] = {'frames': len(rec), 'jcMax': jm, 'edge_vs_bar': round(edge, 1), 'h': hmax, 'out_top': round(bar['t'] - top, 1), 'out_bot': round(bot - bar['b'], 1), 'jelly': jl, 'anim': anim, 'side': side}
+    o1, o2, o3 = out['home>calendar'], out['home>baby'], out['baby>calendar']
+    check('#322 B3 点相邻端点页签（首页→日期 / 首页→宝宝）：撞上栏端压缩约 15%（jc 峰值 0.11~0.18）、外沿不越过栏内壁（≤ 栏端 −4 +0.5）、竖向鼓出栏外 0.5~4pt',
+          all(0.11 <= o['jcMax'] <= 0.18 and o['edge_vs_bar'] <= -3.5 and 0.5 <= max(o['out_top'], o['out_bot']) <= 4.5 and o['h'] <= bar['h'] + 8.5 for o in (o1, o2)) and o1['side'] == 1 and o2['side'] == -1, out)
+    check('#322 B3 跨两格点端点（宝宝→日期）：压缩封顶 0.18、竖向仍 ≤ 栏外 4pt', o3['jcMax'] <= 0.1801 and max(o3['out_top'], o3['out_bot']) <= 4.5 and o3['edge_vs_bar'] <= -3.5, o3)
+    check('#322 B3 透镜收回后胶囊接着弹（k 250 ζ 0.7：有一点过冲、≤ 900ms 停），点击节奏不变（按下到透镜收起 ≤ 22 帧）',
+          all(o['jelly'] and o['jelly']['frames'] >= 4 and o['jelly']['min'] < 0 and o['anim'] >= 1 and o['frames'] <= 22 for o in (o1, o2)), out)
+    p.wait_for_timeout(1000)
+    check('#322 B3 胶囊果冻动画播完后没有残留（无进行中的动画、transform 只剩 translate）',
+          ev("(()=>{const t=document.querySelector('#tabbar .lg-thumb');return t.getAnimations().length===0&&/^translate\\([^)]*\\)$/.test(t.style.transform)})()"), ev("document.querySelector('#tabbar .lg-thumb').style.transform"))
+    rec, jl, anim = tapseq('calendar', 'home')
+    jm = max(s['jcMax'] for s, _ in rec)
+    inside = all(t['y'] >= bar['t'] - 0.5 and t['y'] + t['h'] <= bar['b'] + 0.5 and t['h'] <= bar['h'] - 4 + 0.6 for _, t in rec if t)
+    check('#322 B3 中间页签（日期→首页）：不撞端（jc 恒 0）、透镜全程在栏内（高 ≤ 栏高 −4）、不留胶囊果冻', jm == 0 and inside and len(rec) <= 22,
+          {'jc': jm, 'frames': len(rec), 'hs': [t['h'] for _, t in rec if t][:8]})
+    # —— A3 长按顶端 ——
+    ev("App.showTab('calendar',{noVT:true})"); p.wait_for_timeout(350)
+    x, y, _ = tabs['calendar']; p.mouse.move(x, y); p.mouse.down()
+    for _ in range(24): ev("LiquidDock._step(16.67)")
+    pts = []
+    for dx in (0, 12, 24, 40, 80):
+        p.mouse.move(x + dx, y)
+        for _ in range(8): ev("LiquidDock._step(16.67)")
+        s = ev("LiquidDock._state().lens"); st = ev("DockRefract._stats()")
+        pts.append({'dx': dx, 'x': s['x'], 'over': round(s['x'] - tabs['calendar'][0], 2), 'pull': s['pull'], 'ep': round(st['ep'], 2), 'err': st['err'], 'bf': s['bf']})
+    clip = {'x': 200, 'y': bar['t'] - 30, 'width': 140, 'height': bar['h'] + 50}
+    on = p.screenshot(clip=clip)
+    ev("LiquidDock.PHYS.endPullMax=0"); ev("LiquidDock._step(1)"); off = p.screenshot(clip=clip); ev("LiquidDock.PHYS.endPullMax=7"); ev("LiquidDock._step(1)")
+    from PIL import Image, ImageChops
+    import io
+    dif = ImageChops.difference(Image.open(io.BytesIO(on)).convert('RGB'), Image.open(io.BytesIO(off)).convert('RGB'))
+    strong = dif.convert('L').point(lambda v: 255 if v > 14 else 0)   # 透镜高光随时间衰减（step 1ms）有 ±几级的整体差，只看明显变化的像素
+    bb = strong.getbbox(); mx = max(sum(px) for px in dif.getdata()) if bb else 0
+    p.mouse.up()
+    for _ in range(70): ev("LiquidDock._step(16.67)")
+    after = ev("[LiquidDock._state().lens, DockRefract._stats().ep]")
+    p0, p1, p2, p4 = pts[0], pts[1], pts[2], pts[4]
+    check('#322 A3 长按在端点页签上不动：不外凸（pull 0）；往外顶：外凸 ≈ 0.6 × 越界量（越界小时），上限 7pt；GL 收到同一个量（uEP）、着色器无错',
+          p0['pull'] == 0 and p0['ep'] == 0 and all(abs(q['pull'] - min(7, 0.6 * q['over'])) < 0.15 for q in pts[1:]) and p4['pull'] == 7 and all(abs(q['ep'] - q['pull']) < 0.02 for q in pts) and all(not q['err'] for q in pts) and p1['pull'] > 0, pts)
+    check('#322 A3 栏端外凸在透镜里看得见（外凸 7 vs 0 的画面差 > 40，明显变化的像素只在栏端一带：截图左边 30pt 以内没有）', bb is not None and mx > 40 and bb[0] >= 2 * 30, {'bbox': bb, 'max': mx})
+    check('#322 A3 松手透镜吸回、收起后 uEP 归 0', after[0] is None and after[1] == 0, after)
+    ev("LiquidDock._manualMode(false)")
+    check('#322 GL 路径无页面错误', not errs, errs)
+    ctx.close()
+    # —— Chromium SVG（无 GL）：不外凸、不出错，撞端果冻照常 ——
+    p, errs = fresh(b)
+    ev = p.evaluate
+    p.wait_for_timeout(600)
+    tabs = {t[2]: t for t in ev("[...document.querySelectorAll('#tabbar .tab.dk-tab')].map(t=>{const r=t.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2,t.dataset.tab]})")}
+    ev("App.showTab('calendar',{noVT:true})"); p.wait_for_timeout(350)
+    ev("LiquidDock._manualMode(true)")
+    x, y, _ = tabs['calendar']; p.mouse.move(x, y); p.mouse.down()
+    for _ in range(24): ev("LiquidDock._step(16.67)")
+    p.mouse.move(x + 60, y)
+    for _ in range(10): ev("LiquidDock._step(16.67)")
+    sv = ev("[LiquidDock._state().lens.mode, LiquidDock._state().lens.pull, DockRefract._stats().ep||0, getComputedStyle(document.getElementById('lgLensEl')).backdropFilter]")
+    p.mouse.up()
+    for _ in range(70): ev("LiquidDock._step(16.67)")
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(350)
+    x, y, _ = tabs['calendar']; p.mouse.move(x, y); p.mouse.down(); jcs = []
+    for i in range(30):
+        if i == 5: p.mouse.up()
+        ev("LiquidDock._step(16.67)"); s = ev("LiquidDock._state().lens")
+        if not s: break
+        jcs.append(s['jcMax'])
+    ev("LiquidDock._manualMode(false)")
+    check('#322 Chromium SVG：长按顶端不外凸（GL 没收到 uEP）、透镜仍是 SVG 折射；点端点页签的果冻照常（CSS 透镜同一套宽高）',
+          sv[0] == 'svg' and sv[2] == 0 and 'lgLens' in (sv[3] or '') and jcs and max(jcs) >= 0.1, [sv, max(jcs) if jcs else None])
+    check('#322 SVG 路径无页面错误', not errs, errs)
+    p.close()
 
 def test_r309(b):
     """第 309 次：dock 拖动透镜（定稿 mock303n · 第十四版）——静止灰胶囊、按下鼓成透镜、中间 1:1 外沿折射、拖动跟手 + 色散随速度、松手吸附缩回、WebGL 路径、降级。"""
@@ -7025,7 +7151,7 @@ def test_r316(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready", 5000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#316 SW 版本 v278+（第 321 次升 v283）', "var CACHE = 'baoma-static-v283';" in sw)
+    check('#316 SW 版本 v278+（第 322 次升 v284）', "var CACHE = 'baoma-static-v284';" in sw)
     ph = ev("LiquidDock.PHYS")
     check('#316 弹簧参数：点击滑行 tap 临界阻尼 k≈600、点击速度形变 ×0.45、收回 k≥1500（~4 帧）、松手吸附 k 560、提前收回阈值',
           ph['tap']['k'] == 600 and ph['tap']['z'] >= 1 and abs(ph['tapV'] - 0.45) < 1e-6 and ph['shrink']['k'] >= 1500 and ph['snap']['k'] == 560
