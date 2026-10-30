@@ -61,14 +61,16 @@ def drag_metrics(rec, wm):
     t_first, t_last = mv[0]['h'], mv[-1]['h']
     lags = []
     for (t, x) in fr:
-        if not (t_first + 150 < t < t_last): continue
+        if not (t_first + 100 < t < min(t_last, t_first + 420)): continue   # 只取指针还在首尾页签之间（300pt/s × 0.42s ≈ 宝宝→日历），过了端点是橡皮筋，透镜本就不跟
         # 指针在 x 处的时刻（主线程收到 move 的时刻，线性插值）
         for a, b in zip(mv, mv[1:]):
             if a['x'] <= x <= b['x'] and b['x'] > a['x']:
                 tp = a['ts'] + (b['ts'] - a['ts']) * (x - a['x']) / (b['x'] - a['x'])   # 事件时间戳（手指真的在那里的时刻）
                 lags.append(t - tp); break
     q = [m['h'] - m['ts'] for m in mv]
-    return {'busy': rec['busy'], 'lagMed': med(lags), 'lagMax': mx(lags), 'n': len(lags), 'inputDelayMed': med(q), 'inputDelayMax': mx(q)}
+    lg = sorted(lags)
+    p90 = round(lg[int(len(lg) * 0.9)], 1) if lg else None
+    return {'busy': rec['busy'], 'lagMed': med(lags), 'lagMax': mx(lags), 'lagP90': p90, 'n': len(lags), 'inputDelayMed': med(q), 'inputDelayMax': mx(q)}
 
 def predown_metrics(rec, wm):
     if not rec.get('downs'): return None
@@ -80,10 +82,17 @@ def predown_metrics(rec, wm):
 
 rows = []
 allres = {}
+# 同一「引擎·版本」的多份数据合并（main / 原型交替跑的几轮放一起算）
+merged = {}
 for f in files:
-    D = json.load(open(f)); wm = D.get('worker') == 'on'
-    key = f"{D['engine']}·{D['root']}"
-    R = {'worker': D.get('worker'), 'wfail': D.get('wfail'), 'renderer': D.get('renderer'), 'ref': ref_metrics(D['ref']) if D.get('ref') else None}
+    D = json.load(open(f)); key = f"{D['engine']}·{D['root']}"
+    if key not in merged: merged[key] = D; D['nfiles'] = 1; D['loads'] = [D.get('load0'), D.get('load1')]
+    else:
+        M = merged[key]; M['nfiles'] += 1; M['loads'] += [D.get('load0'), D.get('load1')]
+        for k in ('taps', 'drags', 'predown'): M[k] = M.get(k, []) + D.get(k, [])
+for key, D in merged.items():
+    wm = D.get('worker') == 'on'
+    R = {'nfiles': D['nfiles'], 'loads': D['loads'], 'worker': D.get('worker'), 'wfail': D.get('wfail'), 'renderer': D.get('renderer'), 'ref': ref_metrics(D['ref']) if D.get('ref') else None}
     taps = [tap_metrics(r, wm, R['ref']) for r in D['taps']]
     taps = [t for t in taps if t]
     R['taps'] = taps
@@ -104,14 +113,14 @@ for f in files:
 json.dump(allres, open(outmd.replace('.md', '.json'), 'w'), ensure_ascii=False, indent=1)
 L = []
 for k, R in allres.items():
-    L.append(f"### {k}（Worker：{R['worker']}{' / ' + R['wfail'] if R.get('wfail') else ''}）\n")
+    L.append(f"### {k}（Worker：{R['worker']}{' / ' + R['wfail'] if R.get('wfail') else ''}；{R['nfiles']} 轮；1 分钟负载 {[round(x[0],1) for x in R['loads'] if x]}）\n")
     if R['ref']: L.append(f"60Hz 参考（手动时钟）：+4 帧 {R['ref']['p4']}%、+8 帧 {R['ref']['p8']}%、+12 帧 {R['ref']['p12']}%，{R['ref']['endFrames']} 帧收完（{R['ref']['endMs']}ms）\n")
-    L.append('| 切页时主线程忙 | 次数 | 最大帧间隔 ms（中位/最大） | >33ms 帧 | >50ms | >100ms | 忙碌窗口内画出的透镜帧 | +67/+133/+200ms 进度 % | 收完 ms | 主线程每帧耗时中位 ms | 首帧 ms | 切页成功 |')
-    L.append('|---|---|---|---|---|---|---|---|---|---|---|---|')
+    L.append('| 切页时主线程忙 | 次数 | 最大帧间隔 ms（中位/最大） | >33ms 帧 | >50ms | >100ms | 忙碌窗口内画出的透镜帧 | +67/+133/+200ms 进度 % | 收完 ms | 主线程每帧耗时中位 ms | Worker 每帧耗时中位 ms | 首帧 ms | 切页成功 |')
+    L.append('|---|---|---|---|---|---|---|---|---|---|---|---|---|')
     for bz, s in R['bybusy'].items():
-        L.append(f"| {bz} | {s['n']} | {s['maxIvMed']} / {s['maxIv']} | {s['n33']} | {s['n50']} | {s['n100']} | {s['inBusy'] if s['inBusy'] is not None else '—'} | {s['p67']} / {s['p133']} / {s['p200']} | {s['end']} | {s['mainBusyMed']} | {s['firstFrame']} | {'✓' if s['ok'] else '✗'} |")
+        L.append(f"| {bz} | {s['n']} | {s['maxIvMed']} / {s['maxIv']} | {s['n33']} | {s['n50']} | {s['n100']} | {s['inBusy'] if s['inBusy'] is not None else '—'} | {s['p67']} / {s['p133']} / {s['p200']} | {s['end']} | {s['mainBusyMed']} | {s['wwork'] if s['wwork'] is not None else '—'} | {s['firstFrame']} | {'✓' if s['ok'] else '✗'} |")
     L.append('')
-    L.append('拖动：' + '；'.join(f"忙 {d['busy']}ms：跟手滞后中位 {d['lagMed']}ms / 最大 {d['lagMax']}ms，输入事件排队中位 {d['inputDelayMed']} / 最大 {d['inputDelayMax']}ms" for d in R['drags'] if d))
+    if any(R['drags']): L.append('拖动：' + '；'.join(f"忙 {d['busy']}ms：跟手滞后中位 {d['lagMed']}ms / P90 {d['lagP90']}ms，输入事件排队中位 {d['inputDelayMed']} / 最大 {d['inputDelayMax']}ms" for d in R['drags'] if d))
     L.append('按下前主线程已忙 200ms：' + '；'.join(f"按下处理比预定时刻晚 {p['eventDelay']}ms（长任务结束后 {p['blkEndToHandler']}ms）" for p in R['predown'] if p))
     L.append('')
 open(outmd, 'w').write('\n'.join(L))

@@ -3,7 +3,7 @@ import sys,json
 sys.path.insert(0,'/workspace/work/r319/tools')
 from h import url, S
 from playwright.sync_api import sync_playwright
-MAIN='/workspace/work/mom-assistant'; PROTO='/workspace/work/worker328'
+MAIN='/workspace/work/worker328_main'; PROTO='/workspace/work/worker328'   # main = 890721d 干净 worktree（mom-assistant 工作区在测量期间被别的任务改动过）
 def open_page(pw, root, engine='chromium', dark=False, dpr=3, worker=True, init=None, vw=393, vh=852):
     b=getattr(pw,engine).launch()
     ctx=b.new_context(viewport={'width':vw,'height':vh},device_scale_factor=dpr,service_workers='block',color_scheme='dark' if dark else 'light')
