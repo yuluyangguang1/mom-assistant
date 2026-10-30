@@ -64,6 +64,58 @@
     'milestones', 'milestoneObs', 'temps', 'baths', 'swims', 'suns', 'waters', 'jaundices',
     'supplements', 'supplementPlans', 'vaccines', 'checkups', 'sicks'];
 
+  /* 第 333 次：我的快记的种类。值 = 支持的方式（t 点一下就记 / s 弹出一步），第一个是默认方式 */
+  var QUICK_KINDS = { feed: 'ts', breast: 'st', bottle: 'ts', pump: 'st', pee: 'ts', poop: 'ts', diaper: 's', sleep: 'ts', meds: 'ts', temp: 's', mood: 's', fetal: 't' };
+  var QUICK_MAX = 8;
+  function quickItem(k, m) { var md = QUICK_KINDS[k]; return { k: k, m: m || (md.charAt(0) === 't' ? 'tap' : 'step') }; }
+  /** 默认快记：按喂养方式（feedMode：亲喂 / 瓶喂 / 没选）给第一项，孕期（还没有宝宝）给胎动 + 心情；二胎孕期在宝宝那套前面加胎动 */
+  function quickDefaults(feedMode, stage) {
+    if (stage === 'pregnancy') return [quickItem('fetal'), quickItem('mood')];
+    var first = feedMode === 'breast' ? quickItem('breast', 'step') : feedMode === 'bottle' ? quickItem('bottle', 'tap') : quickItem('feed', 'tap');
+    var out = [first, quickItem('pee'), quickItem('poop'), quickItem('sleep'), quickItem('meds')];
+    if (stage === 'dual') out.unshift(quickItem('fetal'));
+    return out;
+  }
+  /* 第 333 次：旧快记配置 → quickItems（一次性、可重入：迁完布局里就没有旧 id 了，再跑一遍什么都不改）。
+     · 首页的三种快记卡（快捷记录 · 大 / 横条 / 小卡）收成一张「快记」卡：留第一张的位置，小卡记成半宽；
+     · 五张「直接记录」卡（记尿布 / 睡眠计时 / 瓶喂 / 亲喂 / 吸奶）收进快记清单（原来是带步进的卡 → 弹出一步），
+       它们在首页的位置由快记卡接替（首页上已经有快记卡就只并清单）；
+     · removed 里的旧 id 一并清掉。 */
+  var QUICK_LEGACY = { 'rec-diaper': ['diaper', 'step'], 'rec-sleep': ['sleep', 'tap'], 'rec-bottle': ['bottle', 'step'], 'rec-breast': ['breast', 'step'], 'rec-pump': ['pump', 'step'] };
+  function migrateQuick(st, raw) {
+    var hl = st.homeLayout;
+    if (!hl || !Array.isArray(hl.items)) return false;
+    var isQ = function (id) { return id === 'quick' || id === 'quick-h' || id === 'quick-s'; };
+    var legacy = hl.items.some(function (it) { return it.id === 'quick-h' || it.id === 'quick-s' || QUICK_LEGACY[it.id]; })
+      || (hl.removed || []).some(function (id) { return id === 'quick-h' || id === 'quick-s' || QUICK_LEGACY[id]; });
+    if (!legacy) return false;
+    var items = [], add = [], hasQ = false;
+    hl.items.forEach(function (it) {
+      if (isQ(it.id)) {
+        if (!hasQ) { hasQ = true; items.push({ id: 'quick', size: it.id === 'quick-s' ? 's' : it.id === 'quick-h' ? 'l' : it.size }); }
+        return;
+      }
+      if (QUICK_LEGACY[it.id]) {
+        add.push(QUICK_LEGACY[it.id]);
+        if (!hasQ) { hasQ = true; items.push({ id: 'quick', size: 'l' }); }
+        return;
+      }
+      items.push(it);
+    });
+    var removed = (hl.removed || []).filter(function (id) { return !(id === 'quick-h' || id === 'quick-s' || QUICK_LEGACY[id] || (hasQ && id === 'quick')); });
+    st.homeLayout = (items.length || removed.length) ? { v: 1, items: items, removed: removed } : null;
+    if (add.length) {
+      var list = Array.isArray(st.quickItems) ? st.quickItems.slice()
+        : quickDefaults(raw && (raw.feedMode === 'breast' || raw.feedMode === 'bottle') ? raw.feedMode : null, 'baby');
+      add.forEach(function (a) {
+        if (list.some(function (x) { return x.k === a[0]; })) return;
+        if (list.length < QUICK_MAX) list.push(quickItem(a[0], a[1]));
+      });
+      st.quickItems = list;
+    }
+    return true;
+  }
+
   /* 导入兜底：记录里的单个字符串字段最长 500 字（界面输入框上限 40 字），
      防止手改/恶意文件用一条超长备注吃掉存储配额。 */
   var MAX_FIELD_CHARS = 500;
@@ -158,6 +210,7 @@
         /* 第 120 次（首页布局编辑）：null = 自动策展（阶段筛选 + 收敛，改动前行为）；
            用户在编辑模式改过之后才落 { v:1, items:[{id,size}], removed:[id] }。 */
         homeLayout: null,
+        quickItems: null, /* 第 333 次：我的快记（null = 按喂养方式默认） */
         /* 第 212 次：首页天气（联网，默认关）与农历日期（默认开） */
         weather: { on: false, mode: 'auto', city: null },
         lunarDate: true,
@@ -499,6 +552,20 @@
         base.settings.homeLayout = (hlItems.length || hlRemoved.length)
           ? { v: 1, items: hlItems, removed: hlRemoved } : null;
       }
+      /* 第 333 次：我的快记（首页快记卡和「＋」面板共用一份）。null = 按喂养方式给默认；
+         数组 = 用户排好的清单，每项 { k: 种类, m: 'tap' 点一下就记 | 'step' 弹出一步 }，最多 8 个，种类不重复 */
+      if (Array.isArray(s.quickItems)) {
+        var qi = [];
+        s.quickItems.forEach(function (it) {
+          if (qi.length >= QUICK_MAX || !it || typeof it.k !== 'string' || !QUICK_KINDS[it.k]) return;
+          if (qi.some(function (x) { return x.k === it.k; })) return;
+          var modes = QUICK_KINDS[it.k];
+          var m = (it.m === 'tap' || it.m === 'step') && modes.indexOf(it.m === 'tap' ? 't' : 's') >= 0 ? it.m : (modes.charAt(0) === 't' ? 'tap' : 'step');
+          qi.push({ k: it.k, m: m });
+        });
+        base.settings.quickItems = qi;
+      }
+      migrateQuick(base.settings, raw);
     }
     ARRAY_KEYS.forEach(function (k) {
       if (Array.isArray(raw[k])) {
@@ -1166,6 +1233,11 @@
     },
 
     get: function () { return this.data; },
+    /* 第 333 次：我的快记——种类表、默认清单、旧配置迁移（QuickRec 与测试共用） */
+    QUICK_KINDS: QUICK_KINDS,
+    QUICK_MAX: QUICK_MAX,
+    quickDefaults: quickDefaults,
+    _migrateQuick: migrateQuick,
 
     /* 第 332 次：记录元数据一次性迁移（可重入）。有改动时先把迁移前的原文备份到独立键（只做一次），再落盘 */
     _metaMigrate: function (rawText) {

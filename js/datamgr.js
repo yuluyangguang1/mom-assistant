@@ -121,9 +121,9 @@
   }
 
   var DataMgr = {
-    open: function () {
+    open: function (start) {
       if (!global.FTUI) return null;
-      view = 'main'; pending = null; lastMsg = ''; busy = false;
+      view = start === 'log' || start === 'export' ? start : 'main'; pending = null; lastMsg = ''; busy = false; /* 第 333 次：设置「导入历史」直接打开到这一页 */
       api = FTUI.openSheet('', '数据管理', '<div class="dm-body"></div>', null);
       if (!api) return null;
       var ok = api.box.querySelector('[data-ok]');

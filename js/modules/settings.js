@@ -711,243 +711,57 @@
       var s = Storage.get();
       var html = '';
       html += '<div class="page-head"><h1>设置</h1></div>';
-      /* 第 59 次（二级菜单）：设置项按场景分成六组，<details> 折叠——
-         一级只看分组目录，点开才进二级内容。内容保留在 DOM 里，
-         无障碍与「Ctrl+F 找设置」不受影响。 */
-      function sgOpen(iconKey, title, desc) {
-        return '<details class="set-group"><summary>'
+      /* ============================================================
+         第 333 次：设置页重做（用户 2026-10-28：删减 / 强化 / 更多自定义；做减法，点选预设少手输）。
+         一级 = 几组 iOS 原生式分组列表（图标 · 名称 · 一行现状 · ›），点一行横推进三级页（沿用第 182 次的 <details> + App.enterSub）；
+         「在哪看到就在哪改，设置页只是第二个入口」：首页卡片和首页编辑改同一份 homeLayout，我的快记和首页快记卡 / 「＋」面板改同一份 quickItems。
+         分组：① 宝宝与我 · 家庭共享　② 我的快记 · 首页卡片　③ 外观 · 天气与农历 · 记录与提醒（+ 保存时轻震 开关）
+               ④ 导入与导出 · 给家人和医生 · 数据与隐私　⑤ 知识来源　页脚：关于与免责声明。
+         删掉的（别处有入口或已无作用）：全部功能入口（菜单面板里有）、数据管理按钮（导入导出直接在这一页）、给当前宝宝换照片（宝宝行里有）、
+         字号样张、天空时刻预览（走查用）、记录成本自测（验收用）、升级前快照说明、告别卡（三个按钮都是重复入口）、过时的「不提供家人共享」能力边界、
+         各处说明性长段落（每处只留一句）。两个玻璃折射开关合成一个。
+         ============================================================ */
+      function sgOpen(iconKey, title, desc, acc) {
+        return '<details class="set-group"' + (acc ? ' data-accent="' + acc + '"' : '') + '><summary>'
           + '<span class="sg-ico">' + icon(iconKey) + '</span>'
-          + '<span class="sg-txt"><b>' + title + '</b><i>' + desc + '</i></span>'
+          + '<span class="sg-txt"><b>' + title + '</b><i>' + Util.escapeHtml(desc) + '</i></span>'
           + '<span class="sg-chv" aria-hidden="true">' + icon('chevron-right') + '</span>'
           + '</summary>';
       }
-
-      /* 第 211 次（用户：全部功能与模块横条挪到设置，自由选择首页显示哪些卡片）：
-         「首页卡片」分组——开关即增删首页卡片（写 settings.homeLayout，与首页编辑模式同一份数据）。 */
-      html += sgOpen('grid', '首页卡片', '选择首页显示的卡片 / 全部功能');
-      html += '<button class="alltools-entry" id="sAllTools" type="button"><span class="ti-ico">' + icon('grid') + '</span>'
-        + '<span class="ti-name">全部功能</span><span class="rt-arrow" aria-hidden="true">' + icon('chevron-right') + '</span></button>';
-      var hcat = (global.Modules && Modules.home && Modules.home._catalog) ? Modules.home._catalog() : [];
-      ['快捷记录', '上次', '今日', '趋势', '直接记录', '距上次', '功能入口'].forEach(function (gname) { /* 第 245 次：与首页编辑目录同一套分类 */
-        var rows = hcat.filter(function (c) { return c.group === gname; });
-        if (!rows.length) return;
-        html += '<div class="card hc-card"><h2>' + gname + '</h2><ul class="hc-list">';
-        rows.forEach(function (c) {
-          html += '<li class="hc-row row-switch" data-accent="' + c.accent + '"><span class="hc-ico">' + icon(c.icon) + '</span>'
-            + '<label class="hc-name" for="hc_' + c.id + '">' + Util.escapeHtml(c.name) + '</label>'
-            + '<input type="checkbox" id="hc_' + c.id + '" data-hc="' + c.id + '"' + (c.on ? ' checked' : '') + '></li>';
-        });
-        html += '</ul></div>';
-      });
-      html += '<p class="hint">打开就加到首页末尾。排序、改大小、删除也可以在首页底部点「编辑首页」直接操作。'
-        + '「上次喂奶」「生长速览」这类卡片在有记录后才会出现。</p>';
-      html += '<div class="row"><button class="btn" id="sHomeReset" type="button">恢复默认首页</button></div>';
-      html += '</details>';
-
-      /* 第 212 次：天气与农历。天气是本应用唯一会联网的功能，默认关，开了也只发经纬度。 */
-      var wxc = s.settings.weather || { on: false, mode: 'auto', city: null };
-      html += sgOpen('sun', '天气', '首页天气 / 联网开关 / 城市 / 农历');
-      html += '<div class="card"><h2>首页天气</h2>';
-      html += '<div class="row-switch"><label for="sWxOn">显示真实天气（需联网）</label>'
-        + '<input type="checkbox" id="sWxOn"' + (wxc.on ? ' checked' : '') + '></div>';
-      html += '<p class="hint">打开后首页的天空背景会跟着真实天气变：晴、多云、阴、雨、雪、雾；日期旁带一行小字的天气和气温。'
-        + '只会把大致位置（经纬度保留两位小数）发给 Open-Meteo 天气服务，任何记录都不会离开这台设备；关掉就不再联网。</p>';
-      if (wxc.on) {
-        html += '<span class="lbl-text">位置</span><div class="seg" id="sWxMode">'
-          + '<button type="button" class="seg-btn' + (wxc.mode !== 'city' ? ' active' : '') + '" data-wx-mode="auto">自动定位</button>'
-          + '<button type="button" class="seg-btn' + (wxc.mode === 'city' ? ' active' : '') + '" data-wx-mode="city">选择城市</button></div>';
-        if (wxc.mode === 'city') {
-          html += '<p class="hint">当前城市：' + (wxc.city ? Util.escapeHtml(wxc.city.name) : '还没选') + '</p>'
-            + '<div class="wx-search"><input type="search" id="sWxCity" maxlength="24" placeholder="输入城市名，比如：深圳">'
-            + '<button type="button" class="btn" id="sWxFind">搜索</button></div><ul class="wx-results" id="sWxRes"></ul>';
-        } else {
-          html += '<p class="hint">第一次会请求定位权限；不想给定位可以改成「选择城市」。</p>';
-        }
-        html += '<div class="row"><button type="button" class="btn" id="sWxRefresh">立即刷新天气</button></div>';
+      function sec(cap) { return '<div class="sg-sec">' + (cap ? '<p class="sg-cap">' + cap + '</p>' : ''); }
+      function sw(id, label, on, sub) {
+        return '<div class="st-row row-switch"><label for="' + id + '">' + label + (sub ? '<small>' + sub + '</small>' : '') + '</label>'
+          + '<input type="checkbox" id="' + id + '"' + (on ? ' checked' : '') + '></div>';
       }
-      html += '</div>';
-      html += '<div class="card"><h2>农历</h2><div class="row-switch"><label for="sLunar">首页日期显示农历</label>'
-        + '<input type="checkbox" id="sLunar"' + (s.settings.lunarDate !== false ? ' checked' : '') + '></div>'
-        + '<p class="hint">首页大日期旁显示干支年、生肖和农历月日。宝宝生日也可以按农历选，在宝宝资料里切换「农历」。</p></div>';
-      html += '</details>';
-
-      html += sgOpen('export', '数据与备份', '导出 / 导入 / CSV / 打印报告');
-      html += '<div class="card"><h2>数据备份（唯一兜底手段）</h2>';
-      /* 第 286 次：「数据管理」半屏（导入预览：合并到当前宝宝 / 新建宝宝、导出、导入历史），日期页跳转日期半屏里也有 */
-      html += '<button type="button" class="btn" id="sDataMgr">' + icon('export') + '数据管理（导入 · 导出 · 导入历史）</button>';
-      /* 上次备份时间：纯本地应用的生命线提示 */
-      var last = s.settings.lastExportISO;
-      var backupInfo = last ? ('上次备份：' + last) : '还没有备份过数据';
-      html += '<p class="hint">' + Util.escapeHtml(backupInfo) + (last ? '' : '，强烈建议现在导出一次。') + '</p>';
-      /* 第 142 次：备份提醒从首页搬到这里（用户反馈「别放首页」）。
-         阈值与文案由 Reminders.backupHint 单点维护（>14 天才提示），
-         设置页只负责呈现，不再复制一份判断。 */
-      var bh = (global.Reminders && typeof Reminders.backupHint === 'function')
-        ? Reminders.backupHint(s, Date.now()) : null;
-      if (bh && bh.text) {
-        html += '<p class="hint backfill-note">' + Util.escapeHtml(bh.text) + ' 导出一次只需几秒，文件存在手机里就是兜底。</p>';
+      function card(cap, inner, foot) {
+        return (cap ? '<p class="st-cap">' + cap + '</p>' : '') + '<div class="card st-card">' + inner + '</div>' + (foot ? '<p class="st-foot">' + foot + '</p>' : '');
       }
-      /* 第 74 次（G1）：损坏自愈备份的常驻状态行——启动 toast 只弹一次，这里保证长期可见。
-         只展示、不给删除入口：误删备份等于烧掉唯一的找回通道，需要时由交接人手工处理。 */
-      var cbInfo = Storage.corruptBackupInfo ? Storage.corruptBackupInfo() : null;
-      if (cbInfo && cbInfo.exists) {
-        html += '<p class="hint backfill-note">检测到一次历史数据损坏的原文备份（仅存本机，约 '
-          + Math.max(1, Math.round(cbInfo.chars / 1024)) + ' KB）。当前数据正常时它不参与任何功能；'
-          + '如怀疑旧记录丢失，可从这份备份中人工找回。</p>';
-      }
-      html += '<button class="btn btn-primary" id="sExport">导出全部数据（JSON · 可迁移）</button>';
-      html += '<p class="hint">完整备份，可在任何设备导入恢复——换机或交接前请先导出。</p>';
-      html += '<button class="btn" id="sExportShare" type="button">导出给家人 / 医生（不含妈妈私密记录）</button>';
-      html += '<p class="hint">去掉情绪、经期、记账，其余照常；不算完整备份。</p>';
-      html += '<p class="hint">导出文件是明文，含敏感健康数据：只放你信任的位置，'
-        + '别放公共目录或自动同步云端的文件夹；这里不提供加密——'
-        + '无账号体系下加密密码一旦忘记，等于又丢一次数据。</p>';
-      /* 第 66 次（F 线 F5）：情绪随记属敏感数据的归属说明 */
-      html += '<p class="hint">「妈妈情绪」的记录同属敏感健康数据，一并包含在导出文件里，请同样注意存放位置；'
-        + '它只存在本机，没有任何统计或上报。</p>';
-      html += '<button class="btn" id="sImport">导入备份（JSON）</button>';
-      /* 第 127 次（安全 · 来源提示）：结构由 sanitize 收敛、字段已全渲染点转义，
-         残余风险只剩「数据污染」——导入他人文件等于把对方内容写进本机记录。 */
-      html += '<p class="hint">默认合并：只加本机没有的记录，先给你看会新增多少；需要时也可选整体覆盖。'
-        + '请只导入你自己导出的备份文件——导入来路不明的文件会把对方的内容写进你的记录。</p>';
-      /* 持久存储申请：可申请、可被浏览器拒绝、不构成保证（U-36） */
-      html += '<hr class="sep">';
-      html += '<p class="hint" id="sPersistInfo">浏览器持久存储：检测中…</p>';
-      html += '<button class="btn" id="sPersist" type="button">申请浏览器持久存储</button>';
-      html += '<p class="hint">iPhone/iPad 的 Safari 长期不打开可能清掉本地数据；这步只是「申请」，'
-        + '浏览器可拒绝、不构成保证——可靠备份只有上面的导出。</p>';
-      html += '<button class="btn btn-danger" id="sReset">清空全部数据</button>'
-        + '<p class="hint">清空前确认框里可以直接「先导出备份」。</p></div>';
-
-      /* CSV 导出（Excel 可读，带 BOM）+ 打印报告（儿保体检给医生看） */
-      html += '<div class="card"><h2>导出与打印</h2>';
-      html += '<div class="row"><select id="sCsvModule" aria-label="选择要导出 CSV 的模块" style="flex:1">'
-        + '<option value="feedings">喂养记录</option><option value="sleeps">睡眠记录</option>'
-        + '<option value="diapers">尿布记录</option><option value="meds">吃药/维D记录</option>'
-        + '<option value="growth">生长记录</option><option value="milestones">里程碑</option><option value="sicks">生病记录</option>'
-        + '<option value="vaccines">疫苗接种</option><option value="contractions">宫缩记录</option>'
-        + '<option value="periods">经期记录</option><option value="finance">记账记录</option>'
-        + '<option value="supplements">营养品服用记录</option>'
-        + '</select><button class="btn" id="sCsv">导出 CSV</button></div>';
-      html += '<p class="hint">CSV 可用 Excel / WPS 直接打开，适合整理归档。</p>';
-      html += '<button class="btn" id="sPrint">打印成长报告</button>';
-      html += '<p class="hint">生成一页式汇总（宝宝信息、生长、疫苗、近期喂养/尿布统计），可直接打印或另存 PDF 带给医生。</p>';
-      /* 第 71 次（C1）：就诊摘要——把本地记录拼成给医生看的一段文字。
-         与打印报告互补：打印是版式化的「报告」，这个是随手可发微信的「文字」。 */
-      html += '<button class="btn" id="sHandoff">交接班摘要（发给接手的家人）</button>';
-      html += '<p class="hint">上次吃 / 睡 / 换尿布的时间、近 12 小时次数，以及近 24 小时用药体温，拼成一段文字直接发。</p>';
-      html += '<button class="btn" id="sVisit">生成就诊摘要（文字版 · 可分享）</button>';
-      html += '<p class="hint">把生长、疫苗、儿保体检、发育观察点、里程碑与近期日常拼成一段给医生看的文字：'
-        + '能分享就直接调起系统分享，不行就复制 + 存成 txt。全部在本机拼装，不经任何网络。</p>';
-      /* 第 83 次（C2）：数据分享照片卡片——把今日宝宝照片 + 喂养/尿布/睡眠小结 + 日期画成一张图片，
-         可直接调起系统分享发给家人，或保存为 PNG 到相册。与打印报告/就诊摘要互补：那个是「文字」，这个是「图」。 */
-      html += '<button class="btn" id="sShareCard">生成分享卡片（图片 · 可发微信/存相册）</button>';
-      html += '<p class="hint">把今天的宝宝照片、喂养/尿布/睡眠小结与日期画成一张图片卡片：能分享就直接调起系统分享，'
-        + '不行就保存为 PNG。全程在本机绘制，照片与记录不出这台设备。</p></div>';
-      html += '</details>';
-
-      html += sgOpen('grid', '数据与统计', '各模块记录数 / 日的起始 / 本机占用 / 记录成本自测');
-      /* 数据统计：各模块记录数一目了然，导出前确认数据完整 */
-      var stats = Storage.stats();
-      /* 第 188 次：19 行「N 条 X」长列表改为三列小格，零记录的淡显，有记录的排前面 */
-      html += '<div class="card"><h2>数据统计</h2><ul class="kv kv-stats">';
-      stats.slice().sort(function (a2, b2) { return (b2.count > 0) - (a2.count > 0); }).forEach(function (t) {
-        html += '<li data-accent="' + t.key + '"' + (t.count ? '' : ' class="is-zero"') + '><b>' + t.count + '</b><span>' + t.name + '</span></li>';
-      });
-      html += '</ul>';
-      /* U-34：本机占用如实展示（阈值是设计判断，报告未给上限，故只说不猜） */
-      var usage = (typeof Storage.usage === 'function') ? Storage.usage() : null;
-      if (usage) {
-        html += '<p class="hint">本机存储占用约 <b>' + usage.pct + '%</b>'
-          + (usage.nearLimit ? '，已接近浏览器上限——建议先导出备份，再删掉不需要的旧记录。' : '，还很宽裕。')
-          + '（估算值，浏览器上限因机而异）</p>';
-      }
-      /* U-15：迁移快照如实展示，让「升级不丢数据」可核查 */
-      if (typeof Storage.snapshotCount === 'function' && Storage.snapshotCount() > 0) {
-        html += '<p class="hint">升级前快照：本机保留 ' + Storage.snapshotCount() + ' 份（仅用于版本升级失败时回滚）。</p>';
-      }
-      html += '</div>';
-
-      /* 第 131 次（P1-a · 对标 Cali DailyCareRecapBuilder 的 dayStart）：
-         「日起始时刻」——凌晨记的喂养算今天还是昨天，从此自己说了算。
-         默认 0:00（公历日）与既有行为完全一致；选 6:00 后，睡眠的
-         「昨夜」口径与喂养/尿布的「今日」口径重合，半夜喂奶不再
-         一笔算今天、一笔算昨天。疫苗剂次/预产期等认公历日，不受影响。 */
-      var DAY_STARTS = [['0', '0:00 公历日'], ['4', '4:00'], ['6', '6:00']];
-      var curDs = String(Util.dayStartHour(s));
-      html += '<div class="card"><h2>日的起始</h2>';
-      html += '<span class="lbl-text">每天从几点开始算</span><div class="seg seg-wrap2" id="sDayStartSeg">'
-        + DAY_STARTS.map(function (m) {
-          return '<button type="button" class="seg-btn' + (curDs === m[0] ? ' active' : '') + '" data-day-start="' + m[0] + '">' + m[1] + '</button>';
-        }).join('')
-        + '</div>';
-      html += '<p class="hint">决定「今日 / 昨夜」从几点算起：默认 0:00 就是公历日；'
-        + '选 6:00 后，凌晨 0–6 点记的喂养和睡眠都归前一天——和「凌晨入睡算前一晚」的睡眠口径对齐，'
-        + '半夜喂奶不会再一笔算今天、一笔算昨天。只改首页与各页的今日统计；'
-        + '疫苗剂次、预产期、备份天数认公历日，不受影响。</p></div>';
-
-      /* U-05：把「单次记录 ≤2 次点击、≤1 秒」做成可核查的验收指标，数据只在本机 */
-      var m = (global.App && typeof App.metricsSummary === 'function') ? App.metricsSummary() : null;
-      html += '<div class="card"><h2>记录成本（本机自测）</h2>';
-      if (m) {
-        html += '<p>共 ' + m.n + ' 次记录：平均 <b>' + m.avgClicks + '</b> 次点击、<b>' + m.avgMs + '</b> 毫秒完成，' +
-          '达标率（≤2 次点击且 ≤1 秒）<b>' + m.passRate + '%</b>。</p>';
-        html += '<ul class="kv">';
-        m.recent.forEach(function (r) {
-          var name = (Modules[r.mod] && Modules[r.mod].title) || r.mod;
-          html += '<li>' + Util.escapeHtml(name) + '：' + r.clicks + ' 次点击 / ' + r.ms + ' 毫秒 '
-            + (r.pass ? '达标' : '未达标') + '</li>';
-        });
-        html += '</ul>';
-      } else {
-        html += '<p class="hint">还没有样本。去记一笔喂养或睡眠，这里会显示点击次数与耗时。</p>';
-      }
-      html += '<p class="hint">这是验收线而不是体验目标：数据只存在本机，用于自己核对，不上报给任何人。</p></div>';
-      html += '</details>';
-
-      /* 第 71 次（B5/B6）：知识与来源——知识底座的出处与引用分层，全部数据来自 Knowledge */
-      html += sgOpen('search', '知识与来源', '内容出处 / 引用分层');
-      html += '<div class="card"><h2>知识来源</h2>';
-      html += '<p class="hint">知识句与参考数字来自以下公开资料，按可信度分三级：'
-        + '<b>官方标准/指南</b> &gt; <b>权威机构共识</b> &gt; <b>学派/流行观点</b>；'
-        + '数据类只采用官方标准。只列出处，不替代产检或儿保，重要判断遵医嘱。</p>';
-      html += '<ul class="kv">';
-      var usedSrc = {};
-      Knowledge.all().forEach(function (e) { usedSrc[e.source] = (usedSrc[e.source] || 0) + 1; });
-      /* 观察点/预警条目不在 DATA 里，按官方出处分别计入 */
-      Knowledge.MILESTONES.forEach(function (e) {
-        var code = (e.kind === 'obs') ? 'GJ-2025' : 'YJZX';
-        usedSrc[code] = (usedSrc[code] || 0) + 1;
-      });
-      Object.keys(Knowledge.SOURCES).forEach(function (code) {
-        html += '<li><b>' + Util.escapeHtml(code) + '</b> ' + Util.escapeHtml(Knowledge.SOURCES[code])
-          + ' <i>（引用 ' + (usedSrc[code] || 0) + ' 条）</i></li>';
-      });
-      html += '</ul>';
-      html += '<p class="hint">知识按 WHO 养育照护框架五要素归类：健康 / 营养 / 回应性照护 / 安全 / 早期学习，'
-        + '外加「妈妈情绪」一类。每条知识在本机内置、零联网；来源页本身也不收集任何数据。</p></div>';
-      html += '</details>';
-
-      html += sgOpen('bell', '提醒', '首页提醒卡 / 每周回顾');
-      /* U-04：提醒开关。关掉不损失任何功能——提醒只是「注意」，不是功能。 */
-      html += '<div class="card"><h2>提醒</h2>';
-      html += '<div class="row-switch"><label for="sRemind">首页提醒卡</label>'
-        + '<input type="checkbox" id="sRemind"' + (s.settings.remindersEnabled !== false ? ' checked' : '') + '></div>';
-      html += '<p class="hint">关闭后，首页不再出现提醒卡。所有记录、导出与回顾功能完全不受影响。</p>';
-      html += '<div class="row-switch"><label for="sReview">每周回顾提醒</label>'
-        + '<input type="checkbox" id="sReview"' + (s.settings.weeklyReviewEnabled ? ' checked' : '') + '></div>';
-      html += '<p class="hint">默认关闭。开启后每周最多一次，内容只是「摘要已生成」，不催你、不打卡、不提连续天数；'
-        + '随时可以在「日期记录」页右上角的日历里看到回顾，不需要靠提醒。</p></div>';
-      html += '</details>';
-
-      html += sgOpen('baby', '称呼与阶段', '宝宝档案 / 首页称呼 / 首次引导 / 当前阶段');
-      /* 第 80 次（宝宝档案）：多宝宝家庭在这里添加/切换/改名/删照片。
-         切换后 settings.baby（名字/生日）被镜像更新，growth/vaccine 等模块零改动跟随。 */
-      html += '<div class="card"><h2>宝宝档案</h2>';
       var babies = s.babies || [];
       var actId = s.settings.activeBabyId;
+      var actB = babies.filter(function (b) { return b.id === actId; })[0];
+      var effStage = (global.App && typeof App.stageOf === 'function') ? App.stageOf(s) : ((((s.pregnancy || {}).lmp) ? 'pregnancy' : 'baby'));
+      var famOn = !!(global.FamSync && FamSync.joined && FamSync.joined());
+      var famN = famOn && FamSync.state && FamSync.state() ? Object.keys(FamSync.state().members || {}).length : 0;
+      var qn = global.QuickRec ? QuickRec.rawItems(s).length : 0;
+      var hcat = (global.Modules && Modules.home && Modules.home._catalog) ? Modules.home._catalog() : [];
+      var hOn = hcat.filter(function (c) { return c.on; }).length;
+      var MODES = [['time', '跟随时间'], ['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']];
+      var curMode = (s.settings.themeMode) || ((s.settings.themeAuto !== false) ? 'time' : (s.settings.theme === 'dark' ? 'dark' : 'light'));
+      var FSCALES = [['normal', '标准'], ['lg', '大'], ['xl', '特大']];
+      var curFs = (global.App && global.App.fontScale) ? global.App.fontScale() : (s.settings.fontScale || 'normal');
+      if (FSCALES.map(function (m) { return m[0]; }).indexOf(curFs) < 0) curFs = 'normal';
+      var modeName = (MODES.filter(function (m) { return m[0] === curMode; })[0] || MODES[0])[1];
+      var fsName = (FSCALES.filter(function (m) { return m[0] === curFs; })[0] || FSCALES[0])[1];
+      var wxc = s.settings.weather || { on: false, mode: 'auto', city: null };
+      var curDs = String(Util.dayStartHour(s));
+      var last = s.settings.lastExportISO;
+
+      /* ── ① 宝宝与我 · 家庭共享 ── */
+      html += sec('');
+      html += sgOpen('baby', '宝宝与我', actB ? (Storage.babyLabel(actB) + (babies.length > 1 ? ' · ' + babies.length + ' 个宝宝' : '') + ' · ' + (effStage === 'pregnancy' ? '孕期' : '育儿')) : '还没有宝宝档案', 'growth');
+      var bl = '';
       if (babies.length) {
-        html += '<ul class="list baby-list" id="sBabyList">';
+        bl += '<ul class="list baby-list st-list" id="sBabyList">';
         babies.forEach(function (b) {
           var isAct = b.id === actId;
           var ava = b.photo ? ('<img class="baby-ava" src="' + Util.escapeHtml(b.photo) + '" alt="">')
@@ -955,181 +769,172 @@
           var sub = b.birthDate ? ('生日 ' + b.birthDate + (b.birthLunar && global.Lunar ? '（农历' + Lunar.monthName(b.birthLunar.m, b.birthLunar.leap) + Lunar.dayName(b.birthLunar.d) + '）' : '')) : '未设置生日';
           var lbl = Storage.babyLabel ? Storage.babyLabel(b) : b.name;
           if (lbl !== b.name && b.name && b.name !== '宝宝') sub = b.name + ' · ' + sub;
-          html += '<li data-baby-id="' + Util.escapeHtml(b.id) + '" role="button" tabindex="0"'
-            + (isAct ? ' data-baby-active="1"' : '') + '>'
-            + ava
-            + '<span class="li-main"><b>' + Util.escapeHtml(lbl) + '</b>'
+          bl += '<li data-baby-id="' + Util.escapeHtml(b.id) + '" role="button" tabindex="0"' + (isAct ? ' data-baby-active="1"' : '') + '>'
+            + ava + '<span class="li-main"><b>' + Util.escapeHtml(lbl) + (isAct ? '<span class="baby-badge">当前</span>' : '') + '</b>'
             + '<i class="baby-sub">' + Util.escapeHtml(sub) + '</i></span>'
-            + (isAct ? '<span class="baby-badge">当前</span>' : '')
             + '<span class="baby-ops">'
             + '<button type="button" class="btn-mini" data-baby-rename="' + Util.escapeHtml(b.id) + '">资料</button>'
             + '<button type="button" class="btn-mini" data-baby-photo="' + Util.escapeHtml(b.id) + '">照片</button>'
             + '<button type="button" class="btn-mini" data-baby-del="' + Util.escapeHtml(b.id) + '">删除</button>'
             + '</span></li>';
         });
-        html += '</ul>';
-      } else {
-        html += '<p class="hint">还没有宝宝档案。点「添加宝宝」建一个——首页问候、疫苗、生长都会跟着生日走。</p>';
+        bl += '</ul>';
       }
-      html += '<div class="row"><button class="btn btn-primary" id="sBabyAdd" type="button">添加宝宝</button>'
-        + '<button class="btn" id="sBabyPhotoCur" type="button">给当前宝宝换照片</button></div>';
-      html += '<p class="hint">点宝宝行即切换：头像、问候与疫苗/生长排期跟着换；照片只存本机。'
-        + '喂养、睡眠、尿布、生长、疫苗等记录按宝宝分开保存；经期、孕期、情绪、记账等妈妈的记录全家共用。</p></div>';
-
-      /* O 系列：称呼与身份。只影响首页问候语，不采集任何个人信息；随时可改、可重来，不阻塞功能。 */
-      html += '<div class="card"><h2>称呼与引导</h2>';
-      html += '<label>首页称呼（可留空）<input type="text" id="sCareName" maxlength="12" placeholder="比如：妈妈、豆豆妈、奶奶" value="'
-        + Util.escapeHtml((s.settings.caregiver && s.settings.caregiver.name) || '') + '"></label>';
+      bl += '<button class="st-act" id="sBabyAdd" type="button">' + icon('plus') + '添加宝宝</button>';
+      html += card('宝宝', bl, '点宝宝那一行就切换。记录按宝宝分开存；经期、孕期、心情、记账是妈妈自己的。');
       var cgRole = (s.settings.caregiver && s.settings.caregiver.role) || '';
       var CARE_ROLES = [['', '不设置'], ['mom', '妈妈'], ['dad', '爸爸'], ['other', '其他照护者']];
-      html += '<div class="seg seg-lg" id="sCareRole">';
-      CARE_ROLES.forEach(function (p) {
-        html += '<button type="button" class="seg-btn' + (cgRole === p[0] ? ' active' : '') + '" data-role="' + p[0] + '">' + p[1] + '</button>';
-      });
-      html += '</div>';
-      html += '<p class="hint">只用来决定首页怎么称呼你。不做账号、不采集姓名手机号，没有任何数据离开这台设备。</p>';
-      html += '<button class="btn" id="sReOnboard" type="button">重新开始首次引导</button>';
-      html += '<p class="hint">重新走一遍引导（身份 → 阶段 → 详情 → 数据风险说明）。已有记录不受影响、不会被覆盖。</p></div>';
-
-  /* 阶段切换（第 43 次）：引导里选的阶段可以随时改，且不锁死任何功能。
-     优先级 settings.stage（显式选择）> 客观数据；这里显示的是实际生效值。 */
-  var effStage = (global.App && typeof App.stageOf === 'function') ? App.stageOf(s)
-    : ((((s.pregnancy || {}).lmp) ? 'pregnancy' : 'baby'));
-  html += '<div class="card"><h2>当前阶段</h2>';
-  html += '<span class="lbl-text">我现在处于</span><div class="seg seg-wrap2" id="sStageSeg">'
-    + '<button type="button" class="seg-btn' + (effStage === 'pregnancy' ? ' active' : '') + '" data-stage-set="pregnancy">孕期中</button>'
-    + '<button type="button" class="seg-btn' + (effStage === 'baby' ? ' active' : '') + '" data-stage-set="baby">宝宝已出生</button>'
-    + '</div>';
-  html += '<p class="hint">阶段由预产期/宝宝生日自动判定，这里可覆盖。</p></div>';
+      html += card('我', '<label class="st-field">首页怎么称呼我<input type="text" id="sCareName" maxlength="12" placeholder="比如：妈妈、豆豆妈、奶奶" value="'
+        + Util.escapeHtml((s.settings.caregiver && s.settings.caregiver.name) || '') + '"></label>'
+        + '<div class="seg seg-lg" id="sCareRole" role="group" aria-label="我是">' + CARE_ROLES.map(function (p) {
+          return '<button type="button" class="seg-btn' + (cgRole === p[0] ? ' active' : '') + '" data-role="' + p[0] + '">' + p[1] + '</button>';
+        }).join('') + '</div>'
+        + '<span class="lbl-text">现在处于</span><div class="seg seg-wrap2" id="sStageSeg">'
+        + '<button type="button" class="seg-btn' + (effStage === 'pregnancy' ? ' active' : '') + '" data-stage-set="pregnancy">孕期中</button>'
+        + '<button type="button" class="seg-btn' + (effStage === 'baby' ? ' active' : '') + '" data-stage-set="baby">宝宝已出生</button></div>',
+        '阶段平时由预产期 / 宝宝生日自动判断，这里可以改。');
+      html += '<button class="st-link" id="sReOnboard" type="button">重新走一遍首次引导</button>';
       html += '</details>';
-
-      /* 第 332 次：家庭共享（端到端加密中转）。内容由 js/famui.js 渲染进 #famBox；放在「称呼与阶段」之后，前面各组的序号不变 */
-      html += sgOpen('baby', '家庭共享', '和家人一起记 / 扫码加入 / 端到端加密');
+      /* 第 332 次：家庭共享（js/famui.js 渲染进 #famBox），功能不变，挪到宝宝下面 */
+      html += sgOpen('home', '家庭共享', famOn ? '已开启' + (famN ? ' · ' + famN + ' 台设备' : '') : '和家人一起记', 'mood');
       html += '<div id="famBox" class="fam-box"></div>';
       html += '</details>';
+      html += '</div>';
 
-      html += sgOpen('sun', '外观', '主题 / 玻璃折射 / 触感 / 常亮 / 天空时刻预览');
-      /* 主题四选（第 40 次移除顶栏按钮；第 41 次加「跟随系统」）：这里是唯一主题入口 */
-      html += '<div class="card">';
-      var MODES = [['time', '跟随时间'], ['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']];
-      var curMode = (s.settings.themeMode) || ((s.settings.themeAuto !== false) ? 'time' : (s.settings.theme === 'dark' ? 'dark' : 'light'));
-      /* 第 118 次（外观区对标 Cali「外观」页）：文字 seg 换成微缩 UI 预览卡——
-         每张卡用几个 <i> 画出「彩色 chips + 条 + 行」的极简缩样，底色与 chips
-         的彩色/灰阶由 theme-card--X 修饰类在 CSS 侧区分（此处只输出类名与结构，
-         不写任何样式）。仍保留 data-theme-mode，交互与 App.setTheme 不变；
-         active / aria-pressed 由 curMode 在同一处算出，render 后天然同步。 */
-      html += '<span class="lbl-text">主题</span><div class="theme-cards" id="sThemeSeg">'
-        + MODES.map(function (m) {
-          var act = (curMode === m[0]);
-          return '<button type="button" class="theme-card theme-card--' + m[0] + (act ? ' active' : '') + '" data-theme-mode="' + m[0] + '" aria-pressed="' + (act ? 'true' : 'false') + '">'
-            + '<span class="tc-view">'
-            + '<i class="tc-chip"></i><i class="tc-chip"></i><i class="tc-chip"></i>'
-            + '<i class="tc-bar"></i><i class="tc-line"></i>'
-            + '</span>'
-            + '<span class="tc-name">' + m[1] + '</span>'
-            + '</button>';
-        }).join('')
-        + '</div>';
-      html += '<p class="hint">「跟随时间」= 本地 22:00–06:00 自动暗色并压低动效；「跟随系统」跟设备设置。'
-        + '手动选定后以你的选择为准。</p>';
-      /* 第 103 次（OP-GAP-03）：字号三档。与主题同一个 seg 组件，形态一致。 */
-      var FSCALES = [['normal', '标准'], ['lg', '大'], ['xl', '特大']];
-      var curFs = (global.App && global.App.fontScale) ? global.App.fontScale() : (s.settings.fontScale || 'normal');
-      if (FSCALES.map(function (m) { return m[0]; }).indexOf(curFs) < 0) curFs = 'normal';
-      html += '<span class="lbl-text">字号</span><div class="seg font-seg" id="sFontSeg">'
-        + FSCALES.map(function (m) {
-          return '<button type="button" class="seg-btn' + (curFs === m[0] ? ' active' : '') + '" data-font-scale="' + m[0] + '">' + m[1] + '</button>';
-        }).join('')
-        + '</div>';
-      html += '<p class="hint">调大后全站文字一起放大（含记录明细与提示文字），方便和家里长辈一起看。只改显示，不动任何记录。</p>';
-      /* 第 118 次：字号样张——用当前档位实时显示「大数字 + 正文」两行，直接暴露
-         「display 与 body 同比例放大（比例没被改善）」这个已知缺陷（CSS 侧正在解耦，
-         这行正好把它可视化出来）。全部走 var(--fs-display) / var(--fs-body)，不写死 px。 */
-      html += '<div class="fs-sample">'
-        + '<span class="fss-display">28</span>'
-        + '<span class="fss-body">宝宝今天喝得很好，这是正文的样子</span>'
-        + '</div>';
-      /* 第 118 次：高对比模式（opt-in）——给卡片加一圈更明显的描边、并把模块淡色底提亮，
-         面向色觉障碍 / 老年晶状体黄化；读写走 App.hcMode() / App.setHcMode()（缺则回落关）。 */
+      /* ── ② 我的快记 · 首页卡片 ── */
+      html += sec('首页');
+      html += sgOpen('plus', '我的快记', qn ? qn + ' 个' : '还没有快记', 'feeding');
+      html += '<div class="qe-box" id="sQuickBox"></div>';
+      html += '</details>';
+      html += sgOpen('grid', '首页卡片', hOn + ' 张', 'diaper');
+      ['快捷记录', '上次', '今日', '趋势', '距上次', '功能入口'].forEach(function (gname) {
+        var rows = hcat.filter(function (c) { return c.group === gname; });
+        if (!rows.length) return;
+        html += '<p class="st-cap">' + gname + '</p><div class="card st-card hc-card"><ul class="hc-list">';
+        rows.forEach(function (c) {
+          html += '<li class="hc-row row-switch" data-accent="' + c.accent + '"><span class="hc-ico">' + icon(c.icon) + '</span>'
+            + '<label class="hc-name" for="hc_' + c.id + '">' + Util.escapeHtml(c.name) + '</label>'
+            + '<input type="checkbox" id="hc_' + c.id + '" data-hc="' + c.id + '"' + (c.on ? ' checked' : '') + '></li>';
+        });
+        html += '</ul></div>';
+      });
+      html += '<p class="st-foot">打开就加到首页末尾；排序和大小在首页「编辑首页」里调。</p>';
+      html += '<button class="st-link" id="sHomeReset" type="button">恢复默认首页</button>';
+      html += '</details>';
+      html += '</div>';
+
+      /* ── ③ 外观 · 天气与农历 · 记录与提醒 · 轻震 ── */
+      html += sec('使用');
+      html += sgOpen('image', '外观', modeName + ' · 字号' + fsName, 'sun');
+      html += card('主题', '<div class="theme-cards" id="sThemeSeg">' + MODES.map(function (m) {
+        var act = (curMode === m[0]);
+        return '<button type="button" class="theme-card theme-card--' + m[0] + (act ? ' active' : '') + '" data-theme-mode="' + m[0] + '" aria-pressed="' + (act ? 'true' : 'false') + '">'
+          + '<span class="tc-view"><i class="tc-chip"></i><i class="tc-chip"></i><i class="tc-chip"></i><i class="tc-bar"></i><i class="tc-line"></i></span>'
+          + '<span class="tc-name">' + m[1] + '</span></button>';
+      }).join('') + '</div>', '「跟随时间」：22 点到 6 点自动深色。');
+      html += card('字号', '<div class="seg font-seg" id="sFontSeg">' + FSCALES.map(function (m) {
+        return '<button type="button" class="seg-btn' + (curFs === m[0] ? ' active' : '') + '" data-font-scale="' + m[0] + '">' + m[1] + '</button>';
+      }).join('') + '</div>', '');
       var hcOn = (global.App && typeof global.App.hcMode === 'function') ? global.App.hcMode() : false;
-      html += '<div class="row-switch"><label for="sHcMode">高对比模式</label>'
-        + '<input type="checkbox" id="sHcMode"' + (hcOn ? ' checked' : '') + '></div>';
-      html += '<p class="hint">开启后给卡片加一圈更明显的描边、并把模块淡色底提亮，'
-        + '让它在色觉障碍或老年晶状体黄化下也能分清。给别人用、或觉得界面“太素”时可关掉。</p>';
-
-      html += '<div class="row-switch"><label for="sRefract">真实玻璃折射</label>' +
-        '<input type="checkbox" id="sRefract"' + (s.settings.realRefraction !== false ? ' checked' : '') + '></div>';
-      html += '<p class="hint">开启后，玻璃卡片会折射背后的背景（更逼真的液态玻璃）。低端设备若出现卡顿可关闭。</p>';
-      /* 第 275 次：iOS 上 dock 的真折射（dock-refract.js）单独一个开关；默认「自动」，性能不够时自己关 */
-      html += '<div class="row-switch"><label for="sDockGlass">底栏液态玻璃折射（试验）</label>' +
-        '<input type="checkbox" id="sDockGlass"' + (s.settings.dockGlass !== 'off' ? ' checked' : '') + '></div>';
-      html += '<p class="hint">iPhone / iPad 上让底栏边缘把背后的内容折弯、带一点彩色色散。手机性能不够时会自动退回普通磨砂玻璃；觉得耗电或卡顿可关掉。</p>';
-      /* 第 45 次：保存触感反馈。默认开启；关掉只少一层手感反馈，不影响任何功能。 */
-      html += '<div class="row-switch"><label for="sHaptic">保存时轻震一下</label>' +
-        '<input type="checkbox" id="sHaptic"' + (s.settings.hapticEnabled !== false ? ' checked' : '') + '></div>';
-      html += '<p class="hint">保存成功轻震一下、失败震两下。<b>仅安卓手机有效</b>：iPhone 的所有浏览器'
-        + '都未实现网页震动，电脑无震动马达；不影响记录与保存。</p>';
-      /* 第 194 次：计时常亮开关（js/awake.js） */
-      /* 第 330 次：夜里的窗（js/nightwin.js） */
-      html += '<div class="row-switch"><label for="sNightWin">夜里的窗</label>' +
-        '<input type="checkbox" id="sNightWin"' + (s.settings.nightWindow !== false ? ' checked' : '') + '></div>';
-      html += '<p class="hint">22 点到 5 点，亲喂和睡眠的全屏计时背景换成窗外此刻真实的月亮和星星，窗顶有一句话。全在本机计算，不联网。</p>';
-      html += '<div class="row-switch"><label for="sAwake">计时时屏幕常亮</label>' +
-        '<input type="checkbox" id="sAwake"' + (s.settings.keepAwake !== false ? ' checked' : '') + '></div>';
-      html += '<p class="hint">宫缩计时、胎动计数、亲喂计时进行中，屏幕不会自动变暗锁屏。睡眠计时不常亮，免得亮一整夜。'
-        + (('wakeLock' in navigator) ? '' : '<b>当前浏览器不支持</b>，iPhone 需 iOS 16.4 以上。') + '</p>';
-      /* 第 97 次：底栏右侧自定义快捷槽位——两页签之后加一个直达常用记录的入口 */
-      var SLOT_OPTS = [
-        ['', '不显示'], ['feeding', '喂养'], ['diaper', '尿布'], ['sleep', '睡眠'],
-        ['contraction', '宫缩'], ['fetal', '胎动'], ['temp', '体温'], ['mood', '妈妈情绪']
-      ];
+      var glassOn = s.settings.realRefraction !== false && s.settings.dockGlass !== 'off';
+      html += card('', sw('sHcMode', '高对比', hcOn, '卡片描边更明显，浅色底更亮')
+        + sw('sDockGlass', '液态玻璃折射', glassOn, '手机卡顿或费电时可以关掉'), '');
+      var SLOT_OPTS = [['', '不显示'], ['feeding', '喂养'], ['diaper', '尿布'], ['sleep', '睡眠'], ['contraction', '宫缩'], ['fetal', '胎动'], ['temp', '体温'], ['mood', '妈妈情绪']];
       var curSlot = (s.settings.dockSlot != null) ? String(s.settings.dockSlot) : '';
-      html += '<span class="lbl-text">底栏快捷入口</span><div class="seg seg-wrap2" id="sDockSlotSeg">'
-        + SLOT_OPTS.map(function (m) {
-          return '<button type="button" class="seg-btn' + (curSlot === m[0] ? ' active' : '') + '" data-dock-slot="' + m[0] + '">' + m[1] + '</button>';
-        }).join('')
-        + '</div>';
-      html += '<p class="hint">在底部「首页 / 日期记录」右侧加一个常用记录的直达按钮，选「不显示」即恢复两页签。'
-        + '正常排列与左手 / 右手模式都生效。</p>';
-      /* 第 54 次：天空时刻预览——不用等到对应时段，点一下就看整页在一天里怎么变色
-         （天空色板 + 全页环境光 + 日轮弧线三处同步）。会话级生效不落盘：刷新即回真实时间，
-         不影响任何记录的时间戳（记录永远按真实时刻存）。 */
-      var SKY_HOURS = [['real', '真实时间'], ['6.5', '清晨'], ['12.5', '正午'], ['18', '黄昏'], ['0', '深夜']];
-      var pvHour = (global.Sky && Sky.previewHour != null) ? String(Sky.previewHour) : 'real';
-      html += '<span class="lbl-text">天空时刻预览</span><div class="seg seg-wrap2" id="sSkyHourSeg">'
-        + SKY_HOURS.map(function (m) {
-          return '<button type="button" class="seg-btn' + (pvHour === m[0] ? ' active' : '') + '" data-sky-hour="' + m[0] + '">' + m[1] + '</button>';
-        }).join('')
-        + '</div>';
-      html += '<p class="hint">走查设计效果用：切到「黄昏」再回首页，能看到暖金色浸满整页、太阳沉进地平线雾里。'
-        + '只在当前页面会话内生效，刷新或关掉就回到真实时间。</p></div>';
+      html += card('底栏快捷入口', '<div class="seg seg-wrap2" id="sDockSlotSeg">' + SLOT_OPTS.map(function (m) {
+        return '<button type="button" class="seg-btn' + (curSlot === m[0] ? ' active' : '') + '" data-dock-slot="' + m[0] + '">' + m[1] + '</button>';
+      }).join('') + '</div>', '在底栏页签右边多一个直达入口。');
       html += '</details>';
 
-      html += sgOpen('heart', '关于与告别', '版本信息 / 能力边界 / 随时离开');
+      html += sgOpen('sun', '天气与农历', (wxc.on ? '天气开' : '天气关') + ' · ' + (s.settings.lunarDate !== false ? '农历开' : '农历关'), 'temp');
+      var wxIn = sw('sWxOn', '首页显示真实天气', wxc.on, '唯一会联网的功能；只发大致位置');
+      if (wxc.on) {
+        wxIn += '<div class="st-pad"><div class="seg" id="sWxMode">'
+          + '<button type="button" class="seg-btn' + (wxc.mode !== 'city' ? ' active' : '') + '" data-wx-mode="auto">自动定位</button>'
+          + '<button type="button" class="seg-btn' + (wxc.mode === 'city' ? ' active' : '') + '" data-wx-mode="city">选择城市</button></div>';
+        if (wxc.mode === 'city') {
+          wxIn += '<p class="st-note">当前城市：' + (wxc.city ? Util.escapeHtml(wxc.city.name) : '还没选') + '</p>'
+            + '<div class="wx-search"><input type="search" id="sWxCity" maxlength="24" placeholder="输入城市名，比如：深圳" aria-label="城市名">'
+            + '<button type="button" class="btn" id="sWxFind">搜索</button></div><ul class="wx-results" id="sWxRes"></ul>';
+        }
+        wxIn += '<button type="button" class="st-link" id="sWxRefresh">立即刷新天气</button></div>';
+      }
+      html += card('', wxIn, '');
+      html += card('', sw('sLunar', '首页日期显示农历', s.settings.lunarDate !== false, ''), '');
+      html += '</details>';
 
-      html += '<div class="card"><h2>关于</h2>';
-      html += '<p>咿呀记 Yiya v1.0 · 本地优先纯工具（2026-09）</p>';
+      html += sgOpen('bell', '记录与提醒', '一天从 ' + curDs + ':00 算', 'sleep');
+      var DAY_STARTS = [['0', '0:00'], ['4', '4:00'], ['6', '6:00']];
+      html += card('一天从几点开始算', '<div class="seg seg-wrap2" id="sDayStartSeg">' + DAY_STARTS.map(function (m) {
+        return '<button type="button" class="seg-btn' + (curDs === m[0] ? ' active' : '') + '" data-day-start="' + m[0] + '">' + m[1] + '</button>';
+      }).join('') + '</div>', '选 6:00，凌晨喂奶和夜里那一觉都算前一天。疫苗、预产期不受影响。');
+      html += card('计时', sw('sAwake', '计时时屏幕常亮', s.settings.keepAwake !== false, ('wakeLock' in navigator) ? '亲喂、宫缩、胎动计时中不锁屏' : '当前浏览器不支持（iPhone 需 iOS 16.4 以上）')
+        + sw('sNightWin', '夜里的窗', s.settings.nightWindow !== false, '夜里全屏计时的背景换成此刻的月亮和星星'), '');
+      html += card('提醒', sw('sRemind', '首页提醒卡', s.settings.remindersEnabled !== false, '')
+        + sw('sReview', '每周回顾提醒', !!s.settings.weeklyReviewEnabled, '每周最多一次，不催、不打卡'), '');
+      html += '</details>';
+      html += '<div class="st-row row-switch sg-inline" data-accent="mood"><span class="sg-ico" aria-hidden="true">' + icon('heart') + '</span>'
+        + '<label for="sHaptic">保存时轻震一下<small>仅安卓手机有效</small></label>'
+        + '<input type="checkbox" id="sHaptic"' + (s.settings.hapticEnabled !== false ? ' checked' : '') + '></div>';
+      html += '</div>';
+
+      /* ── ④ 导入与导出 · 给家人和医生 · 数据与隐私 ── */
+      html += sec('数据');
+      html += sgOpen('export', '导入与导出', last ? '上次备份 ' + String(last).slice(0, 10) : '还没有备份过', 'finance');
+      var bh = (global.Reminders && typeof Reminders.backupHint === 'function') ? Reminders.backupHint(s, Date.now()) : null;
+      html += card('备份', '<button class="st-act" id="sExport" type="button">' + icon('export') + '导出完整备份（JSON）<small>换手机、恢复用</small></button>'
+        + '<button class="st-act" id="sImport" type="button">' + icon('import') + '导入备份<small>先看会加多少条，再决定</small></button>'
+        + '<button class="st-act" id="sImpLog" type="button">' + icon('calendar') + '导入历史</button>',
+        (bh && bh.text ? Util.escapeHtml(bh.text) + ' ' : (last ? '' : '还没有备份过，建议现在导出一次。')) + '导出的文件是明文，存在你信任的地方。');
+      html += card('表格（CSV）', '<div class="dm-csv st-csv"><select id="sCsvModule" aria-label="选择要导出 CSV 的记录">'
+        + '<option value="feedings">喂养记录</option><option value="sleeps">睡眠记录</option>'
+        + '<option value="diapers">尿布记录</option><option value="meds">吃药/维D记录</option>'
+        + '<option value="growth">生长记录</option><option value="milestones">里程碑</option><option value="sicks">生病记录</option>'
+        + '<option value="vaccines">疫苗接种</option><option value="contractions">宫缩记录</option>'
+        + '<option value="periods">经期记录</option><option value="finance">记账记录</option>'
+        + '<option value="supplements">营养品服用记录</option>'
+        + '</select><button class="btn btn-mini" id="sCsv" type="button">导出</button></div>', 'Excel / WPS 可以直接打开。');
+      html += '</details>';
+      html += sgOpen('share', '给家人和医生', '交接班、就诊摘要、报告', 'vaccine');
+      html += card('', '<button class="st-act" id="sHandoff" type="button">' + icon('share') + '交接班摘要<small>上次吃 / 睡 / 换尿布，发给接手的家人</small></button>'
+        + '<button class="st-act" id="sVisit" type="button">' + icon('meds') + '就诊摘要<small>生长、疫苗、发育、近期日常，一段文字</small></button>'
+        + '<button class="st-act" id="sPrint" type="button">' + icon('growth') + '打印成长报告<small>一页汇总，可另存 PDF</small></button>'
+        + '<button class="st-act" id="sShareCard" type="button">' + icon('image') + '今天的分享卡片<small>照片 + 今日小结，一张图</small></button>'
+        + '<button class="st-act" id="sExportShare" type="button">' + icon('export') + '导出给家人 / 医生（JSON）<small>不含情绪、经期、记账</small></button>',
+        '都在这台手机上生成，不经过网络。');
+      html += '</details>';
+      html += sgOpen('settings', '数据与隐私', '记录只存在这台手机', 'supplies');
+      var stats = Storage.stats();
+      var usage = (typeof Storage.usage === 'function') ? Storage.usage() : null;
+      var cbInfo = Storage.corruptBackupInfo ? Storage.corruptBackupInfo() : null;
+      html += card('记录', '<ul class="kv kv-stats">' + stats.slice().sort(function (a2, b2) { return (b2.count > 0) - (a2.count > 0); }).map(function (t) {
+        return '<li data-accent="' + t.key + '"' + (t.count ? '' : ' class="is-zero"') + '><b>' + t.count + '</b><span>' + t.name + '</span></li>';
+      }).join('') + '</ul>', usage ? '本机存储约用了 ' + usage.pct + '%' + (usage.nearLimit ? '，快满了：先导出备份，再删不需要的旧记录。' : '。') : '');
+      html += card('存储', '<p class="st-note" id="sPersistInfo">浏览器持久存储：检测中…</p><button class="st-link" id="sPersist" type="button">申请浏览器持久存储</button>'
+        + (cbInfo && cbInfo.exists ? '<p class="st-note backfill-note">检测到一份历史损坏数据的原文备份（约 ' + Math.max(1, Math.round(cbInfo.chars / 1024)) + ' KB），只存本机，需要时可人工找回旧记录。</p>' : ''),
+        'iPhone 长期不打开可能清掉网页数据；可靠的兜底只有导出备份。');
+      html += '<button class="st-danger" id="sReset" type="button">清空全部数据</button>';
+      html += '</details>';
+      html += '</div>';
+
+      /* ── ⑤ 知识来源 ── */
+      html += sec('');
+      html += sgOpen('search', '知识来源', '内容出处', 'milestone');
+      var usedSrc = {};
+      Knowledge.all().forEach(function (e) { usedSrc[e.source] = (usedSrc[e.source] || 0) + 1; });
+      Knowledge.MILESTONES.forEach(function (e) { var code = (e.kind === 'obs') ? 'GJ-2025' : 'YJZX'; usedSrc[code] = (usedSrc[code] || 0) + 1; });
+      html += card('', '<ul class="kv st-src">' + Object.keys(Knowledge.SOURCES).map(function (code) {
+        return '<li><b>' + Util.escapeHtml(code) + '</b> ' + Util.escapeHtml(Knowledge.SOURCES[code]) + ' <i>（' + (usedSrc[code] || 0) + ' 条）</i></li>';
+      }).join('') + '</ul>', '可信度：官方标准 &gt; 权威机构共识 &gt; 学派 / 流行观点；数据类只用官方标准。');
+      html += '</details>';
+      html += '</div>';
+
+      /* 页脚：关于（Cali 的「关于 / 免责声明」放法，咿呀记自己的话） */
       var swOn = false;
       try { swOn = !!(global.navigator && navigator.serviceWorker && navigator.serviceWorker.controller); } catch (e) {}
-      html += '<p class="hint">运行环境：' + (swOn ? '已启用离线缓存（添加到主屏后可离线使用）' : '直接运行（未启用离线缓存，不影响使用）') + '。'
-        + '无账号、无云、无广告、无社区、无推送。所有数据仅存本机浏览器。</p>';
-      html += '<p class="hint">健康数据仅供参考，重要判断请遵医嘱。</p>';
-      /* U-29 / U-32：能力边界要主动说，避免用户带着云产品的预期来用本地工具 */
-      html += '<p class="hint">能力边界（先说清楚）：不提供实时家人共享、不提供多设备同步、不提供云端备份（U-29 / U-32）。'
-        + '家人想看的时候，把导出的文件自己发过去；就医时用「打印成长报告」直接出示即可。</p></div>';
-
-      /* U-03 体面退出四要素：阶段性总结视图 + 全量导出入口 + 告别式引导 + 不挽留。
-         这条卡片的措辞是刻意的：不用「确定要走吗」这类话术，不设任何中断成本。 */
-      html += '<div class="card farewell-card"><h2>用完了，随时可以走</h2>';
-      html += '<p>这个工具本来就是陪你过一段路的：喂夜奶、哄睡、产检、记宫缩的那几个月。'
-        + '如果你觉得已经不需要它了，那是好事，不用留在这里。</p>';
-      html += '<p class="hint">走之前，你大概想要这三样东西：</p>';
-      html += '<button class="btn" id="sReviewLink" type="button">看一眼阶段性回顾</button>';
-      html += '<button class="btn btn-primary" id="sExport2" type="button">把全部数据带走（JSON）</button>';
-      html += '<button class="btn" id="sPrint2" type="button">打印一页式成长报告</button>';
-      html += '<p class="hint">这些都不需要注册、不需要付费、不需要再回来。这里没有会员墙，也不会多问你一句'
-        + '「要不要再想想」——你的数据是你的，走的时候直接带走就好。</p></div>';
-      html += '</details>';
+      html += '<footer class="st-about"><span class="st-logo" aria-hidden="true">' + icon('baby') + '</span><b>咿呀记</b>'
+        + '<small>版本 1.0 · ' + (swOn ? '可离线使用' : '在线运行') + '</small>'
+        + '<p>记录只存在这台手机（家庭共享时端到端加密）。只做记录，不做诊断；健康问题请遵医嘱。</p></footer>';
 
       view.innerHTML = html;
       /* 第 182 次（用户：设置在一个页面里展开有点乱）：分组从「原地折叠展开」改为真正的二级页。
@@ -1138,6 +943,13 @@
          各组内容仍一次性渲染在 DOM 里，下面的事件绑定一行不用改；
          组内改设置触发 rerender（silent）时，按 _sgCur 原地回到同一组，不会被踢回目录。 */
       if (global.FamUI) FamUI.mount(view.querySelector('#famBox'));
+      if (global.QuickRec) QuickRec.mountEditor(view.querySelector('#sQuickBox'), function () {
+        /* 一级目录那一行的「N 个」跟着变（不整页重画，免得打断拖动） */
+        var g = view.querySelector('#sQuickBox');
+        var sm = g && g.closest('details') && g.closest('details').querySelector('.sg-txt i');
+        var n = QuickRec.rawItems().length;
+        if (sm) sm.textContent = n ? n + ' 个' : '还没有快记';
+      });
       var sgHead = view.querySelector('.page-head h1');
       var sgGroups = view.querySelectorAll('.set-group');
       function sgShow(idx, push) {
@@ -1237,13 +1049,13 @@
       /* 从首页「开启天气」等入口直达某个分组 */
       if (Modules.settings._want) {
         var want = Modules.settings._want; Modules.settings._want = null;
+        /* 第 333 次：分组改了名，旧名字（首页、菜单面板里的入口在用）照样能直达 */
+        want = { '称呼与阶段': '宝宝与我', '天气': '天气与农历', '提醒': '记录与提醒', '数据与备份': '导入与导出', '外观': '外观' }[want] || want;
         Array.prototype.forEach.call(sgGroups, function (g, i) {
           var b = g.querySelector('.sg-txt b');
           if (b && b.textContent === want) sgShow(i, true);
         });
       }
-      var sAll = view.querySelector('#sAllTools');
-      if (sAll) sAll.addEventListener('click', function () { global.App.showTab('alltools'); });
       Array.prototype.forEach.call(view.querySelectorAll('[data-hc]'), function (cb) {
         cb.addEventListener('change', function () {
           var id = cb.getAttribute('data-hc');
@@ -1254,11 +1066,12 @@
       var sHR = view.querySelector('#sHomeReset');
       if (sHR) sHR.addEventListener('click', function () { Modules.home._editReset(); Util.toast('首页已恢复默认卡片', 'ok'); });
       view.querySelector('#sExport').addEventListener('click', function () { global.App.exportAll(); });
-      var dmB = view.querySelector('#sDataMgr');
-      if (dmB) dmB.addEventListener('click', function () { if (global.DataMgr) DataMgr.open(); });
       var exShare = view.querySelector('#sExportShare');
       if (exShare) exShare.addEventListener('click', function () { global.App.exportShare(); });
-      view.querySelector('#sImport').addEventListener('click', function () { global.App.importAll(); });
+      /* 第 333 次：导入走「数据管理」的预览（宝宝只按 uuid 对应、同名不同档案会提示），整体覆盖在预览里 */
+      view.querySelector('#sImport').addEventListener('click', function () { if (global.DataMgr && DataMgr.openImport) DataMgr.openImport(); else global.App.importAll(); });
+      var impLog = view.querySelector('#sImpLog');
+      if (impLog) impLog.addEventListener('click', function () { if (global.DataMgr) DataMgr.open('log'); });
       view.querySelector('#sReset').addEventListener('click', function () { global.App.resetAll(); });
       view.querySelector('#sHandoff').addEventListener('click', function () {
         var text = buildHandoff(Storage.get());
@@ -1421,18 +1234,6 @@
       /* 添加宝宝：自建表单弹层（confirm 的 message 不接受 HTML，走 modal 基座） */
       var babyAdd = view.querySelector('#sBabyAdd');
       if (babyAdd) babyAdd.addEventListener('click', function () { openBabyForm(null); });
-      var babyPhotoCur = view.querySelector('#sBabyPhotoCur');
-      if (babyPhotoCur) babyPhotoCur.addEventListener('click', function () {
-        if (!Storage.activeBaby()) { Util.toast('先添加一个宝宝档案', 'warn'); return; }
-        Util.pickPhoto(function (dataURL) {
-          if (!dataURL) return;
-          Storage.setActiveBabyPhoto(dataURL);
-          if (global.App.refreshHeaderAvatar) global.App.refreshHeaderAvatar();
-          global.App.rerender();
-          Util.toast('照片已保存（只在本机）', 'ok');
-        });
-      });
-
       var careName = view.querySelector('#sCareName');
       if (careName) careName.addEventListener('change', function () {
         var st = Storage.get();
@@ -1463,17 +1264,6 @@
         if (global.App && global.App.startOnboarding) global.App.startOnboarding();
       });
 
-      /* U-03 告别卡：回顾入口 / 带走数据 / 打印报告（复用设置页已有的打印实现，不复制代码） */
-      var reviewLink = view.querySelector('#sReviewLink');
-      if (reviewLink) reviewLink.addEventListener('click', function () { global.App.showTab('calendar'); });
-      var export2 = view.querySelector('#sExport2');
-      if (export2) export2.addEventListener('click', function () { global.App.exportAll(); });
-      var print2 = view.querySelector('#sPrint2');
-      if (print2) print2.addEventListener('click', function () {
-        var origin = view.querySelector('#sPrint');
-        if (origin) origin.click();
-      });
-
       Array.prototype.forEach.call(view.querySelectorAll('#sThemeSeg [data-theme-mode]'), function (b) {
         b.addEventListener('click', function () {
           global.App.setTheme(b.getAttribute('data-theme-mode'));
@@ -1502,17 +1292,6 @@
         });
       });
 
-      /* 第 54 次：天空时刻预览（会话级，不落盘）——只改视觉时刻，记录时间戳永远真实 */
-      Array.prototype.forEach.call(view.querySelectorAll('#sSkyHourSeg [data-sky-hour]'), function (b) {
-        b.addEventListener('click', function () {
-          if (!global.Sky) return;
-          var v = b.getAttribute('data-sky-hour');
-          Sky.previewHour = (v === 'real') ? null : parseFloat(v);
-          Util.toast(v === 'real' ? '已回到真实时间' : '已切到' + b.textContent + '——回首页看天空和整页底色', 'ok');
-          global.App.rerender();
-        });
-      });
-
       /* 阶段切换（第 43 次）：即时生效，首页磁贴排序随之改变 */
       Array.prototype.forEach.call(view.querySelectorAll('#sStageSeg [data-stage-set]'), function (b) {
         b.addEventListener('click', function () {
@@ -1523,34 +1302,12 @@
         });
       });
 
-      /* 第 48 次：磁贴按阶段筛选开关（与阶段切换同一个卡，语义连贯） */
-      var tf = view.querySelector('#sTileFilter');
-      if (tf) tf.addEventListener('change', function () {
-        var st = Storage.get();
-        st.settings.tilesByStage = tf.checked;
-        Storage.save();
-        Util.toast(tf.checked ? '首页磁贴已按当前阶段筛选' : '已显示全部模块磁贴', 'ok');
-        global.App.rerender();
-      });
-
       /* 第 118 次：高对比开关——沿用 sRefract / sHaptic 同一套「取元素 + change」绑定，
          只调用 App.setHcMode（内部已负责写 Storage.save() 与切 body.hc 类）。 */
       var hc = view.querySelector('#sHcMode');
       if (hc) hc.addEventListener('change', function () {
         if (global.App && typeof global.App.setHcMode === 'function') global.App.setHcMode(hc.checked);
         Util.toast(hc.checked ? '已开启高对比模式' : '已关闭高对比模式', 'ok');
-      });
-
-      /* 第 118 次：首页只显示常用——落盘后重渲染，首页据此收敛磁贴（与 sTileFilter 同范式）。 */
-      var conv = view.querySelector('#sHomeConverge');
-      if (conv) conv.addEventListener('change', function () {
-        var st = Storage.get();
-        st.settings.homeConverge = conv.checked;
-        Storage.save();
-        Util.toast(conv.checked ? '首页只显示常用模块' : '首页恢复显示全部磁贴', 'ok');
-        /* 第 119 次：补存在性守卫——上一行 setHcMode 的调用就是带守卫的，
-           同一处理范式不应一条有守卫一条裸调（QA 沙箱缺 App 时会抛错）。 */
-        if (global.App && typeof global.App.rerender === 'function') global.App.rerender();
       });
 
       /* 第 131 次（P1-a）：日起始时刻——落盘后重渲染，首页磁贴与各页「今日」
@@ -1571,19 +1328,14 @@
         global.App.rerender();
       });
 
-      var refr = view.querySelector('#sRefract');
-      if (refr) refr.addEventListener('change', function () {
-        var st = Storage.get();
-        st.settings.realRefraction = refr.checked;
-        Storage.save();
-        if (global.Glass) global.Glass.setEnabled(refr.checked);
-        if (global.LiquidDock && global.LiquidDock.refresh) global.LiquidDock.refresh();
-      });
+      /* 第 333 次：「真实玻璃折射」和「底栏液态玻璃折射」合成一个开关（同一类性能取舍，用户不需要分开调） */
       var dgl = view.querySelector('#sDockGlass');
       if (dgl) dgl.addEventListener('change', function () {
         var st = Storage.get();
         st.settings.dockGlass = dgl.checked ? 'auto' : 'off';
+        st.settings.realRefraction = dgl.checked;
         Storage.save();
+        if (global.Glass) global.Glass.setEnabled(dgl.checked);
         if (global.DockRefract) global.DockRefract.reset();
         if (global.LiquidDock && global.LiquidDock.refresh) global.LiquidDock.refresh();
       });
