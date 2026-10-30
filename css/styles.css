@@ -4467,7 +4467,8 @@ body.ftf-open #tabbar { visibility: hidden; }
 .ft-step { display: grid; grid-template-columns: 52px 1fr 52px; align-items: center; gap: 10px; }
 .ft-sb { width: 52px; height: 52px; border: none; border-radius: 50%; background: var(--tile-weak); color: var(--tile-text); font-size: calc(26px * var(--fs-mul)); font-weight: 600; cursor: pointer; }
 .ft-sv { display: flex; align-items: baseline; justify-content: center; gap: 6px; }
-.ft-sv input { width: 90px; border: none; background: transparent; color: var(--text); font: inherit; font-size: var(--t-num); font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
+.ft-sv input { width: 90px; border: none; background: transparent; color: var(--text); font: inherit; font-size: var(--t-num); font-weight: 800; text-align: right; font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield; appearance: textfield; padding: 0; } /* 第 326 次：藏掉原生上下箭头（Chromium 的 spin button 占掉 ~15px，三位数 120 / 135 ml 被截成「12」） */
 .ft-sv small { color: var(--muted); }
 .ft-note input { display: block; width: 100%; margin-top: 6px; }
 .ft-endrow { display: flex; align-items: center; justify-content: space-between; margin: 14px 0 4px; font-weight: 600; color: var(--text); }
@@ -7415,3 +7416,5 @@ body .rec-sheet .rs-tile.sk-num { min-height: var(--ctl-tile-h); align-items: ce
 body .rec-sheet .rs-when .rs-tile { min-height: var(--ctl-tile-h); }
 /* 产检 / 宝妈体重的大数字输入格（原来模块色浅底，审查里的「第三种蓝底输入框」）：和数值磁贴同底同高 */
 body .rec-sheet .mw-inbox { min-height: var(--ctl-tile-h); align-items: center; border-radius: var(--ctl-r); background: var(--surface-2); }
+/* 第 326 次：步进器数字框的原生上下箭头（见 .ft-sv input） */
+.ft-sv input::-webkit-outer-spin-button, .ft-sv input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }

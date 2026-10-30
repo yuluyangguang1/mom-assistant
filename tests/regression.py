@@ -1004,15 +1004,16 @@ def test_r273(b):
     ev("(()=>{const d=Storage.get();d.settings.stage='baby';d.sleeps.push({id:'ss3',start:'2026-10-10T13:05:17',end:'2026-10-10T14:20:43',pausedMs:0});d.feedings.push({id:'bb3',type:'breast',start:'2026-10-10T09:00:21',end:'2026-10-10T09:12:40',secL:400,secR:339,durationL:7,durationR:6,durationMin:12,side:'both'});Storage.save()})()")
     go('sleep'); clear()
     ev("RecordEdit.open('sleep',Storage.get().sleeps.find(x=>x.id=='ss3'))"); p.wait_for_timeout(200)
-    p.fill('#reF_note', '改备注'); p.click('[data-re-ok]'); p.wait_for_timeout(200)
+    p.fill('#reF_note', '改备注'); p.click('#modalRoot [data-resave]'); p.wait_for_timeout(200)
     s3 = ev("Storage.get().sleeps.find(x=>x.id=='ss3')")
     check('#14 睡眠只改备注：入睡 / 醒来的秒原样', s3['start'] == '2026-10-10T13:05:17' and s3['end'] == '2026-10-10T14:20:43' and s3.get('note') == '改备注', s3)
     ev("RecordEdit.open('feeding',Storage.get().feedings.find(x=>x.id=='bb3'))"); p.wait_for_timeout(200)
-    p.fill('#reF_note', '改备注'); p.click('[data-re-ok]'); p.wait_for_timeout(200)
+    p.fill('#reF_note', '改备注'); p.click('#modalRoot [data-resave]'); p.wait_for_timeout(200)
     b3 = ev("Storage.get().feedings.find(x=>x.id=='bb3')")
     check('#14 亲喂计时记录只改备注：开始秒数、secL/secR、durationMin 都不变', b3['start'] == '2026-10-10T09:00:21' and b3.get('secL') == 400 and b3.get('durationMin') == 12, b3)
     ev("RecordEdit.open('sleep',Storage.get().sleeps.find(x=>x.id=='ss3'))"); p.wait_for_timeout(200)
-    p.fill('#reF_start', '2026-10-10T13:00'); p.click('[data-re-ok]'); p.wait_for_timeout(200)
+    ev("(()=>{const i=document.querySelector('#modalRoot #reT0Time');i.value='13:00';i.dispatchEvent(new Event('change',{bubbles:true}))})()");  # 第 326 次：睡眠修改走 FTUI 面板（日期 / 时间磁贴）
+    p.click('#modalRoot [data-resave]'); p.wait_for_timeout(200)
     s3 = ev("Storage.get().sleeps.find(x=>x.id=='ss3')")
     check('#14 真改了时间才按分钟写（入睡 13:00:00，醒来仍 :43）', s3['start'] == '2026-10-10T13:00:00' and s3['end'] == '2026-10-10T14:20:43', s3)
     clear()
@@ -1021,13 +1022,13 @@ def test_r273(b):
     go('pump')
     for rid in ('pm15', 'pm16', 'pm17'):
         ev(f"RecordEdit.open('feeding',Storage.get().feedings.find(x=>x.id=='{rid}'))"); p.wait_for_timeout(150)
-        p.fill('#reF_note', '只改备注'); p.click('[data-re-ok]'); p.wait_for_timeout(150)
+        p.fill('#reF_note', '只改备注'); p.click('#modalRoot [data-resave]'); p.wait_for_timeout(150)
     pm = ev("['pm15','pm16','pm17'].map(i=>{const r=Storage.get().feedings.find(x=>x.id==i);return [r.durationMin,r.side,r.note]})")
     check('#15 泵奶只改备注：时长不变（15 不变 30；轮流泵 20 不变 10；只记奶量的侧别不丢）', pm == [[15, 'both', '只改备注'], [20, 'both', '只改备注'], [None, 'left', '只改备注']], pm)
     ev("RecordEdit.open('feeding',Storage.get().feedings.find(x=>x.id=='pm15'))"); p.wait_for_timeout(150)
-    p.fill('#reF_durationL', '20'); p.click('[data-re-ok]'); p.wait_for_timeout(150)
+    p.fill('#reF_durationL', '20'); p.click('#modalRoot [data-resave]'); p.wait_for_timeout(150)
     ev("RecordEdit.open('feeding',Storage.get().feedings.find(x=>x.id=='bb3'))"); p.wait_for_timeout(150)
-    p.fill('#reF_durationL', '9'); p.click('[data-re-ok]'); p.wait_for_timeout(150)
+    p.fill('#reF_durationL', '9'); p.click('#modalRoot [data-resave]'); p.wait_for_timeout(150)
     dm = ev("[Storage.get().feedings.find(x=>x.id=='pm15').durationMin, Storage.get().feedings.find(x=>x.id=='bb3').durationMin]")
     check('#15 改了分钟：泵奶 = max(左, 右)=20，亲喂 = 左 + 右=15', dm == [20, 15], dm)
     clear()
@@ -1394,7 +1395,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v287（第 325 次升）', "var CACHE = 'baoma-static-v287';" in sw)
+    check('#275 SW 版本 v288（第 326 次升）', "var CACHE = 'baoma-static-v288';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求；第 300 次多一张浅色字图），整页 HTML < 60KB',
@@ -3260,7 +3261,7 @@ def test_r286(b):
     mh = ev("(document.querySelector('#modalRoot h2')||{}).textContent"); ev("Sheet.closeTop()"); p.wait_for_timeout(300)
     ev("[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='母乳').click()"); p.wait_for_timeout(400)
     fh = ev("(document.querySelector('#modalRoot h2')||{}).textContent"); ev("Sheet.closeTop()"); p.wait_for_timeout(300)
-    check('#286 尿布走尿布模块的删除（少一条），情绪 / 母乳点开各自模块的修改面板', nd1 == nd0 - 1 and mh == '修改情绪' and fh == '编辑喂养记录', [nd0, nd1, mh, fh])
+    check('#286 尿布走尿布模块的删除（少一条），情绪 / 母乳点开各自模块的修改面板（第 326 次起母乳走 FTUI「修改亲喂」）', nd1 == nd0 - 1 and mh == '修改情绪' and fh == '修改亲喂', [nd0, nd1, mh, fh])
     # 刚保存关掉面板就立刻点「…」：菜单照常弹出并留着（重画在保存时同步做完，不会事后把菜单关掉）
     ev("[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='洗澡').querySelector('.dl-label').click()"); p.wait_for_timeout(400)
     race = ev("(()=>{document.querySelector('#modalRoot .rs-save').click();const m=[...document.querySelectorAll('#calDay li[data-ti]')].find(l=>l.querySelector('.dl-label').textContent==='游泳');m.querySelector('.dt-more').click();return !!document.querySelector('.cal-pop-mask .cal-rmenu')})()")
@@ -5760,7 +5761,7 @@ def test_r317(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#317 SW 版本 v279+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
+    check('#317 SW 版本 v279+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
     js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     check('#317 着色器：横向位移只看本行离左右边的距离、纵向位移只看 y（与 x 无关）、都往外取样；内部以中心缩小 uMagI；图标层不缩（gIc）',
           "float tx=tabl(clamp((xe-abs(q.x))/B,0.,1.)),ty=tabl(clamp((hz.y-ya)/B,0.,1.));" in js
@@ -5842,7 +5843,7 @@ def test_r318(b):
     _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
     p.wait_for_timeout(600)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#318 SW 版本 v280+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
+    check('#318 SW 版本 v280+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
     # —— A1 推入：逐帧采样（rAF）——
     ev("""(()=>{window.__nv=[];const v=document.getElementById('view');const L=()=>{const g=document.querySelector('.nav-ghost');const st=DockRefract._stats();const cv=document.querySelector('#tabbar canvas.lg-gl');
       const m=e=>{const t=getComputedStyle(e).transform;return t&&t!=='none'?new DOMMatrix(t).m41:0};
@@ -5969,7 +5970,7 @@ def test_r319(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#319 SW 版本 v281+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
+    check('#319 SW 版本 v281+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=3)
     ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
     p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
@@ -6180,7 +6181,7 @@ def test_r320(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#320 SW 版本 v282+（第 325 次升 v287）、dock-fuse.js 进预缓存、index.html 引入', "var CACHE = 'baoma-static-v287';" in sw and "'js/dock-fuse.js'" in sw
+    check('#320 SW 版本 v282+（第 326 次升 v288）、dock-fuse.js 进预缓存、index.html 引入', "var CACHE = 'baoma-static-v288';" in sw and "'js/dock-fuse.js'" in sw
           and '<script src="js/dock-fuse.js" defer></script>' in (ROOT / 'index.html').read_text(encoding='utf-8'))
     # —— 1. 简洁模式移除 + 旧值迁移 ——
     src = {n: (ROOT / n).read_text(encoding='utf-8') for n in ('js/app.js', 'js/modules/settings.js', 'js/liquid-dock.js', 'js/dock-live.js', 'js/dock-refract.js', 'js/util.js', 'js/dock-fuse.js', 'css/styles.css')}
@@ -6425,7 +6426,7 @@ def test_r321(b):
     整条缩放从当前值接着按）；A2 长按 / 拖动速度形变 sx = 1 + min(0.15, |v|/2400)、sy ≈ 0.92/√sx（满形变），停手 120ms 内恢复、点击不做；
     A4 拖动中只换颜色不切页、抬手才切；17 帧点击节奏 / 0.97× / 点击透镜在栏内不变；SW v283。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#321 SW 版本 v283+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
+    check('#321 SW 版本 v283+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2)
     ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
     p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
@@ -6535,7 +6536,7 @@ def test_r321(b):
 
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321', 'test_r322', 'test_r323', 'test_r324', 'test_r325')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321', 'test_r322', 'test_r323', 'test_r324', 'test_r325', 'test_r326')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -6578,7 +6579,7 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r301',),
           ('test_r302',),
           ('test_r309',),
-          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',), ('test_r322',), ('test_r323',), ('test_r324',), ('test_r325',))  # 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',), ('test_r322',), ('test_r323',), ('test_r324',), ('test_r325',), ('test_r326',))  # 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 
@@ -6589,7 +6590,7 @@ def test_r322(b):
     A3 长按顶过端点页签时栏端被拉出：外凸 = 0.6 × 越界量、上限 7pt，GL 里「透镜 × 一级 dock」单独 k_end = 10 的 smooth-min；Chromium SVG 退化为不外凸、不出错。
     不变：17 帧点击节奏、0.97×、图标 0.24s；SW v284。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#322 SW 版本 v284+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
+    check('#322 SW 版本 v284+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
     drs = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     css = '\n'.join(pp.read_text(encoding='utf-8') for pp in (ROOT / 'css').glob('*.css'))
     check('#322 不变：透镜内 0.97×、选中图标 dk-pop .24s、A3 只在主程序 dk()（二级融合程序 FSF 里不用 uEP）',
@@ -6712,7 +6713,7 @@ def test_r323(b):
     不带倍率的 px 字号全部改为跟随字号档（等值替换：标准档零视觉差），只留 dock 标签 10px 与装饰字形；字号 lint。SW v285。"""
     import re
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#323 SW 版本 v285+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
+    check('#323 SW 版本 v285+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
     css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
     nc = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
     root = nc[nc.index(':root'):nc.index('}', nc.index(':root'))]
@@ -6767,7 +6768,7 @@ def test_r324(b):
     """第 324 次（设计审查分批 · 第二批）：对比度——12 个模块页面主按钮白字用加深后的模块色 --tile-fill（≥4.5:1）、时间轴辅助文字统一 --muted（不叠透明度）、
     新增 --placeholder 并全站 ::placeholder 一个颜色；P0——再点当前一级页签只滚回顶部，不清空重画、不闪白。SW v286。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#324 SW 版本 v286+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
+    check('#324 SW 版本 v286+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
     p, errs = fresh(b)
     ev = p.evaluate
     p.wait_for_timeout(600)
@@ -6829,7 +6830,7 @@ def test_r325(b):
     「点一下就保存」、没有保存条的面板（生长设置、营养品提醒 / 管理）照旧只有顶栏 ✓；保存条主按钮一种规格（54 / pill / 17/700 / 不带 ✓ 图标）；
     面板输入控件一套（文本 / 数字 / 日期 / 下拉 = --ctl-h 48、--surface-2、无描边，分段外框 48）。逐个打开面板核对，并实际点保存条存几条记录。SW v287。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#325 SW 版本 v287', "var CACHE = 'baoma-static-v287';" in sw)
+    check('#325 SW 版本 v287+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
     p, errs = fresh(b)
     ev = p.evaluate
     p.wait_for_timeout(500)
@@ -6931,6 +6932,104 @@ def test_r325(b):
     ok = {k: v for k, v in res.items() if v[1] != v[0] + 1}
     check('#325 保存条保存有效：尿布 / 体温（ModSkel）/ 补记亲喂 / 记一笔 / 待产包各点一次保存条，各新增 1 条、面板关闭', not ok and not ev("!!document.querySelector('#modalRoot .rs-body')"), res)
     check('#325 无 JS 报错', not errs, errs)
+    p.close()
+
+
+def test_r326(b):
+    """第 326 次（审查 P0-2）：睡眠、亲喂 / 瓶喂 / 泵奶的修改从老 RecordEdit 编辑框换成 FTUI 半屏面板（和新增同一套）。
+    字段按 SCHEMA（show 条件不变）、校验与写回走同一个 commit（没动的时间保留秒、未来时间拦下、亲喂至少一侧、瓶喂奶量合计、
+    醒来晚于入睡、最长连续重算）、保存后「已保存修改 · 撤销」；面板里「删除这条记录」与时间轴删除同一条路（可撤销）。SW v288。"""
+    sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
+    check('#326 SW 版本 v288', "var CACHE = 'baoma-static-v288';" in sw)
+    p, errs = fresh(b)
+    ev = p.evaluate
+    p.wait_for_timeout(500)
+    SH = r"""()=>{const m=document.querySelector('#modalRoot .modal');if(!m)return null;const vis=e=>e&&e.getBoundingClientRect().width>0&&getComputedStyle(e).visibility!=='hidden';
+      const h=m.querySelector('.rs-head');const t=h&&h.querySelector('h2');
+      return {old:m.classList.contains('rec-edit'),ft:m.classList.contains('ft-sheet')&&m.classList.contains('re-ft'),acc:m.getAttribute('data-accent'),t:t?t.textContent.trim():'',
+        x:!!(h&&vis(h.querySelector('.rs-x'))),hok:h?[...h.querySelectorAll('[data-ok]')].filter(vis).length:0,
+        save:[...m.querySelectorAll('.rs-savebar button')].filter(vis).map(b=>b.textContent.trim()),del:!!m.querySelector('[data-redel]'),
+        dtl:m.querySelectorAll('input[type=datetime-local]').length,tiles:m.querySelectorAll('.ft-tile').length,
+        steps:[...m.querySelectorAll('[data-restep]')].map(w=>w.getAttribute('data-restep')+'='+w.querySelector('input').value),
+        note:(m.querySelector('#reF_note')||{}).value}}"""
+    def rec(arr, rid): return ev(f"Storage.get().{arr}.find(r=>r.id==={json.dumps(rid)})")
+    def open_(mod, arr, rid): ev(f"RecordEdit.open('{mod}', Storage.get().{arr}.find(r=>r.id==={json.dumps(rid)}), Storage.get().{arr})"); p.wait_for_timeout(350)
+    def save(): ev("document.querySelector('#modalRoot [data-resave]').click()"); p.wait_for_timeout(300)
+    def setv(sel, v): ev("([s,v])=>{const i=document.querySelector('#modalRoot '+s);i.value=v;i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}))}", [sel, v])
+    toast = lambda: ev("(()=>{const t=[...document.querySelectorAll('.toast, .yy-toast, [data-yy], .yiya')].map(e=>e.textContent).join('|');return t})()")
+    isopen = lambda: ev("!!document.querySelector('#modalRoot .modal')")
+    # —— 1. 亲喂：从亲喂页时间轴点开 ——
+    ev("App.showTab('breast',{noAnim:true,noSlide:true,noVT:true})"); p.wait_for_timeout(400)
+    bid = ev("document.querySelector('#view [data-open]').getAttribute('data-open')")
+    ev("document.querySelector('#view [data-open]').click()"); p.wait_for_timeout(350)
+    s1 = ev(SH); r0 = rec('feedings', bid)
+    check('#326 亲喂时间轴点一条 → 新面板（FTUI，亲喂色）：左上 ×、标题「修改亲喂」居中、日期 / 时间磁贴、左右分钟步进器、备注、「删除这条记录」、只有底部「保存修改」一个保存入口；不再是老编辑框（没有 datetime-local）',
+          s1 and not s1['old'] and s1['ft'] and s1['acc'] == 'breast' and s1['t'] == '修改亲喂' and s1['x'] and s1['hok'] == 0 and s1['save'] == ['保存修改'] and s1['del'] and s1['dtl'] == 0 and s1['tiles'] == 2
+          and s1['steps'] == [f"durationL={r0['durationL']}", f"durationR={r0['durationR']}"], [s1, r0])
+    ev("document.querySelector('#modalRoot [data-restep=durationL] [data-d=\"1\"]').click()"); save()
+    r1 = rec('feedings', bid)
+    check('#326 亲喂改左侧 +1 分钟：durationL +1、durationMin = 左 + 右、侧别 both，开始时间没动原样保留（不截秒）、其它字段不丢；面板关闭、提示可撤销',
+          r1['durationL'] == r0['durationL'] + 1 and r1['durationMin'] == r1['durationL'] + r1['durationR'] and r1['side'] == 'both' and r1['start'] == r0['start'] and r1['id'] == bid and set(r0) <= set(r1) and not isopen() and '已保存修改' in toast(), [r0, r1, toast()])
+    ev("(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='撤销'&&b.offsetParent);if(b)b.click()})()"); p.wait_for_timeout(300)
+    check('#326 撤销：记录回到修改前（逐字段相同）', rec('feedings', bid) == r0, [rec('feedings', bid), r0])
+    # 校验：两侧都 0 / 未来时间
+    open_('breast', 'feedings', bid); setv('#reF_durationL', '0'); setv('#reF_durationR', '0'); save()
+    v1 = [isopen(), rec('feedings', bid) == r0]
+    setv('#reF_durationL', '5'); fut = ev("Util.addDays(Util.todayISO(),1)"); setv('#reT0Date', fut); save()
+    v2 = [isopen(), rec('feedings', bid) == r0]
+    check('#326 亲喂校验与原来一致：两侧都 0 不存（「请至少填一侧时长」）、时间在未来不存，面板不关', v1 == [True, True] and v2 == [True, True], [v1, v2])
+    setv('#reT0Date', '2026-10-04'); setv('#reT0Time', '07:45'); save()
+    r2 = rec('feedings', bid)
+    check('#326 改了时间：按分钟写 YYYY-MM-DDTHH:MM:00', r2['start'] == '2026-10-04T07:45:00' and r2['durationL'] == 5 and not isopen(), r2)
+    # —— 2. 瓶喂 ——
+    bt = ev("Storage.get().feedings.find(r=>r.type==='bottle').id"); b0 = rec('feedings', bt)
+    open_('bottle', 'feedings', bt); s2 = ev(SH)
+    check('#326 瓶喂：新面板「修改瓶喂」（瓶喂色），母乳 / 配方奶两个步进器（ml）', s2 and s2['ft'] and s2['acc'] == 'bottle' and s2['t'] == '修改瓶喂' and [x.split('=')[0] for x in s2['steps']] == ['amountBm', 'amountFm'] and s2['save'] == ['保存修改'], s2)
+    ev("document.querySelector('#modalRoot [data-restep=amountFm] [data-d=\"1\"]').click()"); save()
+    b1 = rec('feedings', bt)
+    check('#326 瓶喂加配方奶 5ml：amountFm = 5（步长 5）、amount = 母乳 + 配方奶', b1['amountFm'] == 5 and b1['amount'] == (b0['amountBm'] or 0) + 5 and b1['start'] == b0['start'], [b0, b1])
+    open_('bottle', 'feedings', bt); setv('#reF_amountBm', ''); setv('#reF_amountFm', ''); save()
+    check('#326 瓶喂奶量都清空：沿用原来的规则（两项都没填保留原 amount，不报错）', rec('feedings', bt)['amount'] == b1['amount'] and not isopen(), rec('feedings', bt))
+    # —— 3. 泵奶（日期页 / 喂养页同一入口） ——
+    pid = ev("(()=>{const d=Storage.get();const r={id:'pm326',type:'pump',start:'2026-10-03T10:00:00',durationL:10,durationR:12,durationMin:12,amountL:60,amountR:70,amount:130,side:'both',note:'早'};d.feedings.push(r);Storage.save();return r.id})()")
+    open_('feeding', 'feedings', pid); s3 = ev(SH)
+    check('#326 泵奶：新面板「修改泵奶」，左右分钟 + 左右奶量四个步进器、备注带原值', s3 and s3['ft'] and s3['t'] == '修改泵奶' and [x.split('=')[0] for x in s3['steps']] == ['durationL', 'durationR', 'amountL', 'amountR'] and s3['note'] == '早', s3)
+    ev("document.querySelector('#modalRoot [data-restep=amountL] [data-d=\"1\"]').click()"); save()
+    p1 = rec('feedings', pid)
+    check('#326 泵奶改左侧奶量：总量 = 左 + 右（135），时长没动 durationMin 不重算（12）', p1['amountL'] == 65 and p1['amount'] == 135 and p1['durationMin'] == 12, p1)
+    # —— 4. 睡眠：从睡眠页点开 ——
+    ev("App.showTab('sleep',{noAnim:true,noSlide:true,noVT:true})"); p.wait_for_timeout(400)
+    sid = ev("document.querySelector('#view [data-open]').getAttribute('data-open')"); z0 = rec('sleeps', sid)
+    ev("document.querySelector('#view [data-open]').click()"); p.wait_for_timeout(350)
+    s4 = ev(SH)
+    check('#326 睡眠时间轴点一条 → 新面板「修改睡眠」（睡眠色）：入睡 / 醒来两组磁贴、中途醒来步进器、备注、删除、单一保存入口',
+          s4 and s4['ft'] and s4['acc'] == 'sleep' and s4['t'] == '修改睡眠' and s4['tiles'] == 4 and s4['steps'] == [f"wakings={z0['wakings']}"] and s4['del'] and s4['hok'] == 0 and s4['save'] == ['保存修改'], [s4, z0])
+    setv('#reT1Date', z0['start'][:10]); setv('#reT1Time', z0['start'][11:16]); save()
+    check('#326 睡眠校验：醒来不晚于入睡 → 不存、面板不关', isopen() and rec('sleeps', sid) == z0, rec('sleeps', sid))
+    ev("Sheet.closeAll && Sheet.closeAll()"); ev("document.getElementById('modalRoot').innerHTML=''"); p.wait_for_timeout(200)
+    ev("App.showTab('sleep',{noAnim:true,noSlide:true,noVT:true})"); p.wait_for_timeout(300)
+    open_('sleep', 'sleeps', sid); ev("document.querySelector('#modalRoot [data-restep=wakings] [data-d=\"1\"]').click()"); setv('#reF_note', '夜里哭了一次'); save()
+    z1 = rec('sleeps', sid)
+    check('#326 睡眠改醒来次数 / 备注：wakings +1、note 写入、longestMin 置空重算（同老编辑框）、入睡 / 醒来原样（含秒）',
+          z1['wakings'] == (z0['wakings'] or 0) + 1 and z1['note'] == '夜里哭了一次' and z1['longestMin'] is None and z1['start'] == z0['start'] and z1['end'] == z0['end'] and not isopen(), [z0, z1])
+    # —— 5. 删除：面板里删，可撤销 ——
+    n0 = ev("Storage.get().sleeps.length")
+    open_('sleep', 'sleeps', sid); ev("document.querySelector('#modalRoot [data-redel]').click()"); p.wait_for_timeout(350)
+    n1 = ev("Storage.get().sleeps.length"); gone = rec('sleeps', sid) is None; t1 = toast()
+    ev("(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='撤销'&&b.offsetParent);if(b)b.click()})()"); p.wait_for_timeout(300)
+    check('#326 面板里「删除这条记录」：面板关、这条删掉（提示「已删除睡眠记录」可撤销），撤销后原样回来',
+          n1 == n0 - 1 and gone and not isopen() and '已删除睡眠记录' in t1 and ev("Storage.get().sleeps.length") == n0 and rec('sleeps', sid) == z1, [n0, n1, t1])
+    open_('breast', 'feedings', bid); ev("document.querySelector('#modalRoot [data-redel]').click()"); p.wait_for_timeout(350)
+    check('#326 亲喂面板删除同样走撤销删除（提示「已删除喂养记录」）', rec('feedings', bid) is None and '已删除喂养记录' in toast(), toast())
+    # —— 6. 其它入口：日期页修改、喂养页、行点击都走新面板；其它模块（体温等）不受影响 ——
+    ev("document.getElementById('modalRoot').innerHTML=''")
+    k = ev("[RecordEdit._ftKind('feeding',{type:'breast'}),RecordEdit._ftKind('feeding',{type:'bottle'}),RecordEdit._ftKind('feeding',{type:'formula'}),RecordEdit._ftKind('feeding',{type:'pump'}),RecordEdit._ftKind('sleep',{}),RecordEdit._ftKind('feeding',{type:'solid'}),RecordEdit._ftKind('meds',{}),RecordEdit._ftKind('contraction',{})]")
+    check('#326 路由：喂养（亲喂 / 瓶喂 / 配方奶 / 泵奶）与睡眠走新面板，辅食仍走辅食面板，用药 / 宫缩等其它记录不变', k == ['breast', 'bottle', 'formula', 'pump', 'sleep', None, None, None], k)
+    ev("App.showTab('calendar',{noAnim:true,noSlide:true,noVT:true})"); p.wait_for_timeout(500)
+    js = (ROOT / 'js' / 'modules' / 'calendar.js').read_text(encoding='utf-8')
+    check('#326 日期页 / 喂养页 / 亲喂瓶喂时间轴 / 睡眠页 / 行点击仍调 RecordEdit.open，由它统一转到新面板（老编辑框只在 FTUI 缺席时兜底）',
+          "RecordEdit.open('feeding', rec, d.feedings)" in js and 'openFT(kind, sc, fields, rec, arr)' in (ROOT / 'js' / 'record-edit.js').read_text(encoding='utf-8'))
+    check('#326 无 JS 报错', not errs, errs)
     p.close()
 
 
@@ -7380,7 +7479,7 @@ def test_r316(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready", 5000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#316 SW 版本 v278+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
+    check('#316 SW 版本 v278+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
     ph = ev("LiquidDock.PHYS")
     check('#316 弹簧参数：点击滑行 tap 临界阻尼 k≈600、点击速度形变 ×0.45、收回 k≥1500（~4 帧）、松手吸附 k 560、提前收回阈值',
           ph['tap']['k'] == 600 and ph['tap']['z'] >= 1 and abs(ph['tapV'] - 0.45) < 1e-6 and ph['shrink']['k'] >= 1500 and ph['snap']['k'] == 560

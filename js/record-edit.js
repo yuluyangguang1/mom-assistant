@@ -194,6 +194,143 @@
       + Util.escapeHtml(v == null ? '' : String(v)) + '"></label>';
   }
 
+  /* 第 326 次（审查 P0-2）：校验 + 写回抽成 commit——老编辑框和新 FTUI 面板走同一段，字段 / 校验 / 写回 / 撤销完全一致。
+     raws：{ 字段 k: 输入框原样字符串 }（dt 是 'YYYY-MM-DDTHH:MM'）；bad(k, msg)：标出出错的字段。返回 true = 已保存。 */
+  function commit(sc, fields, rec, raws, bad) {
+    var next = JSON.parse(JSON.stringify(rec));
+    for (var i = 0; i < fields.length; i++) {
+      var f = fields[i], raw = String(raws[f.k] == null ? '' : raws[f.k]).trim();
+      if (f.t === 'dt') {
+        if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw)) { bad(f.k, '请选择时间'); return false; }
+        /* 第 273 次（审计 #14：只改强度 / 备注，开始结束被截成 HH:MM:00，同一分钟内起止的宫缩保存不了）：
+           输入框只到分钟；用户没动这个时间（和打开时显示的一样）就原样保留原值（含秒），动了才按分钟写 */
+        if (raw.slice(0, 16) === dtValue(rec[f.k]) && typeof rec[f.k] === 'string') { next[f.k] = rec[f.k]; continue; }
+        var iso = raw.slice(0, 16) + ':00';
+        if (new Date(iso).getTime() > Date.now() + 60000) { bad(f.k, '时间不能在未来'); return false; }
+        next[f.k] = iso;
+      } else if (f.t === 'date') {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(raw) || raw > Util.todayISO()) { bad(f.k, '请选择不晚于今天的日期'); return false; }
+        next[f.k] = raw;
+      } else if (f.t === 'num') {
+        if (raw === '') {
+          if (f.req) { bad(f.k, '请填写' + f.l); return false; }
+          next[f.k] = null;
+        } else {
+          /* 第 278 次（审计 #38）：没动的数值（和原值一样）原样保留、不做范围校验——老数据 / 导入的值超出范围时，也能只改日期等别的字段 */
+          if (typeof rec[f.k] === 'number' && isFinite(rec[f.k]) && parseFloat(raw) === rec[f.k]) { next[f.k] = rec[f.k]; continue; }
+          var n = parseFloat(raw);
+          if (!isFinite(n) || n < f.min || n > f.max) { bad(f.k, '请填 ' + f.min + '–' + f.max); return false; }
+          next[f.k] = Math.round(n * 100) / 100;
+        }
+      } else if (f.t === 'sel') {
+        next[f.k] = raw || null;
+      } else {
+        if (!raw && f.req) { bad(f.k, '请填写' + f.l); return false; }
+        next[f.k] = raw || null;
+      }
+    }
+    var err = sc.fix ? sc.fix(next, rec) : null;
+    if (err) { Util.toast(err, 'warn'); return false; }
+    var before = JSON.parse(JSON.stringify(rec));
+    Object.keys(next).forEach(function (k) { rec[k] = next[k]; });
+    return { before: before };
+  }
+  function afterCommit(rec, before) {
+    if (Storage.save()) {
+      Util.toast('已保存修改', 'ok', { label: '撤销', onClick: function () {
+        Object.keys(rec).forEach(function (k) { delete rec[k]; });
+        Object.keys(before).forEach(function (k) { rec[k] = before[k]; });
+        Storage.save(); if (global.App) global.App.rerender();
+      } });
+    }
+    if (global.App) global.App.rerender();
+  }
+
+  /* 第 326 次（审查 P0-2）：睡眠、亲喂 / 瓶喂 / 泵奶的修改改走 FTUI 半屏面板（和新增同一套：× / 居中标题 / 日期 + 时间磁贴 /
+     步进器 / 备注 / 「删除这条记录」/ 54 高「保存修改」保存条）。字段仍按 SCHEMA（show 条件不变），校验与写回走同一个 commit。 */
+  var FT_EDIT = {
+    breast: { accent: 'breast', title: '修改亲喂', del: '已删除喂养记录' },
+    pump: { accent: 'pump', title: '修改泵奶', del: '已删除喂养记录' },
+    bottle: { accent: 'bottle', title: '修改瓶喂', del: '已删除喂养记录' },
+    formula: { accent: 'bottle', title: '修改瓶喂', del: '已删除喂养记录' },
+    sleep: { accent: 'sleep', title: '修改睡眠', del: '已删除睡眠记录' }
+  };
+  function ftKind(modId, rec) {
+    if (modId === 'sleep') return 'sleep';
+    if ((modId === 'feeding' || modId === 'breast' || modId === 'bottle') && rec && FT_EDIT[rec.type] && rec.type !== 'sleep') return rec.type;
+    return null;
+  }
+  function openFT(kind, sc, fields, rec, arr) {
+    var FT = global.FTUI, cfg = FT_EDIT[kind], esc = Util.escapeHtml;
+    var today = Util.todayISO(), np = 0, pre = {};
+    var body = fields.map(function (f) {
+      var v = rec[f.k];
+      if (f.t === 'dt') {
+        var p = 'reT' + (np++); pre[f.k] = p;
+        var dv = dtValue(v) || (today + 'T00:00');
+        return FT.whenTiles(p, f.l, dv.slice(0, 10), dv.slice(11, 16), today).replace(/结束日期/g, '日期').replace(/结束时间/g, '时间');
+      }
+      if (f.t === 'num') {
+        var val = (typeof v === 'number' && isFinite(v)) ? v : '';
+        var m = /^(.*?)（(.+)）$/.exec(f.l), lab = m ? m[1] : f.l, unit = m ? m[2] : '';
+        return '<p class="rs-lbl">' + esc(lab) + '</p><div class="ft-step" data-restep="' + f.k + '">'
+          + '<button type="button" class="ft-sb" data-d="-1" aria-label="减少">−</button>'
+          + '<span class="ft-sv"><input type="number" inputmode="' + (f.step < 1 ? 'decimal' : 'numeric') + '" id="reF_' + f.k + '" min="' + f.min + '" max="' + f.max + '" step="' + f.step + '" value="' + val + '" placeholder="—" aria-label="' + esc(f.l) + '"><small>' + esc(unit) + '</small></span>'
+          + '<button type="button" class="ft-sb" data-d="1" aria-label="增加">+</button></div>';
+      }
+      return '<label class="rs-lbl ft-note">' + esc(f.l) + '<input type="text" id="reF_' + f.k + '" maxlength="' + (f.max || 40) + '" placeholder="可选" value="' + esc(v == null ? '' : String(v)) + '"></label>';
+    }).join('')
+      + '<button type="button" class="btn rs-del" data-redel>删除这条记录</button>'
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-resave>保存修改</button></div>';
+    FT.openSheet(cfg.accent, cfg.title, body, function (api) {
+      var box = api.box;
+      box.closest('.modal').classList.add('re-ft');
+      Array.prototype.forEach.call(box.querySelectorAll('[data-restep]'), function (w) {
+        var inp = w.querySelector('input'), f = fields.filter(function (x) { return x.k === w.getAttribute('data-restep'); })[0];
+        Array.prototype.forEach.call(w.querySelectorAll('[data-d]'), function (b) {
+          b.addEventListener('click', function () {
+            var cur = parseFloat(inp.value); if (!isFinite(cur)) cur = 0;
+            var v = Math.max(f.min, Math.min(f.max, cur + Number(b.getAttribute('data-d')) * f.step));
+            inp.value = String(Math.round(v * 100) / 100);
+            if (inp.classList.contains('is-invalid')) Util.markInvalid(inp, '');
+          });
+        });
+      });
+      function raws() {
+        var o = {};
+        fields.forEach(function (f) {
+          if (f.t === 'dt') {
+            var dv = box.querySelector('#' + pre[f.k] + 'Date'), tv = box.querySelector('#' + pre[f.k] + 'Time');
+            o[f.k] = (dv && tv && dv.value && tv.value) ? dv.value + 'T' + tv.value.slice(0, 5) : '';
+          } else { var el = box.querySelector('#reF_' + f.k); o[f.k] = el ? el.value : ''; }
+        });
+        return o;
+      }
+      function bad(k, msg) {
+        var el = box.querySelector('#reF_' + k);
+        if (el) Util.markInvalid(el, msg); else Util.toast(msg, 'warn');
+      }
+      box.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('button') : null;
+        if (!b || !box.contains(b)) return;
+        if (b.hasAttribute('data-resave')) {
+          var r = commit(sc, fields, rec, raws(), bad);
+          if (!r) return;
+          api.close(); afterCommit(rec, r.before);
+          return;
+        }
+        if (b.hasAttribute('data-redel')) {
+          api.close();
+          Util.removeWithUndo(arr, rec.id, {
+            onSave: function () { Storage.save(); },
+            onAfter: function () { if (global.App) global.App.rerender(); },
+            deletedText: cfg.del
+          });
+        }
+      });
+    });
+  }
+
   function open(modId, rec, arr) {
     /* 第 269 次：辅食有自己的记录面板（性状 / 量 / 进食情况 / 类型 / 照片），从哪里点进来都走它 */
     if (rec && rec.type === 'solid' && global.Modules && Modules.solid && Modules.solid._edit) { Modules.solid._edit(rec); return; }
@@ -201,6 +338,12 @@
     var root = document.getElementById('modalRoot');
     if (!root || !sc) return;
     var fields = sc.fields.filter(function (f) { return !f.show || f.show(rec); });
+    var kind = ftKind(modId, rec);
+    if (kind && global.FTUI && FTUI.openSheet) {
+      if (!Array.isArray(arr)) arr = Storage.get()[sc.arr];
+      openFT(kind, sc, fields, rec, arr);
+      return;
+    }
     root.innerHTML = '<div class="modal-mask" data-re-mask><div class="modal rec-edit" role="dialog" aria-modal="true" aria-labelledby="reTitle">'
       + '<h2 id="reTitle">' + Util.escapeHtml(sc.title) + '</h2>'
       + fields.map(function (f) { return fieldHTML(f, rec); }).join('')
@@ -213,51 +356,11 @@
     mask.addEventListener('click', function (e) { if (e.target === mask) close(); });
     root.querySelector('[data-re-cancel]').addEventListener('click', close);
     root.querySelector('[data-re-ok]').addEventListener('click', function () {
-      var next = JSON.parse(JSON.stringify(rec));
-      for (var i = 0; i < fields.length; i++) {
-        var f = fields[i], el = root.querySelector('#reF_' + f.k), raw = el ? String(el.value).trim() : '';
-        if (f.t === 'dt') {
-          if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw)) { Util.markInvalid(el, '请选择时间'); return; }
-          /* 第 273 次（审计 #14：只改强度 / 备注，开始结束被截成 HH:MM:00，同一分钟内起止的宫缩保存不了）：
-             输入框只到分钟；用户没动这个时间（和打开时显示的一样）就原样保留原值（含秒），动了才按分钟写 */
-          if (raw.slice(0, 16) === dtValue(rec[f.k]) && typeof rec[f.k] === 'string') { next[f.k] = rec[f.k]; continue; }
-          var iso = raw.slice(0, 16) + ':00';
-          if (new Date(iso).getTime() > Date.now() + 60000) { Util.markInvalid(el, '时间不能在未来'); return; }
-          next[f.k] = iso;
-        } else if (f.t === 'date') {
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(raw) || raw > Util.todayISO()) { Util.markInvalid(el, '请选择不晚于今天的日期'); return; }
-          next[f.k] = raw;
-        } else if (f.t === 'num') {
-          if (raw === '') {
-            if (f.req) { Util.markInvalid(el, '请填写' + f.l); return; }
-            next[f.k] = null;
-          } else {
-            /* 第 278 次（审计 #38）：没动的数值（和原值一样）原样保留、不做范围校验——老数据 / 导入的值超出范围时，也能只改日期等别的字段 */
-            if (typeof rec[f.k] === 'number' && isFinite(rec[f.k]) && parseFloat(raw) === rec[f.k]) { next[f.k] = rec[f.k]; continue; }
-            var n = parseFloat(raw);
-            if (!isFinite(n) || n < f.min || n > f.max) { Util.markInvalid(el, '请填 ' + f.min + '–' + f.max); return; }
-            next[f.k] = Math.round(n * 100) / 100;
-          }
-        } else if (f.t === 'sel') {
-          next[f.k] = raw || null;
-        } else {
-          if (!raw && f.req) { Util.markInvalid(el, '请填写' + f.l); return; }
-          next[f.k] = raw || null;
-        }
-      }
-      var err = sc.fix ? sc.fix(next, rec) : null;
-      if (err) { Util.toast(err, 'warn'); return; }
-      var before = JSON.parse(JSON.stringify(rec));
-      Object.keys(next).forEach(function (k) { rec[k] = next[k]; });
-      close();
-      if (Storage.save()) {
-        Util.toast('已保存修改', 'ok', { label: '撤销', onClick: function () {
-          Object.keys(rec).forEach(function (k) { delete rec[k]; });
-          Object.keys(before).forEach(function (k) { rec[k] = before[k]; });
-          Storage.save(); if (global.App) global.App.rerender();
-        } });
-      }
-      if (global.App) global.App.rerender();
+      var o = {};
+      fields.forEach(function (f) { var el = root.querySelector('#reF_' + f.k); o[f.k] = el ? el.value : ''; });
+      var r = commit(sc, fields, rec, o, function (k, msg) { Util.markInvalid(root.querySelector('#reF_' + k), msg); });
+      if (!r) return;
+      close(); afterCommit(rec, r.before);
     });
     try { var first = root.querySelector('input,select'); if (first && first.type !== 'datetime-local') first.focus(); } catch (e) {}
   }
@@ -316,5 +419,5 @@
 
   /* 第 231 次：亲喂、瓶喂独立页沿用喂养的编辑表 */
   SCHEMA.breast = SCHEMA.feeding; SCHEMA.bottle = SCHEMA.feeding;
-  global.RecordEdit = { schema: SCHEMA, open: open };
+  global.RecordEdit = { schema: SCHEMA, open: open, _ftKind: ftKind };
 })(window);
