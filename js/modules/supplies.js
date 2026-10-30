@@ -447,7 +447,7 @@
       s.cnt = had && (s.cat === '纸尿裤' || s.cat === '清洁' || pref.indexOf(s.id) >= 0);
       if (!s.list) s.list = 'main';
       s.v294 = 1;
-      if (!s.updatedAt) s.updatedAt = locNow();
+      if (!s.editedAt) s.editedAt = locNow(); /* 第 332 次：原 updatedAt 字符串改名 editedAt，updatedAt 留给同步的毫秒时间戳 */
       n++;
     });
     return n;
@@ -879,7 +879,7 @@
         if (!menu.hasAttribute || !menu.hasAttribute('data-edmenu')) return;
         var v = menu.value; menu.selectedIndex = 0;
         if (v === 'restock') { api.close(); openBuySheet(s.id); }
-        else if (v === 'arch') { s.archived = !s.archived; s.updatedAt = locNow(); Storage.save(); api.close(); Util.toast(s.archived ? '已归档「' + s.name + '」' : '已取消归档', 'ok'); global.App.rerender(); }
+        else if (v === 'arch') { s.archived = !s.archived; s.editedAt = locNow(); Storage.save(); api.close(); Util.toast(s.archived ? '已归档「' + s.name + '」' : '已取消归档', 'ok'); global.App.rerender(); }
         else if (v === 'del') {
           api.close();
           var list = Storage.get().supplies;
@@ -944,7 +944,7 @@
     if (!it.note) delete it.note;
     it.photos = Global_Photos() ? Photos.clean(st.photos) : [];
     if (!it.photos.length) delete it.photos;
-    it.updatedAt = locNow();
+    it.editedAt = locNow();
     return it;
   }
 
@@ -994,7 +994,7 @@
         if (price > 0) s.price = price;
         s.history = pushHistory(s.history, { date: Util.todayISO(), price: price, qty: st.n, unit: pcsUnit(s) });
         if (s.remind && s.remind.on && remindDue(s)) s.remind.on = false; /* 到点的提醒补完货就算办完 */
-        s.updatedAt = locNow();
+        s.editedAt = locNow();
         if (!Storage.save()) { done = false; return; }
         api.close();
         Util.toast(booked ? '已补货，并记了一笔账' : '已补货，现在剩 ' + amountText(s), 'ok');

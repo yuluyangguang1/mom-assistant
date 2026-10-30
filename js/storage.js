@@ -276,7 +276,10 @@
       /* U-05 记录成本埋点：只在本机记录「点击数 / 耗时」，不联网、不上报（验收用） */
       metrics: { records: [] },
       /* 哄睡白噪音（W 系列）：播放状态与上次设置都留在本机，音频不落地、不下载 */
-      whitenoise: { playing: false, type: 'pink', volume: 3, minutes: 20, until: null, linkSleep: false }
+      whitenoise: { playing: false, type: 'pink', volume: 3, minutes: 20, until: null, linkSleep: false },
+      /* 第 332 次：同步墓碑（删除记录的痕迹，原数组里不留）与映射型条目（疫苗剂次等）的元数据 */
+      tombs: [],
+      mapMeta: {}
     };
   }
 
@@ -641,6 +644,11 @@
         birthGestWeeks: (typeof b.birthGestWeeks === 'number' && b.birthGestWeeks >= 22 && b.birthGestWeeks <= 43) ? Math.round(b.birthGestWeeks) : null,
         birthLunar: cleanLunar(b.birthLunar),
         hasProfile: b.hasProfile === true,
+        /* 第 332 次：同步元数据 + 来源家庭标记（'f:' + 8 位十六进制） */
+        updatedAt: (typeof b.updatedAt === 'number' && isFinite(b.updatedAt)) ? b.updatedAt : undefined,
+        by: (typeof b.by === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(b.by)) ? b.by : undefined,
+        _h: (typeof b._h === 'string' && b._h.length <= 20) ? b._h : undefined,
+        origin: (typeof b.origin === 'string' && /^f:[0-9a-f]{8}$/.test(b.origin)) ? b.origin : undefined,
         /* 第 146 次：非当前宝宝的记录包。用同一套 sanitize 清洗（只取 BABY_KEYS），坏数据同样被挡住 */
         rec: (b.rec && typeof b.rec === 'object' && !Array.isArray(b.rec)) ? pickBaby(sanitize(b.rec)) : null
       };
@@ -660,6 +668,24 @@
         b.rec = null;
       }
     });
+    base.babies.forEach(function (b) { ['updatedAt', 'by', '_h', 'origin'].forEach(function (k) { if (b[k] === undefined) delete b[k]; }); });
+    /* 第 332 次：墓碑与映射元数据逐字段清洗（坏条目整条丢弃） */
+    base.tombs = (Array.isArray(raw.tombs) ? raw.tombs : []).filter(function (t) {
+      return t && typeof t === 'object' && typeof t.k === 'string' && t.k.length <= 200 && /^[^|]{1,64}\|[a-zA-Z.]{1,24}\|[^|]{1,64}$/.test(t.k)
+        && typeof t.updatedAt === 'number' && isFinite(t.updatedAt) && typeof t.deletedAt === 'number' && isFinite(t.deletedAt);
+    }).slice(-20000).map(function (t) {
+      var p = t.k.split('|');
+      return { k: t.k, t: p[1], id: p[2], babyId: (p[0] === 'fam' || p[0] === '_') ? null : p[0], deletedAt: t.deletedAt, updatedAt: t.updatedAt,
+        by: (typeof t.by === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(t.by)) ? t.by : 'local' };
+    });
+    base.mapMeta = {};
+    if (raw.mapMeta && typeof raw.mapMeta === 'object' && !Array.isArray(raw.mapMeta)) {
+      Object.keys(raw.mapMeta).slice(0, 5000).forEach(function (k) {
+        var m = raw.mapMeta[k];
+        if (k.length <= 200 && !UNSAFE_KEY_RE.test(k) && m && typeof m === 'object' && typeof m.u === 'number' && isFinite(m.u) && typeof m.h === 'string')
+          base.mapMeta[k] = { u: m.u, by: (typeof m.by === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(m.by)) ? m.by : 'local', h: m.h.slice(0, 20) };
+      });
+    }
     /* 第 150 次：id 字符集收口（见 scrubIds 注释），放在最后统一覆盖所有键 */
     BABY_KEYS.concat(ARRAY_KEYS, OBJECT_KEYS).forEach(function (key) { if (key !== 'babies' && base[key]) scrubIds(base[key], 0); });
     return base;
@@ -686,6 +712,412 @@
     return keys;
   }
 
+  /* ==================================================================
+     第 332 次：家庭共享的数据地基——记录元数据、墓碑、变更追踪
+     ------------------------------------------------------------------
+     每条会共享的记录都带：id（新记录 crypto.randomUUID）、updatedAt（毫秒）、by（本机 deviceId，未加入家庭时 'local'）、
+     babyId（所属宝宝 uuid；用品 / 储奶这类全家的为 null），以及 _h（内容指纹，不含元数据与照片字段，只用来发现「内容变了」）。
+
+     为什么不在 70 多处写记录的地方逐个加 updatedAt：模块直接 push / splice / 原地改数组，逐处改必然漏。
+     改为在唯一落盘出口 Storage.save() 里比对：内容指纹变了 → updatedAt=now、by=本机；
+     上次存在、这次不见了 → 写墓碑。新增 / 修改 / 删除 / 撤销 / 库存联动（用品账本在 save 前重算）全部自动覆盖。
+
+     墓碑另存在 data.tombs（{ k, t, id, babyId, deletedAt, updatedAt, by }），不留在原数组里：
+     原数组只剩活记录，60 多个渲染点不用各自加「过滤已删除」，也就不会有哪处漏过滤把删掉的记录又显示出来。
+     墓碑 60 天后、且已发出（不在出站队列）或本机不在任何家里时清理。
+
+     安全约束：
+       · 删除整个宝宝档案（removeBaby）不写墓碑——否则一台手机删档案会把全家手机上的记录一起删掉；
+       · 整体导入覆盖 / 清空全部数据同理不写墓碑（只是本机重置，不是「删了这些记录」）。
+
+     宝宝 id 一律 uuid：旧的 'b…' 短 id 按 sha256('yiya-baby|' + 旧 id) 确定性地换成 uuid，
+     所以同一份旧备份在任何手机上迁出的 uuid 都一样，导入自己的旧备份仍能按 id 对上；同步时匹配宝宝只按 uuid。
+     ================================================================== */
+  var SYNC_BABY_ARR = ['feedings', 'sleeps', 'growth', 'diapers', 'meds', 'milestones', 'milestoneObs', 'temps', 'baths', 'swims',
+    'suns', 'waters', 'jaundices', 'supplements', 'supplementPlans', 'sicks', 'vaccines.subs'];
+  var SYNC_BABY_MAP = ['vaccines.done', 'vaccines.via', 'vaccines.notes', 'checkups.done'];
+  var SYNC_FAM_ARR = ['supplies', 'milkStash'];
+  var META_KEYS = { updatedAt: 1, deletedAt: 1, by: 1, babyId: 1, _h: 1, _o: 1 };
+  var MEDIA_KEYS = { photo: 1, photos: 1, img: 1 };
+  var BABY_PROFILE = ['name', 'nickname', 'birthDate', 'sex', 'preterm', 'birthGestWeeks', 'birthLunar'];
+  var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  var TOMB_KEEP_MS = 60 * 864e5;
+  var META_BACKUP_KEY = 'momhelper_premeta_backup_v332';
+
+  /* 53 位内容指纹（cyrb53），只用来判断「变没变」，不是安全用途 */
+  function hash53(str) {
+    var h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (var i = 0, ch; i < str.length; i++) {
+      ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+  }
+  /* 同步版 SHA-256（只用于旧宝宝 id → 确定性 uuid 的一次性迁移；load() 是同步的，用不了 crypto.subtle） */
+  function sha256Hex(msg) {
+    var K = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+      0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+      0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+      0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+      0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+      0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2];
+    var H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+    var bytes = unescape(encodeURIComponent(msg)), l = bytes.length, words = [], i;
+    for (i = 0; i < l; i++) words[i >> 2] |= bytes.charCodeAt(i) << (24 - (i % 4) * 8);
+    words[l >> 2] |= 0x80 << (24 - (l % 4) * 8);
+    words[(((l + 8) >> 6) << 4) + 15] = l * 8;
+    var W = new Array(64);
+    for (var j = 0; j < words.length; j += 16) {
+      var a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+      for (i = 0; i < 64; i++) {
+        if (i < 16) W[i] = words[j + i] | 0;
+        else {
+          var x = W[i - 15], y = W[i - 2];
+          W[i] = (((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3)) + W[i - 7]
+            + (((y >>> 17) | (y << 15)) ^ ((y >>> 19) | (y << 13)) ^ (y >>> 10)) + W[i - 16] | 0;
+        }
+        var t1 = h + (((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7))) + ((e & f) ^ (~e & g)) + K[i] + W[i] | 0;
+        var t2 = (((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10))) + ((a & b) ^ (a & c) ^ (b & c)) | 0;
+        h = g; g = f; f = e; e = d + t1 | 0; d = c; c = b; b = a; a = t1 + t2 | 0;
+      }
+      H[0] = H[0] + a | 0; H[1] = H[1] + b | 0; H[2] = H[2] + c | 0; H[3] = H[3] + d | 0;
+      H[4] = H[4] + e | 0; H[5] = H[5] + f | 0; H[6] = H[6] + g | 0; H[7] = H[7] + h | 0;
+    }
+    return H.map(function (v) { return ('00000000' + (v >>> 0).toString(16)).slice(-8); }).join('');
+  }
+  function uuidFrom(seed) {
+    var hx = sha256Hex(seed);
+    var v = (8 + (parseInt(hx[16], 16) & 3)).toString(16);
+    return hx.slice(0, 8) + '-' + hx.slice(8, 12) + '-8' + hx.slice(13, 16) + '-' + v + hx.slice(17, 20) + '-' + hx.slice(20, 32);
+  }
+  function newUuid() {
+    try { if (global.crypto && typeof global.crypto.randomUUID === 'function') return global.crypto.randomUUID(); } catch (e) {}
+    var b = new Uint8Array(16);
+    try { global.crypto.getRandomValues(b); } catch (e2) { for (var i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256); }
+    b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+    var h = Array.prototype.map.call(b, function (x) { return (x < 16 ? '0' : '') + x.toString(16); }).join('');
+    return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+  }
+
+  function contentHash(r) {
+    var ks = Object.keys(r).sort(), o = {};
+    for (var i = 0; i < ks.length; i++) { var k = ks[i]; if (!META_KEYS[k] && !MEDIA_KEYS[k]) o[k] = r[k]; }
+    return hash53(JSON.stringify(o));
+  }
+  function babyHash(b) {
+    var o = {};
+    BABY_PROFILE.forEach(function (k) { o[k] = b[k] === undefined ? null : b[k]; });
+    return hash53(JSON.stringify(o));
+  }
+  function getPath(o, path) {
+    var ps = path.split('.'), cur = o;
+    for (var i = 0; i < ps.length && cur; i++) cur = cur[ps[i]];
+    return cur;
+  }
+  function ensurePath(o, path, arr) {
+    var ps = path.split('.'), cur = o;
+    for (var i = 0; i < ps.length - 1; i++) {
+      if (!cur[ps[i]] || typeof cur[ps[i]] !== 'object' || Array.isArray(cur[ps[i]])) cur[ps[i]] = {};
+      cur = cur[ps[i]];
+    }
+    var last = ps[ps.length - 1];
+    if (arr ? !Array.isArray(cur[last]) : (!cur[last] || typeof cur[last] !== 'object' || Array.isArray(cur[last]))) cur[last] = arr ? [] : {};
+    return cur[last];
+  }
+  /** 某个宝宝的数据容器：当前宝宝在顶层，其他宝宝在 babies[].rec（没有就按需建空的） */
+  function babySrc(d, bid, create) {
+    if (!d || !bid) return null;
+    if (bid === (d.settings && d.settings.activeBabyId)) return d;
+    var b = (d.babies || []).filter(function (x) { return x && x.id === bid; })[0];
+    if (!b) return null;
+    if (!b.rec && create) { var def = defaultData(), r = {}; BABY_KEYS.forEach(function (k) { r[k] = def[k]; }); b.rec = r; }
+    return b.rec || null;
+  }
+  /** 遍历所有会共享的条目：cb(scope, type, id, kind, obj, holder)。kind = 'rec' | 'map' | 'baby' */
+  function walkSync(d, cb) {
+    var act = d.settings && d.settings.activeBabyId;
+    var babies = (d.babies || []).filter(function (b) { return b && typeof b.id === 'string'; });
+    var hasAct = babies.some(function (b) { return b.id === act; });
+    function walkBaby(scope, src) {
+      SYNC_BABY_ARR.forEach(function (t) {
+        var arr = getPath(src, t);
+        if (!Array.isArray(arr)) return;
+        for (var i = 0; i < arr.length; i++) { var r = arr[i]; if (r && typeof r === 'object' && !Array.isArray(r)) cb(scope, t, r.id, 'rec', r, arr); }
+      });
+      SYNC_BABY_MAP.forEach(function (t) {
+        var m = getPath(src, t);
+        if (!m || typeof m !== 'object' || Array.isArray(m)) return;
+        Object.keys(m).forEach(function (k) { if (m[k] != null) cb(scope, t, k, 'map', m[k], m); });
+      });
+    }
+    babies.forEach(function (b) {
+      cb(b.id, 'baby', b.id, 'baby', b, null);
+      var src = b.id === act ? d : b.rec;
+      if (src) walkBaby(b.id, src);
+    });
+    /* 还没有任何宝宝档案（或当前宝宝 id 失效）时顶层的记录：scope '_'，只在本机，不同步、不写墓碑 */
+    if (!hasAct) walkBaby('_', d);
+    SYNC_FAM_ARR.forEach(function (t) {
+      var arr = d[t];
+      if (!Array.isArray(arr)) return;
+      for (var i = 0; i < arr.length; i++) { var r = arr[i]; if (r && typeof r === 'object' && !Array.isArray(r)) cb('fam', t, r.id, 'rec', r, arr); }
+    });
+  }
+  function keyOf(scope, type, id) { return scope + '|' + type + '|' + id; }
+  function splitKey(k) {
+    var a = k.indexOf('|'), b = k.indexOf('|', a + 1);
+    return { scope: k.slice(0, a), type: k.slice(a + 1, b), id: k.slice(b + 1) };
+  }
+  function lww(au, aby, bu, bby) { /* a 比 b 新？ */
+    au = +au || 0; bu = +bu || 0;
+    if (au !== bu) return au > bu;
+    return String(aby || '') > String(bby || '');
+  }
+
+  var Meta = {
+    me: 'local',          /* 本机 deviceId（FamSync 加入家庭后设置；不在家里时 'local'） */
+    prevKeys: null,       /* 上次落盘时存在的条目 key（内存；墓碑判定用） */
+    onChange: null,       /* FamSync 挂钩：function(keys[]) */
+    suppressTombs: false, /* 整体导入 / 清空时置 true：这次不写墓碑 */
+    lastPrune: 0,
+
+    /** 一次性、可重入的迁移：宝宝 id → uuid；记录补 id / updatedAt / by / babyId / _h。返回是否改动了数据 */
+    migrate: function (d, opts) {
+      opts = opts || {};
+      var changed = false, now = Date.now();
+      /* 1) 宝宝 id → uuid（确定性），同步更新 activeBabyId（全项目对宝宝 id 的引用只有这两处，见第 332 次盘点） */
+      (d.babies || []).forEach(function (b) {
+        if (!b || typeof b.id !== 'string' || UUID_RE.test(b.id)) return;
+        var nid = uuidFrom('yiya-baby|' + b.id);
+        if (d.settings && d.settings.activeBabyId === b.id) d.settings.activeBabyId = nid;
+        b.id = nid; changed = true;
+      });
+      /* 2) 用品自己的「改过时间」字符串原来也叫 updatedAt（第 294 次），改名 editedAt，腾出 updatedAt 给毫秒时间戳 */
+      (d.supplies || []).forEach(function (s) {
+        if (s && typeof s.updatedAt === 'string') { if (!s.editedAt) s.editedAt = s.updatedAt; delete s.updatedAt; changed = true; }
+      });
+      /* 3) 记录元数据 */
+      walkSync(d, function (scope, type, id, kind, r, holder) {
+        if (kind === 'map') {
+          var mm = d.mapMeta = (d.mapMeta && typeof d.mapMeta === 'object' && !Array.isArray(d.mapMeta)) ? d.mapMeta : {};
+          var mk = keyOf(scope, type, id);
+          if (!mm[mk] && scope !== '_') { mm[mk] = { u: now, by: 'local', h: hash53(JSON.stringify(r)) }; changed = true; }
+          return;
+        }
+        if (kind === 'rec' && (typeof r.id !== 'string' || !r.id)) { r.id = newUuid(); changed = true; }
+        if (typeof r.updatedAt !== 'number' || !isFinite(r.updatedAt)) { r.updatedAt = now; changed = true; }
+        if (typeof r.by !== 'string' || !r.by) { r.by = 'local'; changed = true; }
+        if (kind === 'rec') {
+          var bid = (scope === 'fam' || scope === '_') ? null : scope;
+          if (r.babyId !== bid) { r.babyId = bid; changed = true; }
+          if ('deletedAt' in r) { delete r.deletedAt; changed = true; }
+        }
+        if (r._h == null) { r._h = kind === 'baby' ? babyHash(r) : contentHash(r); changed = true; }
+      });
+      if (!Array.isArray(d.tombs)) { d.tombs = []; changed = true; }
+      return changed;
+    },
+
+    /** 每次落盘前调用：发现改动 → 打时间戳 / 写墓碑 / 通知出站队列 */
+    track: function (d) {
+      var me = Meta.me || 'local', now = Date.now(), seen = {}, changed = [];
+      var tombIdx = {};
+      if (!Array.isArray(d.tombs)) d.tombs = [];
+      d.tombs.forEach(function (t, i) { if (t && t.k) tombIdx[t.k] = i; });
+      var dropTomb = {};
+      var mm = d.mapMeta = (d.mapMeta && typeof d.mapMeta === 'object' && !Array.isArray(d.mapMeta)) ? d.mapMeta : {};
+      walkSync(d, function (scope, type, id, kind, r) {
+        if (kind === 'rec' && (typeof r.id !== 'string' || !r.id)) { r.id = newUuid(); id = r.id; }
+        var k = keyOf(scope, type, id);
+        if (seen[k]) return;           /* 同一宝宝同类型里重复 id 的坏数据：只认第一条 */
+        seen[k] = 1;
+        var tomb = tombIdx[k] != null ? d.tombs[tombIdx[k]] : null;
+        if (kind === 'map') {
+          var h0 = hash53(JSON.stringify(r)), m = mm[k];
+          if (scope === '_') return;
+          if (!m) { mm[k] = { u: now, by: me, h: h0 }; changed.push(k); }
+          else if (m.h !== h0) { m.u = Math.max(now, (+m.u || 0) + 1); m.by = me; m.h = h0; changed.push(k); }
+          if (tomb) { if (!lww(m ? m.u : now, m ? m.by : me, tomb.updatedAt, tomb.by)) { mm[k].u = Math.max(now, tomb.updatedAt + 1); mm[k].by = me; changed.push(k); } dropTomb[k] = 1; }
+          return;
+        }
+        var h = kind === 'baby' ? babyHash(r) : contentHash(r);
+        if (r._h == null) {
+          if (typeof r.updatedAt !== 'number' || !isFinite(r.updatedAt)) { r.updatedAt = now; r.by = me; }
+          if (typeof r.by !== 'string' || !r.by) r.by = me;
+          r._h = h; changed.push(k);
+        } else if (r._h !== h) {
+          r.updatedAt = Math.max(now, ((typeof r.updatedAt === 'number' && isFinite(r.updatedAt)) ? r.updatedAt : 0) + 1); r.by = me; r._h = h; changed.push(k);
+        } else if (Meta.prevKeys && !Meta.prevKeys[k] && !tomb) {
+          changed.push(k);  /* 内容没变但新出现（换宝宝 / 从别处搬过来）：也要发一次 */
+        }
+        if (kind === 'rec') {
+          var bid = (scope === 'fam' || scope === '_') ? null : scope;
+          if (r.babyId !== bid) r.babyId = bid;
+          if ('deletedAt' in r) delete r.deletedAt;
+        }
+        if (tomb) {
+          /* 撤销删除 / 别人复活：活记录必须比墓碑新，否则同步时会被墓碑压回去 */
+          if (!lww(r.updatedAt, r.by, tomb.updatedAt, tomb.by)) { r.updatedAt = Math.max(now, tomb.updatedAt + 1); r.by = me; }
+          dropTomb[k] = 1; if (changed[changed.length - 1] !== k) changed.push(k);
+        }
+      });
+      /* 删除 → 墓碑（只对还存在的宝宝 / 全家范围；宝宝档案被删、整体覆盖、清空不写） */
+      var babyIds = {};
+      (d.babies || []).forEach(function (b) { if (b && b.id) babyIds[b.id] = 1; });
+      if (Meta.prevKeys && !Meta.suppressTombs) {
+        Object.keys(Meta.prevKeys).forEach(function (k) {
+          if (seen[k]) return;
+          var p = splitKey(k);
+          if (p.scope === '_' || p.type === 'baby') { delete mm[k]; return; }
+          if (p.scope !== 'fam' && !babyIds[p.scope]) { delete mm[k]; return; }
+          var prevMeta = mm[k];
+          var t = { k: k, t: p.type, id: p.id, babyId: p.scope === 'fam' ? null : p.scope, deletedAt: now,
+            updatedAt: Math.max(now, prevMeta ? (+prevMeta.u || 0) + 1 : 0), by: me };
+          if (tombIdx[k] != null) d.tombs[tombIdx[k]] = t; else { tombIdx[k] = d.tombs.length; d.tombs.push(t); }
+          delete mm[k];
+          changed.push(k);
+        });
+      } else if (Meta.suppressTombs) {
+        Object.keys(mm).forEach(function (k) { if (!seen[k]) delete mm[k]; });
+      }
+      if (Object.keys(dropTomb).length) d.tombs = d.tombs.filter(function (t) { return !(t && dropTomb[t.k]); });
+      /* 墓碑清理：60 天以上，且本机不在家里或已发出 */
+      if (now - Meta.lastPrune > 3600e3) {
+        Meta.lastPrune = now;
+        var pending = (global.FamSync && FamSync.pendingKeys) ? FamSync.pendingKeys() : {};
+        d.tombs = d.tombs.filter(function (t) {
+          if (!t || typeof t.k !== 'string') return false;
+          if (p0(t.k) !== 'fam' && !babyIds[p0(t.k)]) return false;
+          return !(now - (+t.deletedAt || 0) > TOMB_KEEP_MS && !pending[t.k]);
+        });
+      }
+      Meta.prevKeys = seen;
+      Meta.suppressTombs = false;
+      if (changed.length && typeof Meta.onChange === 'function') { try { Meta.onChange(changed); } catch (e) {} }
+      return changed;
+    },
+
+    /** 重新建立 prevKeys（load / 导入 / 远端应用之后） */
+    reindex: function (d) {
+      var seen = {};
+      walkSync(d, function (scope, type, id) { seen[keyOf(scope, type, id)] = 1; });
+      Meta.prevKeys = seen;
+    },
+
+    /** 取某个 key 当前的同步实体（活记录 / 墓碑 / 映射项）；不存在且无墓碑返回 null */
+    entity: function (d, k) {
+      var p = splitKey(k);
+      var t = (d.tombs || []).filter(function (x) { return x && x.k === k; })[0];
+      if (t) return { t: p.type, s: p.scope, id: p.id, u: t.updatedAt, by: t.by, d: t.deletedAt };
+      if (p.type === 'baby') {
+        var b = (d.babies || []).filter(function (x) { return x && x.id === p.id; })[0];
+        if (!b) return null;
+        var o = {};
+        BABY_PROFILE.forEach(function (f) { o[f] = b[f] === undefined ? null : b[f]; });
+        return { t: 'baby', s: p.scope, id: p.id, u: b.updatedAt, by: b.by, r: o };
+      }
+      var src = p.scope === 'fam' ? d : babySrc(d, p.scope, false);
+      if (!src) return null;
+      if (SYNC_BABY_MAP.indexOf(p.type) >= 0) {
+        var m = getPath(src, p.type), mt = (d.mapMeta || {})[k];
+        if (!m || m[p.id] == null || !mt) return null;
+        return { t: p.type, s: p.scope, id: p.id, u: mt.u, by: mt.by, v: m[p.id] };
+      }
+      var arr = getPath(src, p.type);
+      if (!Array.isArray(arr)) return null;
+      var r = arr.filter(function (x) { return x && x.id === p.id; })[0];
+      if (!r) return null;
+      var c = {};
+      Object.keys(r).forEach(function (f) { if (!META_KEYS[f] && !MEDIA_KEYS[f]) c[f] = r[f]; });
+      return { t: p.type, s: p.scope, id: p.id, u: r.updatedAt, by: r.by, r: c, o: r._o || null };
+    },
+
+    /** 某个范围（宝宝 uuid / 'fam'）下的所有 key（含墓碑） */
+    keysOf: function (d, scope) {
+      var out = [];
+      walkSync(d, function (s, type, id) { if (s === scope) out.push(keyOf(s, type, id)); });
+      (d.tombs || []).forEach(function (t) { if (t && p0(t.k) === scope) out.push(t.k); });
+      return out;
+    },
+
+    /**
+     * 应用一条（已通过 schema 校验的）远端实体。返回 'applied' | 'stale' | 'nobaby'。
+     * LWW：(updatedAt, by) 大的赢；墓碑同样参与。照片等媒体字段不同步，赢了也保留本机的。
+     */
+    apply: function (d, e, opts) {
+      opts = opts || {};
+      var k = keyOf(e.s, e.t, e.id);
+      var tombI = -1;
+      (d.tombs || []).forEach(function (t, i) { if (t && t.k === k) tombI = i; });
+      var tomb = tombI >= 0 ? d.tombs[tombI] : null;
+      var mm = d.mapMeta = d.mapMeta || {};
+      if (e.t === 'baby') {
+        var b = (d.babies || []).filter(function (x) { return x && x.id === e.id; })[0];
+        if (e.d) return 'stale';  /* 宝宝档案不接受远端删除：删档案只影响本机 */
+        if (!b) {
+          b = { id: e.id, name: '宝宝', photo: null, birthDate: null, nickname: '', sex: null, preterm: false, birthGestWeeks: null,
+            birthLunar: null, hasProfile: true, rec: null, origin: opts.origin || null };
+          BABY_PROFILE.forEach(function (f) { if (e.r[f] !== undefined) b[f] = e.r[f]; });
+          b.updatedAt = e.u; b.by = e.by; b._h = babyHash(b);
+          if (!d.babies.length && opts.adoptTop) d.settings.activeBabyId = b.id;
+          d.babies.push(b);
+          return 'applied';
+        }
+        if (!lww(e.u, e.by, b.updatedAt, b.by)) return 'stale';
+        BABY_PROFILE.forEach(function (f) { if (e.r[f] !== undefined) b[f] = e.r[f]; });
+        b.updatedAt = e.u; b.by = e.by; b._h = babyHash(b);
+        if (b.id === d.settings.activeBabyId && typeof Storage._mirrorActive === 'function') Storage._mirrorActive();
+        return 'applied';
+      }
+      var src = e.s === 'fam' ? d : babySrc(d, e.s, true);
+      if (!src) return 'nobaby';
+      var isMap = SYNC_BABY_MAP.indexOf(e.t) >= 0;
+      /* 本机现状 */
+      var curU, curBy, arr = null, idx = -1, m = null;
+      if (isMap) {
+        m = ensurePath(src, e.t, false);
+        if (m[e.id] != null && mm[k]) { curU = mm[k].u; curBy = mm[k].by; }
+      } else {
+        arr = ensurePath(src, e.t, true);
+        for (var i = 0; i < arr.length; i++) if (arr[i] && arr[i].id === e.id) { idx = i; break; }
+        if (idx >= 0) { curU = arr[idx].updatedAt; curBy = arr[idx].by; }
+      }
+      if (curU == null && tomb) { curU = tomb.updatedAt; curBy = tomb.by; }
+      if (curU != null && !lww(e.u, e.by, curU, curBy)) return 'stale';
+      if (e.d) {
+        if (isMap) { delete m[e.id]; delete mm[k]; }
+        else if (idx >= 0) arr.splice(idx, 1);
+        var nt = { k: k, t: e.t, id: e.id, babyId: e.s === 'fam' ? null : e.s, deletedAt: e.d, updatedAt: e.u, by: e.by };
+        if (tomb) d.tombs[tombI] = nt; else d.tombs.push(nt);
+      } else {
+        if (tomb) d.tombs.splice(tombI, 1);
+        if (isMap) {
+          m[e.id] = e.v;
+          mm[k] = { u: e.u, by: e.by, h: hash53(JSON.stringify(e.v)) };
+        } else {
+          var nr = {};
+          Object.keys(e.r).forEach(function (f) { nr[f] = e.r[f]; });
+          if (idx >= 0) Object.keys(arr[idx]).forEach(function (f) { if (MEDIA_KEYS[f]) nr[f] = arr[idx][f]; });
+          nr.id = e.id; nr.updatedAt = e.u; nr.by = e.by; nr.babyId = e.s === 'fam' ? null : e.s;
+          /* 全家范围（用品 / 储奶）收到的记录打上来源家庭标记：退出后再加入别的家，不会把旧家的这些条目带过去 */
+          if (e.s === 'fam' && opts.origin && !(idx >= 0 && !arr[idx]._o && arr[idx].by === Meta.me)) nr._o = opts.origin;
+          else if (idx >= 0 && arr[idx]._o) nr._o = arr[idx]._o;
+          nr._h = contentHash(nr);
+          if (idx >= 0) arr[idx] = nr; else arr.push(nr);
+        }
+      }
+      return 'applied';
+    },
+
+    lww: lww, keyOf: keyOf, splitKey: splitKey, contentHash: contentHash, walk: walkSync, newUuid: newUuid, uuidFrom: uuidFrom,
+    UUID_RE: UUID_RE, SYNC_BABY_ARR: SYNC_BABY_ARR, SYNC_BABY_MAP: SYNC_BABY_MAP, SYNC_FAM_ARR: SYNC_FAM_ARR,
+    META_KEYS: META_KEYS, MEDIA_KEYS: MEDIA_KEYS, BABY_PROFILE: BABY_PROFILE, BACKUP_KEY: META_BACKUP_KEY
+  };
+  function p0(k) { return k.slice(0, k.indexOf('|')); }
+
   var Storage = {
     data: null,
 
@@ -693,7 +1125,7 @@
     load: function () {
       var raw = null;
       try { raw = localStorage.getItem(STORAGE_KEY); } catch (e) {}
-      if (!raw) { this.data = defaultData(); return this.data; }
+      if (!raw) { this.data = defaultData(); Meta.reindex(this.data); return this.data; }
       try {
         this.data = sanitize(JSON.parse(raw));
         /* 第 320 次：左右手 / 简洁模式已移除。已存的 handMode / leftHand 旧值静默迁移为默认（sanitize 白名单已丢掉），
@@ -701,6 +1133,7 @@
         if (/"(handMode|leftHand)"\s*:/.test(raw)) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data)); this._handMigrated = true; } catch (eM) { /* 配额满：下次正常保存时自然清掉 */ } }
         this.migrate();
         this._supDedupe();
+        this._metaMigrate(raw);
       } catch (e) {
         /* 损坏自愈：备份原文，再回退默认值。用户数据不静默丢失。 */
         try { localStorage.setItem(CORRUPT_BACKUP_KEY, raw); } catch (e2) {}
@@ -717,9 +1150,11 @@
      *  「设备不支持（Safari/iOS）」，这里只负责在结果确定后调用一次。 */
     save: function () {
       this._gen = (this._gen || 0) + 1;   /* 第 319 次：数据代号——一级页 DOM 缓存据此判断要不要重建 */
+      /* 第 332 次：唯一落盘出口里做变更追踪（时间戳 / 墓碑 / 出站队列），出错不挡保存 */
+      try { if (this.data) Meta.track(this.data); } catch (eT) { if (global.console) console.warn('[meta] track', eT); }
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
-        if (global.Util && Util.haptic) Util.haptic('ok');
+        if (global.Util && Util.haptic && !this._remoteSaving) Util.haptic('ok');
         return true;
       } catch (e) {
         if (global.Util && Util.haptic) Util.haptic('error');
@@ -731,6 +1166,53 @@
     },
 
     get: function () { return this.data; },
+
+    /* 第 332 次：记录元数据一次性迁移（可重入）。有改动时先把迁移前的原文备份到独立键（只做一次），再落盘 */
+    _metaMigrate: function (rawText) {
+      var d = this.data;
+      var need = Meta.migrate(d);
+      if (need) {
+        /* rawText 就是迁移前的原文。只备份第一次；小于 1.5M 字符放 localStorage，再大放 IndexedDB（不和主数据抢 5MB 配额） */
+        try {
+          if (rawText && localStorage.getItem(META_BACKUP_KEY) == null && !this._metaBackupIdb) {
+            if (rawText.length < 1.5e6) localStorage.setItem(META_BACKUP_KEY, rawText);
+            else if (global.FamDB) { this._metaBackupIdb = true; FamDB.get('backup:premeta').then(function (v) { if (v == null) FamDB.set('backup:premeta', { at: Date.now(), text: rawText }); }).catch(function () {}); }
+          }
+        } catch (eB) { /* 配额满：不挡迁移（迁移只加字段、不删数据） */ }
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch (eS) {}
+        this._metaMigrated = true;
+      }
+      Meta.reindex(d);
+      return need;
+    },
+    Meta: Meta,
+    /** 第 332 次：给 FamSync 用——在不触发「本机改动」的前提下应用远端实体，然后落盘一次 */
+    applyRemote: function (ents, opts) {
+      var d = this.data, out = { applied: 0, stale: 0, nobaby: 0, touched: {} }, rk = {};
+      ents.forEach(function (e) {
+        var r = Meta.apply(d, e, opts);
+        out[r] = (out[r] || 0) + 1;
+        if (r === 'applied') { out.touched[e.s] = 1; rk[Meta.keyOf(e.s, e.t, e.id)] = 1; }
+      });
+      if (out.applied) {
+        Meta.reindex(d);
+        this._remoteSaving = true; this._remoteKeys = rk;
+        try { this.save(); } finally { this._remoteSaving = false; this._remoteKeys = null; }
+      }
+      return out;
+    },
+    /** 第 332 次：把 by='local' 或本机旧 deviceId 的条目改记为当前 deviceId（加入家庭时；不改内容、不动 updatedAt） */
+    retagMine: function (ids, me) {
+      var d = this.data, set = {}, n = 0;
+      (ids || []).concat(['local']).forEach(function (x) { set[x] = 1; });
+      Meta.walk(d, function (scope, type, id, kind, r) {
+        if (kind === 'map') { var mt = (d.mapMeta || {})[Meta.keyOf(scope, type, id)]; if (mt && set[mt.by]) { mt.by = me; n++; } return; }
+        if (set[r.by]) { r.by = me; n++; }
+      });
+      (d.tombs || []).forEach(function (t) { if (t && set[t.by]) { t.by = me; n++; } });
+      if (n) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch (e) {} }
+      return n;
+    },
 
     /* 第 281 次：合并误存成多份的营养品计划（当前宝宝 + 其他宝宝档案里的），有合并就落盘一次 */
     _supDedupe: function () {
@@ -872,7 +1354,7 @@
          本次只改 id 生成式一行：DATA_VERSION、字段结构、迁移逻辑一律未动，
          旧数据的 id 原样可读，不存在兼容问题。 */
       var b = {
-        id: 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+        id: newUuid(),   /* 第 332 次：宝宝 id 一律 uuid（同步只按 uuid 匹配宝宝） */
         name: (typeof opts.name === 'string' && opts.name.trim()) ? opts.name.trim().slice(0, 12) : '宝宝',
         photo: validPhoto(opts.photo) ? opts.photo : null,
         birthDate: (typeof opts.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(opts.birthDate)) ? opts.birthDate : null,
@@ -954,7 +1436,7 @@
       var b = this.activeBaby();
       if (!b) {
         if (!d.babies.length) {
-          b = { id: 'b' + Date.now().toString(36), name: '宝宝', photo: null, birthDate: null };
+          b = { id: newUuid(), name: '宝宝', photo: null, birthDate: null };
           d.babies.push(b);
           d.settings.activeBabyId = b.id;
         } else {
@@ -1007,22 +1489,26 @@
     /** 清空全部数据 */
     reset: function () {
       this.data = defaultData();
+      Meta.suppressTombs = true;   /* 第 332 次：清空只是本机重置，不能把全家的记录一起删掉 */
       this.save();
     },
 
     /** 导出为格式化的 JSON 文本 */
     exportJSON: function (opts) {
-      /* 第 202 次：opts.excludePrivate —— 给家人 / 医生的副本，去掉妈妈的情绪、经期、记账。
-         只清空这三项，结构保持完整，对方导入（默认合并）不会动到他本机这几项。 */
-      if (opts && opts.excludePrivate) {
-        var c = JSON.parse(JSON.stringify(this.data));
-        c.moods = []; c.periods = []; c.finance = { records: [] };
-        c._exportNote = 'excludePrivate';
-        return JSON.stringify(c, null, 2);
-      }
-      return JSON.stringify(this.data, null, 2);
+      /* 第 332 次：导出文件里不放任何家庭信息——家庭密钥 / token / familyId 本来就不在 data 里（在 IndexedDB），
+         这里再把记录上的家人设备 ID（by = 'd_…'）统一换成 'fam'（导入后显示「家人记」），不留可关联到家庭的标识 */
+      var out = this._exportCopy(opts);
+      return JSON.stringify(out, null, 2);
     },
-
+    _exportCopy: function (opts) {
+      var c = JSON.parse(JSON.stringify(this.data));
+      var fix = function (o) { if (o && typeof o.by === 'string' && /^d_/.test(o.by)) o.by = 'fam'; };
+      Meta.walk(c, function (scope, type, id, kind, r) { if (kind !== 'map') fix(r); });
+      (c.tombs || []).forEach(fix);
+      Object.keys(c.mapMeta || {}).forEach(function (k) { fix(c.mapMeta[k]); });
+      if (opts && opts.excludePrivate) { c.moods = []; c.periods = []; c.finance = { records: [] }; c._exportNote = 'excludePrivate'; }
+      return c;
+    },
     /** 从 JSON 文本导入（逐字段清洗，坏字段回退默认而非搞坏整个应用） */
     /**
      * 第 187 次（P0：增量导入）：把备份文件「合并」进本机，而不是覆盖。
@@ -1042,6 +1528,7 @@
         this.data = sanitize(parsed);
         this._noSnapshot = true;
         this.migrate();
+        Meta.migrate(this.data);   /* 第 332 次：文件里的旧宝宝 id 按同一规则换成 uuid，才能和本机迁移过的 id 对上 */
         inc = this.data;
       } finally { this._noSnapshot = false; this.data = keep; }
       var cur = opts.dryRun ? sanitize(JSON.parse(JSON.stringify(keep))) : keep;
@@ -1128,7 +1615,7 @@
         var src = ib._top ? pickBaby(inc) : incDataOf(ib);
         if (tgt && (ib._top || ib.id === incAct || incBabies.length === 1)) {
           if (tgt === 'current') { mergeBaby(cur, src); return; }
-          var fresh = { id: 'b' + Date.now().toString(36) + 'n' + newBabies, name: ib.name || '宝宝', photo: ib.photo || null,
+          var fresh = { id: newUuid(), name: ib.name || '宝宝', photo: ib.photo || null,
             birthDate: ib.birthDate || null, rec: JSON.parse(JSON.stringify(src)) };
           curBabies.push(fresh); newBabies++;
           var nNew = 0;
@@ -1144,9 +1631,9 @@
           else mergeBaby(hit.rec, src);
           if (!hit._top && !hit.birthDate && ib.birthDate) hit.birthDate = ib.birthDate;
         } else {
-          var nb = { id: ib.id || ('b' + Date.now().toString(36) + newBabies), name: ib.name || '宝宝', photo: ib.photo || null,
+          var nb = { id: ib.id || newUuid(), name: ib.name || '宝宝', photo: ib.photo || null,
             birthDate: ib.birthDate || null, rec: JSON.parse(JSON.stringify(src)) };
-          if (curBabies.filter(function (b) { return b.id === nb.id; }).length) nb.id += 'm';
+          if (curBabies.filter(function (b) { return b.id === nb.id; }).length) nb.id = newUuid();
           curBabies.push(nb); newBabies++;
           var nRec = 0;
           ARR_BABY.forEach(function (k) { if (Array.isArray(src[k])) nRec += src[k].length; });
@@ -1164,6 +1651,7 @@
       if (!opts.dryRun) {
         this.data = sanitize(JSON.parse(JSON.stringify(cur)));
         this.data.version = keep.version;
+        Meta.migrate(this.data);
         this.save();
       }
       return { total: total, parts: parts, newBabies: newBabies };
@@ -1174,6 +1662,8 @@
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('数据格式错误');
       this.data = sanitize(parsed);
       this.migrate(); /* 第 80 次：旧版本导出文件导入时补跑迁移（播种宝宝档案） */
+      Meta.migrate(this.data); /* 第 332 次：导入时保持文件里的 uuid；旧文件按同一规则迁移 */
+      Meta.suppressTombs = true;   /* 整体覆盖：本机原有、文件里没有的条目只是本机不要了，不发删除给家人 */
       this.save();
     },
 
@@ -1204,7 +1694,7 @@
             var ob = this.data.settings.baby;
             if (ob && typeof ob === 'object' && !Array.isArray(ob)) {
               this.data.babies.push({
-                id: 'b' + Date.now().toString(36),
+                id: newUuid(),
                 name: (typeof ob.name === 'string' && ob.name.trim()) ? ob.name.trim().slice(0, 12) : '宝宝',
                 photo: null,
                 birthDate: (typeof ob.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ob.birthDate)) ? ob.birthDate : null
