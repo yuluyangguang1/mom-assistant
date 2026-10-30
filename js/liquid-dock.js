@@ -441,6 +441,7 @@
     }
     wlRaf = global.requestAnimationFrame(wlFrame);
   }
+  LD._wlClean = function () { return lens ? wlClean(lens) : null; };
   LD._wl = function (clear) { var o = JSON.parse(JSON.stringify(wlStat)); o.on = !!(lens && lens.w); if (clear) wlStat = { msgs: 0, applied: 0, lastN: 0, maxGap: 0, shrinkLag: [], held: 0 }; return o; };
   /* 第 321 次（Telegram 参考 A1）：透镜还在（鼓起 / 滑行 / 吸附 / 收回任一阶段）时再次按下别的（或同一个）页签——
      不重启：位置 x、速度 vx、左右两条边 eL / eR 和各自速度、鼓起 s 都保留，只改目标 tx；正在收回就回到滑行（s 从当前值接着鼓）；

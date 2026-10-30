@@ -146,7 +146,7 @@ self.onmessage = function (e) {
   var d = e.data, t = d.t;
   if (t === 'init') {
     cvs = d.c; mainOrigin = d.mo || performance.timeOrigin;
-    try { gl = d.ft ? null : (cvs.getContext('webgl', d.opts) || cvs.getContext('experimental-webgl', d.opts)); } catch (er) { gl = null; info.err = String(er); }
+    try { gl = d.ft ? null : cvs.getContext('webgl', d.opts);   /* OffscreenCanvas 只认 'webgl'（WebKit 对 experimental-webgl 直接抛 TypeError） */ } catch (er) { gl = null; info.err = String(er); }
     if (gl) {
       try {
         cvs.addEventListener('webglcontextlost', function (ev) { ev.preventDefault(); self.postMessage({ t: 'lost' }); }, false);
@@ -174,6 +174,8 @@ self.onmessage = function (e) {
     return;
   }
   if (t === 'hb') { lastHB = nowM(); return; }
+  /* 测试：按给定透镜状态只走「改透镜 uniform 重画」这一条（不启动物理），用来和主线程按同一状态画的帧逐像素比 */
+  if (t === 'dl') { if (!L) { var G0 = LP.geom(d.L, d.ds || 1, !!d.red); drawLens(G0); } return; }
   if (!L && t !== 'ds' && t !== 'perf' && t !== 'stop') return;
   if (t === 'mv') { L.tx = d.tx; L.rb = d.rb; L.tap = false; kick(); return; }
   if (t === 'rt') {   /* 连点改目标（同 liquid-dock.js lensRetarget 的字段改动） */

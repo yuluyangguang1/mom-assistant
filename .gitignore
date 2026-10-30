@@ -1,1 +1,21 @@
 tools/_startup_links.html
+
+# 第 328 次原型：测量原始数据 / 录屏帧 / 回归日志不进库（报告与工具进库）
+out/data/
+out/vid/
+out/reg/
+out/reg_*/
+out/reg_refactor/
+out/*.log
+out/reg_rerun.txt
+# 调试用的临时脚本 / 已被取代的脚本（drag.py → drag2.py；runE / runR → runM / runReg）
+out/tools/dbg*.py
+out/tools/raf.py
+out/tools/tap1.py
+out/tools/glflags.py
+out/tools/smoke.py
+out/tools/drag.py
+out/tools/runE.sh
+out/tools/runR.sh
+out/tmp_*.png
+__pycache__/

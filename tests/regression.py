@@ -7822,6 +7822,18 @@ def test_r328(b):
         p.evaluate("window.__busyMs=0")
         return name, fr, inwin, p.evaluate("App.currentTab()"), (fr[-1].get('tx') if fr and fr[-1].get('tx') is not None else T[name][0])
     c2, p2, e2 = page(0.5, '1')
+    # Worker 逐帧重画只改透镜 uniform：同一个透镜状态，主线程整套 setCommon / render（经代理）画的帧 vs Worker drawLens 画的帧，逐像素比
+    T = tabs(p2); cur = p2.evaluate("App.currentTab()"); nm = 'calendar' if cur != 'calendar' else 'baby'
+    p2.evaluate("LiquidDock._manualMode(true)"); p2.mouse.move(T[nm][0], T[nm][1]); p2.mouse.down()
+    for i in range(4): p2.evaluate("LiquidDock._step(1000/60)")
+    p2.wait_for_timeout(400); sA = dockshot(p2)
+    p2.evaluate("DockRefract.wl('dl',{L:LiquidDock._wlClean(),ds:LiquidDock.dockScale(),red:false})"); p2.wait_for_timeout(400); sB = dockshot(p2)
+    p2.mouse.up()
+    for i in range(40):
+        if not p2.evaluate("LiquidDock._step(1000/60)"): break
+    p2.evaluate("LiquidDock._manualMode(false)"); p2.wait_for_timeout(1200)
+    dl = int(np.abs(sA - sB).max()) if sA.shape == sB.shape else 999
+    check('#328 透镜帧：Worker 只改透镜 uniform 重画（drawLens）与主线程整套 uniform 画同一透镜状态逐像素一致（最大差 ≤ 2 级）', dl <= 2, dl)
     name, fr, inwin, cur, xt = busy_tap(p2, True)
     gaps = [b_['t'] - a_['t'] for a_, b_ in zip(fr, fr[1:])]
     check('#328 切页时主线程同步忙 200ms：Worker 透镜在忙碌窗口里照样出帧（≥ 2 帧；软件 GL 下每帧 30~70ms）、最大帧间隔 < 160ms（主线程实现 ≥ 200ms）、落到目标页签（终点 = 弹簧目标 tx，差 < 1.5px）、页面切过去',
