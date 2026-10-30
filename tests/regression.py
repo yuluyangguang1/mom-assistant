@@ -1394,7 +1394,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v286（第 324 次升）', "var CACHE = 'baoma-static-v286';" in sw)
+    check('#275 SW 版本 v287（第 325 次升）', "var CACHE = 'baoma-static-v287';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求；第 300 次多一张浅色字图），整页 HTML < 60KB',
@@ -2751,9 +2751,9 @@ def test_r283(b):
     on2 = ev("(document.querySelector('[data-fcat].on')||{}).textContent")
     p.fill('#fAmt', '9'); ev("(()=>{const i=document.querySelector('#fDate');i.max='';i.value=Util.addDays(Util.todayISO(),2)})()"); ev("document.querySelector('#fSave').click()"); p.wait_for_timeout(200)
     fut = ev("Storage.get().finance.records.length")
-    ev("(()=>{const i=document.querySelector('#fDate');i.value=Util.addDays(Util.todayISO(),-40)})()"); ev("document.querySelector('.rs-head [data-ok]').click()"); p.wait_for_timeout(300)
+    ev("(()=>{const i=document.querySelector('#fDate');i.value=Util.addDays(Util.todayISO(),-40)})()"); ev("document.querySelector('#fSave').click()"); p.wait_for_timeout(300)
     r2 = ev("Storage.get().finance.records")
-    check('#283 分类默认取上一次（奶粉）；未来日期不存；顶栏 ✓ 能保存、可补记 40 天前', on2 == '奶粉' and fut == 1 and len(r2) == 2 and r2[1]['date'] == ev("Util.addDays(Util.todayISO(),-40)") and r2[1]['amount'] == 9, [on2, fut, r2])
+    check('#283 分类默认取上一次（奶粉）；未来日期不存；保存条能保存（第 325 次起顶栏不放 ✓）、可补记 40 天前', on2 == '奶粉' and fut == 1 and len(r2) == 2 and r2[1]['date'] == ev("Util.addDays(Util.todayISO(),-40)") and r2[1]['amount'] == 9, [on2, fut, r2])
     # 点按修改：不新增；删除走撤销
     ev("document.querySelector('[data-fopen]').click()"); p.wait_for_timeout(350)
     ed = ev("({t:document.querySelector('#ftsTitle').textContent,amt:document.querySelector('#fAmt').value,on:(document.querySelector('[data-fcat].on')||{}).textContent,del:!!document.querySelector('[data-fdel]')})")
@@ -2814,7 +2814,7 @@ def test_r284(b):
       act:(q('[data-gm][aria-selected=true]')||{}).dataset.gm,save:!!q('.rs-savebar #grSave'),ok:!!q('.rs-head [data-ok]'),range:{},ctl:{}};
       for(const k of ['height','weight','head']){q('[data-gm='+k+']').click();o.range[k]=q('[data-grange]').textContent;o.ctl[k]=q('#grCtl svg').getAttribute('class')+'|'+q('#grCtl').getAttribute('role')}
       q('[data-gm=weight]').click();o.full=Math.round(q('.gr-sheet').getBoundingClientRect().height);return o})()""")
-    check('#284 记录面板：标题「记录生长」、✕ / ✓、日期默认今天 + 时间、身高 / 体重 / 头围三段都「未填」、默认体重、吸底保存', sh['t'] == '记录生长' and sh['ok'] and sh['date'] == ev("Util.todayISO()") and len(sh['time']) == 5 and sh['segs'] == ['height:身高未填', 'weight:体重未填', 'head:头围未填'] and sh['act'] == 'weight' and sh['save'] and sh['full'] > 700, sh)
+    check('#284 记录面板：标题「记录生长」、✕（第 325 次起顶栏不放 ✓，只留吸底保存）、日期默认今天 + 时间、身高 / 体重 / 头围三段都「未填」、默认体重、吸底保存', sh['t'] == '记录生长' and not sh['ok'] and sh['date'] == ev("Util.todayISO()") and len(sh['time']) == 5 and sh['segs'] == ['height:身高未填', 'weight:体重未填', 'head:头围未填'] and sh['act'] == 'weight' and sh['save'] and sh['full'] > 700, sh)
     check('#284 范围提示 身高 30–160cm / 体重 1–40kg / 头围 20–70cm；身高、头围是横向刻度尺，体重是半圆表盘（role=slider）', sh['range'] == {'height': '30–160cm', 'weight': '1–40kg', 'head': '20–70cm'} and sh['ctl'] == {'height': 'gr-ruler|slider', 'weight': 'gr-dial|slider', 'head': 'gr-ruler|slider'}, sh)
     # 3. 一项都没量：不让存
     n0 = ev("Storage.get().growth.length"); ev("document.querySelector('#grSave').click()"); p.wait_for_timeout(250)
@@ -2841,7 +2841,7 @@ def test_r284(b):
     e1 = ev("(document.querySelector('#modalRoot .field-error')||{}).textContent||''")
     ev("document.querySelector('[data-gm=weight]').click()"); p.fill('#grNum', '0.5'); ev("document.querySelector('#grSave').click()"); p.wait_for_timeout(250)
     e2 = ev("(document.querySelector('#modalRoot .field-error')||{}).textContent||''")
-    p.fill('#grNum', '45'); ev("document.querySelector('.rs-head [data-ok]').click()"); p.wait_for_timeout(250)
+    p.fill('#grNum', '45'); ev("document.querySelector('#grSave').click()"); p.wait_for_timeout(250)
     e3 = ev("(document.querySelector('#modalRoot .field-error')||{}).textContent||''")
     p.fill('#grNum', '3')
     for _ in range(30): ev("document.querySelector('#grCtl').dispatchEvent(new KeyboardEvent('keydown',{key:'PageDown',bubbles:true}))")
@@ -5760,7 +5760,7 @@ def test_r317(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#317 SW 版本 v279+（第 324 次升 v286）', "var CACHE = 'baoma-static-v286';" in sw)
+    check('#317 SW 版本 v279+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
     js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     check('#317 着色器：横向位移只看本行离左右边的距离、纵向位移只看 y（与 x 无关）、都往外取样；内部以中心缩小 uMagI；图标层不缩（gIc）',
           "float tx=tabl(clamp((xe-abs(q.x))/B,0.,1.)),ty=tabl(clamp((hz.y-ya)/B,0.,1.));" in js
@@ -5842,7 +5842,7 @@ def test_r318(b):
     _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
     p.wait_for_timeout(600)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#318 SW 版本 v280+（第 324 次升 v286）', "var CACHE = 'baoma-static-v286';" in sw)
+    check('#318 SW 版本 v280+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
     # —— A1 推入：逐帧采样（rAF）——
     ev("""(()=>{window.__nv=[];const v=document.getElementById('view');const L=()=>{const g=document.querySelector('.nav-ghost');const st=DockRefract._stats();const cv=document.querySelector('#tabbar canvas.lg-gl');
       const m=e=>{const t=getComputedStyle(e).transform;return t&&t!=='none'?new DOMMatrix(t).m41:0};
@@ -5969,7 +5969,7 @@ def test_r319(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#319 SW 版本 v281+（第 324 次升 v286）', "var CACHE = 'baoma-static-v286';" in sw)
+    check('#319 SW 版本 v281+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=3)
     ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
     p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
@@ -6180,7 +6180,7 @@ def test_r320(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#320 SW 版本 v282+（第 324 次升 v286）、dock-fuse.js 进预缓存、index.html 引入', "var CACHE = 'baoma-static-v286';" in sw and "'js/dock-fuse.js'" in sw
+    check('#320 SW 版本 v282+（第 325 次升 v287）、dock-fuse.js 进预缓存、index.html 引入', "var CACHE = 'baoma-static-v287';" in sw and "'js/dock-fuse.js'" in sw
           and '<script src="js/dock-fuse.js" defer></script>' in (ROOT / 'index.html').read_text(encoding='utf-8'))
     # —— 1. 简洁模式移除 + 旧值迁移 ——
     src = {n: (ROOT / n).read_text(encoding='utf-8') for n in ('js/app.js', 'js/modules/settings.js', 'js/liquid-dock.js', 'js/dock-live.js', 'js/dock-refract.js', 'js/util.js', 'js/dock-fuse.js', 'css/styles.css')}
@@ -6425,7 +6425,7 @@ def test_r321(b):
     整条缩放从当前值接着按）；A2 长按 / 拖动速度形变 sx = 1 + min(0.15, |v|/2400)、sy ≈ 0.92/√sx（满形变），停手 120ms 内恢复、点击不做；
     A4 拖动中只换颜色不切页、抬手才切；17 帧点击节奏 / 0.97× / 点击透镜在栏内不变；SW v283。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#321 SW 版本 v283+（第 324 次升 v286）', "var CACHE = 'baoma-static-v286';" in sw)
+    check('#321 SW 版本 v283+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2)
     ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
     p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
@@ -6535,7 +6535,7 @@ def test_r321(b):
 
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321', 'test_r322', 'test_r323', 'test_r324')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321', 'test_r322', 'test_r323', 'test_r324', 'test_r325')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -6578,7 +6578,7 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r301',),
           ('test_r302',),
           ('test_r309',),
-          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',), ('test_r322',), ('test_r323',), ('test_r324',))  # 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',), ('test_r322',), ('test_r323',), ('test_r324',), ('test_r325',))  # 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 
@@ -6589,7 +6589,7 @@ def test_r322(b):
     A3 长按顶过端点页签时栏端被拉出：外凸 = 0.6 × 越界量、上限 7pt，GL 里「透镜 × 一级 dock」单独 k_end = 10 的 smooth-min；Chromium SVG 退化为不外凸、不出错。
     不变：17 帧点击节奏、0.97×、图标 0.24s；SW v284。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#322 SW 版本 v284+（第 324 次升 v286）', "var CACHE = 'baoma-static-v286';" in sw)
+    check('#322 SW 版本 v284+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
     drs = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     css = '\n'.join(pp.read_text(encoding='utf-8') for pp in (ROOT / 'css').glob('*.css'))
     check('#322 不变：透镜内 0.97×、选中图标 dk-pop .24s、A3 只在主程序 dk()（二级融合程序 FSF 里不用 uEP）',
@@ -6712,7 +6712,7 @@ def test_r323(b):
     不带倍率的 px 字号全部改为跟随字号档（等值替换：标准档零视觉差），只留 dock 标签 10px 与装饰字形；字号 lint。SW v285。"""
     import re
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#323 SW 版本 v285+（第 324 次升 v286）', "var CACHE = 'baoma-static-v286';" in sw)
+    check('#323 SW 版本 v285+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
     css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
     nc = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
     root = nc[nc.index(':root'):nc.index('}', nc.index(':root'))]
@@ -6767,7 +6767,7 @@ def test_r324(b):
     """第 324 次（设计审查分批 · 第二批）：对比度——12 个模块页面主按钮白字用加深后的模块色 --tile-fill（≥4.5:1）、时间轴辅助文字统一 --muted（不叠透明度）、
     新增 --placeholder 并全站 ::placeholder 一个颜色；P0——再点当前一级页签只滚回顶部，不清空重画、不闪白。SW v286。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#324 SW 版本 v286', "var CACHE = 'baoma-static-v286';" in sw)
+    check('#324 SW 版本 v286+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
     p, errs = fresh(b)
     ev = p.evaluate
     p.wait_for_timeout(600)
@@ -6823,6 +6823,116 @@ def test_r324(b):
     check('#324 点别的页签照常切页', ev("App.currentTab()") == 'calendar', ev("App.currentTab()"))
     check('#324 无页面错误', not errs, errs)
     p.close()
+
+def test_r325(b):
+    """第 325 次（审查 P1-4 / P2-1）：半屏面板只留一个保存入口——有底部保存条就不放顶栏 ✓（左 × / 标题居中 / 54 高保存条）；
+    「点一下就保存」、没有保存条的面板（生长设置、营养品提醒 / 管理）照旧只有顶栏 ✓；保存条主按钮一种规格（54 / pill / 17/700 / 不带 ✓ 图标）；
+    面板输入控件一套（文本 / 数字 / 日期 / 下拉 = --ctl-h 48、--surface-2、无描边，分段外框 48）。逐个打开面板核对，并实际点保存条存几条记录。SW v287。"""
+    sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
+    check('#325 SW 版本 v287', "var CACHE = 'baoma-static-v287';" in sw)
+    p, errs = fresh(b)
+    ev = p.evaluate
+    p.wait_for_timeout(500)
+    DUMP = r"""()=>{const r=document.querySelector('#modalRoot .rs-body');if(!r)return null;const m=r.closest('.modal');
+      const vis=e=>{const c=getComputedStyle(e);const q=e.getBoundingClientRect();return c.display!=='none'&&c.visibility!=='hidden'&&q.width>0&&q.height>0};
+      const head=r.querySelector('.rs-head');const hb=head?[...head.querySelectorAll('button')].filter(vis):[];
+      const hok=hb.filter(b=>b.hasAttribute('data-ok')||/保存|完成/.test(b.getAttribute('aria-label')||''));
+      const bar=[...m.querySelectorAll('.rs-savebar button')].filter(vis).filter(b=>!b.matches('.ft-go,.rs-del,[data-go]'));
+      const x=head&&head.querySelector('.rs-x');const h2=head&&head.querySelector('h2');
+      const hq=h2?h2.getBoundingClientRect():null,mq=m.getBoundingClientRect();
+      const sb=bar.map(b=>{const c=getComputedStyle(b);return {tx:b.textContent.trim(),h:Math.round(b.getBoundingClientRect().height),fw:c.fontWeight,fs:parseFloat(c.fontSize),br:parseFloat(c.borderRadius),ico:[...b.querySelectorAll('svg')].some(vis)}});
+      const ins=[...m.querySelectorAll('input,select,textarea')].filter(e=>vis(e)&&!e.classList.contains('ft-hid')&&!e.classList.contains('gr-num')&&!e.closest('.sk-num,.ft-sv,.ft-amtbox,.sd-qv,.mw-inbox,.gr-numwrap,.su-big,.su-nin,.spw-row,.su-prow')&&!['checkbox','radio','file','range','hidden'].includes(e.type))
+        .map(e=>{const c=getComputedStyle(e);return {k:e.tagName+':'+e.type+'#'+(e.id||e.className),h:Math.round(e.getBoundingClientRect().height),bg:c.backgroundColor,bw:c.borderTopColor==='rgba(0, 0, 0, 0)'||c.borderTopWidth==='0px'}});
+      const segs=[...m.querySelectorAll('.rs-seg,.ft-seg')].filter(vis).map(e=>Math.round(e.getBoundingClientRect().height));
+      return {t:h2?h2.textContent.trim():'',x:!!x&&vis(x)&&x.getBoundingClientRect().left-mq.left<70,ctr:hq?Math.abs(hq.left+hq.width/2-(mq.left+mq.width/2))<3:false,
+        hok:hok.length,bar:bar.length,sb:sb,ins:ins,segs:segs}}"""
+    s2 = ev("(()=>{const e=document.createElement('i');e.style.color='var(--surface-2)';document.body.appendChild(e);const c=getComputedStyle(e).color;e.remove();return c})()")
+    S = SEED_V3
+    def reset():
+        ev('t=>Storage.importJSON(t)', S); p.reload(); p.wait_for_timeout(700)
+    def go(m):
+        ev("id=>App.showTab(id,{noAnim:true,noSlide:true,noVT:true})", m); p.wait_for_timeout(300)
+    def close():
+        ev("()=>{const r=document.getElementById('modalRoot');if(r)r.innerHTML='';try{Sheet.sync()}catch(e){}}"); p.wait_for_timeout(80)
+    def dump():
+        ev("()=>{if(document.activeElement&&document.activeElement.blur)document.activeElement.blur()}"); p.wait_for_timeout(300)   # 聚焦描边有过渡，失焦后等它走完
+        return ev(DUMP)
+    seen = {}
+    MODS = ['diaper', 'breast', 'bottle', 'pump', 'solid', 'sleep', 'temp', 'growth', 'jaundice', 'meds', 'water', 'mood', 'sun', 'swim', 'bath',
+            'milestone', 'sick', 'vaccine', 'supplement', 'supplies', 'packing', 'momweight', 'period', 'prenatal', 'contraction', 'fetal', 'finance']
+    reset()
+    for m in MODS:
+        go(m)
+        n = ev("()=>[...document.querySelectorAll('.mod-cta button')].filter(b=>b.offsetParent).length")
+        for i in range(n):
+            go(m)
+            ev("i=>{const b=[...document.querySelectorAll('.mod-cta button')].filter(b=>b.offsetParent)[i];if(b)b.click()}", i); p.wait_for_timeout(420)
+            d = dump()
+            if d: seen[f'R_{m}_{i}'] = d; close()
+            elif ev("!!document.querySelector('.ftf')"): reset()   # 开了全屏计时：复位数据
+            else: close()
+        go(m)
+        if ev("()=>{const e=document.querySelector('#view [data-open], #view .tl-card, #view .dpt-row, #view li [data-del]');if(!e)return 0;(e.matches('[data-del]')?e.closest('li'):e).click();return 1}"):
+            p.wait_for_timeout(420); d = dump()
+            if d: seen[f'E_{m}'] = d
+            close()
+    EXTRA = {'P_growth_gear': ('growth', "document.querySelector('[data-gset]').click()"),
+             'P_momweight_pre': ('momweight', "document.querySelector('[data-mw=pre]').click()"),
+             'P_contraction_rules': ('contraction', "document.querySelector('[data-ct=rule]').click()"),
+             'P_supp_remind': ('supplement', "document.querySelector('.sp-item').click()"),
+             'P_supp_manage': ('supplement', "document.querySelector('#view [data-manage], #view [data-mg]').click()"),
+             'P_packing_add': ('packing', "Modules.packing._open()"),
+             'P_supplies_new': ('supplies', "Modules.supplies._openEditor(null,null)"),
+             'P_milestone_obs': ('milestone', "Modules.milestone._obs()"),
+             'P_caljump': ('calendar', "document.querySelector('[data-calpick], #view [aria-label*=跳转], .cal-jump').click()")}
+    for k, (m, js) in EXTRA.items():
+        go(m)
+        try: ev("()=>{" + js + "}")
+        except Exception: continue
+        p.wait_for_timeout(420); d = dump()
+        if d: seen[k] = d
+        close()
+    withbar = {k: v for k, v in seen.items() if v['bar']}
+    check('#325 逐个打开面板：有保存条的面板 ≥ 30 个（新增 / 修改 / 其它），都能打开', len(withbar) >= 30, sorted(seen))
+    bad = {k: [v['hok'], v['bar']] for k, v in seen.items() if v['hok'] + v['bar'] != 1 and k not in ('P_caljump', 'R_supplies_0')}
+    check('#325 每个面板有且只有一个保存入口：有保存条就没有顶栏 ✓；没有保存条的（生长设置 / 营养品提醒 / 管理 / 发育对照）只有顶栏 ✓', not bad, bad)
+    check('#325 跳转日期 / 选择物件：没有保存入口（点一项就走）', all(seen[k]['hok'] + seen[k]['bar'] == 0 for k in ('P_caljump', 'R_supplies_0') if k in seen), [seen.get('P_caljump'), seen.get('R_supplies_0')])
+    keep = [k for k in ('P_growth_gear', 'P_supp_remind', 'P_supp_manage') if k in seen]
+    check('#325 「点一下就保存」的面板照旧留顶栏 ✓（生长设置 / 营养品提醒 / 管理营养品）', len(keep) >= 2 and all(seen[k]['hok'] == 1 and seen[k]['bar'] == 0 for k in keep), {k: seen.get(k) for k in keep})
+    lay = {k: [v['x'], v['ctr']] for k, v in seen.items() if not (v['x'] and v['ctr']) and k != 'R_supplement_0'}
+    check('#325 面板头：左上 × 关闭、标题居中（营养品向导有自己的进度头，除外）', not lay, lay)
+    sbad = {k: v['sb'] for k, v in withbar.items() if not all(x['h'] == 54 and x['fw'] == '700' and abs(x['fs'] - 17) < .6 and x['br'] >= 27 and not x['ico'] and '✓' not in x['tx'] for x in v['sb'])}
+    check('#325 保存条主按钮一种规格：54 高、pill、17/700、文字不带 ✓ 图标（原来 48 / 52 / 54 / 60，字重 400 / 700 混用）', not sbad, sbad)
+    ibad = {k: [x for x in v['ins'] if not (x['k'].startswith('TEXTAREA') or x['h'] == 48) or x['bg'] != s2 or not x['bw']] for k, v in seen.items()}
+    ibad = {k: v for k, v in ibad.items() if v}
+    nin = sum(len(v['ins']) for v in seen.values())
+    check('#325 面板输入框一套：文本 / 数字 / 日期 / 下拉 48 高、--surface-2 底、无描边（textarea 同底同描边、高度按行数）', nin >= 25 and not ibad, [nin, ibad])
+    gbad = {k: v['segs'] for k, v in seen.items() if any(h != 48 and h < 80 for h in v['segs'])}
+    check('#325 分段选择外框统一 48（--ctl-h，选项 40）', not gbad, gbad)
+    css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
+    check('#325 控件高度用 token：--ctl-h 48 / --ctl-r / --ctl-tile-h 64，保存条用 --btn-h', '--ctl-h: 48px; --ctl-r: var(--r-sm); --ctl-tile-h: 64px;' in css and 'min-height: var(--btn-h); height: var(--btn-h);' in css)
+    # —— 保存功能：实际点保存条 ——
+    reset()
+    cnt = lambda arr: ev(f"(Storage.get().{arr}||[]).length")
+    res = {}
+    n0 = cnt('diapers'); go('diaper'); ev("Modules.diaper._open()"); p.wait_for_timeout(350)
+    ev("document.querySelector('#modalRoot [data-t]').click()"); p.wait_for_timeout(150)
+    ev("document.querySelector('#modalRoot .rs-savebar [data-ok]').click()"); p.wait_for_timeout(300); res['diaper'] = [n0, cnt('diapers')]
+    n0 = cnt('temps'); go('temp'); ev("document.querySelector('.mod-cta button').click()"); p.wait_for_timeout(350)
+    ev("(()=>{const i=document.querySelector('#modalRoot .sk-num input');i.value='37.2';i.dispatchEvent(new Event('input',{bubbles:true}))})()")
+    ev("document.querySelector('#modalRoot .rs-savebar .rs-save').click()"); p.wait_for_timeout(300); res['temp'] = [n0, cnt('temps')]
+    n0 = cnt('feedings'); go('breast'); ev("Modules.breast._manual()"); p.wait_for_timeout(350)
+    ev("(()=>{const i=document.querySelector('#modalRoot .ft-sv input');i.value='12';i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}))})()")
+    ev("document.querySelector('#modalRoot .rs-savebar .ft-save').click()"); p.wait_for_timeout(300); res['breast'] = [n0, cnt('feedings')]
+    n0 = ev("Storage.get().finance.records.length"); go('finance'); ev("document.querySelector('[data-fnew]').click()"); p.wait_for_timeout(350)
+    p.fill('#fAmt', '19'); ev("document.querySelector('#modalRoot .rs-savebar #fSave').click()"); p.wait_for_timeout(300); res['finance'] = [n0, ev("Storage.get().finance.records.length")]
+    go('packing'); n0 = ev("Storage.get().packing.items.length"); ev("Modules.packing._open()"); p.wait_for_timeout(350)
+    p.fill('#pkName', '测试物品325'); ev("document.querySelector('#modalRoot .rs-savebar [data-pksave]').click()"); p.wait_for_timeout(300); res['packing'] = [n0, ev("Storage.get().packing.items.length")]
+    ok = {k: v for k, v in res.items() if v[1] != v[0] + 1}
+    check('#325 保存条保存有效：尿布 / 体温（ModSkel）/ 补记亲喂 / 记一笔 / 待产包各点一次保存条，各新增 1 条、面板关闭', not ok and not ev("!!document.querySelector('#modalRoot .rs-body')"), res)
+    check('#325 无 JS 报错', not errs, errs)
+    p.close()
+
 
 def test_r309(b):
     """第 309 次：dock 拖动透镜（定稿 mock303n · 第十四版）——静止灰胶囊、按下鼓成透镜、中间 1:1 外沿折射、拖动跟手 + 色散随速度、松手吸附缩回、WebGL 路径、降级。"""
@@ -7270,7 +7380,7 @@ def test_r316(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready", 5000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#316 SW 版本 v278+（第 324 次升 v286）', "var CACHE = 'baoma-static-v286';" in sw)
+    check('#316 SW 版本 v278+（第 325 次升 v287）', "var CACHE = 'baoma-static-v287';" in sw)
     ph = ev("LiquidDock.PHYS")
     check('#316 弹簧参数：点击滑行 tap 临界阻尼 k≈600、点击速度形变 ×0.45、收回 k≥1500（~4 帧）、松手吸附 k 560、提前收回阈值',
           ph['tap']['k'] == 600 and ph['tap']['z'] >= 1 and abs(ph['tapV'] - 0.45) < 1e-6 and ph['shrink']['k'] >= 1500 and ph['snap']['k'] == 560

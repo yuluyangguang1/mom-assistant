@@ -83,7 +83,7 @@
   function openPre(d) {
     var FT = global.FTUI; if (!FT || !canOpen()) return;
     var body = '<p class="mw-tip">填写孕前身高和体重后，可显示孕前 BMI 和推荐增重区间。</p>' + preFields(pg(d), preOf(d))
-      + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" id="mwPreSave">' + icon('check') + '<span>保存孕前信息</span></button></div>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" id="mwPreSave">' + '<span>保存孕前信息</span></button></div>';
     FT.openSheet('momweight', '孕前信息', body, function (api) {
       var box = api.box, done = false;
       box.addEventListener('click', function (e) {
@@ -115,7 +115,7 @@
       + '<p class="mw-delta" data-mwdelta></p>'
       + '<div class="gr-ctl is-dial" id="mwCtl"></div>'
       + (editing ? '<button type="button" class="btn rs-del" data-mwdel>删除这条记录</button>' : '')
-      + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" id="mwSave">' + icon('check') + '<span>' + (editing ? '保存修改' : '保存') + '</span></button></div>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" id="mwSave">' + '<span>' + (editing ? '保存修改' : '保存') + '</span></button></div>';
     FT.openSheet('momweight', editing ? '修改体重记录' : '新增体重记录', body, function (api) {
       var box = api.box, closed = false, saving = false;
       var panel = box.closest('.modal'); if (panel) panel.classList.add('gr-sheet', 'mw-sheet');

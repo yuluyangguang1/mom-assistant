@@ -177,8 +177,7 @@
     function body() {
       var c = colorOf(st.color);
       var h = '<div class="rs-head"><button type="button" class="rs-x" data-x aria-label="关闭">' + icon('close') + '</button>'
-        + '<h2 id="dpsTitle">' + (editing ? '修改尿布记录' : '记录尿布') + '</h2>'
-        + '<button type="button" class="rs-ok" data-ok aria-label="保存">' + icon('check') + '</button></div>';
+        + '<h2 id="dpsTitle">' + (editing ? '修改尿布记录' : '记录尿布') + '</h2></div>'; /* 第 325 次：保存只留底部保存条，顶栏不放 ✓ */
       /* 第 242 次：日期 / 时间磁贴与亲喂、瓶喂、睡眠面板统一（「今天」「14:46」，不露系统输入框样式） */
       h += global.FTUI ? global.FTUI.whenTiles('dps', '', date0, hm0, today).replace('<p class="rs-lbl"></p>', '')
         : '<div class="rs-when">'

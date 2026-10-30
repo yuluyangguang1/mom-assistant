@@ -153,6 +153,8 @@
   --r-xs: 8px; --r-sm: 14px; --r-lg: 24px; --r-pill: 999px;
   /* 按钮高：主按钮 54 / 次按钮 44 / 图标按钮 40（dock 44 不动）/ 最小点按区 44 */
   --btn-h: 54px; --btn-h-2: 44px; --btn-icon: 40px; --tap-min: 44px;
+  /* 第 325 次：面板输入控件一套——文本 / 数字 / 日期 / 下拉 / 分段外框 48，圆角 14，数值磁贴 / 时间磁贴 64 */
+  --ctl-h: 48px; --ctl-r: var(--r-sm); --ctl-tile-h: 64px;
   /* 动效时长：按压 120 / 控件 200（--dur-page 320、--dur-in 420、--dur-out 300 已有）；控件曲线 --ease-out */
   --dur-press: 120ms; --dur-ctl: 200ms;
   --ease-out: cubic-bezier(.2, .8, .2, 1);
@@ -7379,3 +7381,37 @@ html body.fz-sub .mod-cta > .fd-mode small { font-size: calc(10px * var(--fs-mul
 html body.fz-sub .mod-cta .ft-split-add { width: 52px; }
 html body.fz-sub .mod-cta .ft-split-main span, html body.fz-sub .mod-cta > .mc-main span { white-space: nowrap; }
 html body.fz-sub .fd-cta { gap: 10px; }
+
+/* ============================================================
+   第 325 次（审查 P1-4 / P2-1，tokens §1.3-B、§3.3、§3.5）：半屏面板标准件
+   ① 保存只留底部保存条（顶栏 ✓ 由 FTUI.openSheet 在有 .rs-savebar 时摘掉）；
+   ② 保存条主按钮一种规格：54 高（--btn-h）、pill、17/700，文字不带 ✓ 图标；
+   ③ 输入控件一套：文本 / 数字 / 日期 / 时间 / 下拉 = --ctl-h 48、--ctl-r 14、--surface-2 底、无描边（聚焦 2px 模块色描边）、字 16 防 iOS 放大；
+      分段选择外框 = --ctl-h（选项 40）、pill、--surface-2；数值磁贴（体温 / 黄疸 / 饮水…的大数字格）与时间 / 日期磁贴同高 --ctl-tile-h 64。
+   不在范围内：步进器（± 圆钮 + 大数字）、生长的两行分段 / 刻度尺、奶瓶刻度、用品编辑里「列表行」右侧的行内输入（设置式分组列表）——这些是带数值的复合控件，不按输入框算。
+   ============================================================ */
+body .rec-sheet .rs-savebar :is(.rs-save, .ft-save) {
+  min-height: var(--btn-h); height: var(--btn-h); border-radius: var(--r-pill);
+  font-size: var(--t-md); font-weight: 700; line-height: 1.2;
+}
+body .rec-sheet .rs-savebar :is(.rs-save, .ft-save) .ico { display: none; }
+body .rec-sheet :is(input[type=text], input[type=number], input[type=search], input[type=date], input[type=time], input[type=tel], input[type=email], input:not([type]), select):not(.ft-hid):not(.gr-num):not(:is(.sk-num, .ft-sv, .ft-amtbox, .sd-qv, .mw-inbox, .gr-numwrap, .su-big, .su-nin, .spw-row, .su-prow) *) {
+  height: var(--ctl-h); min-height: var(--ctl-h); padding: 0 var(--s-4);
+  border: 1px solid transparent; border-radius: var(--ctl-r); background: var(--surface-2); color: var(--text);
+  font-size: max(16px, calc(16px * var(--fs-mul, 1))); line-height: normal; box-shadow: none;
+}
+body .rec-sheet textarea {
+  min-height: calc(var(--ctl-h) * 2); padding: var(--s-3) var(--s-4);
+  border: 1px solid transparent; border-radius: var(--ctl-r); background: var(--surface-2); color: var(--text);
+  font-size: max(16px, calc(16px * var(--fs-mul, 1))); box-shadow: none;
+}
+body .rec-sheet :is(input, select, textarea):not(.ft-hid):not(.gr-num):not(:is(.sk-num, .ft-sv, .ft-amtbox, .sd-qv, .mw-inbox, .gr-numwrap, .su-big, .su-nin, .spw-row, .su-prow) *):focus {
+  outline: none; border-color: var(--tile, var(--primary)); box-shadow: 0 0 0 1px var(--tile, var(--primary)); background: var(--surface-2);
+}
+body .rec-sheet :is(input, select, textarea).is-invalid:not(.gr-num) { border-color: var(--danger); background: var(--danger-weak); }
+body .rec-sheet :is(.rs-seg, .ft-seg) { min-height: var(--ctl-h); padding: 4px; gap: 4px; border-radius: var(--r-pill); background: var(--surface-2); }
+body .rec-sheet :is(.rs-seg, .ft-seg) > button { min-height: calc(var(--ctl-h) - 8px); }
+body .rec-sheet .rs-tile.sk-num { min-height: var(--ctl-tile-h); align-items: center; }
+body .rec-sheet .rs-when .rs-tile { min-height: var(--ctl-tile-h); }
+/* 产检 / 宝妈体重的大数字输入格（原来模块色浅底，审查里的「第三种蓝底输入框」）：和数值磁贴同底同高 */
+body .rec-sheet .mw-inbox { min-height: var(--ctl-tile-h); align-items: center; border-radius: var(--ctl-r); background: var(--surface-2); }

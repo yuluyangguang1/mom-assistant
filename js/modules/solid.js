@@ -156,7 +156,7 @@
       + '<textarea class="sd-in sd-ta" id="sdNote" maxlength="200" rows="3" placeholder="可选">' + esc(editing ? (rec.note || '') : '') + '</textarea>'
       + (PH ? '<div data-phbox></div>' : '')
       + (editing ? '<button type="button" class="btn rs-del" data-sdel>删除这条记录</button>' : '')
-      + '<div class="rs-savebar sd-savebar"><button type="button" class="btn ft-save sd-save" data-sdsave>' + icon('check') + '保存</button></div>';
+      + '<div class="rs-savebar sd-savebar"><button type="button" class="btn ft-save sd-save" data-sdsave>保存</button></div>';
 
     F.openSheet('solid', editing ? '修改辅食' : '辅食', body, function (api) {
       var box = api.box, qIn = box.querySelector('#sdQty');
@@ -254,7 +254,7 @@
         if (b.hasAttribute('data-sdel')) { api.close(); removeRec(rec.id); return; }
         if (b.hasAttribute('data-sdsave')) { save(); return; }
       });
-      box.parentNode.parentNode.querySelector('[data-ok]').addEventListener('click', save);
+      var hok = box.parentNode.parentNode.querySelector('.rs-head > [data-ok]'); if (hok) hok.addEventListener('click', save);
 
       function save() {
         if (busy) { Util.toast('照片还在保存，稍等一下', 'warn'); return; }

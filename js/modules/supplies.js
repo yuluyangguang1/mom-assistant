@@ -787,7 +787,7 @@
           }
           h += '</div>';
         }
-        h += '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" data-done>' + icon('check') + '<span>完成</span></button></div>';
+        h += '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" data-done>' + '<span>完成</span></button></div>';
         wrap.innerHTML = h;
         if (Global_Photos()) Photos.hydrate(wrap);
       }
@@ -966,7 +966,7 @@
           + '<span class="sd-step su-step"><button type="button" data-bstep="-1" aria-label="减少"' + (st.n > 0 ? '' : ' disabled') + '>−</button><i aria-hidden="true"></i><button type="button" data-bstep="1" aria-label="增加">+</button></span></div>'
           + '<div class="su-grp"><div class="spw-row su-prow"><span>花了多少</span><span class="su-nin"><input type="number" inputmode="decimal" id="byPrice" min="0" step="0.01" placeholder="选填" value="' + esc(st.price) + '" aria-label="价格"><i>元</i></span></div>'
           + '<label class="spw-row su-prow spw-line chk"><span>同时在记账里记这一笔</span><input type="checkbox" id="byAlsoCost"' + (st.cost ? ' checked' : '') + '></label></div>'
-          + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" id="bySave">' + icon('check') + '<span>记录补货</span></button></div>';
+          + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" id="bySave">' + '<span>记录补货</span></button></div>';
       }
       function rd() {
         var bn = wrap.querySelector('#byN'), n = num(bn.value); if (isFinite(n) && n >= 0) st.n = Math.min(PIECES_MAX, n);
@@ -1021,7 +1021,7 @@
         });
         h += '</div><p class="spw-hint">至少保留一个清单；清单里还有用品时不能删。</p>';
         if (rows.length < LIST_MAX) h += '<button type="button" class="btn su-lsadd" data-lsadd>' + icon('plus') + '<span>新建清单</span></button>';
-        h += '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" data-lsok>' + icon('check') + '<span>完成</span></button></div>';
+        h += '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" data-lsok>' + '<span>完成</span></button></div>';
         wrap.innerHTML = h;
       }
       paint();
@@ -1051,7 +1051,7 @@
         wrap.innerHTML = '<div class="su-grp"><div class="spw-row su-prow"><span class="su-rmt"><b>用品提醒</b><small>到点或低库存时，在首页提醒卡里提醒</small></span>'
           + '<button type="button" class="rs-switch" role="switch" data-rmsw aria-checked="' + on + '" aria-label="用品提醒"><i></i></button></div></div>'
           + '<p class="spw-hint">提醒只在这台手机上，打开应用时出现，不会发送到服务器。</p>'
-          + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" data-rmok>' + icon('check') + '<span>完成</span></button></div>';
+          + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" data-rmok>' + '<span>完成</span></button></div>';
       }
       paint();
       function save() { d.settings.supRemind = on; Storage.save(); api.close(); global.App.rerender(); }

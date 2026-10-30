@@ -185,7 +185,7 @@
       + '<label class="rs-note"><span class="rs-lbl">备注</span><input type="text" id="mlNote" maxlength="60" placeholder="当时的情景，可选" value="' + esc(editing ? rec.note || '' : '') + '"></label>'
       + (PH ? '<div id="mlPh"></div>' : '')
       + (editing ? '<button type="button" class="btn rs-del" data-mldel>删除这条记录</button>' : '')
-      + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" id="mlSave">' + icon('check') + '<span>' + (editing ? '保存修改' : '保存') + '</span></button></div>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" id="mlSave">' + '<span>' + (editing ? '保存修改' : '保存') + '</span></button></div>';
 
     FT.openSheet('milestone', editing ? '修改里程碑' : '记一个第一次', body, function (api) {
       var box = api.box, closed = false, busy = false, saving = false;

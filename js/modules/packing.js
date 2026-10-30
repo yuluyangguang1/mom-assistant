@@ -101,7 +101,7 @@
         wrap.innerHTML = '<input type="text" class="pk-in" id="pkName" maxlength="' + NAME_MAX + '" placeholder="物品名称" value="' + esc(st.name) + '" aria-label="物品名称">'
           + '<div class="rs-seg pk-seg" role="radiogroup" aria-label="分组">' + GROUPS.map(function (g) { return '<button type="button" role="radio" data-pkg="' + g + '" class="' + (st.cat === g ? 'on' : '') + '" aria-checked="' + (st.cat === g) + '">' + g + '</button>'; }).join('') + '</div>'
           + (it ? '<button type="button" class="btn rs-del" data-pkdel>删除这件物品</button>' : '')
-          + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" data-pksave>' + icon('check') + '<span>保存</span></button></div>';
+          + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" data-pksave>' + '<span>保存</span></button></div>';
       }
       paint();
       var ni = function () { return wrap.querySelector('#pkName'); };

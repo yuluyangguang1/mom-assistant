@@ -110,9 +110,18 @@
   }
 
   /* ---------- 底部半屏面板（挂在 #modalRoot，sheet.js 自动贴底） ---------- */
-  function openSheet(accent, title, bodyHTML, onReady) {
+  /* 第 325 次（审查 P1-4）：每个面板只有一个保存入口——内容里有底部保存条（.rs-savebar）时，顶栏不放 ✓
+     （onReady 之后、以及之后内容重画出保存条时，都把顶栏 ✓ 摘掉；左 × 中标题的三列栅格不变，标题仍居中）。
+     没有保存条、「点一下就保存」的面板（生长设置、营养品提醒 / 管理）照旧留顶栏 ✓。opts.keepOk 强制保留。 */
+  function pruneOk(box) {
+    if (!box.querySelector('.rs-savebar')) return;
+    var ok = box.querySelector('.rs-head > [data-ok]');
+    if (ok && ok.parentNode) ok.parentNode.removeChild(ok);
+  }
+  function openSheet(accent, title, bodyHTML, onReady, opts) {
     var root = document.getElementById('modalRoot');
     if (!root) return null;
+    opts = opts || {};
     root.innerHTML = '<div class="modal-mask" data-ft-mask><div class="modal rec-sheet ft-sheet" role="dialog" aria-modal="true" aria-labelledby="ftsTitle" data-accent="' + accent + '"><div class="rs-body">'
       + '<div class="rs-head"><button type="button" class="rs-x" data-x aria-label="关闭">' + icon('close') + '</button>'
       + '<h2 id="ftsTitle">' + esc(title) + '</h2>'
@@ -126,15 +135,24 @@
     var closed = false;
     function close() {
       if (!closed) { closed = true; if (api && typeof api.onClose === 'function') { try { api.onClose(); } catch (e) { /* 不挡关闭 */ } } }
+      if (mo) { mo.disconnect(); mo = null; }
       if (root.contains(mask)) root.innerHTML = '';
       document.removeEventListener('keydown', onKey); if (global.Sheet) Sheet.sync();
     }
+    var mo = null;
     document.addEventListener('keydown', onKey);
     mask.addEventListener('click', function (e) { if (e.target === mask) close(); });
     box.querySelector('[data-x]').addEventListener('click', close);
     var api = { box: box, close: close };
     bindWhen(box);
     if (onReady) onReady(api);
+    if (!opts.keepOk && !closed && box.isConnected) {
+      pruneOk(box);
+      if (global.MutationObserver && box.querySelector('.rs-head > [data-ok]')) {
+        mo = new MutationObserver(function () { pruneOk(box); if (!box.querySelector('.rs-head > [data-ok]') && mo) { mo.disconnect(); mo = null; } });
+        mo.observe(box, { childList: true, subtree: true });
+      }
+    }
     return api;
   }
   /* 第 278 次（审计 #39）：minDate 选填（辅食传宝宝生日），日期框最早只到这天 */
@@ -366,7 +384,7 @@
     var body = whenTiles('e', '结束时间', isoDay(now), hm(now), isoDay(now))
       + '<div class="ft-quick">' + [0, 5, 10, 15].map(function (m) { return '<button type="button" class="ft-q' + (m ? '' : ' is-on') + '" data-back="' + m + '">' + (m ? m + ' 分钟前' : '现在') + '</button>'; }).join('') + '</div>'
       + '<p class="hint ft-hint" data-sum></p>'
-      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-save>' + icon('check') + '保存</button></div>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-save>保存</button></div>';
     openSheet('breast', '保存亲喂', body, function (api) {
       var box = api.box, endPick = 0; /* 0 = 现在（精确到秒）；>0 = N 分钟前；-1 = 手动改过 */
       function endMs() {
@@ -432,7 +450,7 @@
         api.close(); closeFull(); global.App.rerender();
       }
       box.querySelector('[data-save]').addEventListener('click', save);
-      box.parentNode.parentNode.querySelector('[data-ok]').addEventListener('click', save);
+      var hok = box.parentNode.parentNode.querySelector('.rs-head > [data-ok]'); if (hok) hok.addEventListener('click', save);
     });
   }
 
@@ -446,7 +464,7 @@
           + '<button type="button" class="ft-sb" data-d="1" aria-label="增加">+</button></div>';
       }).join('')
       + '<label class="rs-lbl ft-note">备注<input type="text" id="mNote" maxlength="40" placeholder="可选"></label>'
-      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-save>' + icon('check') + '保存</button></div>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-save>保存</button></div>';
     openSheet('breast', '补记亲喂', body, function (api) {
       var box = api.box;
       Array.prototype.forEach.call(box.querySelectorAll('[data-step]'), function (w) {
@@ -476,7 +494,7 @@
         api.close(); global.App.rerender();
       }
       box.querySelector('[data-save]').addEventListener('click', save);
-      box.parentNode.parentNode.querySelector('[data-ok]').addEventListener('click', save);
+      var hok = box.parentNode.parentNode.querySelector('.rs-head > [data-ok]'); if (hok) hok.addEventListener('click', save);
     });
   }
 
@@ -744,7 +762,7 @@
         api.close(); global.App.rerender();
       }
       box.querySelector('[data-save]').addEventListener('click', save);
-      box.parentNode.parentNode.querySelector('[data-ok]').addEventListener('click', save);
+      var hok = box.parentNode.parentNode.querySelector('.rs-head > [data-ok]'); if (hok) hok.addEventListener('click', save);
       box.querySelector('[data-go]').addEventListener('click', function () {
         var v = readAmt(); if (v == null) return;
         var dd = Storage.get();

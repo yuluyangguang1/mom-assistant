@@ -216,7 +216,7 @@
       + '<div class="pa-btl" data-pbtl></div>'
       + '<p class="pa-val"><b data-pval>0</b><small>ml</small></p>'
       + '<p class="hint pa-sum" data-psum></p>'
-      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-psave>' + icon('check') + (finish ? '保存这次泵奶' : '好了') + '</button></div>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-psave>' + (finish ? '保存这次泵奶' : '好了') + '</button></div>';
     FT().openSheet('pump', finish ? '结束泵奶' : '奶量', body, function (api) {
       var box = api.box;
       function paint() {
@@ -274,7 +274,7 @@
         api.close(); closeFull(); if (global.App) App.rerender();
       }
       box.querySelector('[data-psave]').addEventListener('click', done);
-      box.parentNode.parentNode.querySelector('[data-ok]').addEventListener('click', done);
+      var hok = box.parentNode.parentNode.querySelector('.rs-head > [data-ok]'); if (hok) hok.addEventListener('click', done);
       /* 不保存直接关面板：计时中填的奶量也留着。
          第 273 次（审计 #17：原来只接了 ✕，点遮罩 / 下拉关掉就丢）：挂在面板的 onClose 上，所有关法一致 */
       api.onClose = function () { if (keep() && fullEl) paintFull(); };
@@ -295,7 +295,7 @@
       + '<p class="rs-lbl">左侧</p>' + stepper('LM', '时长', '分钟', 120, 1) + stepper('LA', '奶量', 'ml', PMAX, 5)
       + '<p class="rs-lbl">右侧</p>' + stepper('RM', '时长', '分钟', 120, 1) + stepper('RA', '奶量', 'ml', PMAX, 5)
       + '<label class="rs-lbl ft-note">备注<input type="text" id="pmNote" maxlength="40" placeholder="可选"></label>'
-      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-pmsave>' + icon('check') + '保存</button></div>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-pmsave>保存</button></div>';
     F.openSheet('pump', '补记泵奶', body, function (api) {
       var box = api.box;
       if (last) {
@@ -330,7 +330,7 @@
         api.close(); if (global.App) App.rerender();
       }
       box.querySelector('[data-pmsave]').addEventListener('click', save);
-      box.parentNode.parentNode.querySelector('[data-ok]').addEventListener('click', save);
+      var hok = box.parentNode.parentNode.querySelector('.rs-head > [data-ok]'); if (hok) hok.addEventListener('click', save);
     });
   }
 

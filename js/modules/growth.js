@@ -315,7 +315,7 @@
       + '<div class="gr-ctl" id="grCtl"></div>'
       + '<p class="gr-clr-row"><button type="button" class="btn-mini gr-clear" data-gclear hidden>不记这一项</button></p>'
       + (editing ? '<button type="button" class="btn rs-del" data-gdel>删除这条记录</button>' : '')
-      + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save gr-save" id="grSave">' + icon('check') + '<span>' + (editing ? '保存修改' : '保存') + '</span></button></div>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save gr-save" id="grSave">' + '<span>' + (editing ? '保存修改' : '保存') + '</span></button></div>';
 
     FT.openSheet('growth', editing ? '修改生长记录' : '记录生长', body, function (api) {
       var box = api.box, closed = false, saving = false, ctl = null;

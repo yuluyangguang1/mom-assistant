@@ -125,7 +125,7 @@
       + (PH ? '<div id="skPh"></div>' : '')
       + '<p class="rs-hint sk2-foot">这里只做记录，不提醒，也不做任何判断或用药建议。</p>'
       + (editing ? '<button type="button" class="btn rs-del" data-skdel>删除这条记录</button>' : '')
-      + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" id="skSave">' + icon('check') + '<span>' + (editing ? '保存修改' : '保存') + '</span></button></div>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" id="skSave">' + '<span>' + (editing ? '保存修改' : '保存') + '</span></button></div>';
 
     FT.openSheet('sick', editing ? '修改生病记录' : '记一次生病', body, function (api) {
       var box = api.box, closed = false, busy = false, saving = false;

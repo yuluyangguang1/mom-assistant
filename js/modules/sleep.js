@@ -221,7 +221,7 @@
       + '<button type="button" class="ft-sb" data-d="1" aria-label="增加">+</button></div>'
       + '<label class="rs-lbl ft-note">备注<input type="text" id="slNote" maxlength="40" placeholder="可选"></label>'
       + '<p class="hint">忘了记也没关系，漏记不会清零，回来补上就行。</p>'
-      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-save>' + icon('check') + '保存</button></div>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary ft-save" data-save>保存</button></div>';
     ui.openSheet('sleep', '补记睡眠', body, function (api) {
       var box = api.box, inp = box.querySelector('#slWk');
       Array.prototype.forEach.call(box.querySelectorAll('[data-d]'), function (b) {
@@ -242,7 +242,7 @@
         api.close(); global.App.rerender();
       }
       box.querySelector('[data-save]').addEventListener('click', save);
-      box.parentNode.parentNode.querySelector('[data-ok]').addEventListener('click', save);
+      var hok = box.parentNode.parentNode.querySelector('.rs-head > [data-ok]'); if (hok) hok.addEventListener('click', save);
     });
   }
 

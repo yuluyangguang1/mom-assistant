@@ -109,7 +109,7 @@
       + '<p class="rs-lbl">备注</p><textarea id="pvNote" class="pv-note" rows="3" maxlength="200" placeholder="医生建议、下次复查事项，可选">' + esc(editing ? rec.note || '' : '') + '</textarea>'
       + (PH ? '<div id="pvPh"></div>' : '')
       + (editing ? '<button type="button" class="btn rs-del" data-pvdel>删除这条记录</button>' : '')
-      + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" id="pvSave">' + icon('check') + '<span>' + (editing ? '保存修改' : '保存') + '</span></button></div>';
+      + '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" id="pvSave">' + '<span>' + (editing ? '保存修改' : '保存') + '</span></button></div>';
 
     FT.openSheet('prenatal', editing ? '修改产检记录' : '新增产检记录', body, function (api) {
       var box = api.box, closed = false, busy = false, saving = false;
