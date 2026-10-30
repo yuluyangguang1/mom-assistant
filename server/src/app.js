@@ -280,6 +280,7 @@ function createApp(cfg, db) {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     if (status === 204 || body === undefined) return res.end();
+    if (res.req && res.req.method === 'HEAD') { res.setHeader('Content-Type', 'application/json; charset=utf-8'); return res.end(); }
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify(body));
   }
@@ -321,7 +322,7 @@ function createApp(cfg, db) {
       for (const r of routes) {
         const m = r.re.exec(url.pathname);
         if (!m) continue;
-        if (r.method !== req.method) { methodMismatch = true; continue; }
+        if (r.method !== req.method && !(req.method === 'HEAD' && r.method === 'GET')) { methodMismatch = true; continue; }
         match = { r, args: m.slice(1) }; break;
       }
       if (!match) throw methodMismatch ? new HttpError(405, 'method_not_allowed') : new HttpError(404, 'not_found');

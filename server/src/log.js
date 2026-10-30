@@ -12,8 +12,10 @@ function init(logDir) {
   prune();
 }
 
+/* 文件名按本机当地日期（Windows 上是北京时间），不是 UTC */
 function day(d = new Date()) {
-  return d.toISOString().slice(0, 10);
+  const z = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
 }
 
 function prune() {

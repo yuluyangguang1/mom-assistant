@@ -194,6 +194,9 @@ test('建家限流（测试值每小时 3 次）与 404/405', async () => {
   assert.equal(last.status, 429);
   assert.equal((await api('GET', '/v1/nope')).status, 404);
   assert.equal((await api('PUT', '/v1/health')).status, 405);
+  const h = await fetch(BASE + '/v1/health', { method: 'HEAD' });
+  assert.equal(h.status, 200, 'HEAD 探活');
+  assert.equal((await h.text()).length, 0);
 });
 
 test('日志不含 token / 密文', async () => {

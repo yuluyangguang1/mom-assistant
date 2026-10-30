@@ -48,8 +48,12 @@ try {
   $env:Path = (Split-Path $Node) + ';' + $env:Path
   $npmArgs = @('ci', '--omit=dev', '--no-audit', '--no-fund')
   if ($Registry) { $npmArgs += "--registry=$Registry" }
-  & $npm @npmArgs
-  if ($LASTEXITCODE -ne 0) { throw "npm ci 失败（$LASTEXITCODE）。网络慢可加 -Registry https://registry.npmmirror.com" }
+  # npm 会往 stderr 写 notice/warn；Stop 模式下 PowerShell 会把它当成错误，所以这一段临时改 Continue，只看退出码
+  $prevEap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  & $npm @npmArgs 2>&1 | ForEach-Object { "$_" }
+  $npmExit = $LASTEXITCODE
+  $ErrorActionPreference = $prevEap
+  if ($npmExit -ne 0) { throw "npm ci 失败（$npmExit）。网络慢可加 -Registry https://registry.npmmirror.com" }
 } finally { Pop-Location }
 
 Step '.env'
