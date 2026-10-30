@@ -50,6 +50,16 @@
      菜单面板顶部搜索框（第 290 次起；原侧拉页）、「全部功能」页搜索框。搜索页路由保留，改算二级页（有返回、侧滑回首页）。 */
   /* 第 245 次：设置改成二级页（有返回、能侧滑回来）；第 290 次起设置入口在菜单面板（宝宝圆钮弹出）里 */
   function isTopTab(id) { return id === 'baby' || id === 'home' || id === 'calendar'; }
+  /* 第 324 次：再点当前一级页签——平滑滚回顶部（减少动态效果时直接跳），不重画 */
+  var _retap = { n: 0, scrolled: 0 };
+  function retapTop() {
+    _retap.n++;
+    var y = window.scrollY || document.documentElement.scrollTop || 0;
+    if (y <= 1) return;
+    _retap.scrolled++;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    try { window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+  }
 
   var current = 'home';
 
@@ -428,7 +438,9 @@
       if (t.id === current) b.setAttribute('aria-current', 'page'); /* 无障碍：标记当前页签 */
       /* 第 304 次：刚切到这一页时，彩色图标做一下自己的小动作（同页原地重画不重播） */
       if (t.id === current && _dkLast !== null && _dkLast !== current) dkPop(b, bar);
-      b.addEventListener('click', function () { showTab(t.id); });
+      /* 第 324 次（审查 P0-1）：再点当前页签 = 滚回顶部（已在顶部就什么都不做），不清空重画、不播入场——
+         原来 showTab(current) 走 innerHTML='' + render + .view-enter，真机每点一次 1~2 帧整页空白（只剩天空）+ 约 170ms 淡入 */
+      b.addEventListener('click', function () { if (t.id === current && isTopTab(t.id)) { retapTop(); return; } showTab(t.id); });
       bar.appendChild(b);
     });
     /* 第 97 次：右侧自定义快捷槽位——设置页「底栏快捷入口」选一个常用模块，
@@ -1995,6 +2007,7 @@
     rerender: rerender,
     _syncCta: function () { syncCta(); },
     currentTab: function () { return current; },
+    _retap: function () { return { n: _retap.n, scrolled: _retap.scrolled }; },   /* 第 324 次：测试读再点页签次数 */
     _isTop: function () { return isTopTab(current) && !subExit; },
     isTopTab: function (id) { return isTopTab(id); },
     _histDepth: function () { return historyDepth; },
