@@ -185,8 +185,10 @@
   function l1Default(G) {
     var W = global.innerWidth || 390, cs = global.getComputedStyle(doc.documentElement);
     var dw = parseFloat(cs.getPropertyValue('--dock-w')) || 218, bh = parseFloat(cs.getPropertyValue('--dock-bh')) || 60;
-    var x = W / 2 - dw / 2 - (bh + 8) / 2;
-    return { cap: { x: x, y: G.cy - bh / 2, w: dw, h: bh }, orb: { x: x + dw + 8, y: G.cy - bh / 2, w: bh, h: bh } };
+    /* 第 327 次：GL 模式下一级栏的边框盒比原来大 2px（--dock-w / --dock-bh 量的就是它），＋ 珠仍是原尺寸、间距 6 */
+    var g = doc.documentElement.classList.contains('lg-gl') ? 2 : 0;
+    var x = W / 2 - dw / 2 - (bh + 8 - g) / 2;
+    return { cap: { x: x, y: G.cy - bh / 2, w: dw, h: bh }, orb: { x: x + dw + 8 - g, y: G.cy - (bh - g) / 2, w: bh - g, h: bh - g } };
   }
   function captureL1() {
     var b = bar(), o = doc.getElementById('dockOrb');

@@ -470,6 +470,12 @@
     'uniform vec3 uDS;',
     /* 第 322 次（A3）：uEP = (栏端外凸量，带符号：右端 + / 左端 −；透镜 × dock 专用 k_end；—；—)。0 = 不外凸 */
     'uniform vec4 uEP;',
+    /* 第 327 次：uPX = (每 CSS px 的画布像素数 = 1 物理像素的倒数, 深色 0/1)——抗锯齿 / 描边 / 亮边按物理像素算 */
+    'uniform vec2 uPX;',
+    /* 第 327 次：轮廓抗锯齿 = 1 物理像素，按距离场梯度归一化（smooth-min 颈部 |∇f| < 1）；融合颈部（并集比两块原形状都深的地方）放宽到 2.5 物理像素，细颈不闪 */
+    'float aaC(float sd,float g,float kn){return clamp(.5-sd*uPX.x/(max(g,.5)*mix(1.,2.5,clamp(kn/6.,0.,1.))),0.,1.);}',
+    /* 第 327 次：1 物理像素暗描边（浅色，端帽重、直边轻）/ 深色 .16 亮细线；dn = 离轮廓的距离（CSS px，已按梯度归一化） */
+    'vec3 hair(vec3 c,float dn,float nx){float w=1.-smoothstep(0.,1./uPX.x,dn);if(uPX.y>.5)return mix(c,vec3(1.),.16*w);return c*(1.-mix(.12,.30,smoothstep(.5,.95,abs(nx)))*w);}',
     'vec3 lbody(vec3 c){return min(mix(c*uLB.y,vec3(1.),uLB.x),1.);}',
     'float tabl(float t){return t>=1.?0.:texture2D(uD,vec2((clamp(t,0.,1.)*126.+.5)/128.,.5)).r;}',
     'vec3 satv(vec3 c,float s){float l=dot(c,vec3(.2126,.7152,.0722));return clamp(mix(vec3(l),c,s),0.,1.);}',
@@ -533,17 +539,20 @@
     '    if(min(qa,qb)>uK+.5||qa<-(uBand+7.)||qb<-(uBandB+7.)){gl_FragColor=vec4(0.);return;}',
     '  }',
     '  float sd=field(v);',
+    '  float gm=1.,kn=0.;',
+    '  if(abs(sd)<1.5){gm=length(vec2(field(v+e.xy)-field(v-e.xy),field(v+e.yx)-field(v-e.yx)));if(uHasB>.5){float mn0=min(dk(v),sdBox(v,uBr,uRB));kn=4.*max(mn0-sd,0.);}}',
+    '  float aa=aaC(sd,gm,kn);',
     '  if(sd<.5){',
-    '    float d=-sd;',
+    '    float d=-sd,dn=d/max(gm,.5);',
     /* 两块玻璃各有自己的边带宽：离谁近用谁的（4px 内平滑过渡） */
     '    float band=uBand;if(uHasB>.5){float da=sdBox(v,uA,uRA),db=sdBox(v,uBr,uRB);band=mix(uBandB,uBand,smoothstep(-4.,4.,db-da));}',
-    '    float al=(1.-smoothstep(band*.45,band+5.,d))*clamp(.5-sd,0.,1.);',
+    '    float al=(1.-smoothstep(band*.45,band+5.,d))*aa;',
     /* 融合颈部：在两块原形状之外、并集之内的部分没有 DOM 毛玻璃垫底，整块画满 */
     /* 第 322 次（A3）：栏端被拉出的那一截在 DOM 毛玻璃外面，GL 画满 */
-    '    if(abs(uEP.x)>.05)al=max(al,smoothstep(-.5,.5,sdBox(v,uA,uRA))*clamp(.5-sd,0.,1.));',
-    '    if(uHasB>.5&&uFill>.5){float mn=min(sdBox(v,uA,uRA),sdBox(v,uBr,uRB));al=max(al,smoothstep(-.5,.5,mn)*clamp(.5-sd,0.,1.)*clamp(uK/6.,0.,1.));}',
+    '    if(abs(uEP.x)>.05)al=max(al,smoothstep(-.5,.5,sdBox(v,uA,uRA))*aa);',
+    '    if(uHasB>.5&&uFill>.5){float mn=min(sdBox(v,uA,uRA),sdBox(v,uBr,uRB));al=max(al,smoothstep(-.5,.5,mn)*aa*clamp(uK/6.,0.,1.));}',
     '    if(uHasCut>.5)al*=smoothstep(-.5,.5,sdBox(v,uCut,uRC));',
-    '    if(uDbg>.5)al=clamp(.5-sd,0.,1.);',
+    '    if(uDbg>.5)al=aa;',
     '    if(al>.002){',
     '      vec2 n=normalize(vec2(field(v+e.xy)-field(v-e.xy),field(v+e.yx)-field(v-e.yx))+1e-5);',
     /* 第 312 次：凸 squircle + Snell 位移表，沿内法线「往里」取样（kube.io：凸面不会取到玻璃外面）；
@@ -551,16 +560,17 @@
     '      float m=tabl(max(d,0.)/band)*uAmt;',
     /* 第 319 次：dock 本体色散只在左右两端（|n.x| 大），上下边不分 R/G/B；上下边外沿几 px 压彩度、高光处不再 7 倍提饱和——宝宝页紫卡片被折进上沿的五彩模糊带 */
     '      float wxD=smoothstep(.55,.85,abs(n.x));gDisp=uDisp*wxD;',
-    '      float tw=mix(.5,1.,smoothstep(0.,band*.8,d));',
+    '      float tw=mix(.8,1.,smoothstep(0.,band*.8,d));',
     '      vec3 c=glass(v,-n*m,uBlur*mix(.25,1.,smoothstep(0.,band*.7,d)),tw);',
     '      float ld=dot(n,uL);',
-    '      float sk=pow(abs(ld),2.)*exp(-max(d,0.)/2.4);',
+    '      float sk=pow(abs(ld),2.)*exp(-max(d,0.)/1.2);',
     '      c=mix(c,satv(c,mix(1.1,uSS,wxD)),clamp(sk*.6,0.,1.));',
     '      c=chc(c,1.-.5*(1.-wxD)*exp(-max(d,0.)/3.));',
     '      float sp=sk*uSpec;',
     /* 细光边（深色模式更亮）：迎光一侧亮、背光一侧弱 */
-    '      float rim=(1.-smoothstep(.2,1.6,d))*(.25+.75*pow(max(ld,0.),1.5))*uRim;',
+    '      float rim=(1.-smoothstep(0.,2./uPX.x,dn))*(.25+.75*pow(max(ld,0.),1.5))*uRim;',
     '      c=min(c+sp+rim*vec3(1.,.97,.92),1.);',
+    '      c=hair(c,dn,n.x);',
     '      if(uDbg>.5)c=bg(v);',
     '      outc=vec4(c*al,al);',
     '    }',
@@ -576,8 +586,9 @@
     '  if(uHasT>.5){',
     '    float st=lf(v);',
     '    if(st<.5){',
-    '      float dt=-st,at=clamp(.5-st,0.,1.);',
-    '      vec2 nt=normalize(vec2(lf(v+e.xy)-lf(v-e.xy),lf(v+e.yx)-lf(v-e.yx))+1e-5);',
+    '      vec2 gt=vec2(lf(v+e.xy)-lf(v-e.xy),lf(v+e.yx)-lf(v-e.yx));float gtm=max(length(gt),.5);',
+    '      float dt=-st,at=clamp(.5-st*uPX.x/gtm,0.,1.),dtn=dt/gtm;',
+    '      vec2 nt=normalize(gt+1e-5);',
     '      vec2 c0=uT.xy+uT.zw*.5;',
     '      float B=max(2.,uLR.x*uLG);',
     /* 第 317 次：行对齐折射（对照支付宝 22:03 / 16:57、App Store 23:38 逐帧：背后的横线 / 一行字穿过透镜仍是水平直线，
@@ -613,7 +624,7 @@
     '      float sk=clamp(sp*1.4+arc,0.,1.);',
     '      lc=mix(lc,satv(lc,1.+uSS*.15),sk*.6);',
     '      lc=min(lc+vec3(sp+arc),1.);',
-    '      lc=mix(lc,lc*.8,(1.-smoothstep(0.,1.,dt))*uLO.y);',
+    '      lc=mix(lc,hair(lc,dtn,nt.x),gr);',
     '      float la=at*uLA;',
     '      outc=vec4(lc,1.)*la+outc*(1.-la);',
     '    }else if(uLO.x>0.){',
@@ -634,6 +645,7 @@
     'uniform sampler2D uP,uB,uD;uniform vec2 uCv,uPS,uScroll,uL,uWF;uniform vec4 uBox,uStrip,uTint,uFade;uniform vec3 uFadeC,uTone;',
     'uniform float uTaps,uS,uY0,uPageOn,uAmt,uDisp,uBlur,uSpec,uRim,uDbg,uSS;uniform vec4 uLine;',
     'uniform float uFN,uFA,uSh;uniform vec4 uFR[5],uFP[5],uFQ[5],uFT;',
+    'uniform vec2 uPX;',
     'float tabl(float t){return t>=1.?0.:texture2D(uD,vec2((clamp(t,0.,1.)*126.+.5)/128.,.5)).r;}',
     'vec3 satv(vec3 c,float s){float l=dot(c,vec3(.2126,.7152,.0722));return clamp(mix(vec3(l),c,s),0.,1.);}',
     'vec3 tone(vec3 c){return satv(clamp(((c-.5)*uTone.x+.5)*uTone.y,0.,1.),uTone.z);}',
@@ -650,6 +662,9 @@
     'vec3 lift(vec3 c){float l=dot(c,vec3(.2126,.7152,.0722));return clamp(mix(vec3(l),c,1.3)*1.07,0.,1.);}',
     'vec3 chc(vec3 c,float k){return mix(vec3(dot(c,vec3(.2126,.7152,.0722))),c,k);}',
     'float ff(vec2 v){float f=1e5;for(int i=0;i<5;i++){if(float(i)>=uFN)break;float s=sdBox(v,uFR[i],uFP[i].x);f=i==0?s:smin(f,s,uFP[i].y);}return f;}',
+    /* 第 327 次：同时给出各块原形状的最小距离（颈部 = 并集比它们都深的部分） */
+    'float ffm(vec2 v,out float mn){float f=1e5;mn=1e5;for(int i=0;i<5;i++){if(float(i)>=uFN)break;float s=sdBox(v,uFR[i],uFP[i].x);mn=min(mn,s);f=i==0?s:smin(f,s,uFP[i].y);}return f;}',
+    'vec3 hair(vec3 c,float dn,float nx){float w=1.-smoothstep(0.,1./uPX.x,dn);if(uPX.y>.5)return mix(c,vec3(1.),.16*w);return c*(1.-mix(.12,.30,smoothstep(.5,.95,abs(nx)))*w);}',
     /* 同一套磨砂：色散只在 gd > 0 时三通道分采（中间一块一次采样，省 2/3） */
     'vec3 glass(vec2 v,vec2 o,float rad,float tw,vec4 T,float gd,float tp,float wf){',
     '  vec3 c=vec3(0.);float nt=0.;',
@@ -662,35 +677,39 @@
     '  return mix(mix(lift(r),T.rgb,T.a*.5),mix(tone(c),T.rgb,T.a),tw);}',
     'void main(){',
     '  vec2 v=uBox.xy+vec2(gl_FragCoord.x,uCv.y-gl_FragCoord.y)/uCv*uBox.zw;',
-    '  float sd=ff(v);',
+    '  float mn0;float sd=ffm(v,mn0);',
     /* 外面一圈柔和投影（向下 4px，与一级 dock 的 CSS 投影同一档；DOM 在 GL 模式下不画投影） */
-    '  if(sd>.5){if(uSh<.001||sd>18.){gl_FragColor=vec4(0.);return;}float ss=ff(v-vec2(0.,4.));float sa=uSh*exp(-max(ss,0.)/6.)*(1.-smoothstep(4.,16.,ss))*smoothstep(.5,1.5,sd);gl_FragColor=vec4(0.,0.,0.,sa);return;}',
+    '  if(sd>.5){if(uSh<.001||sd>10.){gl_FragColor=vec4(0.);return;}float ss=ff(v-vec2(0.,4.));float sa=uSh*exp(-max(ss,0.)/3.)*(1.-smoothstep(2.,8.,ss))*smoothstep(.5,1.5,sd);gl_FragColor=vec4(0.,0.,0.,sa);return;}',
     '  float ws=0.,tm=0.,am=0.,lf=0.,bd=0.;',
     '  for(int i=0;i<5;i++){if(float(i)>=uFN)break;float s=sdBox(v,uFR[i],uFP[i].x);float w=exp(-max(s,0.)*.3)*(s<0.?3.:1.)+1e-4;',
     '    ws+=w;tm+=w*uFP[i].z;am+=w*uFP[i].w;lf+=w*uFQ[i].x;bd+=w*uFQ[i].y;}',
     '  tm/=ws;am/=ws;lf/=ws;bd/=ws;',
     '  vec4 T=mix(uTint,uFT,tm);',
     '  float d=-sd,band=max(2.,bd);',
-    '  float al=clamp(.5-sd,0.,1.)*mix(1.-smoothstep(band*.45,band+5.,d),1.,uFA)*am;',
-    '  if(uDbg>.5)al=clamp(.5-sd,0.,1.);',
+    '  vec2 e=vec2(.5,0.);',
+    '  vec2 g0=abs(sd)<1.5||d<=band+6.?vec2(ff(v+e.xy)-ff(v-e.xy),ff(v+e.yx)-ff(v-e.yx)):vec2(0.,-1.);',
+    '  float gm=max(length(g0),.5),kn=4.*max(mn0-sd,0.);',
+    '  float aa=clamp(.5-sd*uPX.x/(gm*mix(1.,2.5,clamp(kn/6.,0.,1.))),0.,1.),dn=d/gm;',
+    '  float al=aa*mix(1.-smoothstep(band*.45,band+5.,d),1.,uFA)*am;',
+    '  if(uDbg>.5)al=aa;',
     '  if(al<.002){gl_FragColor=vec4(0.);return;}',
     /* 第 320 次：边带以内很深的地方（离边 > 边带 + 6）折射位移、高光、亮边、色散都是 0——不算法线（省 4 次距离场）、少取样（带色调的记录条中间背景只占 14~18%：3 次采样、不做邻域填充） */
     '  bool deep=d>band+6.;',
-    '  vec2 e=vec2(.5,0.);',
-    '  vec2 n=deep?vec2(0.,-1.):normalize(vec2(ff(v+e.xy)-ff(v-e.xy),ff(v+e.yx)-ff(v-e.yx))+1e-5);',
+    '  vec2 n=deep?vec2(0.,-1.):normalize(g0+1e-5);',
     '  float m=deep?0.:tabl(max(d,0.)/band)*uAmt;',
     '  float wxD=deep?0.:smoothstep(.55,.85,abs(n.x));',
     '  float tp=deep?(tm>.5?3.:min(uTaps,5.)):uTaps;',
     /* 带色调的记录条：边带里色调只淡一点（.85 → 1，3px 内回满），不再是一圈发白的晕；中性玻璃同一级 dock（.5 → 1） */
-    '  float tw=mix(mix(.5,1.,smoothstep(0.,band*.8,d)),mix(.86,1.,smoothstep(0.,3.,d)),tm);',
+    '  float tw=mix(mix(.8,1.,smoothstep(0.,band*.8,d)),mix(.86,1.,smoothstep(0.,3.,d)),tm);',
     '  vec3 c=glass(v,-n*m,uBlur*mix(.25,1.,smoothstep(0.,band*.7,d)),tw,T,uDisp*wxD*(1.-tm*.6),tp,(deep&&tm>.5)?0.:1.);',
     '  float ld=dot(n,uL);',
-    '  float sk=pow(abs(ld),2.)*exp(-max(d,0.)/2.4);',
+    '  float sk=pow(abs(ld),2.)*exp(-max(d,0.)/1.2);',
     '  c=mix(c,satv(c,mix(1.1,uSS,wxD)),clamp(sk*.6,0.,1.)*(1.-tm));',
     '  c=chc(c,1.-.5*(1.-wxD)*exp(-max(d,0.)/3.)*(1.-tm));',
     '  float sp=sk*uSpec;',
-    '  float rim=(1.-smoothstep(.2,1.6,d))*(.25+.75*pow(max(ld,0.),1.5))*uRim;',
+    '  float rim=(1.-smoothstep(0.,2./uPX.x,dn))*(.25+.75*pow(max(ld,0.),1.5))*uRim;',
     '  c=min(c+sp+rim*vec3(1.,.97,.92),1.);',
+    '  c=hair(c,dn,n.x);',
     '  c=mix(c,vec3(1.),lf*.1);',
     '  if(uDbg>.5)c=bg(v);',
     '  gl_FragColor=vec4(c*al,al);}'
@@ -698,9 +717,9 @@
   var progF = null, UF = {}, fzErr = '', fzWarm = false;
   var UNI = ['uP', 'uB', 'uCv', 'uPS', 'uScroll', 'uL', 'uBox', 'uStrip', 'uTint', 'uFade', 'uA', 'uBr', 'uCut', 'uT', 'uFadeC', 'uTaps', 'uS', 'uY0', 'uPageOn', 'uBand', 'uAmt', 'uDisp', 'uBlur', 'uSpec', 'uRim', 'uDbg',
     'uRA', 'uRB', 'uK', 'uHasB', 'uRC', 'uHasCut', 'uFill', 'uRT', 'uHasT', 'uBandB', 'uLM', 'uLG', 'uLine',
-    'uD', 'uI', 'uTone', 'uLR', 'uIB', 'uHasI', 'uSS', 'uSW', 'uWF', 'uMagI', 'uLA', 'uLB', 'uLX', 'uLO', 'uDS', 'uEP'];
+    'uD', 'uI', 'uTone', 'uLR', 'uIB', 'uHasI', 'uSS', 'uSW', 'uWF', 'uMagI', 'uLA', 'uLB', 'uLX', 'uLO', 'uDS', 'uEP', 'uPX'];
   var UNIF = ['uP', 'uB', 'uD', 'uCv', 'uPS', 'uScroll', 'uL', 'uWF', 'uBox', 'uStrip', 'uTint', 'uFade', 'uFadeC', 'uTone', 'uTaps', 'uS', 'uY0', 'uPageOn', 'uAmt', 'uDisp', 'uBlur', 'uSpec', 'uRim', 'uDbg', 'uSS', 'uLine',
-    'uFN', 'uFA', 'uFR', 'uFP', 'uFQ', 'uFT', 'uSh'];
+    'uFN', 'uFA', 'uFR', 'uFP', 'uFQ', 'uFT', 'uSh', 'uPX'];
 
   function mkTex(aux) {
     /* 第 312 次：aux = 位移表 / 图标层这两张小纹理，单独计数（texLive / texCreated 仍只算整页快照 + 底色条两张） */
@@ -782,7 +801,43 @@
 
   /* ---------- 玻璃面（第 277 次） ---------- */
   function boxOf(r) { return { x: r.left, y: r.top, w: r.width, h: r.height }; }
-  function surfDpr() { return quality >= 2 ? Math.min(global.devicePixelRatio || 1, 2) : 1; }
+  /* 第 327 次：封顶 2 → 3（iPhone 3 倍屏上 2 倍画布被拉成 1 纹素 = 1.5 物理像素，整圈轮廓发虚）；画质档 ≤ 1 仍是 1 */
+  function surfDpr() { return quality >= 2 ? Math.min(global.devicePixelRatio || 1, 3) : 1; }
+  /* 第 327 次：取整到物理像素（画布位置、着色器 box 用同一个值） */
+  function pxDpr() { return global.devicePixelRatio || 1; }
+  function snapLo(v) { var d = pxDpr(); return Math.floor(v * d + 1e-4) / d; }
+  function snapHi(v) { var d = pxDpr(); return Math.ceil(v * d - 1e-4) / d; }
+  function snapR(u) { var x0 = snapLo(u.x), y0 = snapLo(u.y); return { x: x0, y: y0, w: snapHi(u.x + u.w) - x0, h: snapHi(u.y + u.h) - y0 }; }
+  /* 第 327 次：栏落在半个物理像素上（视口 393 是奇数，left = 53.5）——用 margin-left 把边框盒左缘挪到整数 CSS px（3 倍屏上也是整物理像素）。
+     只在静止时量（动画帧不读布局）；视口 / 栏宽变了下一次静止重画时再对一次 */
+  function snapEl(el) {
+    var ml = parseFloat(el.style.marginLeft) || 0;
+    var r = el.getBoundingClientRect(), d = pxDpr();
+    if (!r.width) return null;
+    var l0 = r.left - ml, t = Math.abs(d - Math.round(d)) < 1e-3 ? Math.round(l0) : Math.round(l0 * d) / d;
+    var m = Math.round((t - l0) * 1000) / 1000;
+    if (Math.abs(m - ml) > 0.004) el.style.marginLeft = m ? m + 'px' : '';
+    return m;
+  }
+  /* 第 327 次：GL 模式下一级栏边框盒大 2px（styles.css 第 327 次段）——lg-gl 开关时重量 --dock-w / --dock-bh（app.js syncOrb 量的时候 lg-gl 可能还没加上） */
+  function remeasureDock() {
+    try {
+      var b = bar || doc.getElementById('tabbar');
+      if (!b || !doc.body.classList.contains('has-orb') || b.classList.contains('is-sub') || !b.offsetWidth) return;
+      doc.documentElement.style.setProperty('--dock-w', b.offsetWidth + 'px');
+      doc.documentElement.style.setProperty('--dock-bh', b.offsetHeight + 'px');
+    } catch (e) { /* QA 桩无布局 */ }
+  }
+  function snapBar() {
+    if (!bar || busy()) return;
+    var k = (global.LiquidDock && LiquidDock.dockScale) ? LiquidDock.dockScale() : 1;
+    if (Math.abs(k - 1) > 1e-3) return;
+    var m = snapEl(bar);
+    if (m != null && m !== stats.snap) { stats.snap = m; geoC = null; }
+    /* ＋ 珠（CSS 毛玻璃）同样落在半像素上，一起对齐；它在 scale 动画里时不量 */
+    var o = doc.getElementById('dockOrb');
+    if (o && !o.hidden && !o.style.scale && !o.style.transform) stats.snapOrb = snapEl(o);
+  }
   /* 盖在顶部提示岛下面的层（面板、全屏计时、快记 / 菜单面板、看图、引导）：快照里没有它们，提示岛就只用 CSS 毛玻璃 */
   var OVL = '.ftf, #modalRoot > .modal-mask, #view .modal-mask:not([hidden]), .home-sheet, .qd-mask, .ph-view';
   var blkCache = { t: 0, v: false };
@@ -881,7 +936,15 @@
      o.ext = 画布外接矩形（整段动画固定一个，避免逐帧改画布尺寸）；o.bar = 栏的视口矩形（动画帧不读布局）；
      o.fill = 中间画满的比例（1 = 整块由 GL 画；合拢回一级页的最后 120ms 从 1 淡到 0，和恢复的 CSS 毛玻璃交叉）；o.tint = 记录条模块色调 [r,g,b,a]。
      返回这一帧是否真的画了（没快照 / 采样范围不在快照段里时 false，调用方退回 CSS 玻璃）。 */
-  var FZ_LOW = 0.5;
+  /* 第 327 次：0.5 → 0.67（配合满 dpr，运动中 2 倍 = 1 纹素 1.5 物理像素）；形状这一帧位移 < 0.25 物理像素就按满分辨率画（弹簧尾段看着已停）——
+     切到满分辨率后，除非又动了 ≥ 1 物理像素，这段运动里不再降回去 */
+  var FZ_LOW = 0.67, fzPrev = null, fzHi = false;
+  function fzDelta(a, b) {
+    if (!a || !b || a.length !== b.length) return 1e9;
+    var m = 0;
+    for (var i = 0; i < a.length; i++) { var p = a[i], q = b[i]; m = Math.max(m, Math.abs(p.x - q.x), Math.abs(p.y - q.y), Math.abs(p.x + p.w - q.x - q.w), Math.abs(p.y + p.h - q.y - q.h), Math.abs((p.k || 0) - (q.k || 0)) / 4); }
+    return m;
+  }
   var fz = null, fzDrawn = false, fzNeu = { k: '', v: null }, fzSt = { draws: 0, ms: 0, max: 0, px: 0, sumMs: 0 };
   var fzR = new Float32Array(20), fzP = new Float32Array(20), fzQ = new Float32Array(20);
   function hexOrRgb(str) {
@@ -909,17 +972,30 @@
     if (!progF || !fz || !fz.list.length) { cv.classList.remove('on'); return false; }
     var L = fz.list, n = Math.min(5, L.length);
     var E = fz.ext || fuseExt(L);
-    var u = { x: Math.floor(E.x - 14), y: Math.floor(E.y - 10), w: Math.ceil(E.w + 28), h: Math.ceil(E.h + 30) };
+    var u = snapR({ x: E.x - 14, y: E.y - 10, w: E.w + 28, h: E.h + 30 });
     if (!stripMeta.opaque && !inWin({ top: u.y, bottom: u.y + u.h })) { cv.classList.remove('on'); if (!scrolling) markDirty(); return false; }
     var r = fz.bar || barRect();
     placeCanvas(r, u);
     /* 第 320 次：分裂 / 合拢 / 下落等动画帧按 0.5 倍分辨率画、取样 5 次、不分色散通道（运动中看不出；软件 GL 实测每帧从 ~80ms 降下来，真机省电），停下那一帧回到满分辨率 */
-    var dpr = surfDpr() * (fz.moving ? FZ_LOW : 1);
+    var sd0 = surfDpr(), pd = pxDpr(), mv = fz.moving;
+    if (mv) {
+      var dl = fzDelta(L, fzPrev);
+      if (dl < 0.25 / pd) fzHi = true; else if (dl >= 1 / pd) fzHi = false;
+      if (fzHi) mv = false;
+    } else fzHi = false;
+    fzPrev = L.map(function (q) { return { x: q.x, y: q.y, w: q.w, h: q.h, k: q.k || 0 }; });
+    var dpr = sd0 * (mv ? FZ_LOW : 1);
     var W = Math.max(2, Math.round(u.w * dpr)), H = Math.max(2, Math.round(u.h * dpr));
-    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    fzSt.low = mv; fzSt.dpr = Math.round(dpr * 100) / 100;
+    if (cv.width !== W || cv.height !== H) {
+      var up = W > cv.width;
+      cv.width = W; cv.height = H;
+      /* 第 327 次：WebKit 改了画布缓冲尺寸后这一帧不一定立即合成（第 314 次注释）——升回满分辨率那一帧顺手改一个无视觉影响的样式，逼它合成新缓冲，不多停一帧糊图 */
+      if (up) { cv.style.outlineOffset = (cv.style.outlineOffset === '0.001px' ? '0.002px' : '0.001px'); fzSt.ups = (fzSt.ups || 0) + 1; }
+    }
     gl.useProgram(progF);
     setCommon(UF);
-    if (fz.moving) { gl.uniform1f(UF.uTaps, 5); gl.uniform1f(UF.uDisp, 0); }   /* 运动中不分通道取样（色散在静止时才看得出） */
+    if (mv) { gl.uniform1f(UF.uTaps, 5); gl.uniform1f(UF.uDisp, 0); }   /* 运动中不分通道取样（色散在静止时才看得出） */
     gl.viewport(0, 0, W, H);
     gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
     gl.uniform4f(UF.uBox, u.x, u.y, u.w, u.h);
@@ -935,7 +1011,9 @@
     gl.uniform4f(UF.uTint, nt[0] / 255, nt[1] / 255, nt[2] / 255, nt[3]);
     gl.uniform4f(UF.uFT, tt[0] / 255, tt[1] / 255, tt[2] / 255, tt[3]);
     gl.uniform1f(UF.uAmt, 20);
-    gl.uniform1f(UF.uSh, (doc.body.classList.contains('dark') ? 0.34 : 0.12) * (fz.fill == null ? 1 : fz.fill));
+    /* 第 327 次：浅色投影 .12 → .06（衰减 /3、截断 8px，和一级 dock 收紧后的 CSS 投影同一档） */
+    gl.uniform1f(UF.uSh, (doc.body.classList.contains('dark') ? 0.34 : 0.06) * (fz.fill == null ? 1 : fz.fill));
+    if (UF.uPX) gl.uniform2f(UF.uPX, W / u.w, doc.body.classList.contains('dark') ? 1 : 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     gl.useProgram(prog);
     stats.draws++; fzSt.draws++; fzSt.px = W * H;
@@ -1186,7 +1264,8 @@
     /* 第 314 次：清透——透镜本身几乎不加料（313 是混白 4.5% / 深色 ×1.12 的「玻璃体」） */
     gl.uniform2f(L.uLB, 0.02, dark ? 1.06 : 1.0);
     gl.uniform4f(L.uLX, reduced ? 0 : (fx.hl || 0), reduced ? 0 : (fx.flash || 0), fx.fuse || 0, fx.a || 0);
-    gl.uniform3f(L.uLO, (dark ? 0.26 : 0.1) * (fx.sh == null ? 1 : fx.sh), dark ? 0 : 0.45, 0);   /* 第 319 次：投影只给冒出栏的大透镜（点击透镜在栏内，sh = 0） */
+    gl.uniform3f(L.uLO, (dark ? 0.26 : 0.06) * (fx.sh == null ? 1 : fx.sh), dark ? 0 : 0.45, 0);   /* 第 327 次：浅色投影 .1 → .06 */
+      /* 第 319 次：投影只给冒出栏的大透镜（点击透镜在栏内，sh = 0） */
     gl.uniform1f(L.uLA, lensA);
     gl.uniform3f(L.uDS, bb.left + bb.width / 2, bb.top + bb.height / 2, (lensFx && lensFx.ds) || ((global.LiquidDock && LiquidDock.dockScale) ? LiquidDock.dockScale() : 1));
     gl.uniform1f(L.uDisp, 0.22);
@@ -1217,6 +1296,7 @@
     gl.uniform1f(U.uBand, Math.max(2, Math.min(o.band + 2 * p, o.A.h / 2 - 2, o.A.w / 2 - 2)));
     gl.uniform1f(U.uBandB, o.B ? Math.max(2, Math.min(13 + 2 * p, o.B.h / 2 - 2, o.B.w / 2 - 2)) : 0);
     gl.uniform1f(U.uHasCut, 0);
+    if (U.uPX) gl.uniform2f(U.uPX, (o.px || 1), doc.body.classList.contains('dark') ? 1 : 0);   /* 第 327 次 */
     gl.uniform1f(U.uAmt, 20 * (1 + 0.38 * p));   /* 第 312 次：最大 14px；第 314 次：20px（边带 18，外沿模糊 / 色调减轻后折弯才看得出），与 Chromium #lgDock 同值 */
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     stats.draws++;
@@ -1239,7 +1319,7 @@
   }
   /* dock 画布的位置：没有胶囊时就是 CSS 默认（盖住 dock 边框盒）；有胶囊时扩成 dock ∪ 胶囊的外接矩形 */
   function placeCanvas(r, u) {
-    var key = u ? [u.x - r.left, u.y - r.top, u.w, u.h, r.width].map(function (v) { return Math.round(v * 2) / 2; }).join(',') : '';
+    var key = u ? [u.x - r.left, u.y - r.top, u.w, u.h, r.width].map(function (v) { return Math.round(v * 64) / 64; }).join(',') : '';
     if (cv._key === key) return;
     cv._key = key;
     /* 第 313 次：画布扩出去时不要再继承栏的胶囊圆角（会把栏两端的透镜上下沿裁掉一角）；形状全由着色器的距离场决定 */
@@ -1265,6 +1345,7 @@
     var looping = moving || now < loopUntil || thumbMoving(th);
     if (quality === 0 && scrolling) { if (looping) schedule(); return; }
     var t0 = now;
+    if (!looping) snapBar();
     var r = barRect();   /* 第 319 次：未缩放矩形；动画期间是缓存，不读布局 */
     if (r.width < 20 || r.height < 20) return;
     stats.frames++;
@@ -1275,7 +1356,8 @@
     var lshape = lsOn ? (ls.shape || boxOf(ls.el.getBoundingClientRect())) : null;
     if (lshape && (lshape.w < 6 || lshape.h < 6)) lshape = null;
     var fk = lshape && ls.shape && quality >= 1 && !reduced ? ls.k : 0;
-    var dockShape = { x: r.left - 1, y: r.top - 1, w: r.width + 2, h: r.height + 2 };
+    /* 第 327 次：GL 轮廓 = 栏的边框盒（原来外扩 1 CSS px，和 CSS 层 / 融合一级形状 S.L1.cap 差 1px，推入时跳一下）；栏的 DOM 在 GL 模式下一起大 2px，外观尺寸不变 */
+    var dockShape = { x: r.left, y: r.top, w: r.width, h: r.height };
     var u = null;
     /* 第 309 次：透镜比栏高，画布也要扩到透镜（和胶囊一样走外接矩形） */
     var LT = lensR && DR._debug !== 1 && DR._debug !== true ? lensR : null;   /* 第 317 次：_debug = 2（折射几何调试）照画透镜 */
@@ -1290,11 +1372,12 @@
       if (LT) { x0 = Math.min(x0, dockShape.x - 44); x1 = Math.max(x1, dockShape.x + dockShape.w + 44); y0 = Math.min(y0, dockShape.y - 32); y1 = Math.max(y1, dockShape.y + dockShape.h + 32);
         x0 = Math.min(x0, LT.x - LENS_SHADOW); x1 = Math.max(x1, LT.x + LT.w + LENS_SHADOW); y0 = Math.min(y0, LT.y - LENS_SHADOW); y1 = Math.max(y1, LT.y + LT.h + LENS_SHADOW); }
       if (lshape) { x0 = Math.min(x0, lshape.x - 2); y0 = Math.min(y0, lshape.y - 2); x1 = Math.max(x1, lshape.x + lshape.w + 2); y1 = Math.max(y1, lshape.y + lshape.h + 2); }
-      u = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+      u = snapR({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
     }
     placeCanvas(r, u);
     /* 第 319 次：画布位置就是 u（未缩放视口坐标），不再 getBoundingClientRect；dock 按下缩放时画布作为子节点由合成器整块缩放，着色器的取样坐标不变 = 透镜外不闪 */
-    var box = u ? { x: Math.round(u.x * 2) / 2, y: Math.round(u.y * 2) / 2, w: Math.round(u.w * 2) / 2, h: Math.round(u.h * 2) / 2 } : boxOf(cv.getBoundingClientRect());
+    /* 第 327 次：着色器 box 与画布位置是同一个取整到物理像素的 u（原来各自按 0.5 CSS px 取整） */
+    var box = u ? { x: u.x, y: u.y, w: u.w, h: u.h } : boxOf(cv.getBoundingClientRect());
     if (!u && box.w <= 20) box = dockShape;
     /* 顶部提示岛（离 dock 很远、层级在面板之上）：同一块 WebGL 画布先按它的位置画一遍，drawImage 拷进它自己的小画布 */
     var dpr = surfDpr(), job = null, ts2 = surf.toast;
@@ -1307,6 +1390,7 @@
     /* 画布扩到胶囊时像素多了一倍多：2 倍屏降到 1.5 倍（折射边本来就带模糊，看不出差别） */
     /* 第 313 次：透镜在场时不降（真机 3 倍屏上 1.5 倍画布把透镜边放大成锯齿 / 像素块）；只有胶囊在场时才降到 1.5 */
     var gdpr = lshape && !LT ? Math.min(dpr, 1.5) : dpr;
+    stats.box = box; stats.shape = dockShape;
     var W = Math.max(2, Math.round(box.w * gdpr)), H = Math.max(2, Math.round(box.h * gdpr));
     if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
     setCommon();
@@ -1323,7 +1407,7 @@
       var vw2 = Math.min(W, cw), vh2 = Math.min(H, ch);
       gl.viewport(0, 0, vw2, vh2);
       gl.uniform2f(U.uCv, vw2, vh2);
-      render({ box: job.b, A: job.b, tint: tintOf(job.s.el), band: 12, press: 0, clearAll: true });
+      render({ box: job.b, A: job.b, tint: tintOf(job.s.el), band: 12, press: 0, clearAll: true, px: cw / job.b.w });
       var c2 = job.s.c;
       if (c2.width !== cw || c2.height !== ch) { c2.width = cw; c2.height = ch; } else job.s.g.clearRect(0, 0, cw, ch);
       job.s.g.drawImage(cv, 0, H - vh2, vw2, vh2, 0, 0, cw, ch);
@@ -1341,7 +1425,7 @@
          .lg-lens 仍表示「WebGL 接管了透镜」 */
       var T = LT;
       bar.classList.toggle('lg-lens', !!th);
-      render({ box: box, A: dockShape, B: lshape, k: fk, T: T, tint: tintOf(bar), band: BAND, press: Math.max(press.dock, press.live) });
+      render({ box: box, A: dockShape, B: lshape, k: fk, T: T, tint: tintOf(bar), band: BAND, press: Math.max(press.dock, press.live), px: W / box.w });
       setBand(ls, !!lshape && !hiddenForNav);
     }
     if (ls && !lsOn) setBand(ls, false);
@@ -1546,6 +1630,7 @@
     on = true; ready = false;
     DR.attach(bar);
     doc.documentElement.classList.add('lg-gl');
+    remeasureDock();
     global.addEventListener('scroll', onScroll, { passive: true });
     global.addEventListener('resize', onResize, { passive: true });
     doc.addEventListener('visibilitychange', onVis);
@@ -1617,6 +1702,10 @@
     press.dock = press.live = press.tdock = press.tlive = 0;
     lensR = null; fz = null; fzDrawn = false;
     doc.documentElement.classList.remove('lg-gl');
+    if (bar) bar.style.marginLeft = '';
+    var orb0 = doc.getElementById('dockOrb'); if (orb0) orb0.style.marginLeft = '';
+    stats.snap = stats.snapOrb = null;
+    remeasureDock();
   };
   /* liquid-dock.js 每次刷新（建好 / 重建底栏 / 换设置）都会调它 */
   DR.sync = function (b) {
@@ -1639,6 +1728,7 @@
       surfaces: Object.keys(surf).map(function (k) { var s = surf[k]; return { id: k, canvas: s.c ? [s.c.width, s.c.height] : null, on: s.c ? s.c.classList.contains('on') : !!(s.el && s.el.classList.contains('lg-band')), inDom: s.c ? s.c.isConnected : !!(s.el && s.el.isConnected), shape: !!s.shape, k: s.k }; }),
       light: { src: light.src, x: Math.round(light.x * 1000) / 1000, y: Math.round(light.y * 1000) / 1000 }, press: { dock: press.dock, live: press.live },
       ext: cv && cv._key ? 1 : 0, cvRadius: cv ? cv.style.borderRadius : '', lens: !!(bar && bar.classList.contains('lg-lens')), ep: stats.ep || 0, lensT: lensR ? { x: Math.round(lensR.x), y: Math.round(lensR.y), w: Math.round(lensR.w), h: Math.round(lensR.h), m: Math.round(lensM * 100) / 100, a: Math.round(lensA * 100) / 100, fuse: lensFx.fuse || 0, hl: Math.round((lensFx.hl || 0) * 100) / 100, flash: Math.round((lensFx.flash || 0) * 100) / 100 } : null,
+      box: stats.box || null, shape: stats.shape || null, snap: stats.snap == null ? null : stats.snap, snapOrb: stats.snapOrb == null ? null : stats.snapOrb,
       idle: !!(on && ready && !dirty && !rasterTimer && !stripeTimer && !settleTimer && !pend.length)
     };
   };

@@ -1395,7 +1395,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v288（第 326 次升）', "var CACHE = 'baoma-static-v288';" in sw)
+    check('#275 SW 版本 v289（第 327 次升）', "var CACHE = 'baoma-static-v289';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求；第 300 次多一张浅色字图），整页 HTML < 60KB',
@@ -5761,7 +5761,7 @@ def test_r317(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#317 SW 版本 v279+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
+    check('#317 SW 版本 v279+（第 327 次升 v289）', "var CACHE = 'baoma-static-v289';" in sw)
     js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     check('#317 着色器：横向位移只看本行离左右边的距离、纵向位移只看 y（与 x 无关）、都往外取样；内部以中心缩小 uMagI；图标层不缩（gIc）',
           "float tx=tabl(clamp((xe-abs(q.x))/B,0.,1.)),ty=tabl(clamp((hz.y-ya)/B,0.,1.));" in js
@@ -5843,7 +5843,7 @@ def test_r318(b):
     _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
     p.wait_for_timeout(600)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#318 SW 版本 v280+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
+    check('#318 SW 版本 v280+（第 327 次升 v289）', "var CACHE = 'baoma-static-v289';" in sw)
     # —— A1 推入：逐帧采样（rAF）——
     ev("""(()=>{window.__nv=[];const v=document.getElementById('view');const L=()=>{const g=document.querySelector('.nav-ghost');const st=DockRefract._stats();const cv=document.querySelector('#tabbar canvas.lg-gl');
       const m=e=>{const t=getComputedStyle(e).transform;return t&&t!=='none'?new DOMMatrix(t).m41:0};
@@ -5970,7 +5970,7 @@ def test_r319(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#319 SW 版本 v281+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
+    check('#319 SW 版本 v281+（第 327 次升 v289）', "var CACHE = 'baoma-static-v289';" in sw)
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=3)
     ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
     p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
@@ -6083,8 +6083,8 @@ def test_r319(b):
           and 'background-clip: text;' in css and '.62s' not in css.split('第 319 次：.62')[1][:400], '')
     # —— 6. 透镜质感：边宽、色散只在两端、上下限彩度、透镜里不预模糊 ——
     js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
-    check('#319 着色器：透镜亮边 / 亮弧 / 暗描边收窄到 1~1.5pt（衰减 .9 / 1.4 / 1px）、色散只乘在左右两端（wx = smoothstep(.55,.85,|n.x|)）、上下边带限彩度（gCh）、dock 本体同样只在两端色散',
-          "float edge=exp(-max(dt,0.)/.9);" in js and "exp(-max(dt,0.)/1.4)" in js and "smoothstep(0.,1.,dt)" in js and "float cs=.035*(1.2+2.4*uLM)*wx;" in js
+    check('#319 着色器：透镜亮边 / 亮弧 / 暗描边收窄到 1~1.5pt（衰减 .9 / 1.4 / 1px；第 327 次暗描边改 1 物理像素 hair()）、色散只乘在左右两端（wx = smoothstep(.55,.85,|n.x|)）、上下边带限彩度（gCh）、dock 本体同样只在两端色散',
+          "float edge=exp(-max(dt,0.)/.9);" in js and "exp(-max(dt,0.)/1.4)" in js and ("smoothstep(0.,1.,dt)" in js or "lc=mix(lc,hair(lc,dtn,nt.x),gr);" in js) and "float cs=.035*(1.2+2.4*uLM)*wx;" in js
           and "gCh=1.-.55*(ty>tx?1.:0.)*(1.-wx);" in js and "gDisp=uDisp*wxD;" in js and "c+=bg(p+k);}c/=7.;c=wfill(p,c);" not in js, '')
     ev("LiquidDock._manualMode(true)")
     tabs = ev("[...document.querySelectorAll('#tabbar .tab.dk-tab')].map(t=>{const r=t.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2,t.dataset.tab,t.classList.contains('active')]})")
@@ -6181,7 +6181,7 @@ def test_r320(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#320 SW 版本 v282+（第 326 次升 v288）、dock-fuse.js 进预缓存、index.html 引入', "var CACHE = 'baoma-static-v288';" in sw and "'js/dock-fuse.js'" in sw
+    check('#320 SW 版本 v282+（第 327 次升 v289）、dock-fuse.js 进预缓存、index.html 引入', "var CACHE = 'baoma-static-v289';" in sw and "'js/dock-fuse.js'" in sw
           and '<script src="js/dock-fuse.js" defer></script>' in (ROOT / 'index.html').read_text(encoding='utf-8'))
     # —— 1. 简洁模式移除 + 旧值迁移 ——
     src = {n: (ROOT / n).read_text(encoding='utf-8') for n in ('js/app.js', 'js/modules/settings.js', 'js/liquid-dock.js', 'js/dock-live.js', 'js/dock-refract.js', 'js/util.js', 'js/dock-fuse.js', 'css/styles.css')}
@@ -6426,7 +6426,7 @@ def test_r321(b):
     整条缩放从当前值接着按）；A2 长按 / 拖动速度形变 sx = 1 + min(0.15, |v|/2400)、sy ≈ 0.92/√sx（满形变），停手 120ms 内恢复、点击不做；
     A4 拖动中只换颜色不切页、抬手才切；17 帧点击节奏 / 0.97× / 点击透镜在栏内不变；SW v283。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#321 SW 版本 v283+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
+    check('#321 SW 版本 v283+（第 327 次升 v289）', "var CACHE = 'baoma-static-v289';" in sw)
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2)
     ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
     p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
@@ -6536,7 +6536,7 @@ def test_r321(b):
 
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321', 'test_r322', 'test_r323', 'test_r324', 'test_r325', 'test_r326')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321', 'test_r322', 'test_r323', 'test_r324', 'test_r325', 'test_r326', 'test_r327')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -6579,7 +6579,7 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r301',),
           ('test_r302',),
           ('test_r309',),
-          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',), ('test_r322',), ('test_r323',), ('test_r324',), ('test_r325',), ('test_r326',))  # 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',), ('test_r322',), ('test_r323',), ('test_r324',), ('test_r325',), ('test_r326',), ('test_r327',))  # 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 
@@ -6590,7 +6590,7 @@ def test_r322(b):
     A3 长按顶过端点页签时栏端被拉出：外凸 = 0.6 × 越界量、上限 7pt，GL 里「透镜 × 一级 dock」单独 k_end = 10 的 smooth-min；Chromium SVG 退化为不外凸、不出错。
     不变：17 帧点击节奏、0.97×、图标 0.24s；SW v284。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#322 SW 版本 v284+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
+    check('#322 SW 版本 v284+（第 327 次升 v289）', "var CACHE = 'baoma-static-v289';" in sw)
     drs = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     css = '\n'.join(pp.read_text(encoding='utf-8') for pp in (ROOT / 'css').glob('*.css'))
     check('#322 不变：透镜内 0.97×、选中图标 dk-pop .24s、A3 只在主程序 dk()（二级融合程序 FSF 里不用 uEP）',
@@ -6713,7 +6713,7 @@ def test_r323(b):
     不带倍率的 px 字号全部改为跟随字号档（等值替换：标准档零视觉差），只留 dock 标签 10px 与装饰字形；字号 lint。SW v285。"""
     import re
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#323 SW 版本 v285+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
+    check('#323 SW 版本 v285+（第 327 次升 v289）', "var CACHE = 'baoma-static-v289';" in sw)
     css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
     nc = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
     root = nc[nc.index(':root'):nc.index('}', nc.index(':root'))]
@@ -6768,7 +6768,7 @@ def test_r324(b):
     """第 324 次（设计审查分批 · 第二批）：对比度——12 个模块页面主按钮白字用加深后的模块色 --tile-fill（≥4.5:1）、时间轴辅助文字统一 --muted（不叠透明度）、
     新增 --placeholder 并全站 ::placeholder 一个颜色；P0——再点当前一级页签只滚回顶部，不清空重画、不闪白。SW v286。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#324 SW 版本 v286+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
+    check('#324 SW 版本 v286+（第 327 次升 v289）', "var CACHE = 'baoma-static-v289';" in sw)
     p, errs = fresh(b)
     ev = p.evaluate
     p.wait_for_timeout(600)
@@ -6830,7 +6830,7 @@ def test_r325(b):
     「点一下就保存」、没有保存条的面板（生长设置、营养品提醒 / 管理）照旧只有顶栏 ✓；保存条主按钮一种规格（54 / pill / 17/700 / 不带 ✓ 图标）；
     面板输入控件一套（文本 / 数字 / 日期 / 下拉 = --ctl-h 48、--surface-2、无描边，分段外框 48）。逐个打开面板核对，并实际点保存条存几条记录。SW v287。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#325 SW 版本 v287+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
+    check('#325 SW 版本 v287+（第 327 次升 v289）', "var CACHE = 'baoma-static-v289';" in sw)
     p, errs = fresh(b)
     ev = p.evaluate
     p.wait_for_timeout(500)
@@ -6940,7 +6940,7 @@ def test_r326(b):
     字段按 SCHEMA（show 条件不变）、校验与写回走同一个 commit（没动的时间保留秒、未来时间拦下、亲喂至少一侧、瓶喂奶量合计、
     醒来晚于入睡、最长连续重算）、保存后「已保存修改 · 撤销」；面板里「删除这条记录」与时间轴删除同一条路（可撤销）。SW v288。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#326 SW 版本 v288', "var CACHE = 'baoma-static-v288';" in sw)
+    check('#326 SW 版本 v288+（第 327 次升 v289）', "var CACHE = 'baoma-static-v289';" in sw)
     p, errs = fresh(b)
     ev = p.evaluate
     p.wait_for_timeout(500)
@@ -7215,11 +7215,11 @@ def test_r313(b):
           const ca=t.map(x=>{const c=x.querySelector('.dk-c'),r=c.getBoundingClientRect(),z=parseFloat(getComputedStyle(c).scale)||1;return (parseFloat(c.style.getPropertyValue('--la'))*z+r.left)-L.left});
           /* 第 319 次：整条 dock 按下放大（scale ds，以栏中心为原点）；GL 透镜矩形是未缩放坐标，CSS 透镜元素跟着放大——比对前把 CSS 外形换回未缩放 */
           const ds=LiquidDock.dockScale(),cx=q.left+q.width/2,cy=q.top+q.height/2;
-          return {w:L.width/ds,h:(L.height-q.height)/ds,mode:LiquidDock._state().lens.mode,syncDraw:s1.draws>d0,
+          return {w:L.width/ds,h:(L.height-q.height+2*Math.max(0,b.clientTop-1))/ds,mode:LiquidDock._state().lens.mode,syncDraw:s1.draws>d0,
             lensT:s1.lensT,body:[cx+(L.left-cx)/ds,cy+(L.top-cy)/ds,L.width/ds,L.height/ds],after:getComputedStyle(B,'::after').display,line:getComputedStyle(e.querySelector('.lgl-line')).display,
             sh:getComputedStyle(B).boxShadow,ratio:c.width/cr.width,rad:s1.cvRadius,center:px(L.left+L.width/2,q.top+q.height/2),icons:s1.icons||0,iconTex:LiquidDock.ICON_TEX,
             lr:t.map(x=>x.querySelector('.dk-t').style.getPropertyValue('--lr')),ca:ca,hov:hov}})()""")
-        check('#313 透镜宽而扁：第 315 次随 dock 收紧为宽 110、静止比栏高 12（上下各冒出约 6px，对照支付宝 5~7pt）' + sfx, g['mode'] == 'gl' and abs(g['w'] - 110) < 3 and abs(g['h'] - 12) < 1.6, [g['w'], g['h']])
+        check('#313 透镜宽而扁：第 315 次随 dock 收紧为宽 110、静止比栏高 12（上下各冒出约 6px，对照支付宝 5~7pt；第 327 次 GL 边框盒多出的 2px 不计）' + sfx, g['mode'] == 'gl' and abs(g['w'] - 110) < 3 and abs(g['h'] - 12) < 1.6, [g['w'], g['h']])
         T_ = g['lensT']; bd = g['body']
         check('#313 GL 透镜与 CSS 外形同一时刻同步重画（DR.lens 当场 draw，矩形一致 → 只有一条轮廓）' + sfx,
               g['syncDraw'] and T_ and abs(T_['x'] - bd[0]) < 1 and abs(T_['y'] - bd[1]) < 1 and abs(T_['w'] - bd[2]) < 1 and abs(T_['h'] - bd[3]) < 1, [T_, bd, g['syncDraw']])
@@ -7319,8 +7319,8 @@ def test_r314(b):
           rim[0] == {'rb': 14, 're': 18, 'rev': 11} and mp['edge'][0] < 96 and mp['top'][1] < 106 and abs(mp['b14'][0] - 128 - round(-(68 - 16) * 0.03 / 0.97 / 44 * 127)) <= 3, [rim[0], mp])
     dk = ev("(()=>{const f=document.getElementById('lgDock');return [f.querySelectorAll('feImage').length, +f.querySelector('feDisplacementMap').getAttribute('scale')]})()")
     js0 = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
-    check('#314 dock 外沿折射加强：Chromium 最大位移 20px（scale 40，滤镜不加料）；iOS 边带 18px / 20px，外沿几 px 减轻模糊与色调（tw）',
-          dk[0] == 2 and abs(dk[1] - 40) < 0.5 and 'var BAND = 18;' in js0 and 'gl.uniform1f(U.uAmt, 20 *' in js0 and "float tw=mix(.5,1.,smoothstep(0.,band*.8,d));" in js0, dk)
+    check('#314 dock 外沿折射加强：Chromium 最大位移 20px（scale 40，滤镜不加料）；iOS 边带 18px / 20px，外沿几 px 减轻模糊与色调（tw；第 327 次 .5 → .8）',
+          dk[0] == 2 and abs(dk[1] - 40) < 0.5 and 'var BAND = 18;' in js0 and 'gl.uniform1f(U.uAmt, 20 *' in js0 and ("float tw=mix(.5,1.,smoothstep(0.,band*.8,d));" in js0 or "float tw=mix(.8,1.,smoothstep(0.,band*.8,d));" in js0), dk)
     check('#314 Chromium 路径无页面错误', not errs, errs)
     p.close()
     # —— 3. iOS / WebGL 路径（lgGlForce）——
@@ -7396,9 +7396,9 @@ def test_r315(b):
     check('#315 图标：dock 每个页签是线条 + 填色两颗内联 SVG（同盒子 24×24 像素对齐），没有 <img>（不等异步解码），GL 用的填色位图已预解码', all(d and d['vb'] and d['box'] and not d['img'] for d in ic['dom']) and len(ic['dom']) == 3 and ic['img'], ic)
     # —— 2. 紧凑 dock ——
     dm = ev("""(()=>{const b=document.getElementById('tabbar'),t=b.querySelector('.tab.dk-tab'),o=document.getElementById('dockOrb'),pl=o&&o.querySelector('.tab-plus');
-      return {h:b.offsetHeight,tw:t.offsetWidth,th:t.offsetHeight,orb:o?o.offsetHeight:0,plus:pl?pl.offsetWidth:0,fs:parseFloat(getComputedStyle(b.querySelector('.dk-t')).fontSize),L:LiquidDock.LENS,
+      return {h:b.offsetHeight-2*Math.max(0,b.clientTop-1),tw:t.offsetWidth,th:t.offsetHeight,orb:o?o.offsetHeight:0,plus:pl?pl.offsetWidth:0,fs:parseFloat(getComputedStyle(b.querySelector('.dk-t')).fontSize),L:LiquidDock.LENS,
         pb:parseFloat(getComputedStyle(document.getElementById('view')).paddingBottom)}})()""")
-    check('#315 dock 紧凑：栏高 60（原 74，对照支付宝 61.7pt）、页签 64×44、文字 10px、＋ 珠 60 / ＋ 40、透镜 110 × 栏高+12、页面底部留白 98',
+    check('#315 dock 紧凑：栏高 60（原 74，对照支付宝 61.7pt；第 327 次 GL 模式边框盒 +2px 不计）、页签 64×44、文字 10px、＋ 珠 60 / ＋ 40、透镜 110 × 栏高+12、页面底部留白 98',
           dm['h'] == 60 and dm['tw'] == 64 and dm['th'] == 44 and dm['fs'] == 10 and dm['orb'] == 60 and dm['plus'] == 40 and dm['L']['W'] == 110 and dm['L']['DH'] == 12 and abs(dm['pb'] - 98) < 1, dm)
     # —— 3. 点击「日历」：透镜从当前胶囊（首页）弹簧滑到日历；透镜外 dock 纹丝不动；不重建页签 / 不摘 GL 画布 ——
     tabs = ev("[...document.querySelectorAll('#tabbar .tab.dk-tab')].map(t=>{const r=t.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2,t.dataset.tab,t.classList.contains('active')]})")
@@ -7479,15 +7479,15 @@ def test_r316(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready", 5000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#316 SW 版本 v278+（第 326 次升 v288）', "var CACHE = 'baoma-static-v288';" in sw)
+    check('#316 SW 版本 v278+（第 327 次升 v289）', "var CACHE = 'baoma-static-v289';" in sw)
     ph = ev("LiquidDock.PHYS")
     check('#316 弹簧参数：点击滑行 tap 临界阻尼 k≈600、点击速度形变 ×0.45、收回 k≥1500（~4 帧）、松手吸附 k 560、提前收回阈值',
           ph['tap']['k'] == 600 and ph['tap']['z'] >= 1 and abs(ph['tapV'] - 0.45) < 1e-6 and ph['shrink']['k'] >= 1500 and ph['snap']['k'] == 560
           and ph['exitPx'] <= 3 and ph['exitMs'] <= 100 and ph['drag']['k'] >= 2000, ph)
     # —— 静止胶囊比例 ——
     tb = ev("""(()=>{const b=document.getElementById('tabbar'),th=b.querySelector('.lg-thumb'),a=b.querySelector('.tab.dk-tab.active');const r=th.getBoundingClientRect(),br=b.getBoundingClientRect(),ar=a.getBoundingClientRect();
-      return {w:r.width,h:r.height,aw:ar.width,H:br.height,top:r.top-br.top,bot:br.bottom-r.bottom,cx:r.left+r.width/2,acx:ar.left+ar.width/2,T:LiquidDock.THUMB}})()""")
-    check('#316 静止选中胶囊：高 = 栏高 − 8（上下各 ~4）、宽 = 页签宽 + 12、与页签同中心（原生胶囊几乎贴栏高，第 315 次 64×44 缩在里面）',
+      return {w:r.width,h:r.height,aw:ar.width,H:br.height-2*Math.max(0,b.clientTop-1),top:r.top-br.top,bot:br.bottom-r.bottom,cx:r.left+r.width/2,acx:ar.left+ar.width/2,T:LiquidDock.THUMB}})()""")
+    check('#316 静止选中胶囊：高 = 栏高 − 8（上下各 ~4；栏高不计第 327 次 GL 边框盒多出的 2px）、宽 = 页签宽 + 12、与页签同中心（原生胶囊几乎贴栏高，第 315 次 64×44 缩在里面）',
           abs(tb['h'] - (tb['H'] - 8)) < 0.6 and abs(tb['w'] - (tb['aw'] + 12)) < 0.6 and abs(tb['top'] - tb['bot']) < 1.2 and abs(tb['cx'] - tb['acx']) < 0.6, tb)
     # —— dock 单轮廓 ——
     rim = ev("""(()=>{const b=document.getElementById('tabbar'),cv=b.querySelector('canvas.lg-gl');return {on:!!(cv&&cv.classList.contains('on')),bf:getComputedStyle(b,'::before').opacity,af:getComputedStyle(b,'::after').opacity}})()""")
@@ -7541,6 +7541,184 @@ def test_r316(b):
     ev("LiquidDock._manualMode(false)")
     check('#316 无 JS 报错', not errs, errs)
     p.close()
+
+
+
+R327_PROF = r"""(()=>{const b=document.getElementById('tabbar').getBoundingClientRect();return [b.left,b.top,b.width,b.height]})()"""
+
+
+def _r327_metrics(p):
+    """p：跨边的亮度剖面（外 → 内，物理像素）。外轮廓 10–90% 取「最陡一步两侧的局部极值」之间（外侧暗线谷 / 背景 ↔ 内侧亮边峰），
+    暗线 = 比外侧 3–9px 背景与内侧 3–6px 都暗的谷，平台 = 轮廓内连续 ≥ 254.5 的像素数"""
+    import numpy as np
+    p = np.asarray(p, dtype=float)
+    g = np.diff(p)
+    k = int(np.argmax(g[4:-4])) + 4                   # 最陡的上升一步（外暗 → 内亮）在 k → k+1
+    i0 = k
+    while i0 > 0 and p[i0 - 1] <= p[i0] + 0.5: i0 -= 1
+    i1 = k + 1
+    while i1 < len(p) - 1 and p[i1 + 1] >= p[i1] - 0.5: i1 += 1
+    lo, hi = p[i0], p[i1]
+    def cr(v):
+        for j in range(i0, i1):
+            if (p[j] - v) * (p[j + 1] - v) <= 0 and p[j] != p[j + 1]:
+                return j + (v - p[j]) / (p[j + 1] - p[j])
+        return None
+    a, c = cr(lo + 0.1 * (hi - lo)), cr(lo + 0.9 * (hi - lo))
+    w = None if a is None or c is None else round(c - a, 2)
+    bg = float(p[max(0, k - 9):max(1, k - 3)].mean())
+    trough = float(p[max(0, k - 1):k + 1].min())
+    inner = float(p[k + 4:k + 7].mean())
+    hair = round(min(bg, inner) - trough, 1)
+    run = mx = 0
+    for v in p[k + 1:k + 30]:
+        run = run + 1 if v >= 254.5 else 0; mx = max(mx, run)
+    return {'w1090': w, 'hair': hair, 'plateau': mx, 'bg': round(bg), 'trough': round(trough), 'peak': round(float(hi))}
+
+
+def test_r327(b):
+    """第 327 次：dock 边缘发虚（对照原生，/workspace/work/edge327/report.md 修复参数 1–6）——
+    ① 1 物理像素暗描边（浅色 hl = mix(.12,.30,|n.x|)，深色 .16 亮细线）、亮 rim 收到 2 物理像素、镜面 exp(−d/1.2)、边带 tw .5 → .8（不再削成纯白平台）；
+    ② 画布 dpr 封顶 2 → 3，三个程序（dock / 透镜 / 融合）抗锯齿 = 1 物理像素、按距离场梯度归一化，融合颈部放宽到 mix(1,2.5,k/6)；
+    ③ 投影收紧（一级 dock CSS 两层最远 ~14px；融合 uSh .06、/3、8px；透镜 .06）；④ 栏 / 画布 / 着色器 box 取整到物理像素；
+    ⑤ GL 轮廓 = 栏边框盒（与 S.L1.cap 一致，推入不跳 1px），GL 模式下 DOM 一起大 2px、外观尺寸不变；
+    ⑥ 动画帧 0.5 → 0.67，位移 < 0.25 物理像素提前回满分辨率，升回那一帧逼合成。17 帧点击节奏 / 撞端果冻由 test_r316 / test_r322 照跑。SW v289。"""
+    import io, re as _re
+    import numpy as np
+    from PIL import Image as _Im
+    sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
+    check('#327 SW 版本 v289', "var CACHE = 'baoma-static-v289';" in sw)
+    js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
+    fu = (ROOT / 'js' / 'dock-fuse.js').read_text(encoding='utf-8')
+    css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
+    fs_main = js[js.index('var FS = ['):js.index('var FSF = [')]
+    fs_fuse = js[js.index('var FSF = ['):js.index('var progF = null')]
+    check('#327 着色器源码：主程序 / 融合程序都有 uPX；抗锯齿按 1 物理像素 + 梯度归一化（dock / 透镜 / 融合三处），颈部 mix(1,2.5,k/6)；不再有按 CSS px 的 clamp(.5-sd,0.,1.)',
+          "'uniform vec2 uPX;'," in fs_main and "'uniform vec2 uPX;'," in fs_fuse and 'clamp(.5-sd*uPX.x/(max(g,.5)*mix(1.,2.5,clamp(kn/6.,0.,1.))),0.,1.)' in fs_main
+          and 'at=clamp(.5-st*uPX.x/gtm,0.,1.)' in fs_main and 'clamp(.5-sd*uPX.x/(gm*mix(1.,2.5,clamp(kn/6.,0.,1.))),0.,1.)' in fs_fuse
+          and 'clamp(.5-sd,0.,1.)' not in js and 'clamp(.5-st,0.,1.)' not in js, '')
+    check('#327 暗描边 / rim / 镜面 / tw：hair() 浅色 mix(.12,.30,smoothstep(.5,.95,|n.x|))、深色 .16 亮线，1 物理像素；rim smoothstep(0,2/uPX)；exp(−d/1.2)；tw .8（dock 与融合都改）',
+          fs_main.count('vec3 hair(vec3 c,float dn,float nx){float w=1.-smoothstep(0.,1./uPX.x,dn);if(uPX.y>.5)return mix(c,vec3(1.),.16*w);return c*(1.-mix(.12,.30,smoothstep(.5,.95,abs(nx)))*w);}') == 1
+          and fs_fuse.count('vec3 hair(') == 1 and fs_main.count('c=hair(c,dn,n.x);') == 1 and fs_fuse.count('c=hair(c,dn,n.x);') == 1 and 'lc=mix(lc,hair(lc,dtn,nt.x),gr);' in fs_main
+          and fs_main.count('smoothstep(0.,2./uPX.x,dn)') == 1 and fs_fuse.count('smoothstep(0.,2./uPX.x,dn)') == 1 and 'smoothstep(.2,1.6,d)' not in js
+          and 'exp(-max(d,0.)/2.4)' not in js and js.count('exp(-max(d,0.)/1.2)') == 2 and 'mix(.5,1.,smoothstep(0.,band*.8,d))' not in js and js.count('mix(.8,1.,smoothstep(0.,band*.8,d))') == 2, '')
+    sh_l = _re.search(r'body \.tabbar\.lg \{[^}]*?box-shadow: ([^;]+);', css).group(1)
+    sh_d = _re.search(r'body\.dark \.tabbar\.lg \{[^}]*?box-shadow: ([^;]+);', css).group(1)
+    def reach(s):
+        out = 0
+        for part in _re.split(r',\s*(?![^()]*\))', s):
+            nums = [float(x) for x in _re.findall(r'(-?[\d.]+)px', part)]
+            if len(nums) >= 3: out = max(out, abs(nums[1]) + nums[2] + (nums[3] if len(nums) > 3 else 0))
+        return out
+    check('#327 投影收紧：一级 dock 浅色 0 .5px 1px .10 + 0 6px 16px -8px .16、深色同比（最远 ≤ 18 CSS px，原 40）；融合 uSh 浅色 .06、衰减 /3、截断 8px；透镜浅色 .06',
+          sh_l.strip() == '0 .5px 1px rgba(90, 74, 62, .10), 0 6px 16px -8px rgba(90, 74, 62, .16)' and reach(sh_l) <= 14.01 and reach(sh_d) <= 18.01
+          and "(doc.body.classList.contains('dark') ? 0.34 : 0.06)" in js and 'exp(-max(ss,0.)/3.)*(1.-smoothstep(2.,8.,ss))' in fs_fuse and '(dark ? 0.26 : 0.06) * (fx.sh' in js, [sh_l, sh_d, reach(sh_l), reach(sh_d)])
+    check('#327 源码：surfDpr 封顶 3、FZ_LOW 0.67、dockShape 不再 ±1（= 边框盒，与 dock-fuse captureL1 的 rect(br) 同一口径）',
+          'Math.min(global.devicePixelRatio || 1, 3)' in js and 'var FZ_LOW = 0.67' in js and 'var dockShape = { x: r.left, y: r.top, w: r.width, h: r.height };' in js
+          and 'r.left - 1' not in js and 'var cap = rect(br);' in fu, '')
+
+    ctx = b.new_context(viewport={'width': 393, 'height': 852}, device_scale_factor=3)
+    ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
+    ctx.add_init_script("(()=>{const g=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(t,o){if(/webgl/.test(t)){o=Object.assign({},o||{},{preserveDrawingBuffer:true})}return g.call(this,t,o)}})()")
+    p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
+    p.goto(URL); p.wait_for_timeout(600); ev('t=>Storage.importJSON(t)', SEED_V3)
+    ev("localStorage.setItem('lgGlForce','1');Storage.get().settings.dockGlass='on';Storage.get().settings.theme='light';Storage.get().settings.themeMode='light';Storage.save()")
+    p.reload(); p.wait_for_timeout(1500)
+    _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
+    p.wait_for_timeout(2500)
+    g = ev("""(()=>{const b=document.getElementById('tabbar'),r=b.getBoundingClientRect(),cv=b.querySelector('canvas.lg-gl'),cr=cv.getBoundingClientRect(),s=DockRefract._stats();
+      const o=document.getElementById('dockOrb').getBoundingClientRect();
+      return {bar:[r.left,r.top,r.width,r.height],bw:getComputedStyle(b).borderTopWidth,cv:[cv.width,cv.height,cr.left,cr.top,cr.width,cr.height],box:s.box,shape:s.shape,orb:[o.left,o.top,o.width,o.height],gl:document.documentElement.classList.contains('lg-gl'),
+        dw:getComputedStyle(document.documentElement).getPropertyValue('--dock-w').trim(),bh:getComputedStyle(document.documentElement).getPropertyValue('--dock-bh').trim()}})()""")
+    bx, by, bw_, bh_ = g['bar']; cvw, cvh, cl, ct, cw, ch = g['cv']
+    onpx = lambda v: abs(v * 3 - round(v * 3)) < 0.02
+    check('#327 画布 backing = CSS × 3（原封顶 2）、画布左上角与宽高落在整物理像素、着色器 box 与画布位置同一个值、栏左缘在整物理像素（原 53.5）',
+          g['gl'] and abs(cvw / cw - 3) < 0.01 and abs(cvh / ch - 3) < 0.01 and onpx(cl) and onpx(ct) and onpx(cw) and onpx(ch) and onpx(bx) and onpx(by)
+          and g['box'] and abs(g['box']['x'] - cl) < 0.02 and abs(g['box']['y'] - ct) < 0.02 and abs(g['box']['w'] - cw) < 0.02, g)
+    # 外观尺寸不变：原来 GL 轮廓 = 218×60 的边框盒外扩 1px = 220×62，栏左缘 53.5 − 1（取整后 53）；＋ 珠 60、间距 7（原 GL 外沿到珠子）
+    check('#327 GL 轮廓 = 栏边框盒（220×62 = 原 218×60 外扩 1px 的外观尺寸），GL 模式下边框 2px、内容盒不动；＋ 珠仍 60、与 dock 外观间距 7（同原来）',
+          g['shape'] and abs(g['shape']['x'] - bx) < 0.01 and abs(g['shape']['w'] - bw_) < 0.01 and abs(g['shape']['h'] - bh_) < 0.01 and abs(bw_ - 220) < 0.01 and abs(bh_ - 62) < 0.01
+          and g['bw'] == '2px' and abs(g['orb'][2] - 60) < 0.01 and abs(g['orb'][0] - (bx + bw_) - 7) < 0.6 and abs((g['orb'][1] + 30) - (by + 31)) < 0.6, g)
+    # —— 边缘剖面（截图，物理像素）——
+    clip = {'x': 0, 'y': by - 30, 'width': 393, 'height': bh_ + 60}
+    a = np.asarray(_Im.open(io.BytesIO(p.screenshot(clip=clip))).convert('RGB')).astype(float)
+    L = 0.2126 * a[..., 0] + 0.7152 * a[..., 1] + 0.0722 * a[..., 2]
+    E_b = int(round((30 + bh_) * 3)); E_r = int(round((bx + bw_) * 3)); E_l = int(round(bx * 3)); cy = int(round((30 + bh_ / 2) * 3))
+    xm = int(round((bx + bw_ * 0.62) * 3))
+    prof = {
+        'bottom': L[E_b - 30:E_b + 12, xm - 40:xm + 40].mean(1)[::-1],
+        'right': L[cy - 4:cy + 4, E_r - 30:E_r + 12].mean(0)[::-1],
+        'left': L[cy - 4:cy + 4, E_l - 12:E_l + 30].mean(0),
+    }
+    M = {k: _r327_metrics(v) for k, v in prof.items()}
+    check('#327 外轮廓 10–90% 过渡 ≤ 1.8 物理像素（左 / 右端帽、下直边；修前 3.0–3.4，原生 1.4–1.6）', all(m['w1090'] is not None and m['w1090'] <= 1.8 for m in M.values()), M)
+    check('#327 暗描边存在：左右端帽、下边最外一个物理像素比外侧背景和内侧玻璃都暗 ≥ 8 级（修前没有）', all(M[k]['hair'] >= 8 for k in ('left', 'right', 'bottom')), M)
+    check('#327 没有纯白平台：轮廓内连续 ≥ 254.5 的像素 ≤ 2（修前 6–7）', all(m['plateau'] <= 2 for m in M.values()), M)
+    # 投影：页面藏掉、纯色底、GL 画布藏掉，只剩栏的 CSS 投影；沿栏中线往左量（视口下沿离栏只有 9px，量不到下方）
+    ev("(()=>{const st=document.createElement('style');st.id='r327sh';st.textContent='body *{visibility:hidden!important}#tabbar,#tabbar *{visibility:visible!important}html,body{background:#f2ece4!important}#tabbar>canvas{visibility:hidden!important}';document.head.appendChild(st)})()")
+    p.wait_for_timeout(300)
+    a2 = np.asarray(_Im.open(io.BytesIO(p.screenshot(clip={'x': 0, 'y': by, 'width': 393, 'height': bh_}))).convert('RGB')).astype(float)
+    ev("document.getElementById('r327sh').remove()")
+    L2 = 0.2126 * a2[..., 0] + 0.7152 * a2[..., 1] + 0.0722 * a2[..., 2]
+    row = L2[int(bh_ * 1.5) - 6:int(bh_ * 1.5) + 6, :].mean(0)
+    far = float(row[max(0, E_l - 120):E_l - 105].mean())     # 栏左 35–40 CSS px
+    depth = [far - float(row[E_l - 1 - i]) for i in range(0, 100)]
+    dmax = max(depth); ext = next((i for i in range(len(depth) - 1, -1, -1) if depth[i] > max(1.0, 0.1 * dmax)), 0)
+    check('#327 投影衰减范围收紧：栏外最深 ≤ 10 级、衰减到 10% 在 12 CSS px 内（原三层投影 ~25 CSS px）', 1 <= dmax <= 10 and ext / 3 <= 12, [round(dmax, 1), round(ext / 3, 1)])
+    # —— 推入第一帧：融合一级形状 = GL 静止轮廓（不跳 1px）——
+    shape0 = ev("DockRefract._stats().shape")
+    ev("window.__T=performance.now();DockFuse._clock(()=>window.__T)")
+    ev("App.showTab('diaper')")
+    f1 = ev("(()=>{window.__T+=16.67;DockFuse._step(16.67);const s=DockFuse._state();return {L1:s.L1,list:(s.list||[]).map(q=>({id:q.id,x:q.x,y:q.y,w:q.w,h:q.h})),tw:s.tw,m:s.m}})()")
+    for _ in range(40): ev("(()=>{window.__T+=16.67;DockFuse._step(16.67)})()")
+    ev("DockFuse._clock(null)")
+    _poll(p, "!DockFuse._state().tw&&!document.documentElement.classList.contains('nav-anim')", 3000, 50)
+    cap = (f1.get('L1') or {}).get('cap') or {}
+    back = next((q for q in f1['list'] if q.get('id') == 'back'), None)
+    jump = max(abs(cap.get(k, 1e9) - shape0[k]) for k in ('x', 'y', 'w', 'h')) if shape0 and cap else 99
+    check('#327 推入：融合的一级形状 S.L1.cap（推入第 0 帧的轮廓）与静止时 GL 轮廓逐边相同（修前每边差 1px，推入第一帧缩 1px）', jump < 0.05, {'shape0': shape0, 'cap': cap, 'back': back, 'm': f1.get('m')})
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(900)
+    _poll(p, "!DockFuse._state().tw&&!DockFuse._state().sub", 3000, 50)
+    # —— 动画帧分辨率：运动 0.67 × 3 = 2 倍；位移 < 0.25 物理像素回满分辨率（同一帧缓冲尺寸就是满的），之后小抖动不降、≥ 1 物理像素再降 ——
+    x0, y0 = bx, by
+    LST = lambda dx: f"[{{x:{x0 + dx},y:{y0 + 5},w:52,h:52,r:26,k:0,tm:0,a:1,lf:0,band:13}},{{x:{x0 + 60},y:{y0 + 1},w:{bw_ - 60},h:60,r:30,k:8,tm:0,a:1,lf:0,band:18}}]"
+    ev(f"DockRefract.fuse({LST(0)},{{moving:true}})")
+    seq = []
+    for dx, mv in ((-4, True), (-8, True), (-8.05, True), (-8.08, True), (-12, True), (-12, False)):
+        ev(f"DockRefract.fuse({LST(dx)},{{moving:{'true' if mv else 'false'}}})")
+        seq.append(ev("(()=>{const f=DockRefract._fz(),c=document.querySelector('#tabbar canvas.lg-gl'),r=c.getBoundingClientRect();return {low:f.st.low,dpr:f.st.dpr,ups:f.st.ups||0,ratio:Math.round(c.width/r.width*100)/100,oo:c.style.outlineOffset}})()"))
+    ok_res = (seq[0]['low'] and abs(seq[0]['dpr'] - 2.01) < 0.02 and seq[1]['low'] and not seq[2]['low'] and abs(seq[2]['dpr'] - 3) < 0.01 and abs(seq[2]['ratio'] - 3) < 0.02
+              and seq[2]['ups'] > seq[1]['ups'] and seq[2]['oo'] != seq[1]['oo'] and not seq[3]['low'] and seq[4]['low'] and not seq[5]['low'] and abs(seq[5]['ratio'] - 3) < 0.02)
+    check('#327 动画帧 0.67 倍（3 倍屏上 2 倍，原 1 倍）；位移 < 0.25 物理像素那一帧就按满分辨率画、画布缓冲当帧即 3 倍并逼合成（outlineOffset 抖一下）；之后 < 1 物理像素的抖动不降回、大位移再降；停下满分辨率', ok_res, seq)
+    # —— 融合颈部不闪：两颗玻璃之间的颈（k 8）随返回钮 1/12px 平移，颈部覆盖量逐步平滑变化 ——
+    import base64 as _b64
+    necks = []
+    for i in range(13):
+        dx = 3 + i / 12.0
+        L2 = f"[{{x:{x0},y:{y0 + 5},w:52,h:52,r:26,k:0,tm:0,a:1,lf:0,band:13}},{{x:{x0 + 52 + dx},y:{y0 + 5},w:{bw_ - 60},h:52,r:26,k:10,tm:0,a:1,lf:0,band:13}}]"
+        ev(f"DockRefract.fuse({L2},{{moving:false}})")
+        u = ev("document.querySelector('#tabbar canvas.lg-gl').toDataURL('image/png')")
+        img = np.asarray(_Im.open(io.BytesIO(_b64.b64decode(u.split(',')[1]))).convert('RGBA')).astype(float)
+        fz = ev("DockRefract._fz()"); ext = ev("(()=>{const c=document.querySelector('#tabbar canvas.lg-gl'),r=c.getBoundingClientRect();return [r.left,r.top,c.width/r.width]})()")
+        sx = ext[2]; nx = int(round((x0 + 52 + dx / 2 - ext[0]) * sx)); ny0 = int(round((y0 + 5 - ext[1]) * sx)); ny1 = int(round((y0 + 57 - ext[1]) * sx))
+        necks.append(float(img[ny0:ny1, nx - 1:nx + 2, 3].mean(1).sum() / 255.0 / sx))
+    steps = [abs(b_ - a_) for a_, b_ in zip(necks, necks[1:])]
+    ev("DockRefract.fuse(null)")
+    check('#327 融合颈部不闪：返回钮按 1/12 px 平移 1px，颈部覆盖高度单调变化、相邻两步差 ≤ 0.6 CSS px（无忽断忽连）', necks and min(necks) > 1 and max(steps) <= 0.6
+          and (all(b_ <= a_ + 0.05 for a_, b_ in zip(necks, necks[1:])) or all(b_ >= a_ - 0.05 for a_, b_ in zip(necks, necks[1:]))), [round(v, 2) for v in necks])
+    # —— 深色：亮细线、外轮廓同样 ≤ 1.8 ——
+    ev("Storage.get().settings.theme='dark';Storage.get().settings.themeMode='dark';Storage.save()")
+    p.reload(); p.wait_for_timeout(1500)
+    _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000); p.wait_for_timeout(2500)
+    bx2, by2, bw2, bh2 = ev(R327_PROF)
+    a = np.asarray(_Im.open(io.BytesIO(p.screenshot(clip={'x': 0, 'y': by2 - 30, 'width': 393, 'height': bh2 + 60}))).convert('RGB')).astype(float)
+    L = 0.2126 * a[..., 0] + 0.7152 * a[..., 1] + 0.0722 * a[..., 2]
+    E_r = int(round((bx2 + bw2) * 3)); cy = int(round((30 + bh2 / 2) * 3))
+    pr = L[cy - 4:cy + 4, E_r - 30:E_r + 12].mean(0)[::-1]
+    md = _r327_metrics(pr)
+    check('#327 深色：端帽外轮廓 ≤ 1.8 物理像素、最外一圈是亮细线（比内侧亮）', md['w1090'] is not None and md['w1090'] <= 1.8 and md['peak'] > float(np.asarray(pr)[-6:].mean()) + 8, md)
+    check('#327 无 JS 报错、点击节奏 / 果冻参数没动（LiquidDock.PHYS）', not errs and LiquidDock_phys_ok(ev), errs)
+    ctx.close()
 
 
 def LiquidDock_phys_ok(ev):

@@ -387,6 +387,9 @@
   function tabCenter(t) { var r = t.getBoundingClientRect(); return unscaleX(r.left + r.width / 2); }
   /* 栏的未缩放矩形（视口坐标）。动画（透镜在场 / dock 缩放中）期间不读布局，用按下那一刻量好的缓存 */
   var geo = null;
+  /* 第 327 次：GL 模式下一级栏的透明边框 1 → 2px（styles.css 第 327 次段，GL 轮廓 = 边框盒、外观尺寸不变）——透镜高、点击胶囊高、水滴高、栏内壁 / 果冻这些
+     「按栏高 / 栏端算」的量扣掉多出来的这 1px（ex），和原来逐像素相同 */
+  function bEx() { return bar ? Math.max(0, (bar.clientTop || 1) - 1) : 0; }
   function barGeo(fresh) {
     if (geo && !fresh && (lens || DS.on)) return geo;
     var r = bar.getBoundingClientRect(), k = DS.s || 1, cx = r.left + r.width / 2, cy = r.top + r.height / 2, w = r.width / k, h = r.height / k;
@@ -413,7 +416,7 @@
     if (lens || !bar || !t || !t.classList.contains('dk-tab') || bar.classList.contains('is-sub')) return false;
     var mode = lensMode();
     if (!mode) return false;
-    var W = LENS_W, H = Math.round(bar.offsetHeight + LENS_DH);
+    var W = LENS_W, H = Math.round(bar.offsetHeight - 2 * bEx() + LENS_DH);
     if (mode === 'svg' && !ensureLensFilter(W, H)) mode = 'plain';
     var el = ensureLensEl();
     var body = el.firstChild;
@@ -428,9 +431,9 @@
     var a0 = activeTab(), x0 = a0 && a0 !== t && a0.classList.contains('dk-tab') ? tabCenter(a0) : tabCenter(t), x = tabCenter(t), n = nowMs();
     var pw0 = t.offsetWidth + THUMB_PX;
     lens = { mode: mode, W: W, H: H, x: x0, vx: 0, tx: x, s: 0, vs: 0, sx: 1, vsx: 0, sy: 1, vsy: 0, rb: 0, m: 0, a: 0, hl: 0, flash: 1,
-      phase: 'grow', tap: true, t0: n, last: n, pw: pw0, ph: Math.max(t.offsetHeight, bar.offsetHeight - 2 * THUMB_INSET), tab: t, boxes: mode === 'gl' ? iconBoxes() : [],
+      phase: 'grow', tap: true, t0: n, last: n, pw: pw0, ph: Math.max(t.offsetHeight, bar.offsetHeight - 2 * bEx() - 2 * THUMB_INSET), tab: t, ex: bEx(), boxes: mode === 'gl' ? iconBoxes() : [],
       /* 第 319 次：点击的两条边（未缩放视口 x）、长按 / 拖动的「大透镜」比例 bf（0 = 点击：栏内 56 高、宽 ≤104；1 = 第十四版：栏高 + 12、宽 110） */
-      eL: x0 - pw0 / 2, eR: x0 + pw0 / 2, veL: 0, veR: 0, bf: 0, down: true, br: G, Ht: Math.round(bar.offsetHeight + PHYS.tapDH), debt: 0, tp: n, retargets: 0,
+      eL: x0 - pw0 / 2, eR: x0 + pw0 / 2, veL: 0, veR: 0, bf: 0, down: true, br: G, Ht: Math.round(bar.offsetHeight - 2 * bEx() + PHYS.tapDH), debt: 0, tp: n, retargets: 0,
       endSide: endSideOf(t), jc: 0, vjc: 0, jcMax: 0, endC: endCenters(), pull: 0, pullMax: 0 };
     jellyLast = null;
     bar.classList.remove('lg-lensend', 'lg-shrink'); bar.classList.add('lg-lensing');
@@ -574,7 +577,7 @@
     var cT = 0;
     if (edges && L.endSide && !red) {
       var wN = Math.max(1, Math.min(PHYS.tapMaxW, ((L.eR - L.eL) + PHYS.tapBulge * Math.max(0, L.s)) * L.sx));
-      var lim = L.endSide > 0 ? L.br.right - PHYS.endInset : L.br.left + PHYS.endInset;
+      var lim = L.endSide > 0 ? L.br.right - PHYS.endInset - (L.ex || 0) : L.br.left + PHYS.endInset + (L.ex || 0);
       var gap = L.endSide * (lim - (L.x + L.endSide * wN / 2));   /* 外沿离内壁还有多远（负 = 已越过） */
       var vOut = L.endSide * (L.endSide > 0 ? L.veR : L.veL);
       if (!L.hit && gap < PHYS.hitZone && vOut > PHYS.hitV) { L.hit = true; L.vjc += PHYS.hitGain * vOut / wN; L.hitV = Math.round(vOut); }
@@ -721,14 +724,14 @@
     /* 第 322 次：撞端果冻——外沿夹在栏内壁、内沿不动，宽度按 jc 压；竖向 1 + 0.8·jc，最多鼓出栏外 jellyDH（4pt）。点击形态才有（bf → 1 时混掉） */
     var xT = L.x;
     if (L.jc && L.endSide) {
-      var limA = L.endSide > 0 ? br.right - PHYS.endInset : br.left + PHYS.endInset;
+      var limA = L.endSide > 0 ? br.right - PHYS.endInset - (L.ex || 0) : br.left + PHYS.endInset + (L.ex || 0);
       var eo = L.x + L.endSide * wT / 2;
       if (L.endSide * (eo - limA) > 0) eo = limA;
       var wJ = wT * (1 - L.jc);
       xT = eo - L.endSide * wJ / 2; wT = wJ;
       /* 竖向按点击透镜的满高（栏高 − 4）算：滑行中的速度压扁（sy < 1）撞上去时先被顶回满高，再按 1 + 0.8·jc 鼓出 */
       var hJ = hT + Math.max(0, L.Ht - hT) * Math.max(0, Math.min(1, L.jc / 0.04));
-      hT = Math.min(br.height + 2 * PHYS.jellyDH, hJ * (1 + PHYS.jellySy * L.jc));
+      hT = Math.min(br.height - 2 * (L.ex || 0) + 2 * PHYS.jellyDH, hJ * (1 + PHYS.jellySy * L.jc));
     }
     var wB = (L.pw + (L.W - L.pw) * s) * L.sx, hB = (L.ph + (L.H - L.ph) * s) * L.sy;
     var w = wT + (wB - wT) * L.bf, h = hT + (hB - hT) * L.bf, sx = w / L.W, sy = h / L.H;
@@ -826,7 +829,7 @@
      比原生小一圈、看着「缩在里面」。透镜从这块胶囊同尺寸鼓起（lensStart 的 pw / ph）。 */
   var THUMB_INSET = 4, THUMB_PX = 12;
   function thumbBox(a) {
-    var H = bar.offsetHeight, h = Math.max(a.offsetHeight, H - 2 * THUMB_INSET), w = a.offsetWidth + THUMB_PX;
+    var H = bar.offsetHeight - 2 * bEx(), h = Math.max(a.offsetHeight, H - 2 * THUMB_INSET), w = a.offsetWidth + THUMB_PX;
     return { x: a.offsetLeft - THUMB_PX / 2, y: (bar.clientHeight - h) / 2, w: w, h: h };
   }
   function activeTab() {

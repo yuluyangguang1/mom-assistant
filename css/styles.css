@@ -4547,7 +4547,8 @@ body .tabbar.lg {
   -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.04);
   backdrop-filter: blur(14px) saturate(190%) brightness(1.04);
   border-color: transparent;
-  box-shadow: 0 1px 1px rgba(90, 74, 62, .06), 0 10px 28px -10px rgba(90, 74, 62, .34), 0 22px 44px -26px rgba(90, 74, 62, .30);
+  /* 第 327 次：投影收紧（原三层最远 ~40 CSS px、紧贴轮廓暗 46 级，把边「晕」出去；原生 ≤3 级）——最远 ~14 CSS px */
+  box-shadow: 0 .5px 1px rgba(90, 74, 62, .10), 0 6px 16px -8px rgba(90, 74, 62, .16);
   isolation: isolate;
   transition: scale .35s cubic-bezier(.34, 1.56, .64, 1), box-shadow .3s var(--ease);
 }
@@ -4582,7 +4583,7 @@ body.dark .tabbar.lg {
   --lg-rim-b: rgba(255, 255, 255, .26);
   --lg-edge: rgba(255, 255, 255, .16);
   --lg-shade: rgba(0, 0, 0, .25);
-  box-shadow: 0 1px 1px rgba(0, 0, 0, .2), 0 10px 28px -10px rgba(0, 0, 0, .6), 0 22px 44px -26px rgba(0, 0, 0, .5);
+  box-shadow: 0 .5px 1px rgba(0, 0, 0, .30), 0 8px 18px -8px rgba(0, 0, 0, .35); /* 第 327 次：同比收紧 */
 }
 /* Chromium：真折射。位移贴图在 liquid-dock.js 里按胶囊实际尺寸生成 */
 /* 第 312 次：模糊 / 磨砂 / 色调 / 高光全部挪进 SVG 滤镜 #lgDock（见文件末「第 312 次」段），这里只剩 url()；
@@ -7418,3 +7419,20 @@ body .rec-sheet .rs-when .rs-tile { min-height: var(--ctl-tile-h); }
 body .rec-sheet .mw-inbox { min-height: var(--ctl-tile-h); align-items: center; border-radius: var(--ctl-r); background: var(--surface-2); }
 /* 第 326 次：步进器数字框的原生上下箭头（见 .ft-sv input） */
 .ft-sv input::-webkit-outer-spin-button, .ft-sv input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ============================================================
+   第 327 次：dock 边缘发虚——GL 轮廓改为栏的边框盒（dock-refract.js 去掉 ±1），一级页 GL 模式下栏的 DOM 一起大 2px（透明边框 1 → 2px），
+   外观尺寸不变：边框盒 = 原来的 GL 外沿（左右各外扩 1、上下各外扩 1），内容盒（页签 / 透镜 / 水滴的定位原点）位置不动。
+   ＋ 珠、正在进行胶囊位置和原来一样（公式里补回 2px）；二级页（.is-sub）规则不受影响。CSS 退化（无 lg-gl）不变。
+   ============================================================ */
+html.lg-gl body #tabbar.lg:not(.is-sub) { border-width: 2px; margin-bottom: -1px; }
+html.lg-gl body #tabbar.lg:not(.is-sub) > canvas.lg-gl { inset: -2px; width: calc(100% + 4px); height: calc(100% + 4px); }
+@media (min-width: 361px) {
+  html.lg-gl body.has-orb #tabbar.lg:not(.is-sub), html.lg-gl body.sub-anchor #tabbar.lg:not(.is-sub) { left: calc(50% - var(--dock-w, 258px) / 2 - (var(--dock-bh, 62px) + 6px) / 2); }
+  html.lg-gl #dockOrb.dock-orb { --orb: calc(var(--dock-bh, 62px) - 2px); }
+  html.lg-gl body.has-orb .dock-live { left: calc(50% - (var(--dock-bh, 62px) + 6px) / 2); }
+}
+@media (max-width: 360px) {
+  /* 窄屏栏的 left 公式（− dock-w / 2 − 31px）在 dock-w + 2 时正好左移 1px = 原 GL 外沿，不用改；＋ 珠的公式会右移 1px，补回来 */
+  html.lg-gl #dockOrb.dock-orb { left: calc(50% + var(--dock-w, 240px) / 2 - 24px); }
+}
