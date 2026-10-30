@@ -12,23 +12,21 @@
 (function (global) {
   'use strict';
 
-  /* 关键时段色板（顶 / 中 / 底，RGB），取样自参考项目 sky-preview.png 并做低饱和微调。
-     第 55 次（夜色减负）：夜晚从饱和紫罗兰调轻调蓝（用户反馈「夜色有点重」）——
-     提亮 ~15、紫味让给蓝味；夜云剪影同步跟随，保住「比夜空略浅一档」的云形可读性。 */
-  var STOPS = {
-    night: { top: [70, 74, 112],   mid: [108, 106, 148],   bottom: [168, 154, 184] },
-    dawn:  { top: [203, 177, 215], mid: [238, 199, 200], bottom: [250, 231, 188] },
-    /* 第 90 次（修「白色条」）：day.bottom 旧冷白值(246,244,243) → 253,249,244
-       (#FDF9F4 = --bg-grad 首档暖奶油)。此前接缝带/veil 终档把冷白实色压在
-       暖奶油页面上，问候卡与磁贴之间显出一道偏白的横条（用户实测反馈）。
-       接缝两侧从"都假设对方是自己的颜色"改为真正同色；晨昏/夜晚的
-       环境光下渗（golden/淡紫）保持不变。 */
-    day:   { top: [167, 189, 236], mid: [200, 216, 242], bottom: [253, 249, 244] },
-    dusk:  { top: [176, 164, 202], mid: [229, 196, 193], bottom: [247, 227, 195] }
+  /* 第 318 次（用户：天空更融入整个界面）：天空不再用一套独立的蓝紫色板，而是从 App 自己的主色板推导——
+     读 CSS 变量取实际值：页面底色 --header-bg-top（浅 #FDF9F4 / 深 #221E1A）、卡片色 --surface、
+     ＋ 珊瑚色 --primary-fill、正文色 --text，以及模块分色里的蓝（里程碑 --tile）、紫（睡眠 --tile）、蜜（孕期 --tile）。
+     每个时段的「顶 / 中」= 页面底色朝该时段的主色只走一小步（浅色顶 34%、中 16%；深色顶 24%、中 11%），
+     「底」= 页面底色本身（晨昏只带 ≤8% 暖意）——天空从页面里长出来，顶→底没有色相断层，也不再是一块独立色块。
+     深色主题直接用深色主题的变量推导（不再把浅色板乘 0.58 再叠暖炭罩）。
+     STOPS_FALLBACK 是变量读不到（无 DOM 的单测环境）时的兜底，数值 = 浅色主题按同一公式算出的结果。 */
+  var STOPS_FALLBACK = {
+    night: { top: [149, 148, 167], mid: [194, 192, 200], bottom: [243, 239, 236] },
+    dawn:  { top: [225, 206, 209], mid: [249, 229, 221], bottom: [249, 242, 232] },
+    day:   { top: [198, 207, 222], mid: [227, 229, 234], bottom: [253, 249, 244] },
+    dusk:  { top: [216, 201, 211], mid: [249, 228, 220], bottom: [249, 241, 230] }
   };
-  var CLOUD_NIGHT = [118, 114, 164];  /* 夜云剪影色（比夜空略浅一档，读得出云形） */
-  var CLOUD_WARM  = [247, 217, 224]; /* 晨昏云的粉调染色 */
-  var GLOW_DAWN = [249, 216, 160], GLOW_DUSK = [243, 190, 133];
+  var STOPS = STOPS_FALLBACK;
+  /* 云 / 晨昏辉光的颜色同样由主题推导（见 cloudColors） */
 
   function lerp(a, b, t) { return a + (b - a) * t; }
   function lerpC(c1, c2, t) {
@@ -42,9 +40,90 @@
   }
   function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
+  /* —— 第 318 次：从主题变量推导天空色板 —— */
+  function parseColor(str) {
+    if (!str) return null;
+    str = String(str).trim();
+    var m = str.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (m) {
+      var h = m[1]; if (h.length === 3) h = h.replace(/./g, function (c) { return c + c; });
+      return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+    }
+    m = str.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/);
+    return m ? [+m[1], +m[2], +m[3]] : null;
+  }
+  var themeCache = { key: null, val: null };
+  var probeEl = null;
+  function isDarkNow() {
+    try { return !!(document.body && document.body.classList.contains('dark')); } catch (e) { return false; }
+  }
+  /* 读主题变量（只在深浅色切换时重读一次）：页面底色 / 卡片色 / ＋ 珊瑚 / 正文色 + 三个模块分色。
+     模块分色写在 [data-accent] 上，用一个隐藏的探针元素逐个换 data-accent 读 --tile（深色时是 body.dark 下的那份）。 */
+  function themeColors() {
+    var dark = isDarkNow();
+    var key = dark ? 'd' : 'l';
+    if (themeCache.key === key && themeCache.val) return themeCache.val;
+    var T = null;
+    try {
+      var b = document.body;
+      if (b && global.getComputedStyle) {
+        var cs = global.getComputedStyle(b);
+        var v = function (n) { return parseColor(cs.getPropertyValue(n)); };
+        if (!probeEl || !probeEl.isConnected) {
+          probeEl = document.createElement('i');
+          probeEl.className = 'sky-probe'; probeEl.setAttribute('aria-hidden', 'true');
+          probeEl.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;visibility:hidden;pointer-events:none';
+          b.appendChild(probeEl);
+        }
+        var tile = function (acc) { probeEl.setAttribute('data-accent', acc); return parseColor(global.getComputedStyle(probeEl).getPropertyValue('--tile')); };
+        T = { B: v('--header-bg-top'), S: v('--surface'), P: v('--primary-fill'), text: v('--text'),
+          day: tile('milestone'), night: tile('sleep'), warm: tile('pregnancy'), dark: dark, src: 'css' };
+        for (var k in T) if (k !== 'dark' && k !== 'src' && !T[k]) { T = null; break; }
+      }
+    } catch (e) { T = null; }
+    if (!T) {
+      T = dark
+        ? { B: [34, 30, 26], S: [46, 41, 36], P: [240, 168, 145], text: [240, 235, 228], day: [159, 185, 223], night: [171, 173, 214], warm: [228, 185, 130], dark: true, src: 'fallback' }
+        : { B: [253, 249, 244], S: [255, 255, 255], P: [232, 144, 124], text: [51, 48, 43], day: [92, 125, 180], night: [104, 107, 175], warm: [200, 145, 70], dark: false, src: 'fallback' };
+    }
+    T.stops = deriveStops(T);
+    themeCache = { key: key, val: T };
+    return T;
+  }
+  /* 云 / 辉光色（跟主题缓存一起算一次） */
+  function cloudColors() {
+    var T = themeColors();
+    if (T.clouds) return T.clouds;
+    var st = T.stops;
+    var day = T.dark ? lerpC(T.B, T.text, 0.2).map(Math.round) : T.S.slice();
+    T.clouds = {
+      day: day,
+      warm: lerpC(day, T.P, T.dark ? 0.22 : 0.3).map(Math.round),
+      night: T.dark ? lerpC(st.night.top, T.text, 0.1).map(Math.round) : lerpC(st.night.top, T.S, 0.3).map(Math.round),
+      glowDawn: lerpC(T.warm, T.S, T.dark ? 0.1 : 0.45).map(Math.round),
+      glowDusk: lerpC(T.P, T.warm, 0.35).map(Math.round)
+    };
+    return T.clouds;
+  }
+  function deriveStops(T) {
+    var B = T.B, d = T.dark;
+    var kt = d ? 0.24 : 0.34, km = d ? 0.11 : 0.16;
+    /* 夜：睡眠紫往正文墨色压一点（浅色主题）；深色主题直接用深色的睡眠紫，走得更少 */
+    var N = d ? T.night : lerpC(T.night, T.text, 0.45);
+    var dawnA = lerpC(T.night, T.P, 0.55), duskA = lerpC(T.night, T.P, 0.4);
+    function m(c, t) { return lerpC(B, c, t).map(Math.round); }
+    return {
+      day:   { top: m(T.day, kt),          mid: m(T.day, km),          bottom: B.slice() },
+      dawn:  { top: m(dawnA, kt * 1.05),   mid: m(T.P, km * 1.2),      bottom: m(T.warm, d ? 0.04 : 0.07) },
+      dusk:  { top: m(duskA, kt * 1.1),    mid: m(T.P, km * 1.25),     bottom: m(T.warm, d ? 0.05 : 0.08) },
+      night: { top: m(N, d ? 0.16 : 0.6),  mid: m(N, d ? 0.08 : 0.34), bottom: m(N, d ? 0.02 : 0.06) }
+    };
+  }
+
   /* 依据本地时间得到当前天空三停色板与两个氛围因子：
      night ∈ [0,1]（夜晚程度，驱动星星与云剪影染色）、warm ∈ [0,1]（晨昏程度，驱动云粉染与地平线辉光） */
   function skyPalette(date) {
+    if (typeof document !== 'undefined') { try { STOPS = themeColors().stops; } catch (eT) { STOPS = STOPS_FALLBACK; } }
     var h = date.getHours() + date.getMinutes() / 60;
     var top, mid, bottom, night = 0, warm = 0, glowX = 0.3;
     if (h < 5) {
@@ -259,7 +338,7 @@
     try {
       if (typeof document === 'undefined' || !document.documentElement || !document.documentElement.style) return;
       var key = [pal.top, pal.mid, pal.bottom].map(function (c) { return c.map(Math.round).join(','); }).join('|');
-      if (key === ambientCache) return;
+      if (key === ambientCache) return false;
       ambientCache = key;
       var lum = (0.2126 * pal.top[0] + 0.7152 * pal.top[1] + 0.0722 * pal.top[2]) / 255;
       var ambA = (0.10 + 0.07 * (1 - Math.min(1, lum * 2))).toFixed(3);
@@ -267,12 +346,14 @@
          「暗色主题下的白天亮板」；夜晚板本身已暗，再叠 40% 炭罩是双重压暗，
          正是「夜色发重发闷」的第二根源。白天 lum≥.5 时满强度，夜晚降到 30%。 */
       var dim = Math.max(0.3, Math.min(1, 0.3 + (lum - 0.25) * 2.8)).toFixed(3);
+      /* 第 318 次：深色主题的天空直接由深色变量推导，本身就是暗的——不再叠暖炭压暗罩（.home-sky::after），状态栏取色也不再混罩子 */
+      if (pal.dark) dim = '0';
       var s = document.documentElement.style;
       s.setProperty('--sky-ambient-top', pal.top.map(Math.round).join(','));
       /* 第 263 次：状态栏取色要用天空最上沿的真实颜色 */
       global.__skyDim = +dim;
-      if (global.syncStatusColor) global.syncStatusColor();
       s.setProperty('--sky-ambient-bottom', pal.bottom.map(Math.round).join(','));
+      s.setProperty('--sky-ambient-mid', pal.mid.map(Math.round).join(','));
       s.setProperty('--sky-live-rgb', pal.bottom.map(Math.round).join(','));
       s.setProperty('--sky-ambient-a', ambA);
       s.setProperty('--sky-dim-o', dim);
@@ -286,7 +367,9 @@
       var crDark = (L + 0.05) / (0.0245 + 0.05);   /* #2B2A33 相对亮度 ≈ .0245 */
       var crLight = 1.05 / (L + 0.05);
       document.documentElement.setAttribute('data-sky-ink', crLight > crDark ? 'light' : 'dark');
+      return true;
     } catch (e) { /* 静默 */ }
+    return false;
   }
 
   /* 会话级时段预览（设置 · 外观写它，帧循环每帧读它） */
@@ -384,22 +467,10 @@
     }
     var DARK_K = 0.58;
     function scaleC(c, k) { return [c[0] * k, c[1] * k, c[2] * k]; }
+    /* 第 318 次：色板已按当前主题（深 / 浅）的变量推导，这里只给深色打标记（云 / 阳光强度用），不再乘暗系数、不再朝暖炭插值 */
     function themePal(pal) {
-      if (!pal.dark && !isDarkTheme()) return pal;
-      if (pal.dark) return pal;
-      var p = {
-        top: scaleC(pal.top, DARK_K), mid: scaleC(pal.mid, DARK_K), bottom: scaleC(pal.bottom, DARK_K),
-        night: pal.night, warm: pal.warm, glowX: pal.glowX, dark: 1
-      };
-      /* 第 142 次（夜间天空与页面融合）：原来只把「底」朝页面拉 0.45，
-         顶部与中部仍是纯冷紫 —— 暗色下就是「一块紫天 + 一片暖褐地面」，
-         用户反馈的分裂感。现在三段都往 DARK_PAGE 拉，且越往下拉得越多
-         （顶 0.18 / 中 0.34 / 底 0.62）：既保住夜空该有的冷调，
-         又让整块天空落在同一个暖炭色温家族里，接缝只剩明暗差、没有色相差。 */
-      p.top = lerpC(p.top, DARK_PAGE, 0.18);
-      p.mid = lerpC(p.mid, DARK_PAGE, 0.34);
-      p.bottom = lerpC(p.bottom, DARK_PAGE, 0.62);
-      return p;
+      if (pal.dark || !isDarkTheme()) return pal;
+      return { top: pal.top, mid: pal.mid, bottom: pal.bottom, night: pal.night, warm: pal.warm, glowX: pal.glowX, dark: 1 };
     }
     var nowFn = (opts && opts.hour != null)
       ? function () { var d = new Date(); d.setHours(Math.floor(opts.hour), Math.round((opts.hour % 1) * 60), 0, 0); return d; }
@@ -485,11 +556,13 @@
     function cloudTint(night, warm, L, dark, wc) {
       wc = wc || 0;
       var warmMul = (L === 2) ? 1.3 : (L === 0 ? 0.75 : 1);
-      var c = lerpC([255, 255, 255], CLOUD_WARM, warm * 0.85 * warmMul);
-      c = lerpC(c, CLOUD_NIGHT, night);
-      var a = lerp(0.72, 0.3, night) * lerp(1, 0.92, warm);
-      /* 第 92 次：暗色主题下云与天空一起压暗（否则天空暗了云仍亮白，浮在暗底上扎眼） */
-      if (dark) { c = scaleC(c, DARK_K); a *= 0.92; }
+      /* 第 318 次：云色也由主题推导——浅色：卡片白 → 晨昏带一点 ＋ 珊瑚 → 夜里比夜空亮一档的灰紫；
+         深色：页面底色朝正文色提一档（不再是压暗的白），整体透明度降一档，云是背景纹理而不是亮块 */
+      var CT = cloudColors();
+      var c = lerpC(CT.day, CT.warm, warm * 0.85 * warmMul);
+      c = lerpC(c, CT.night, night);
+      var a = lerp(0.6, 0.3, night) * lerp(1, 0.92, warm);
+      if (dark) a *= 0.8;
       /* 第 214 次：阴雨时云朝浅灰蓝、更实（夜里同样按亮度缩放） */
       if (wc > 0) {
         var cl = (c[0] + c[1] + c[2]) / 3 / 255;
@@ -532,7 +605,7 @@
     function ensureSprites(pal, full) {
       /* 第 92 次：key 首位加暗色标志——切主题后染色档位不变也能触发整套重建 */
       var wcq = Math.round(mood.c * 8) / 8;
-      var key = 'v215:' + (pal.dark ? 1 : 0) + ':w' + wcq + ':' + Math.round(pal.night * TARGET) + ':' + Math.round(pal.warm * TARGET) + ':' + Math.round(W) + ':' + dpr;
+      var key = 'v318:' + (pal.dark ? 1 : 0) + ':w' + wcq + ':' + Math.round(pal.night * TARGET) + ':' + Math.round(pal.warm * TARGET) + ':' + Math.round(W) + ':' + dpr;
       if (key === spriteKey && rebuildLeft < 0) return;
       if (rebuildLeft < 0) {
         /* 进入新档位：跨 mount 缓存命中则整套即用（不排队），否则开始分摊重建 */
@@ -575,8 +648,9 @@
         var gr = Math.max(W, H) * 0.55 * breathe;
         var gx = W * pal.glowX, gy = H * 0.92;
         var glow = ctx.createRadialGradient(gx, gy, 0, gx, gy, gr);
-        var gc = pal.glowX < 0.5 ? GLOW_DAWN : GLOW_DUSK;
-        glow.addColorStop(0, rgb(gc, 0.5 * pal.warm * breathe));
+        var GT = cloudColors();
+        var gc = pal.glowX < 0.5 ? GT.glowDawn : GT.glowDusk;
+        glow.addColorStop(0, rgb(gc, (pal.dark ? 0.22 : 0.34) * pal.warm * breathe));
         glow.addColorStop(1, rgb(gc, 0));
         ctx.fillStyle = glow;
         ctx.fillRect(0, 0, W, H);
@@ -845,7 +919,7 @@
       pal = themePal(pal); /* 第 92 次：暗色主题压暗（亮色原样返回，无额外开销） */
       stepMood(dt);
       pal = weatherPal(pal);
-      syncAmbient(pal); /* 第 53 次：环境光 CSS 变量随色板更新（量化节流，变了才写 DOM） */
+      var ambChanged = syncAmbient(pal); /* 第 53 次：环境光 CSS 变量随色板更新（量化节流，变了才写 DOM） */
       ensureSprites(pal, false);
       paintSky(pal, t / 1000);
       paintStratus(pal, dt);
@@ -863,6 +937,9 @@
       maybeSpawnMeteor(pal.night, dt);
       paintMeteors(dt);
       fadeBottomOut();
+      /* 第 318 次（切深浅色时状态栏慢一拍）：原来在 syncAmbient 里（画之前）就取状态栏色，读到的还是上一帧（旧主题）的画布像素，
+         要等 1.5~6 秒的定时取色才纠正。改为画完这一帧再取。 */
+      if (ambChanged && global.syncStatusColor) global.syncStatusColor();
       canvas.__skyId = requestAnimationFrame(frame);
     }
 
@@ -878,13 +955,14 @@
     function paintStatic() {
       stepMood(null);
       var pal = weatherPal(themePal(skyPalette(effNow()))); /* 第 92 次：静帧同样走暗色适配 */
-      syncAmbient(pal);
+      var ambS = syncAmbient(pal);
       ensureSprites(pal, true); /* reduced-motion：一次性建完整套，不做分摊 */
       paintSky(pal, 0);
       paintStratus(pal, 0);
       paintClouds(0);
       paintWeather(pal, 0);
       fadeBottomOut();
+      if (ambS && global.syncStatusColor) global.syncStatusColor();
     }
 
     if (reduced) { paintStatic(); }
@@ -904,6 +982,8 @@
   /* 供 QA 断言昼夜色板逐分钟连续（第 45 次：07:30 / 18:30 的暖辉跳变必须防回退）。
      下划线前缀 = 内部实现，不供业务调用，与 Modules.feeding._pendingDur 同类。 */
   Sky._palette = skyPalette;
+  /* 第 318 次：当前主题推导出的色板（QA 断言「天空色取自主题变量」用） */
+  Sky._theme = function () { themeCache.key = null; return themeColors(); };
 
   /* 第 85 次：日轮时刻表函数已撤下——日轮弧线与太阳/月亮从首页移除后，
      时刻表本身无消费方。天空色板/云/星/环境光不受影响。 */

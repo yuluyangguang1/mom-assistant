@@ -1122,6 +1122,9 @@
     if (!on || !gl || lost) return;
     if (scrolling) { rasterTimer = setTimeout(doRaster, 220); return; }
     if (doc.documentElement.hasAttribute('data-nav')) { rasterTimer = setTimeout(doRaster, 160); return; }
+    /* 第 318 次：二级页横推进行中（html.nav-anim / 侧滑拖动 html.nav-drag）：#view 在动、旧页在 body 上的另一张纸里，此刻拍的是半截——
+       画布留着上一张快照不藏（透镜外 dock 背景不变），转场一结束再拍 */
+    if (doc.documentElement.classList.contains('nav-anim') || doc.documentElement.classList.contains('nav-drag')) { rasterTimer = setTimeout(function () { doRaster(force); }, 60); return; }
     /* 页面进场动画（.view-enter 淡入 / 列表逐行进场）还在跑：此刻拍下来是半透明的，等它跑完 */
     var vw = doc.getElementById('view');
     if (vw && vw.getAnimations && animWait < 12) {
@@ -1179,6 +1182,7 @@
     /* 换页的 MutationObserver 回调在点击处理完、下一次绘制之前跑：当场同步重拍，新页第一帧 dock 里就是新快照
        （等到下一帧再拍：第一帧 GL 用旧快照判断「dock 不在快照范围」会把画布藏一帧，透镜也跟着消失 = WebKit 逐帧第 9 帧） */
     if (doc.documentElement.hasAttribute('data-nav')) { rasterTimer = setTimeout(doRaster, 160); return; }
+    if (doc.documentElement.classList.contains('nav-anim')) { rasterTimer = setTimeout(function () { doRaster(true); }, 60); return; }
     /* 进 / 出二级页仍有整页入场淡入：此刻拍是半透明的，照旧等入场跑完（画布留着旧快照，不藏） */
     var vw = doc.getElementById('view');
     if (vw && vw.classList.contains('view-enter')) { rasterTimer = setTimeout(doRaster, 120); return; }
@@ -1201,7 +1205,7 @@
   function stripePass(force) {
     if (!on || !gl || lost || !ready) return;
     if (dirty && rasterTimer) { pend.length = 0; return; }   /* 整张重拍马上要来，它会覆盖这些改动 */
-    if (scrolling || doc.documentElement.hasAttribute('data-nav')) { if (!stripeTimer) stripeTimer = setTimeout(function () { stripeTimer = 0; stripePass(force); }, 220); return; }
+    if (scrolling || doc.documentElement.hasAttribute('data-nav') || doc.documentElement.classList.contains('nav-anim')) { if (!stripeTimer) stripeTimer = setTimeout(function () { stripeTimer = 0; stripePass(force); }, 220); return; }
     var sy = global.scrollY || 0, ranges = [];
     for (var i = 0; i < pend.length; i++) {
       var el = pend[i]; if (!el.isConnected) continue;

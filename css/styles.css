@@ -47,6 +47,12 @@
      .128）会把页面底推离本 token，横线不但没消反而更大。ambient 层不进
      本 token，而是在 .app-header.is-scrolled 里作为第一层单独叠上去。 */
   --header-bg-top: #FDF9F4;
+  /* 第 318 次：三个一级页（首页 / 宝宝 / 日历）的天空统一成同一条「天空带」——从天空顶（视口顶上方一点）往下
+     同一高度、同一渐隐终点（画布 72%→88% 擦成透明），切页时天空不跳。首页天空的画布 / 罩层不再跟着问候区内容的高度走。 */
+  --sky-band: calc(var(--sat-pad) + 64px + 268px);
+  /* 天空兜底渐变（画布还没画时）：sky.js 每帧写 --sky-ambient-top / -mid / -bottom（由主题变量推导的当前色板），
+     没写之前用浅色白天板（= 页面底色朝里程碑蓝走 34% / 16%） */
+  --sky-fb-top: 198, 207, 222; --sky-fb-mid: 227, 229, 234; --sky-fb-bottom: 253, 249, 244;
   /* 第 64 次（接缝同色）：天空→页面的接缝色 = 天空画布底部当前色。
      sky.js 每帧把 pal.bottom 写进 --sky-live-rgb（html 内联），这里映射成
      --sky-seam-rgb 供 veil 终档与 .sky-seam 过渡带消费——接缝两侧永远同色，
@@ -948,7 +954,7 @@ body.dark .tabbar {
      原来兜底一直画到 100%，而画布在 72% 就淡光了——于是 72%~100% 这段
      透出来的是「浅蓝兜底」而不是页面底色，暗色下就是一道亮灰带
      （用户反馈的「天空和下方背景分裂」）。 */
-  background: linear-gradient(180deg, #A7BDEC 0%, #C8D8F2 55%, rgba(253, 249, 244, 0) 72%);
+  background: linear-gradient(180deg, rgb(var(--sky-ambient-top, var(--sky-fb-top))) 0%, rgb(var(--sky-ambient-mid, var(--sky-fb-mid))) 55%, rgba(var(--sky-ambient-bottom, var(--sky-fb-bottom)), 0) 72%); /* 第 318 次：兜底也按主题推导的色板 */
   /* 第 50 次（天空无界）：去掉底部 32px 圆角——圆角是「卡片分割感」的主源之一，
      下边界交给 veil 渐变整体融入页面底色（见 .home-sky .sky-veil），不再有硬边 */
 }
@@ -980,7 +986,8 @@ body.dark .tabbar {
    top #292B41 / mid #3F3D56，与画布同形、同样在 72% 归零。
    没有这条时，暗色下透出的是白天那份浅蓝兜底 —— 亮带就是这么来的。 */
 body.dark .home-sky {
-  background: linear-gradient(180deg, #292B41 0%, #3F3D56 55%, rgba(34, 30, 26, 0) 72%);
+  /* 第 318 次：深色兜底同样取 sky.js 写入的当前色板（由深色主题变量推导），未写入前用深色白天板 */
+  --sky-fb-top: 64, 67, 73; --sky-fb-mid: 48, 47, 48; --sky-fb-bottom: 34, 30, 26;
 }
 
 body.dark .home-sky::after {
@@ -5065,6 +5072,10 @@ html:not(.is-booting) .boot { display: none; }
     /* 第 317 次：浅色启动层（.boot-light，第 300 次）时状态栏 / 底边取色也跟着浅米色——原来这条规则不分深浅，
        浅色主题冷启动时 WebKit 读到深棕，状态栏和底边是两条深棕带压在浅米启动层上，拆层那一帧再跳成天空色 */
     html.is-booting.boot-light .edge-strip { background-color: #FBF6F0; }
+    /* 第 318 次（逐帧审查 #6）：启动层一开始淡出（boot.js 加 .boot-out）状态栏 / 底边就换成 App 的颜色，跳变藏进淡出里，
+       不再等拆层那一帧才跳 */
+    html.is-booting.boot-out .edge-strip.edge-strip-top { background-color: var(--status-color, var(--header-bg-top, #FDF9F4)); }
+    html.is-booting.boot-out .edge-strip.edge-strip-bottom { background-color: var(--edge-bottom-color, var(--bg-end, #F2EBDF)); }
     /* 第 263 次（真机：底部仍是一条渐隐带）：主屏应用里不再用 body::after 把内容压暗到底色，
        卡片直接从悬浮胶囊后面滑过去（与 iOS 26 系统应用一致），底边只剩 edge-strip 取色 */
     body::after { display: none; }
@@ -5622,7 +5633,7 @@ body.dock-left.has-live, body.dock-right.has-live { --cta-b: calc(10px + 56px + 
 }
 body.dock-left #view .mod-cta { padding-left: 92px; }
 body.dock-right #view .mod-cta { padding-right: 92px; }
-#view .mod-cta::before {
+#view .mod-cta::before, .nav-ghost-view .mod-cta::before { /* 第 318 次：横推里旧页的按钮带着底衬一起走 */
   content: ''; position: absolute; z-index: -1; pointer-events: none;
   left: calc(50% - 50vw); right: calc(50% - 50vw); top: -22px; bottom: calc(-1 * var(--cta-b) - 2px);
   /* 与 body 同样的两层背景、同样 fixed 到视口：底衬和它后面的页面逐像素同色（iOS 不支持 fixed 时按底衬自身的盒子铺，色差 ≤ 4 级） */
@@ -6738,8 +6749,12 @@ body .toast-island.toast-dock .toast-action { min-height: 40px; padding: 8px 18p
 .toast-island.toast-dock.dragging .toast-bar { animation-play-state: paused; }
 @keyframes toast-bar { from { transform: scaleX(var(--bar-from, 1)); } to { transform: scaleX(0); } }
 /* dock 让位：卡片长出来时 dock 淡出，缩回时淡回 */
-#tabbar { transition: opacity .18s var(--ease); }
-body.dockpop #tabbar { opacity: 0 !important; pointer-events: none; }
+#tabbar, #dockOrb { transition: opacity .18s var(--ease); }
+/* 第 318 次（逐帧审查 #8 / #9）：卡片从 dock 长出来的第一帧 dock 就交接——不再 .18s 慢淡（第 60–63 帧 dock 胶囊和正在长大的卡片两道轮廓）；
+   卡片自己从 dock 的外形起跳，已经接住了 dock。缩回时仍按上面的 .18s 淡回。
+   ＋ 玻璃珠（#dockOrb）和二级页 dock 外的快记 ＋（#quickDock）不在 #tabbar 里，原来没跟着藏，透过卡片的磨砂露出一个淡粉色圆钮（第 74–86 帧），一起藏。 */
+body.dockpop #tabbar, body.dockpop #dockOrb { opacity: 0 !important; pointer-events: none; transition: none !important; }
+body.dockpop #quickDock .qd-fab { opacity: 0 !important; pointer-events: none; transition: none !important; }
 
 /* —— dock 卡片：确认框（Util.confirm / Util.yiyaAsk）—— */
 .modal-mask.cfm-mask { align-items: flex-end; padding: 12px 10px calc(10px + env(safe-area-inset-bottom)); }
@@ -6943,7 +6958,7 @@ body.dark .bp-ava { background: linear-gradient(#5a4448, #4a3a40); }
 #view.has-psky { position: relative; isolation: isolate; }
 .home-sky.page-sky {
   position: absolute; z-index: -1; top: calc(-64px - var(--sat-pad)); left: calc(50% - 50vw); width: 100vw; margin: 0; padding: 0;
-  height: calc(var(--sat-pad) + 64px + 320px); min-height: 0; pointer-events: none;
+  height: var(--sky-band); min-height: 0; pointer-events: none; /* 第 318 次：与首页同一条天空带（原 sat-pad+64+320 = 394px，首页 216px） */
 }
 /* 宝宝页 / 日期页在天空上：卡片之间的空隙透出天色，信息卡保持实色 */
 #view.has-psky .bp-search { background: color-mix(in srgb, var(--surface) 70%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
@@ -7221,3 +7236,49 @@ html.lg-gl body .tabbar.lg.lg-lensing.lg-lens-gl .tab.dk-tab .dk-t:not(.lg-hole)
    ============================================================ */
 html.lg-gl body .tabbar.lg:has(> canvas.lg-gl.on)::before,
 html.lg-gl body .tabbar.lg:has(> canvas.lg-gl.on)::after { opacity: 0; }
+
+/* ———— 第 318 次 · 三个一级页天空同高（首页天空图层脱离问候区盒高） ————
+   原来首页天空 = .home-sky 的内容盒（min-height 216px，随问候区 / 字号变高），宝宝 / 日历页是绝对定位的 394px 天空——
+   滚到顶时两者渐隐终点差 156px，切页天空上下跳。现在首页的画布、雾纱、天气粒子、深色罩、状态栏接缝都钉在 .home-sky 顶上、
+   高 --sky-band（与 .page-sky 同一个变量），放到 #view 的叠放层底下（z-index 负值 + #view 隔离），问候区照常排在上面。 */
+#view.has-hsky { position: relative; isolation: isolate; }
+.home-sky:not(.page-sky) { overflow: visible; background: none; }
+body.dark .home-sky:not(.page-sky) { background: none; }
+.home-sky:not(.page-sky)::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: var(--sky-band); z-index: -5; pointer-events: none;
+  background: linear-gradient(180deg, rgb(var(--sky-ambient-top, var(--sky-fb-top))) 0%, rgb(var(--sky-ambient-mid, var(--sky-fb-mid))) 55%, rgba(var(--sky-ambient-bottom, var(--sky-fb-bottom)), 0) 72%);
+}
+.home-sky:not(.page-sky) > .sky-canvas, .home-sky:not(.page-sky) > .sky-veil { top: 0; bottom: auto; height: var(--sky-band); z-index: -4; }
+.home-sky:not(.page-sky) > .wx-canvas { top: 0; bottom: auto; height: var(--sky-band); z-index: -3; }
+body.dark .home-sky:not(.page-sky)::after { bottom: auto; height: var(--sky-band); z-index: -2; }
+.home-sky:not(.page-sky) > .sky-cap { z-index: -1; }
+
+/* ———— 第 318 次 · 二级页原生式横推（app.js navSlide） ————
+   层次（都在 dock z 10 之下）：旧页纸 .nav-ghost（推入 z 2 / 返回 z 4）→ 压暗 .nav-dim（z 3）→ 新页 #view（推入 z 4 / 返回 z 2）→ 真顶栏（z 6，淡入）。
+   两张纸都铺满视口、垫与 body 完全相同的两层背景（同样按视口铺），转场结束换回 body 时底色逐像素不变。 */
+html.nav-anim #app > .app-header { position: relative; z-index: 6; }
+html.nav-anim #view, html.nav-drag #view { position: relative; z-index: 4; isolation: isolate; }
+html.nav-anim[data-navx="pop"] #view { z-index: 2; }
+html.nav-anim #view::before, html.nav-drag #view::before, .nav-ghost {
+  background:
+    linear-gradient(180deg,
+      rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1))),
+      rgba(var(--sky-ambient-bottom, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1)))),
+    var(--bg-grad);
+  background-color: var(--header-bg-top, #FDF9F4);
+}
+html.nav-anim #view::before, html.nav-drag #view::before {
+  content: ''; position: absolute; z-index: -10; pointer-events: none;
+  left: calc(50% - 50vw); width: 100vw; top: calc(-1 * var(--nav-top, 0px)); height: 100vh;
+}
+html.nav-anim[data-navx="push"] #view::before, html.nav-drag #view::before { box-shadow: -8px 0 24px rgba(0, 0, 0, .08); }
+.nav-ghost { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; z-index: 2; overflow: hidden; pointer-events: none; }
+html[data-navx="pop"] .nav-ghost { z-index: 4; box-shadow: -8px 0 24px rgba(0, 0, 0, .10); }
+.nav-ghost-view { box-sizing: border-box; }
+.nav-ghost-view.has-psky, .nav-ghost-view.has-hsky { isolation: isolate; }
+.nav-ghost-view.has-psky .bp-search { background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.nav-ghost-view .mod-cta { position: absolute; z-index: 5; left: 0; right: 0; max-width: 640px; margin: 0 auto; padding: 0 16px; box-sizing: border-box; }
+.nav-ghost-hdr .header-gear { display: flex; }
+.nav-ghost-hdr.ng-mod .header-gear { display: none; }
+.nav-dim { position: fixed; inset: 0; z-index: 3; pointer-events: none; opacity: 0; background: rgba(40, 30, 22, .12); }
+body.dark .nav-dim { background: rgba(0, 0, 0, .32); }

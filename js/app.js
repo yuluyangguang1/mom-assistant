@@ -222,11 +222,14 @@
   }
   /* .home-sky 的兜底渐变首个色标（画布还透明时露出来的就是它） */
   function skyFallback(sky) {
-    var cs = global.getComputedStyle(sky);
-    var all = (cs.backgroundImage || '').match(/rgba?\([^)]*\)/g);
-    var c0 = all && parseRgba(all[0]);
-    if (c0 && c0[3] > 0) return c0;
-    return document.body.classList.contains('dark') ? [41, 43, 65, 1] : [167, 189, 236, 1];
+    /* 第 318 次：首页的兜底渐变挪到 ::before（与宝宝 / 日历页同高的天空带），两处都看 */
+    var srcs = [global.getComputedStyle(sky), global.getComputedStyle(sky, '::before')];
+    for (var i = 0; i < srcs.length; i++) {
+      var all = (srcs[i].backgroundImage || '').match(/rgba?\([^)]*\)/g);
+      var c0 = all && parseRgba(all[0]);
+      if (c0 && c0[3] > 0) return c0;
+    }
+    return document.body.classList.contains('dark') ? [64, 67, 73, 1] : [198, 207, 222, 1];
   }
 
   function mountPageSky(view) {
@@ -239,6 +242,8 @@
     try { if (global.Sky && Sky.mount) Sky.mount(el.querySelector('canvas')); } catch (e) { /* 画布失败留静态渐变兜底 */ }
   }
   function syncStatusColor() {
+    /* 第 318 次：二级页横推进行中不取色（旧页 / 新页各占半屏，取到的是半截）；转场结束 navFinish 再取 */
+    if (document.documentElement.classList.contains('nav-anim')) return;
     try {
       var b = document.body; if (!b) return;
       var c = '';
@@ -598,10 +603,113 @@
     /* 白噪音播放页只活在白噪音页，离开时由它自己的 leave() 收起（第 271 次） */
     if (global.queueStatusColor) global.queueStatusColor();
   }
+  /* 第 318 次（逐帧审查 #7：主屏独立模式进二级页 = 旧页一帧消失 + 新页逐段淡入）：二级页改成原生式横推。
+     不依赖 View Transition（iOS 主屏应用里快照不可靠，第 264 次已停用），自己做两层：
+       · 旧页：#view 的子节点原样搬进一张 fixed 的「旧页纸」（.nav-ghost，带页面底色 + 旧顶栏的克隆），钉在它原来的屏幕位置；
+       · 新页：#view 当场渲染好（同步，DOM 立即可用），转场期间自己垫一张铺满视口的页面底色纸（::before）。
+     推入：新页从右 100% 滑入，旧页向左 30% 视差 + 压暗；返回反向（旧页在上、向右滑出带阴影，新页从 −30% 回来、压暗褪去）。
+     只动 transform / opacity（Web Animations，合成层），曲线与第 153 次转场同一条 cubic-bezier(.32,.72,0,1)。
+     顶栏不跟着滑：真顶栏在最上层淡入，旧顶栏的克隆跟旧页一起走。dock 不动；dock 折射在转场结束后才重拍（html.nav-anim 期间不拍）。
+     侧滑返回：松手越过阈值时从手指所在位置接着播返回动画（不再先把整页推出去、再整页蹦出首页）。 */
+  var NAV_EASE = 'cubic-bezier(.32, .72, 0, 1)', NAV_PUSH_MS = 380, NAV_POP_MS = 340;
+  var _slide = null, _swipeX = null;
+  function navFinish() {
+    var s = _slide; if (!s) return;
+    _slide = null;
+    clearTimeout(s.timer);
+    s.anims.forEach(function (a) { try { a.cancel(); } catch (e) {} });
+    if (s.ghost && s.ghost.parentNode) s.ghost.parentNode.removeChild(s.ghost);
+    if (s.dim && s.dim.parentNode) s.dim.parentNode.removeChild(s.dim);
+    var html = document.documentElement;
+    html.classList.remove('nav-anim'); html.removeAttribute('data-navx');
+    var view = document.getElementById('view');
+    if (view) { view.style.removeProperty('--nav-top'); }
+    freezeCta(false);
+    statusColorCache = '';
+    syncStatusColor();
+    if (global.Glass) global.Glass.wake();
+  }
+  function navSlide(kind, id, opts) {
+    navFinish();
+    var view = document.getElementById('view');
+    var html = document.documentElement;
+    if (!view || !document.body || typeof view.animate !== 'function') { showTabNow(id, opts); return; }
+    var vw = global.innerWidth || 390;
+    /* 侧滑返回松手：旧页从手指位置接着走 */
+    var fromX = 0;
+    if (kind === 'pop' && _swipeX != null && Date.now() - _swipeBackT < 1500) {
+      /* 取页面此刻真实所在的位置（跟手有 .22s 过渡，手指位置会领先页面），从这里接着走，不跳 */
+      fromX = _swipeX;
+      try { var mx = global.getComputedStyle(view).transform; if (mx && mx !== 'none') fromX = new DOMMatrix(mx).m41; } catch (eM) {}
+      fromX = Math.max(0, Math.min(vw, fromX));
+    }
+    _swipeX = null;
+    clearSwipeStyles();
+    html.classList.add('nav-anim'); html.setAttribute('data-navx', kind);
+    freezeCta(true); /* 旧页的底部主按钮换算成相对页面的 top，跟着旧页走 */
+    var r = view.getBoundingClientRect();
+    var ghost = document.createElement('div');
+    ghost.className = 'nav-ghost'; ghost.setAttribute('aria-hidden', 'true');
+    try { ghost.inert = true; } catch (eI) {}
+    var hdr = document.querySelector('#app > .app-header');
+    if (hdr) {
+      var hr = hdr.getBoundingClientRect();
+      var hc = hdr.cloneNode(true);
+      hc.removeAttribute('id');
+      Array.prototype.forEach.call(hc.querySelectorAll('[id]'), function (e) { e.removeAttribute('id'); });
+      hc.classList.add('nav-ghost-hdr');
+      hc.style.cssText = 'position:absolute;margin:0;left:' + hr.left + 'px;top:' + hr.top + 'px;width:' + hr.width + 'px;';
+      if (document.body.classList.contains('in-module')) hc.classList.add('ng-mod');
+      ghost.appendChild(hc);
+    }
+    var inner = document.createElement('div');
+    inner.className = String(view.className || '').replace(/\bview-enter\b/g, '') + ' nav-ghost-view';
+    if (view.hasAttribute('data-accent')) inner.setAttribute('data-accent', view.getAttribute('data-accent'));
+    inner.style.cssText = 'position:absolute;margin:0;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;';
+    while (view.firstChild) inner.appendChild(view.firstChild);
+    ghost.appendChild(inner);
+    var dim = document.createElement('div');
+    dim.className = 'nav-dim'; dim.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(ghost);
+    document.body.appendChild(dim);
+    var o2 = {}; for (var k in (opts || {})) o2[k] = opts[k]; o2._slide = true;
+    showTabNow(id, o2);
+    var nr = view.getBoundingClientRect();
+    view.style.setProperty('--nav-top', Math.round(nr.top) + 'px');
+    freezeCta(true); /* 新页的底部主按钮同理（#view 在转场里有 transform） */
+    var push = kind === 'push';
+    var dur = push ? NAV_PUSH_MS : Math.round(NAV_POP_MS * (1 - 0.45 * fromX / vw));
+    var o = { duration: dur, easing: NAV_EASE, fill: 'both' };
+    var anims = [];
+    var p0 = fromX / vw;
+    try {
+      if (push) {
+        anims.push(view.animate([{ transform: 'translate3d(' + vw + 'px,0,0)' }, { transform: 'translate3d(0,0,0)' }], o));
+        anims.push(ghost.animate([{ transform: 'translate3d(0,0,0)' }, { transform: 'translate3d(' + (-0.3 * vw) + 'px,0,0)' }], o));
+        anims.push(dim.animate([{ opacity: 0 }, { opacity: 1 }], o));
+      } else {
+        anims.push(ghost.animate([{ transform: 'translate3d(' + fromX + 'px,0,0)' }, { transform: 'translate3d(' + vw + 'px,0,0)' }], o));
+        anims.push(view.animate([{ transform: 'translate3d(' + (-0.3 * vw * (1 - p0)) + 'px,0,0)' }, { transform: 'translate3d(0,0,0)' }], o));
+        anims.push(dim.animate([{ opacity: 1 - p0 }, { opacity: 0 }], o));
+      }
+      if (hdr) anims.push(hdr.animate([{ opacity: 0 }, { opacity: 1 }], { duration: Math.round(dur * 0.8), delay: Math.round(dur * 0.2), easing: 'ease-out', fill: 'both' }));
+    } catch (eA) { anims.forEach(function (a) { try { a.cancel(); } catch (e) {} }); }
+    var s = _slide = { ghost: ghost, dim: dim, anims: anims, kind: kind, t0: Date.now(), dur: dur };
+    var left = anims.length;
+    var one = function () { if (--left <= 0 && _slide === s) navFinish(); };
+    anims.forEach(function (a) { if (a.finished && a.finished.then) a.finished.then(one, one); else one(); });
+    /* 兜底：动画被暂停 / 页面在后台没跑完，到点也收尾 */
+    s.timer = setTimeout(function () { if (_slide === s && !document.hidden) navFinish(); }, dur + 400);
+    if (!anims.length) navFinish();
+  }
+  var navSlideState = function () { return _slide ? { kind: _slide.kind, ms: Date.now() - _slide.t0, dur: _slide.dur } : null; };
   function showTab(id, opts) {
     if (!Modules[id]) return;
     var kind = (opts && opts.silent) ? '' : navKind(current, id);
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    /* 第 318 次：进 / 出二级页一律走自己的横推（所有内核同一套；减少动态效果时直接换页） */
+    if ((kind === 'push' || kind === 'pop') && !reduce && !(opts && opts.noSlide)) { navSlide(kind, id, opts); return; }
+    if (_slide && id !== current && !(opts && opts.silent)) navFinish(); /* 原地重画（silent）不打断横推：新页内容照样换，转场照样跑完 */
     /* 第 264 次（真机逐帧：返回首页时新页快照空白 4 帧再整页蹦出来、状态栏颜色比页面先变、底部一条硬边）：
        iOS WebKit 的 View Transition 快照在主屏应用里不可靠，再叠上系统边缘取色就是「卡一下」。
        iOS 上一律不用 View Transition，走 showTabNow 自带的方向性 fadeUp 入场（只动 transform/opacity）。 */
@@ -683,6 +791,8 @@
     }
     /* 第 304 次：天气天空铺到 dock 的三个页面——宝宝页、日期记录页在页面最底层也画一片天空（随页面滚动，宽屏左右铺满） */
     if (id === 'baby' || id === 'calendar') mountPageSky(view); else view.classList.remove('has-psky');
+    /* 第 318 次：首页天空图层钉成与宝宝 / 日历页同高的天空带，放在 #view 叠放层底下（styles.css .has-hsky） */
+    if (id === 'home') view.classList.add('has-hsky'); else view.classList.remove('has-hsky');
     /* 模块页身份页头：记录类模块页（非首页/日历/设置）自动补一行「图标 + 标题」，
        让进入模块第一眼就有身份感，消除「顶部无标题」的空白。设置页已有 .page-head，不重复。 */
     if (id !== 'home' && id !== 'calendar' && id !== 'settings' && id !== 'baby' && Modules[id] && Modules[id].title) {
@@ -739,7 +849,7 @@
     /* 第 315 次：dock 三个一级页（宝宝 / 首页 / 日历）互切不再播整页入场（真机逐帧：第 193 帧整页 opacity 0 = 一帧空白，194~198 帧半透明 = 「闪白」，
        列表再逐行淡入）。像支付宝一样直接换成新页，切换感由 dock 透镜的滑动承担。进 / 出二级页仍保留方向性入场。 */
     var topSwap = !!prevId && prevId !== id && isTopTab(prevId) && isTopTab(id);
-    if (!(opts && (opts.silent || opts._vt)) && !topSwap) {
+    if (!(opts && (opts.silent || opts._vt || opts._slide)) && !topSwap) {
       var dirX = '0px';
       if (prevId === 'home' && id !== 'home' && id !== 'calendar') dirX = '18px';
       else if (prevId && prevId !== 'home' && prevId !== 'calendar' && id === 'home') dirX = '-18px';
@@ -1789,7 +1899,8 @@
     rerender: rerender,
     _syncCta: function () { syncCta(); },
     currentTab: function () { return current; },
-    _isTop: function () { return isTopTab(current) && !subExit; }, /* 首页下拉搜索只在一级页 */
+    _isTop: function () { return isTopTab(current) && !subExit; },
+    _navSlide: function () { return navSlideState(); }, /* 第 318 次：二级页横推进行中（QA） */ /* 首页下拉搜索只在一级页 */
     _hpBusy: function () { return hpBusy(); }, /* 第 291 次：首页左滑跟手 / 收尾中（测试用） */
     _openBabySheet: function () { openBabySheet(); },
     /* 第 276 次：进搜索页并聚焦输入框（首页下拉、菜单面板搜索框共用）。必须在点击 / 松手的同一次事件里同步调用，iOS 才弹键盘 */
@@ -2812,6 +2923,7 @@
     var view = document.getElementById('view');
     if (!view) return;
     freezeCta(true);
+    document.documentElement.classList.add('nav-drag'); /* 第 318 次：拖动中的页是一张带底色和左缘阴影的纸 */
     try {
       if (dismissing) {
         view.style.transition = 'transform .22s cubic-bezier(.32,.72,0,1), opacity .22s linear';
@@ -2833,7 +2945,8 @@
       view.style.transform = '';
       view.style.opacity = '';
     } catch (e) { /* 同上 */ }
-    freezeCta(false);
+    document.documentElement.classList.remove('nav-drag');
+    if (!_slide) freezeCta(false); /* 横推进行中由 navFinish 收 */
   }
 
   function onSwipeStart(e) {
@@ -2894,15 +3007,19 @@
     if (passed) {
       /* 判定为返回：整屏推出去 → 切回首页 → 清掉跟手样式
          （showTab 会重建 #view 的内容，旧节点上的 transform 自然失效） */
-      animateSwipe(vw, true);
       _swipeBackT = Date.now();
+      /* 第 318 次：返回的是一个模块页（不是页内二级）时，页停在手指位置，popstate → showTab 的返回横推从这里接着走
+         （原来先整页推出去，再在推出去的 #view 里换成首页、240ms 后清样式 = 首页从屏幕外蹦回来闪一下） */
+      var slideBack = !subExit;
+      if (slideBack) _swipeX = Math.min(dx, vw * SWIPE_MAX);
+      else animateSwipe(vw, true);
       if (global.history && global.history.go) {
         try { global.history.go(-1); } catch (err) { showTab('home'); }
         historyDepth = Math.max(0, historyDepth - 1);
       } else {
         showTab('home');
       }
-      setTimeout(clearSwipeStyles, 240);
+      setTimeout(function () { if (!_slide) clearSwipeStyles(); }, slideBack ? 700 : 240);
     } else {
       /* 没过阈值：回弹到原位 */
       animateSwipe(0, false);

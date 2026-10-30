@@ -25,10 +25,18 @@
   function remove() {
     if (gone) return; gone = true;
     if (el && el.parentNode) el.parentNode.removeChild(el);
-    doc.documentElement.classList.remove('is-booting');
+    doc.documentElement.classList.remove('is-booting', 'boot-out');
     if (pendingTheme) writeThemeColor(pendingTheme);
   }
-  function setThemeColor(c) { if (gone) writeThemeColor(c); else pendingTheme = c; }
+  /* 第 318 次（逐帧审查 #6）：theme-color 原来只在拆层（remove）那一刻写，状态栏在淡出全程保持启动色、拆层那一帧才跳。
+     改为淡出一开始（is-out / is-fly）就写上 App 的颜色，并给 html 加 .boot-out（边缘取色条同时换色），跳变藏进 0.4s 的淡出里。 */
+  var outStarted = false;
+  function startOut() {
+    if (outStarted) return; outStarted = true;
+    doc.documentElement.classList.add('boot-out');
+    if (pendingTheme) writeThemeColor(pendingTheme);
+  }
+  function setThemeColor(c) { if (gone || outStarted) writeThemeColor(c); else pendingTheme = c; }
   var standalone = false;
   try { standalone = global.navigator.standalone === true || (global.matchMedia && global.matchMedia('(display-mode: standalone)').matches); } catch (e) { /* */ }
   /* 第 267 次：新版本接管后 app.js 会自动重载一次，那次重载不该再播一遍启动动画（用户看到「弹两次」）。
@@ -103,7 +111,7 @@
     if (ico && b && b.width > 0 && b.bottom > 0 && b.top < global.innerHeight) {
       var a = ico.getBoundingClientRect();
       logo.style.visibility = 'hidden';
-      el.classList.add('is-fly');
+      el.classList.add('is-fly'); startOut();
       /* 下一帧再写目标位置，保证 transition 从当前位置起跑 */
       global.requestAnimationFrame(function () {
         ico.style.transform = 'translate(' + (b.left - a.left) + 'px,' + (b.top - a.top) + 'px) scale(' + (b.width / a.width) + ')';
@@ -111,18 +119,19 @@
       setTimeout(function () { logo.style.visibility = ''; remove(); }, 560);
       return;
     }
-    el.classList.add('is-out');
+    el.classList.add('is-out'); startOut();
     setTimeout(remove, 520);
   }
   global.Boot = {
     setThemeColor: setThemeColor,
+    _out: function () { return outStarted; },
     done: function () {
       if (gone || el.classList.contains('is-play')) return;
       doneCalled = true;
       var slow = nowMs() > SLOW_MS;
       afterSettled(function () {
         if (gone) return;
-        if (reduce || (slow && !doc.querySelector('.ob-logo'))) { el.classList.add('is-out'); setTimeout(remove, 460); return; }
+        if (reduce || (slow && !doc.querySelector('.ob-logo'))) { el.classList.add('is-out'); startOut(); setTimeout(remove, 460); return; }
         el.classList.add('is-play');
         clearTimeout(fallback); fallback = setTimeout(remove, 3000); /* 开播后重新计兜底，不在动画中途硬切 */
         setTimeout(finish, 1150);

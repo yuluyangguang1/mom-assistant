@@ -19,7 +19,11 @@
        与 manifest background_color、theme-color、启动图同色 #221E1A（启动图不分深浅色，见 boot.js）。
        CSP 的 style-src 含 'unsafe-inline'，内联 <style> 允许；脚本仍然不内联。 -->
   <style>
-    html.is-booting, html.is-booting body { background: #221E1A; margin: 0; }
+    /* 第 318 次（逐帧审查 #4：拆层那一帧整页暗 2–4 级）：启动期间只给 html 和启动层上色，body 不再垫纯色——
+       原来 body 在启动期间是纯 #FBF6F0 / #221E1A，盖住了 App 自己的「页面渐变 + 天空环境色」，卡片 / 玻璃都叠在纯色上，
+       拆层时 body 换回 App 底色 = 整页暗一下。现在启动层淡出时露出来的就是最终的页面。 */
+    html.is-booting { background: #221E1A; }
+    body { margin: 0; }
     .boot { position: fixed; inset: 0; z-index: 9999; background: #221E1A; }
     .boot-c { position: absolute; left: 50%; top: var(--boot-y, 44%); transform: translate(-50%, -50%); text-align: center; }
     .boot-ico { position: relative; display: block; width: 112px; height: 112px; margin: 0 auto; }
@@ -27,7 +31,7 @@
     .boot-ico i { opacity: 0; }
     .boot-txt { display: block; width: 260px; height: 82px; margin: 0 auto; }
     /* 第 300 次：浅色主题的启动层（boot.js 按上次主题加 .boot-light），与首页顶部同色，避免深棕一闪 */
-    html.is-booting.boot-light, html.is-booting.boot-light body, .boot-light .boot { background: #FBF6F0; }
+    html.is-booting.boot-light, .boot-light .boot { background: #FBF6F0; }
     html:not(.boot-light) .boot .boot-txt-l, html.boot-light .boot .boot-txt:not(.boot-txt-l) { display: none; }
   </style>
   <!-- 第 77 次：品牌 LOGO（宝宝笑脸）——favicon 走 PNG 多尺寸，apple-touch 用 180（iOS 自动圆角） -->

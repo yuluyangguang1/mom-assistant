@@ -1394,7 +1394,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v279（第 317 次升）', "var CACHE = 'baoma-static-v279';" in sw)
+    check('#275 SW 版本 v280（第 318 次升）', "var CACHE = 'baoma-static-v280';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求；第 300 次多一张浅色字图），整页 HTML < 60KB',
@@ -4991,8 +4991,9 @@ def test_r292(b):
     check('#292 菜单面板（宝宝圆钮）同一套：快甩收走、无残留、history 退回打开前', m0['open'] and not ev("App.menuOpen()") and m1['dy'] == '' and m1['cls'] == '' and not m1['body'] and ev("JSON.stringify(history.state)") == hs0, [m0, m1, hs0, ev("JSON.stringify(history.state)")])
     # —— 页面入场 / token ——
     ev("document.body.classList.remove('is-night');App.showTab('settings',{noVT:true})"); p.wait_for_timeout(30)
-    fe = ev("(()=>{document.body.classList.remove('is-night');const c=document.querySelector('#view.view-enter > *:nth-child(2)');const cs=getComputedStyle(document.documentElement);return [c?getComputedStyle(c).animationDuration:'',c?getComputedStyle(c).animationTimingFunction:'',c?getComputedStyle(c).animationDelay:'',cs.getPropertyValue('--ease-ios').trim(),cs.getPropertyValue('--dur-in').trim(),cs.getPropertyValue('--dur-out').trim(),cs.getPropertyValue('--dur-page').trim()]})()")
-    check('#292 页面入场：0.32s、--ease-ios、第二块错落 28ms；token --ease-ios / --dur-in .42s / --dur-out .3s / --dur-page .32s', fe[:3] == ['0.32s', 'cubic-bezier(0.32, 0.72, 0, 1)', '0.028s'] and fe[4:] == ['.42s', '.3s', '.32s'], fe)
+    # 第 318 次：进二级页改为原生式横推（navSlide，Web Animations），不再播整页 .view-enter 错落淡入；token 不变
+    fe = ev("(()=>{const v=document.getElementById('view');const a=v.getAnimations().find(x=>x.effect&&x.effect.getKeyframes&&/translate/.test(JSON.stringify(x.effect.getKeyframes())));const t=a&&a.effect.getTiming();const cs=getComputedStyle(document.documentElement);const st=App._navSlide();return [st&&st.kind,t?t.duration:0,t?t.easing:'',v.classList.contains('view-enter'),cs.getPropertyValue('--ease-ios').trim(),cs.getPropertyValue('--dur-in').trim(),cs.getPropertyValue('--dur-out').trim(),cs.getPropertyValue('--dur-page').trim()]})()")
+    check('#292 页面入场（第 318 次改为横推）：push、380ms、cubic-bezier(.32,.72,0,1)、无 .view-enter；token --ease-ios / --dur-in .42s / --dur-out .3s / --dur-page .32s', fe[0] == 'push' and fe[1] == 380 and fe[2].replace(' ', '').replace('0.', '.') == 'cubic-bezier(.32,.72,0,1)' and not fe[3] and fe[5:] == ['.42s', '.3s', '.32s'], fe)
     # 减少动态：弹簧直接落定
     rm = ev("(()=>{const o=window.matchMedia;window.matchMedia=q=>({matches:/reduce/.test(q),addListener(){},removeListener(){}});let got=[];const s=Motion.spring({from:0,to:100,velocity:2,onUpdate:v=>got.push(v),onDone:()=>got.push('done')});window.matchMedia=o;return got})()")
     check('#292 减少动态效果：Motion.spring 同步落到终点（不播动画）', rm == [100, 'done'], rm)
@@ -5773,7 +5774,7 @@ def test_r317(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#317 SW 版本 v279', "var CACHE = 'baoma-static-v279';" in sw)
+    check('#317 SW 版本 v279+（第 318 次升 v280）', "var CACHE = 'baoma-static-v280';" in sw)
     js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     check('#317 着色器：横向位移只看本行离左右边的距离、纵向位移只看 y（与 x 无关）、都往外取样；内部以中心缩小 uMagI；图标层不缩（gIc）',
           "float tx=tabl(clamp((xe-abs(q.x))/B,0.,1.)),ty=tabl(clamp((hz.y-ya)/B,0.,1.));" in js
@@ -5842,9 +5843,138 @@ def test_r317(b):
     check('#317 无页面错误', not errs, errs)
     p.close()
 
+
+def test_r318(b):
+    """第 318 次：二级页原生式横推（推入 / 返回 / 侧滑接续，无白帧、dock 折射不在转场中重拍）、dock 卡片第一帧交接（无双轮廓）、
+    ＋ 玻璃珠跟着藏、启动层 body 不垫纯色（拆层无亮度跳）、theme-color 在淡出开始时写、切深浅色状态栏画完才取色、
+    三个一级页天空同高同渐隐终点、天空色板由主题变量推导、SW v280。"""
+    import io
+    p, errs = fresh(b)
+    ev = p.evaluate
+    ev("localStorage.setItem('lgGlForce','1');Storage.get().settings.dockGlass='on';Storage.get().settings.theme='light';Storage.save()")
+    p.reload(); p.wait_for_timeout(1500)
+    _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
+    p.wait_for_timeout(600)
+    sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
+    check('#318 SW 版本 v280', "var CACHE = 'baoma-static-v280';" in sw)
+    # —— A1 推入：逐帧采样（rAF）——
+    ev("""(()=>{window.__nv=[];const v=document.getElementById('view');const L=()=>{const g=document.querySelector('.nav-ghost');const st=DockRefract._stats();const cv=document.querySelector('#tabbar canvas.lg-gl');
+      const m=e=>{const t=getComputedStyle(e).transform;return t&&t!=='none'?new DOMMatrix(t).m41:0};
+      window.__nv.push({an:document.documentElement.classList.contains('nav-anim'),g:!!g,gx:g?m(g):null,vx:m(v),gbg:g?getComputedStyle(g).backgroundColor:'',pbg:getComputedStyle(v,'::before').backgroundColor,pc:getComputedStyle(v,'::before').content,ras:st.rasters,cvOn:!!(cv&&cv.classList.contains('on'))});
+      if(window.__nv.length<60)requestAnimationFrame(L)};requestAnimationFrame(L)})()""")
+    ras0 = ev("DockRefract._stats().rasters")
+    ev("document.querySelector('[data-go=feeding]').click()")
+    st0 = ev("[App.currentTab(),JSON.stringify(App._navSlide()),!!document.querySelector('.nav-ghost .nav-ghost-view > .home-sky')&&!!document.querySelector('.nav-ghost .nav-ghost-view > .home-main'),!!document.querySelector('#view .mod-head')]")
+    p.wait_for_timeout(1300)
+    nv = ev("window.__nv")
+    an = [f for f in nv if f['an']]
+    vx = [round(f['vx']) for f in an]
+    gx = [round(f['gx']) for f in an if f['gx'] is not None]
+    check('#318 推入：新页同步渲染好（DOM 立即可用）、旧页整页搬进 .nav-ghost 横推（不是一帧清空）', st0[0] == 'feeding' and '"kind":"push"' in st0[1] and st0[2] and st0[3], st0)
+    check('#318 推入：新页从右边滑入（translateX 单调减到 0，首帧接近整屏宽），旧页向左视差到 −30%',
+          len(an) >= 4 and vx[0] > 200 and all(vx[i] >= vx[i + 1] for i in range(len(vx) - 1)) and min(gx) <= -60 and max(gx) <= 1, {'vx': vx, 'gx': gx})
+    check('#318 推入：转场里两张纸都不透明（新页 ::before 铺页面底色、旧页纸有底色）= 无白帧 / 透底',
+          all(f['pc'] not in ('none', 'normal') and f['pbg'] not in ('rgba(0, 0, 0, 0)', 'transparent') and f['gbg'] not in ('rgba(0, 0, 0, 0)', 'transparent') for f in an if f['g']), an[:2])
+    check('#318 转场中 dock 折射不重拍、GL 画布不藏（透镜外 dock 背景不变），结束后才拍', all(f['ras'] == ras0 for f in an) and all(f['cvOn'] for f in an) and ev("DockRefract._stats().rasters") > ras0,
+          [ras0, [f['ras'] for f in an][:3], ev("DockRefract._stats().rasters")])
+    check('#318 推入结束：旧页纸 / 压暗层移除、nav-anim 清掉、#view 无残留变换', ev("!document.querySelector('.nav-ghost,.nav-dim')&&!document.documentElement.classList.contains('nav-anim')&&getComputedStyle(document.getElementById('view')).transform==='none'&&!App._navSlide()"), '')
+    # —— 返回：history.back ——
+    ev("window.__nv=[];(()=>{const v=document.getElementById('view');const L=()=>{const g=document.querySelector('.nav-ghost');const m=e=>{const t=getComputedStyle(e).transform;return t&&t!=='none'?new DOMMatrix(t).m41:0};window.__nv.push({an:document.documentElement.classList.contains('nav-anim'),g:!!g,gx:g?m(g):null,vx:m(v),gz:g?getComputedStyle(g).zIndex:'',vz:getComputedStyle(v).zIndex});if(window.__nv.length<60)requestAnimationFrame(L)};requestAnimationFrame(L)})()")
+    ev("history.back()")
+    p.wait_for_timeout(1300)
+    nv = [f for f in ev("window.__nv") if f['an'] and f['g']]
+    gx = [round(f['gx']) for f in nv]; vx = [round(f['vx']) for f in nv]
+    check('#318 返回（history.back）：反向——旧页在上（z 高于新页）向右滑出，新页从 −30% 回到 0', ev("App.currentTab()") == 'home' and len(nv) >= 4 and gx[-1] > gx[0] and vx[0] < -20 and vx[-1] >= vx[0] and all(int(f['gz']) > int(f['vz']) for f in nv),
+          {'gx': gx, 'vx': vx, 'z': [(f['gz'], f['vz']) for f in nv][:2]})
+    # —— 无白帧（截图）：推入暂停在 0 / 25 / 50 / 75 / 100%，中段整屏不发白（纯白像素比例、平均亮度不超过两端） ——
+    try:
+        from PIL import Image
+        import numpy as np
+        ev("document.querySelector('[data-go=feeding]').click()")
+        ev("(()=>{const A=[document.getElementById('view'),document.querySelector('.nav-ghost'),document.querySelector('.nav-dim'),document.querySelector('#app > .app-header')].filter(Boolean).flatMap(e=>e.getAnimations());window.__na=A;A.forEach(a=>a.pause())})()")
+        stat = []
+        for k in (0, .25, .5, .75, .999):
+            ev("k=>window.__na.forEach(a=>{const t=a.effect.getComputedTiming();a.currentTime=(t.endTime||380)*k})", k)
+            p.wait_for_timeout(60)
+            a = np.asarray(Image.open(io.BytesIO(p.screenshot())).convert('RGB')).astype(np.int16)
+            band = a[int(a.shape[0] * .06):int(a.shape[0] * .88)]
+            stat.append((round(float((band.min(2) >= 252).mean()), 3), round(float(band.mean()), 1)))
+        ev("window.__na.forEach(a=>a.play())"); p.wait_for_timeout(700)
+        ends = [stat[0], stat[-1]]
+        check('#318 推入截图逐段无白帧：中间三帧纯白像素比例 ≤ 两端最大值 + 5%，平均亮度 ≤ 两端最大值 + 6',
+              all(s[0] <= max(e[0] for e in ends) + .05 and s[1] <= max(e[1] for e in ends) + 6 for s in stat[1:-1]), stat)
+        ev("history.back()"); p.wait_for_timeout(900)
+    except ImportError:
+        pass
+    # —— 侧滑返回：松手从手指位置接着走（旧页起点 = 拖到的位置，不先推出去再整页蹦回） ——
+    ev("document.querySelector('[data-go=feeding]').click()"); p.wait_for_timeout(900)
+    ev("window.__nv=[];(()=>{const L=()=>{const g=document.querySelector('.nav-ghost');window.__nv.push(g?new DOMMatrix(getComputedStyle(g).transform).m41:null);if(window.__nv.length<50)requestAnimationFrame(L)};requestAnimationFrame(L)})()")
+    ev(TOUCH2_JS, [4, 420, 164, 421, 1, 8, 16]); p.wait_for_timeout(1200)
+    sx = [round(x) for x in ev("window.__nv") if x is not None]
+    check('#318 侧滑返回：松手后旧页从它当时所在的位置（跟手位置，>40px）接着向右滑出，回到首页', ev("App.currentTab()") == 'home' and len(sx) >= 2 and sx[0] > 40 and sx[-1] >= sx[0], sx[:6])
+    # —— A2 / A3：dock 卡片第一帧交接、＋ 一起藏 ——
+    ev("App.showTab('home')"); p.wait_for_timeout(500)
+    ev("document.querySelector('.hn-q[data-hnq=feed]').click()")
+    d0 = ev("""(()=>{const t=document.getElementById('tabbar'),o=document.getElementById('dockOrb');const c=getComputedStyle(t),q=getComputedStyle(o);
+      return {pop:document.body.classList.contains('dockpop'),top:c.opacity,ttr:c.transitionDuration,oop:q.opacity,otr:q.transitionDuration,ohid:o.hidden,plus:!!o.querySelector('[data-qd-toggle]')}})()""")
+    check('#318 dock 卡片长出来的同一帧 dock 就交接：dockpop 时 #tabbar opacity 0、无过渡（原来 .18s 慢淡 = 第 60–63 帧双轮廓）',
+          d0['pop'] and d0['top'] == '0' and d0['ttr'] in ('0s', '0s, 0s'), d0)
+    check('#318 dockpop 时 ＋ 玻璃珠（#dockOrb）也藏（opacity 0、无过渡；原来透过卡片磨砂露出淡粉色 ＋）', d0['plus'] and d0['oop'] == '0' and d0['otr'].startswith('0s'), d0)
+    css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
+    check('#318 收回时 dock 与 ＋ 仍按 .18s 淡回', '#tabbar, #dockOrb { transition: opacity .18s var(--ease); }' in css, '')
+    p.wait_for_timeout(6500)
+    # —— A4 启动层：body 不垫纯色 ——
+    html = (ROOT / 'index.html').read_text(encoding='utf-8')
+    check('#318 启动期间只给 html / 启动层上色，body 不再垫纯色（拆层那一帧不再整页暗 2–4 级）',
+          'html.is-booting body' not in html and 'boot-light body' not in html and 'html.is-booting { background: #221E1A; }' in html, '')
+    bg = ev("""(()=>{const h=document.documentElement,b=document.body;const a=getComputedStyle(b).backgroundImage+'|'+getComputedStyle(b).backgroundColor;h.classList.add('is-booting','boot-light');
+      const c=getComputedStyle(b).backgroundImage+'|'+getComputedStyle(b).backgroundColor;h.classList.remove('is-booting','boot-light');return [a===c,a.slice(0,60),c.slice(0,60)]})()""")
+    check('#318 启动类挂上 / 摘掉前后 body 的计算背景完全一样（启动层淡出时露出的就是最终页面）', bg[0], bg)
+    # —— A5 theme-color 时机 ——
+    bj = (ROOT / 'js' / 'boot.js').read_text(encoding='utf-8')
+    check('#318 boot.js：淡出开始（is-out / is-fly / 慢启动直接淡出）就写 theme-color 并挂 .boot-out，之后的取色直接写',
+          bj.count('startOut();') >= 3 and "doc.documentElement.classList.add('boot-out');" in bj and 'if (gone || outStarted) writeThemeColor(c);' in bj, '')
+    check('#318 .boot-out 时边缘取色条换成 App 颜色（状态栏跳变藏进淡出）', 'html.is-booting.boot-out .edge-strip.edge-strip-top { background-color: var(--status-color' in css, '')
+    # —— A6 切深浅色：画完新主题这一帧再取状态栏色 ——
+    sj = (ROOT / 'js' / 'sky.js').read_text(encoding='utf-8')
+    check('#318 sky.js：状态栏取色在 fadeBottomOut（这一帧画完）之后，不在 syncAmbient（画之前）里', 'fadeBottomOut();\n      /* 第 318 次（切深浅色时状态栏慢一拍）' in sj and "if (ambChanged && global.syncStatusColor) global.syncStatusColor();" in sj and 'global.__skyDim = +dim;\n      if (global.syncStatusColor)' not in sj, '')
+    ev("Sky.previewHour=11")
+    p.wait_for_timeout(300)
+    LUM = """(()=>{const c=getComputedStyle(document.documentElement).getPropertyValue('--status-color').trim();const n=parseInt(c.slice(1),16);return [c,((n>>16)&255)*.3+((n>>8)&255)*.59+(n&255)*.11]})()"""
+    sl = ev(LUM)
+    ev("document.body.classList.add('dark')")
+    p.wait_for_timeout(200)
+    sc = ev(LUM)
+    check('#318 切到深色 200ms 内状态栏色已换成深色天空顶色（亮度降到浅色时的 60% 以下；原来要等 1.5~6 秒的定时取色）', sc[1] < sl[1] * .6, [sl, sc])
+    ev("document.body.classList.remove('dark')"); p.wait_for_timeout(300)
+    # —— B1 三个一级页天空同高 ——
+    hs = {}
+    for dark in (False, True):
+        ev("document.body.classList.toggle('dark', %s)" % ('true' if dark else 'false'))
+        for tab in ('home', 'baby', 'calendar'):
+            ev("App.showTab('%s')" % tab); p.wait_for_timeout(350); ev("scrollTo(0,0)"); p.wait_for_timeout(80)
+            hs[('d' if dark else 'l') + tab] = ev("(()=>{const c=document.querySelector('#view .home-sky .sky-canvas');const r=c.getBoundingClientRect();return [Math.round(r.top),Math.round(r.height),Math.round(r.top+r.height*.88)]})()")
+    vals = list(hs.values())
+    check('#318 三个一级页（深浅色、滚到顶）天空画布顶、高度、渐隐终点完全一致（原来首页 216px / 宝宝·日历 394px，终点差 156px）', all(v == vals[0] for v in vals), hs)
+    check('#318 天空高度来自同一个变量 --sky-band（首页画布 / 宝宝·日历天空都用它）', 'height: var(--sky-band); min-height: 0;' in css and '.home-sky:not(.page-sky) > .sky-canvas, .home-sky:not(.page-sky) > .sky-veil { top: 0; bottom: auto; height: var(--sky-band);' in css, '')
+    ev("document.body.classList.remove('dark')")
+    # —— B2 天空色板由主题变量推导 ——
+    th = ev("""(()=>{const out={};for(const d of [false,true]){document.body.classList.toggle('dark',d);const T=Sky._theme();const cs=getComputedStyle(document.body);
+      const hx=s=>{s=s.trim();return [1,3,5].map(i=>parseInt(s.slice(i,i+2),16))};const pr=document.createElement('i');pr.setAttribute('data-accent','milestone');document.body.appendChild(pr);const mt=hx(getComputedStyle(pr).getPropertyValue('--tile'));pr.remove();
+      out[d?'d':'l']={src:T.src,B:T.B,css:hx(cs.getPropertyValue('--header-bg-top')),P:T.P,cssP:hx(cs.getPropertyValue('--primary-fill')),day:T.day,mt:mt,stops:T.stops}}document.body.classList.remove('dark');Sky._theme();return out})()""")
+    ok = True
+    for k, v in th.items():
+        kt = .24 if k == 'd' else .34
+        exp = [round(v['B'][i] + (v['mt'][i] - v['B'][i]) * kt) for i in range(3)]
+        ok = ok and v['src'] == 'css' and v['B'] == v['css'] and v['P'] == v['cssP'] and v['day'] == v['mt'] and v['stops']['day']['bottom'] == v['B'] and v['stops']['day']['top'] == exp
+    check('#318 天空色板取自主题变量：底 = --header-bg-top、白天顶 = 底朝里程碑蓝 --tile 走 34%（深色 24%）、读到的珊瑚 = --primary-fill（深浅各一遍）', ok, {k: {kk: v[kk] for kk in ('src', 'B', 'css', 'day', 'mt')} | {'top': v['stops']['day']['top']} for k, v in th.items()})
+    check('#318 天空兜底渐变也走当前色板变量（不再是写死的 #A7BDEC 浅蓝）', '#A7BDEC 0%' not in css and 'rgb(var(--sky-ambient-top, var(--sky-fb-top))) 0%' in css, '')
+    check('#318 无页面错误', not errs, errs)
+    p.close()
+
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -5887,7 +6017,7 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r301',),
           ('test_r302',),
           ('test_r309',),
-          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',))  # 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',))  # 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 
@@ -6325,7 +6455,7 @@ def test_r316(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready", 5000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#316 SW 版本 v278+（第 317 次升 v279）', "var CACHE = 'baoma-static-v279';" in sw)
+    check('#316 SW 版本 v278+（第 318 次升 v280）', "var CACHE = 'baoma-static-v280';" in sw)
     ph = ev("LiquidDock.PHYS")
     check('#316 弹簧参数：点击滑行 tap 临界阻尼 k≈600、点击速度形变 ×0.45、收回 k≥1500（~4 帧）、松手吸附 k 560、提前收回阈值',
           ph['tap']['k'] == 600 and ph['tap']['z'] >= 1 and abs(ph['tapV'] - 0.45) < 1e-6 and ph['shrink']['k'] >= 1500 and ph['snap']['k'] == 560
