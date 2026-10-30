@@ -844,6 +844,7 @@
         + '<div class="home-greet">'
         + '<div class="hg-top"><p class="hg-date"><span class="hg-m">' + (nowD.getMonth() + 1) + '月</span>' + DOW_FULL[nowD.getDay()]
         + (fest ? '<b class="hg-fest">' + Util.escapeHtml(fest) + '</b>' : '') + wxTextHTML(wxNow) + '</p>'
+        + (global.FamUI ? FamUI.comeChip() : '') /* 第 332 次：在家庭共享里时，日期右边一个「叫家人来一下」小入口 */
         + '</div>' /* 第 236 次：搜索搬进 dock */
         + '<div class="hg-row"><div class="hg-day"><b class="hg-num">' + nowD.getDate() + '</b>'
         + (lunarNow ? '<span class="hg-lunar"><i>' + Util.escapeHtml(lunarNow.gz) + '年 · ' + Util.escapeHtml(lunarNow.animal) + '</i><b>' + Util.escapeHtml(lunarNow.text) + '</b></span>' : '')

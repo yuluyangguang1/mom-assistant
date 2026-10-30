@@ -10,6 +10,8 @@
   var Util = {
     /** 生成简单唯一 id */
     uid: function () {
+      /* 第 332 次：新记录 id 一律 crypto.randomUUID（家庭共享要全局唯一）；老环境回落旧写法 */
+      try { if (global.crypto && typeof global.crypto.randomUUID === 'function') return global.crypto.randomUUID(); } catch (e) {}
       return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     },
 

@@ -1395,7 +1395,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v291（第 329 次（续）升）', "var CACHE = 'baoma-static-v292';" in sw)
+    check('#275 SW 版本 v291（第 329 次（续）升）', "var CACHE = 'baoma-static-v293';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求；第 300 次多一张浅色字图），整页 HTML < 60KB',
@@ -5761,7 +5761,7 @@ def test_r317(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#317 SW 版本 v279+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v292';" in sw)
+    check('#317 SW 版本 v279+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v293';" in sw)
     js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     check('#317 着色器：横向位移只看本行离左右边的距离、纵向位移只看 y（第 329 次：两端改往里取样 + 端部竖向放大，只压在最外几 pt；第 329 次（续）位移封顶）；内部以中心缩小 uMagI；图标层不缩（gIc）',
           "float ty=tabl(clamp((hz.y-ya)/B,0.,1.));" in js and "te=clamp((xe-abs(q.x))/BE,0.,1.),pe=pow(1.-te,1.6)" in js
@@ -5847,7 +5847,7 @@ def test_r318(b):
     _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
     p.wait_for_timeout(600)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#318 SW 版本 v280+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v292';" in sw)
+    check('#318 SW 版本 v280+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v293';" in sw)
     # —— A1 推入：逐帧采样（rAF）——
     ev("""(()=>{window.__nv=[];const v=document.getElementById('view');const L=()=>{const g=document.querySelector('.nav-ghost');const st=DockRefract._stats();const cv=document.querySelector('#tabbar canvas.lg-gl');
       const m=e=>{const t=getComputedStyle(e).transform;return t&&t!=='none'?new DOMMatrix(t).m41:0};
@@ -5974,7 +5974,7 @@ def test_r319(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#319 SW 版本 v281+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v292';" in sw)
+    check('#319 SW 版本 v281+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v293';" in sw)
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=3)
     ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
     p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
@@ -6191,7 +6191,7 @@ def test_r320(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#320 SW 版本 v282+（第 329 次（续）升 v291）、dock-fuse.js 进预缓存、index.html 引入', "var CACHE = 'baoma-static-v292';" in sw and "'js/dock-fuse.js'" in sw
+    check('#320 SW 版本 v282+（第 329 次（续）升 v291）、dock-fuse.js 进预缓存、index.html 引入', "var CACHE = 'baoma-static-v293';" in sw and "'js/dock-fuse.js'" in sw
           and '<script src="js/dock-fuse.js" defer></script>' in (ROOT / 'index.html').read_text(encoding='utf-8'))
     # —— 1. 简洁模式移除 + 旧值迁移 ——
     src = {n: (ROOT / n).read_text(encoding='utf-8') for n in ('js/app.js', 'js/modules/settings.js', 'js/liquid-dock.js', 'js/dock-live.js', 'js/dock-refract.js', 'js/util.js', 'js/dock-fuse.js', 'css/styles.css')}
@@ -6436,7 +6436,7 @@ def test_r321(b):
     整条缩放从当前值接着按）；A2 长按 / 拖动速度形变 sx = 1 + min(0.15, |v|/2400)、sy ≈ 0.92/√sx（满形变），停手 120ms 内恢复、点击不做；
     A4 拖动中只换颜色不切页、抬手才切；17 帧点击节奏 / 0.97× / 点击透镜在栏内不变；SW v283。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#321 SW 版本 v283+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v292';" in sw)
+    check('#321 SW 版本 v283+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v293';" in sw)
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2)
     ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
     p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
@@ -6546,7 +6546,7 @@ def test_r321(b):
 
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321', 'test_r322', 'test_r323', 'test_r324', 'test_r325', 'test_r326', 'test_r327', 'test_r329', 'test_r330')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321', 'test_r322', 'test_r323', 'test_r324', 'test_r325', 'test_r326', 'test_r327', 'test_r329', 'test_r330', 'test_r332')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -6589,7 +6589,7 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r301',),
           ('test_r302',),
           ('test_r309',),
-          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',), ('test_r322',), ('test_r323',), ('test_r324',), ('test_r325',), ('test_r326',), ('test_r327',), ('test_r329',), ('test_r330',))  # 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',), ('test_r322',), ('test_r323',), ('test_r324',), ('test_r325',), ('test_r326',), ('test_r327',), ('test_r329',), ('test_r330',), ('test_r332',))  # 第 332 次：家庭共享一组（起本地中转服务）。 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 
@@ -6600,7 +6600,7 @@ def test_r322(b):
     A3 长按顶过端点页签时栏端被拉出：外凸 = 0.6 × 越界量、上限 7pt，GL 里「透镜 × 一级 dock」单独 k_end = 10 的 smooth-min；Chromium SVG 退化为不外凸、不出错。
     不变：17 帧点击节奏、0.97×、图标 0.24s；SW v284。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#322 SW 版本 v284+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v292';" in sw)
+    check('#322 SW 版本 v284+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v293';" in sw)
     drs = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     css = '\n'.join(pp.read_text(encoding='utf-8') for pp in (ROOT / 'css').glob('*.css'))
     check('#322 不变：透镜内 0.97×、选中图标 dk-pop .24s、A3 只在主程序 dk()（二级融合程序 FSF 里不用 uEP）',
@@ -6727,7 +6727,7 @@ def test_r323(b):
     不带倍率的 px 字号全部改为跟随字号档（等值替换：标准档零视觉差），只留 dock 标签 10px 与装饰字形；字号 lint。SW v285。"""
     import re
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#323 SW 版本 v285+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v292';" in sw)
+    check('#323 SW 版本 v285+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v293';" in sw)
     css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
     nc = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
     root = nc[nc.index(':root'):nc.index('}', nc.index(':root'))]
@@ -6782,7 +6782,7 @@ def test_r324(b):
     """第 324 次（设计审查分批 · 第二批）：对比度——12 个模块页面主按钮白字用加深后的模块色 --tile-fill（≥4.5:1）、时间轴辅助文字统一 --muted（不叠透明度）、
     新增 --placeholder 并全站 ::placeholder 一个颜色；P0——再点当前一级页签只滚回顶部，不清空重画、不闪白。SW v286。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#324 SW 版本 v286+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v292';" in sw)
+    check('#324 SW 版本 v286+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v293';" in sw)
     p, errs = fresh(b)
     ev = p.evaluate
     p.wait_for_timeout(600)
@@ -6844,7 +6844,7 @@ def test_r325(b):
     「点一下就保存」、没有保存条的面板（生长设置、营养品提醒 / 管理）照旧只有顶栏 ✓；保存条主按钮一种规格（54 / pill / 17/700 / 不带 ✓ 图标）；
     面板输入控件一套（文本 / 数字 / 日期 / 下拉 = --ctl-h 48、--surface-2、无描边，分段外框 48）。逐个打开面板核对，并实际点保存条存几条记录。SW v287。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#325 SW 版本 v287+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v292';" in sw)
+    check('#325 SW 版本 v287+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v293';" in sw)
     p, errs = fresh(b)
     ev = p.evaluate
     p.wait_for_timeout(500)
@@ -6954,7 +6954,7 @@ def test_r326(b):
     字段按 SCHEMA（show 条件不变）、校验与写回走同一个 commit（没动的时间保留秒、未来时间拦下、亲喂至少一侧、瓶喂奶量合计、
     醒来晚于入睡、最长连续重算）、保存后「已保存修改 · 撤销」；面板里「删除这条记录」与时间轴删除同一条路（可撤销）。SW v288。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#326 SW 版本 v288+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v292';" in sw)
+    check('#326 SW 版本 v288+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v293';" in sw)
     p, errs = fresh(b)
     ev = p.evaluate
     p.wait_for_timeout(500)
@@ -7496,7 +7496,7 @@ def test_r316(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready", 5000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#316 SW 版本 v278+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v292';" in sw)
+    check('#316 SW 版本 v278+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v293';" in sw)
     ph = ev("LiquidDock.PHYS")
     check('#316 弹簧参数：点击滑行 tap 临界阻尼 k≈600、点击速度形变 ×0.45、收回 k≥1500（~4 帧）、松手吸附 k 560、提前收回阈值',
           ph['tap']['k'] == 600 and ph['tap']['z'] >= 1 and abs(ph['tapV'] - 0.45) < 1e-6 and ph['shrink']['k'] >= 1500 and ph['snap']['k'] == 560
@@ -7605,7 +7605,7 @@ def test_r327(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#327 SW 版本 v289+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v292';" in sw)
+    check('#327 SW 版本 v289+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v293';" in sw)
     js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     fu = (ROOT / 'js' / 'dock-fuse.js').read_text(encoding='utf-8')
     css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
@@ -7856,7 +7856,7 @@ def test_r329(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#329 SW 版本 v290+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v292';" in sw)
+    check('#329 SW 版本 v290+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v293';" in sw)
     ld = (ROOT / 'js' / 'liquid-dock.js').read_text(encoding='utf-8')
     js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     go = (ROOT / 'js' / 'glass-optics.js').read_text(encoding='utf-8')
@@ -8028,6 +8028,376 @@ def test_r329(b):
     ctx.close()
 
 
+
+def _r332_relay():
+    """第 332 次：起一个本地中转服务（临时目录、随机端口、只放行本测试页面的来源、放宽限流、允许任意推送地址）"""
+    import os, socket, subprocess, tempfile, time as _t
+    s = socket.socket(); s.bind(('127.0.0.1', 0)); rp = s.getsockname()[1]; s.close()
+    home = tempfile.mkdtemp(prefix='yiya-relay-')
+    env = dict(os.environ, YIYA_HOME=home, PORT=str(rp), PUSH_ANY_ENDPOINT='1', ALLOWED_ORIGINS=f'http://127.0.0.1:{PORT}',
+               RATE_CREATE_PER_HOUR='200', RATE_JOIN_PER_HOUR='200', RATE_DEVICE_PER_MIN='5000', RATE_NOTIFY_PER_MIN='200')
+    srv_dir = Path(os.environ.get('YIYA_RELAY_DIR', '/workspace/work/relay/server'))
+    pr = subprocess.Popen(['node', '--disable-warning=ExperimentalWarning', 'src/index.js'], cwd=str(srv_dir), env=env,
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    import urllib.request
+    for _ in range(40):
+        try:
+            urllib.request.urlopen(f'http://127.0.0.1:{rp}/v1/health', timeout=1); break
+        except Exception:
+            _t.sleep(0.15)
+    return pr, f'http://127.0.0.1:{rp}'
+
+
+def test_r332(b):
+    """第 332 次：家庭共享（端到端加密中转）。数据地基（uuid / updatedAt / 墓碑 / by / babyId + 一次性可重入迁移）、
+    AES-256-GCM + HKDF 子密钥 + AAD 防串家庭、共享宝宝清单防串宝宝、记录级 LWW、401 移出、导出不含家庭信息、SW 推送解密、XSS。
+    起真实中转服务（/workspace/work/relay/server），三个独立浏览器上下文 = 三台手机。SW v293。"""
+    OUT = ROOT / 'out'
+    OUT.mkdir(exist_ok=True)
+    sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
+    idx = (ROOT / 'index.html').read_text(encoding='utf-8')
+    check('#332 SW v293、famcrypto / famsync / famui / 两个 vendor 预缓存，SW importScripts famcrypto 并处理 push',
+          "var CACHE = 'baoma-static-v293';" in sw and all(("'js/%s'" % f) in sw for f in ('famcrypto.js', 'famsync.js', 'famui.js', 'vendor/qrcode.js', 'vendor/jsqr.min.js'))
+          and "importScripts('js/famcrypto.js')" in sw and "addEventListener('push'" in sw and "addEventListener('notificationclick'" in sw)
+    check('#332 index.html 引入三个脚本、CSP connect-src 加上 api.yiya.help',
+          all(('src="js/%s"' % f) in idx for f in ('famcrypto.js', 'famsync.js', 'famui.js')) and 'https://api.yiya.help' in idx.split('connect-src')[1].split(';')[0])
+    relay, S = _r332_relay()
+    ctxs = []
+
+    def phone(name, w=390, h=844):
+        c = b.new_context(viewport={'width': w, 'height': h}, device_scale_factor=2)
+        ctxs.append(c)
+        p = c.new_page(); errs = []
+        p.on('pageerror', lambda e: errs.append(str(e)[:200]))
+        p.goto(URL); p.wait_for_timeout(800)
+        p.evaluate("Storage.get().settings.onboardingDone=true;Storage.get().settings.privacyAccepted=true;Storage.save()")
+        p.reload(); p.wait_for_timeout(700)
+        return p, errs, c
+
+    def sync(*ps, n=2):
+        for _ in range(n):
+            for p in ps:
+                p.evaluate('FamSync.sync()'); p.wait_for_timeout(250)
+
+    def recs(p, bid, key='feedings'):
+        return p.evaluate("""([bid,key])=>{const d=Storage.get();const b=d.babies.find(x=>x.id===bid);if(!b)return null;
+            const src=b.id===d.settings.activeBabyId?d:(b.rec||{});return (src[key]||[]).map(r=>({id:r.id,amount:r.amount,note:r.note||null,by:r.by,u:r.updatedAt}))}""", [bid, key])
+
+    try:
+        # ================= 1. 迁移 =================
+        p0, e0, _ = phone('M')
+        legacy = {'version': 4, 'settings': {'activeBabyId': 'bk2x9abc', 'baby': {'name': '大宝', 'birthDate': '2026-03-01'}},
+                  'babies': [{'id': 'bk2x9abc', 'name': '大宝', 'birthDate': '2026-03-01'},
+                             {'id': 'bm7q1zzz', 'name': '二宝', 'birthDate': '2026-09-01',
+                              'rec': {'feedings': [{'id': 'f2', 'type': 'bottle', 'start': '2026-10-20T09:00', 'amount': 50}], 'diapers': []}}],
+                  'feedings': [{'id': 'f1', 'type': 'bottle', 'start': '2026-10-20T08:00', 'amount': 60}, {'type': 'breast', 'start': '2026-10-20T10:00', 'durationMin': 10}],
+                  'diapers': [{'id': 'd1', 'type': 'pee', 'time': '2026-10-20T08:30'}],
+                  'vaccines': {'done': {'hepb1': '2026-03-02'}},
+                  'supplies': [{'id': 's1', 'name': '纸尿裤', 'pieces': 30, 'updatedAt': '2026-10-01T10:00:00'}]}
+        p0.evaluate("t=>{localStorage.clear();localStorage.setItem('momhelper_data_v1',t)}", json.dumps(legacy, ensure_ascii=False))
+        p0.reload(); p0.wait_for_timeout(800)
+        m1 = p0.evaluate("""()=>{const d=Storage.get(),M=Storage.Meta;const all=[];M.walk(d,(s,t,id,k,r)=>all.push([s,t,id,k,k==='map'?null:r]));
+            return {ids:d.babies.map(b=>b.id),act:d.settings.activeBabyId,exp:[M.uuidFrom('yiya-baby|bk2x9abc'),M.uuidFrom('yiya-baby|bm7q1zzz')],
+              bad:all.filter(([s,t,id,k,r])=>k!=='map'&&!(typeof r.updatedAt==='number'&&r.by==='local'&&r._h&&(k!=='rec'||r.babyId===(s==='fam'?null:s))&&id)).length,
+              n:all.length,noId:d.feedings.every(r=>typeof r.id==='string'&&r.id.length>0),rec2:(d.babies[1].rec.feedings[0]||{}).babyId,
+              mm:Object.keys(d.mapMeta),sup:d.supplies[0],bk:!!localStorage.getItem(M.BACKUP_KEY),tombs:d.tombs.length,raw:localStorage.getItem('momhelper_data_v1')}}""")
+        check('#332 迁移：宝宝 id 换成确定性 uuid（sha256(yiya-baby|旧 id)），当前宝宝引用同步更新',
+              m1['ids'] == m1['exp'] and m1['act'] == m1['exp'][0], (m1['ids'], m1['act']))
+        check('#332 迁移：所有记录 / 宝宝档案都有 id、updatedAt、by=local、_h，记录 babyId 指向所属宝宝（含其他宝宝 rec 里的）',
+              m1['bad'] == 0 and m1['n'] >= 7 and m1['noId'] and m1['rec2'] == m1['exp'][1], m1)
+        check('#332 迁移：疫苗剂次进映射元数据；用品旧的 updatedAt 字符串改名 editedAt；迁移前原文已备份；不产生墓碑',
+              any('vaccines.done|hepb1' in k for k in m1['mm']) and m1['sup'].get('editedAt') == '2026-10-01T10:00:00'
+              and isinstance(m1['sup'].get('updatedAt'), (int, float)) and m1['bk'] and m1['tombs'] == 0, (m1['mm'], m1['sup']))
+        p0.reload(); p0.wait_for_timeout(700)
+        raw2 = p0.evaluate("localStorage.getItem('momhelper_data_v1')")
+        check('#332 迁移可重入：再启动一次数据一字不变', raw2 == m1['raw'])
+        r_imp = p0.evaluate("t=>{Storage.importJSON(t);return Storage.get().babies.map(b=>b.id)}", json.dumps(legacy, ensure_ascii=False))
+        check('#332 导入旧备份：按同一规则得到同样的 uuid（导入保持 / 对上 uuid）', r_imp == m1['exp'], r_imp)
+        md = p0.evaluate("""()=>{const d=Storage.get();const f=d.feedings[0];f.amount=75;Storage.save();const u1=f.updatedAt;
+            const i=d.feedings.indexOf(f);const it=d.feedings.splice(i,1)[0];Storage.save();const t=d.tombs.find(x=>x.id===it.id);
+            d.feedings.splice(i,0,it);Storage.save();const back=d.tombs.find(x=>x.id===it.id);
+            const bid=d.babies[1].id;Storage.removeBaby(bid);
+            return {u1:u1>Date.now()-5000,tomb:!!t&&t.babyId===d.settings.activeBabyId&&t.deletedAt>0,undo:!back&&it.updatedAt>=t.updatedAt,
+              afterRemove:d.tombs.filter(x=>x.babyId===bid).length}}""")
+        check('#332 改 → updatedAt 更新；删 → 墓碑（带 babyId）；撤销 → 墓碑撤掉且记录比墓碑新；删整个宝宝档案不写墓碑',
+              md['u1'] and md['tomb'] and md['undo'] and md['afterRemove'] == 0, md)
+        check('#332 迁移页面零报错', not e0, e0[:3])
+
+        # ================= 2. 建家 / 加入 / 收发 / 删除 / LWW =================
+        A, eA, cA = phone('A')
+        B, eB, cB = phone('B')
+        # A：两个宝宝（小米共享，小豆不共享），一个用品
+        ids = A.evaluate("""()=>{const a=Storage.addBaby({name:'小米',birthDate:'2026-05-20'}).id;const c=Storage.addBaby({name:'小豆',birthDate:'2026-06-01'}).id;
+            Storage.switchBaby(a);const d=Storage.get();d.feedings.push({id:Util.uid(),type:'bottle',start:'2026-10-30T07:00:00',amount:80,note:'早上第一顿'});
+            d.supplies.push({id:Util.uid(),name:'纸尿裤 L',pieces:40});Storage.switchBaby(c);Storage.get().feedings.push({id:Util.uid(),type:'bottle',start:'2026-10-30T07:30:00',amount:70,note:'小豆的私密'});
+            Storage.save();Storage.switchBaby(a);return [a,c]}""")
+        mi, dou = ids
+        # B：本机已有一个同名「小米」（不同 uuid）
+        bMine = B.evaluate("()=>{const x=Storage.addBaby({name:'小米',birthDate:'2025-01-01'}).id;Storage.get().diapers.push({id:Util.uid(),type:'pee',time:'2026-10-30T06:00:00'});Storage.save();return x}")
+        # 未加入时的设置页截图
+        A.evaluate("App.showTab('settings')"); A.wait_for_timeout(400)
+        A.evaluate("""(()=>{const g=[...document.querySelectorAll('.set-group summary')].find(s=>s.textContent.includes('家庭共享'));g.click()})()""")
+        A.wait_for_timeout(500)
+        check('#332 设置页有「家庭共享」组，未加入时三个入口', A.evaluate("['建一个家','扫码加入','输入家庭码'].every(t=>[...document.querySelectorAll('#famBox [data-fam]')].some(b=>b.textContent===t))"))
+        A.screenshot(path=str(OUT / 'r332_settings_off.png'))
+        # A 用界面建家
+        A.evaluate(f"FamSync.setServer('{S}')")
+        A.click('#famBox [data-fam="create"]'); A.wait_for_timeout(200)
+        A.fill('#famName', '妈妈')
+        A.evaluate(f"""(()=>{{document.querySelectorAll('#famBox [data-fam-baby]').forEach(x=>x.checked=x.getAttribute('data-fam-baby')==='{mi}')}})()""")
+        A.screenshot(path=str(OUT / 'r332_create_form.png'))
+        A.click('#famBox [data-fam="doCreate"]')
+        _poll(A, "FamSync.joined()&&!!document.querySelector('#famBox .fam-on')", 8000)
+        check('#332 建家成功：服务器设备名为空串、只共享勾选的宝宝', A.evaluate(f"FamSync.joined()&&JSON.stringify(Object.keys(FamSync.shared()))===JSON.stringify(['{mi}'])"))
+        A.click('#famBox [data-fam="invite"]')
+        _poll(A, "!!document.querySelector('#famBox [data-fam-qr] canvas')", 8000)
+        A.wait_for_timeout(300)
+        A.locator('#famBox .fam-invite').screenshot(path=str(OUT / 'r332_qr.png'))
+        code = A.evaluate("FamSync.invite().then(r=>r.code)")
+        cred = A.evaluate("FamDB.get('cred')")
+        check('#332 家庭码格式 yiya://join?u=&f=&i=&k=&fp=（密钥 32 字节 base64url、指纹 16 位）',
+              code.startswith('yiya://join?u=') and ('&f=%s&' % cred['familyId']) in code and ('&k=%s&' % cred['k']) in code and '&fp=' in code, code[:60])
+        devs = A.evaluate(f"fetch('{S}/v1/families/'+'{cred['familyId']}'+'/devices',{{headers:{{Authorization:'Bearer {cred['deviceId']}:{cred['token']}'}}}}).then(r=>r.json())")
+        check('#332 服务器上的设备名一律空串（真实称呼只在加密消息里）', all(d['name'] == '' for d in devs['devices']), devs)
+        # 解析：篡改指纹 / 非 https / 正常
+        bad_fp = B.evaluate("c=>FamSync.parseCode(c)", code.replace('&fp=', '&fp=0').replace('&fp=0', '&fp=0000000000000000&x=', 1))
+        bad_u = B.evaluate("c=>FamSync.parseCode(c)", code.replace('u=http%3A%2F%2F127.0.0.1', 'u=http%3A%2F%2Fevil.example'))
+        bad_k = B.evaluate("c=>FamSync.parseCode(c)", code.replace('&k=' + cred['k'], '&k=' + cred['k'][:-2] + ('AA' if cred['k'][-2:] != 'AA' else 'BB')))
+        check('#332 加入前校验：指纹对不上 / 服务器不是 https / 密钥被改 → 拒绝', bool(bad_fp.get('error')) and bool(bad_u.get('error')) and bool(bad_k.get('error')),
+              (bad_fp.get('error'), bad_u.get('error'), bad_k.get('error')))
+        # B 用界面输入家庭码 → 确认卡（显示「加入 妈妈 的家（指纹 xxxx-xxxx）」）→ 加入
+        B.evaluate("App.showTab('settings')"); B.wait_for_timeout(300)
+        B.evaluate("""(()=>{const g=[...document.querySelectorAll('.set-group summary')].find(s=>s.textContent.includes('家庭共享'));g.click()})()""")
+        B.wait_for_timeout(300)
+        B.click('#famBox [data-fam="code"]'); B.fill('#famCode', code); B.click('#famBox [data-fam="doParse"]')
+        _poll(B, "!!document.querySelector('[data-fam-ok]')", 5000)
+        title = B.evaluate("(document.querySelector('#cfmTitle')||{}).textContent||''")
+        fp_show = A.evaluate("FamSync.info().fp")
+        check('#332 确认卡：「加入妈妈的家（指纹 xxxx-xxxx）」与 A 页面显示的指纹一致', ('妈妈' in title) and (fp_show in title), (title, fp_show))
+        B.click('[data-fam-ok]'); B.wait_for_timeout(300)
+        B.fill('#famName', '爸爸')
+        B.evaluate("document.querySelectorAll('#famBox [data-fam-baby]').forEach(x=>x.checked=false)")
+        B.click('#famBox [data-fam="doJoin"]')
+        _poll(B, "FamSync.joined()", 8000)
+        sync(A, B, n=3)
+        bb = B.evaluate("Storage.get().babies.map(b=>({id:b.id,name:b.name,origin:b.origin||null}))")
+        check('#332 B 收到 A 共享的宝宝（按 uuid 新建）', any(x['id'] == mi for x in bb), bb)
+        check('#332 防串宝宝：A 没共享的「小豆」一条都没到 B', not any(x['id'] == dou for x in bb) and recs(B, dou) is None, bb)
+        check('#332 B 本机同名不同 uuid 的「小米」不合并，作为两个宝宝显示并提示', sum(1 for x in bb if x['name'] == '小米') == 2
+              and B.evaluate(f"FamSync.state().sameName.includes('{mi}')"), bb)
+        rb = recs(B, mi)
+        check('#332 A 的喂奶记录到了 B，by = A 的 deviceId', rb and rb[0]['amount'] == 80 and rb[0]['by'] == cred['deviceId'], rb)
+        check('#332 B 本机自己的宝宝记录没被动过', len(recs(B, bMine, 'diapers') or []) == 1)
+        # A 再记一条：B 端界面显示「妈妈记」
+        A.evaluate("""()=>{const d=Storage.get();d.feedings.push({id:Util.uid(),type:'bottle',start:'2026-10-30T11:00:00',amount:100,note:'<img src=x onerror="window.__pwn332=1">'});Storage.save()}""")
+        sync(A, B)
+        B.evaluate(f"Storage.switchBaby('{mi}');App.showTab('bottle')"); B.wait_for_timeout(700)
+        labs = B.evaluate("[...document.querySelectorAll('.tl-card .fam-by')].map(x=>x.textContent)")
+        check('#332 B 的瓶喂时间轴：A 记的显示小字「妈妈记」', len(labs) >= 2 and all(x == '妈妈记' for x in labs), labs)
+        check('#332 XSS：同步进来的备注含 <img onerror> 不执行、不生成元素', B.evaluate("!window.__pwn332&&!document.querySelector('.tl-card img[onerror]')"))
+        B.screenshot(path=str(OUT / 'r332_bottle_by_mama.png'))
+        # B 记一条 → A 显示「爸爸记」
+        B.evaluate("""()=>{const d=Storage.get();d.feedings.push({id:Util.uid(),type:'bottle',start:'2026-10-30T12:00:00',amount:120});Storage.save()}""")
+        sync(B, A)
+        A.evaluate("App.showTab('bottle')"); A.wait_for_timeout(700)
+        labsA = A.evaluate("[...document.querySelectorAll('.tl-card .fam-by')].map(x=>x.textContent)")
+        check('#332 A 端：B 记的显示「爸爸记」，自己记的不标', labsA == ['爸爸记'], labsA)
+        A.screenshot(path=str(OUT / 'r332_bottle_by_baba.png'))
+        # B 删除 A 的一条（走真实删除撤销路径）→ A 也消失（墓碑）
+        fid = rb[0]['id']
+        B.evaluate(f"Util.removeWithUndo(Storage.get().feedings,'{fid}',{{onSave:()=>Storage.save()}})")
+        sync(B, A)
+        check('#332 B 删除 → A 也消失，A 留有墓碑', not any(r['id'] == fid for r in recs(A, mi))
+              and A.evaluate(f"Storage.get().tombs.some(t=>t.id==='{fid}'&&t.babyId==='{mi}')"))
+        # 同时改同一条 → LWW 收敛
+        tid = recs(A, mi)[0]['id']
+        A.evaluate(f"()=>{{const r=Storage.get().feedings.find(x=>x.id==='{tid}');r.amount=111;Storage.save()}}")
+        B.wait_for_timeout(30)
+        B.evaluate(f"()=>{{const r=Storage.get().feedings.find(x=>x.id==='{tid}');r.amount=222;Storage.save()}}")
+        sync(A, B, n=3)
+        ra = [r for r in recs(A, mi) if r['id'] == tid][0]; rb2 = [r for r in recs(B, mi) if r['id'] == tid][0]
+        check('#332 双方同时改同一条 → 按 (updatedAt, by) LWW 收敛一致（后改的 222 赢）', ra['amount'] == rb2['amount'] == 222 and ra['u'] == rb2['u'], (ra, rb2))
+        cnt = lambda p: p.evaluate(f"(()=>{{const d=Storage.get();const b=d.babies.find(x=>x.id==='{mi}');const s=b.id===d.settings.activeBabyId?d:b.rec;return s.feedings.length}})()")
+        check('#332 两边条数一致（不整体覆盖、不重复）', cnt(A) == cnt(B), (cnt(A), cnt(B)))
+        sup = B.evaluate("Storage.get().supplies.map(s=>[s.name,s.pieces,s._o||null])")
+        check('#332 用品（全家范围）同步到 B，并打上来源家庭标记', any(x[0] == '纸尿裤 L' and x[1] == 40 and x[2] for x in sup), sup)
+
+        # 成员列表 / 推送状态截图
+        A.evaluate("App.showTab('settings')"); A.wait_for_timeout(300)
+        A.evaluate("""(()=>{const g=[...document.querySelectorAll('.set-group summary')].find(s=>s.textContent.includes('家庭共享'));g.click()})()""")
+        _poll(A, "document.querySelectorAll('#famBox .fam-m').length>=2", 6000)
+        mtxt = A.evaluate("[...document.querySelectorAll('#famBox .fam-m')].map(x=>x.textContent)")
+        check('#332 成员列表：称呼（这台 / 爸爸）、最后在线、通知状态、移除按钮', len(mtxt) == 2 and '妈妈（这台）' in mtxt[0] and '爸爸' in mtxt[1] and '移除' in mtxt[1] and '通知未开' in mtxt[1], mtxt)
+        A.screenshot(path=str(OUT / 'r332_settings_on.png'), full_page=True)
+        A.locator('#famBox .fam-members').screenshot(path=str(OUT / 'r332_members.png'))
+
+        # ================= 3. 防串家庭：注入 / 重放 / 错 familyId / 错密钥 / 篡改 =================
+        C, eC, cC = phone('C')
+        C.evaluate(f"FamSync.setServer('{S}')")
+        C.evaluate("FamSync.create({name:'舅舅',babyIds:[]})")
+        _poll(C, "FamSync.joined()", 6000)
+        credB = B.evaluate("FamDB.get('cred')")
+        credC = C.evaluate("FamDB.get('cred')")
+        # A 侧构造各种坏消息（A 有家 1 的密钥）
+        forge = """async ([mode, S, babyId, credC])=>{
+          const c=await FamDB.get('cred');const K=await FamCrypto.deriveKeys(FamCrypto.unb64u(c.k));
+          const ent={t:'feedings',s:babyId,id:'forged-'+mode,u:Date.now(),by:c.deviceId,r:{id:'forged-'+mode,type:'bottle',start:'2026-10-30T13:00:00',amount:999,note:'FORGED'}};
+          const env=(o)=>Object.assign({v:1,familyId:c.familyId,from:c.deviceId,kind:'rec',babyIds:[babyId],sentAt:Date.now(),body:{ents:[ent]}},o||{});
+          let ct,kind='rec',fid=c.familyId,auth='Bearer '+c.deviceId+':'+c.token;
+          if(mode==='good') ct=await FamCrypto.encrypt(K.msg,FamCrypto.aad(c.familyId,c.deviceId,'rec'),env());
+          if(mode==='wrongAadFid') ct=await FamCrypto.encrypt(K.msg,FamCrypto.aad('f_AAAAAAAAAAAAAAAAAAAAAA',c.deviceId,'rec'),env());
+          if(mode==='innerFid') ct=await FamCrypto.encrypt(K.msg,FamCrypto.aad(c.familyId,c.deviceId,'rec'),env({familyId:'f_AAAAAAAAAAAAAAAAAAAAAA'}));
+          if(mode==='innerFrom') ct=await FamCrypto.encrypt(K.msg,FamCrypto.aad(c.familyId,c.deviceId,'rec'),env({from:'d_AAAAAAAAAAAAAAAA'}));
+          if(mode==='wrongKey'){const K2=await FamCrypto.deriveKeys(FamCrypto.genKey());ct=await FamCrypto.encrypt(K2.msg,FamCrypto.aad(c.familyId,c.deviceId,'rec'),env());}
+          if(mode==='tamper'){ct=await FamCrypto.encrypt(K.msg,FamCrypto.aad(c.familyId,c.deviceId,'rec'),env());const i=ct.length-5;ct=ct.slice(0,i)+(ct[i]==='A'?'B':'A')+ct.slice(i+1);}
+          if(mode==='kindSwap'){ct=await FamCrypto.encrypt(K.msg,FamCrypto.aad(c.familyId,c.deviceId,'rec'),env({kind:'snap'}));kind='snap';}
+          if(mode==='notShared') ct=await FamCrypto.encrypt(K.msg,FamCrypto.aad(c.familyId,c.deviceId,'rec'),env());
+          if(mode==='undeclared'){ct=await FamCrypto.encrypt(K.msg,FamCrypto.aad(c.familyId,c.deviceId,'rec'),env({babyIds:[]}));}
+          if(mode==='schema'){const e2=Object.assign({},ent,{r:Object.assign({},ent.r,{amount:'999'})});ct=await FamCrypto.encrypt(K.msg,FamCrypto.aad(c.familyId,c.deviceId,'rec'),env({body:{ents:[e2]}}));}
+          if(mode==='typeNo'){const e3=Object.assign({},ent,{t:'moods'});ct=await FamCrypto.encrypt(K.msg,FamCrypto.aad(c.familyId,c.deviceId,'rec'),env({body:{ents:[e3]}}));}
+          if(mode==='toFamily2'){ct=await FamCrypto.encrypt(K.msg,FamCrypto.aad(c.familyId,c.deviceId,'rec'),env());fid=credC.familyId;auth='Bearer '+credC.deviceId+':'+credC.token;}
+          const r=await fetch(S+'/v1/families/'+fid+'/messages',{method:'POST',headers:{'Content-Type':'application/json',Authorization:auth},body:JSON.stringify({ct,kind})});
+          return [r.status, ct];
+        }"""
+        d0B = B.evaluate("FamSync.state().dropped")
+        modes = ['wrongAadFid', 'innerFid', 'innerFrom', 'wrongKey', 'tamper', 'kindSwap', 'undeclared', 'schema', 'typeNo']
+        for m in modes:
+            A.evaluate(forge, [m, S, mi, credC])
+        A.evaluate(forge, ['notShared', S, dou, credC])
+        sync(B)
+        d1B = B.evaluate("FamSync.state()")
+        forged = B.evaluate("(()=>{const d=Storage.get();let n=0;Storage.Meta.walk(d,(s,t,id,k,r)=>{if(String(id).startsWith('forged-'))n++});return n})()")
+        check('#332 防串家庭：错 AAD familyId / 明文 familyId 不符 / from 不符 / 错密钥 / 篡改密文 / 篡改 kind(AAD) → 全部丢弃并计数',
+              forged == 0 and d1B['dropped'] - d0B >= len(modes) + 1 and d1B['why'].get('decrypt', 0) >= 4 and d1B['why'].get('meta', 0) >= 2, (forged, d1B['dropped'] - d0B, d1B['why']))
+        check('#332 防串宝宝：babyId 不在共享清单 / 消息没声明的宝宝 → 丢弃；schema 不对（数值字段是字符串）、类型不在白名单（情绪）→ 丢弃',
+              d1B['why'].get('baby', 0) >= 2 and d1B['why'].get('schema', 0) + d1B['why'].get('type', 0) >= 2, d1B['why'])
+        # 家 1 的密文以 C 的身份注入家 2；再把同一条在家 2 重放一次
+        st2, ct_good = A.evaluate(forge, ['toFamily2', S, mi, credC])
+        dC0 = C.evaluate("FamSync.state().dropped")
+        cauth = 'Bearer ' + credC['deviceId'] + ':' + credC['token']
+        # 家 2 需要有另一台设备才能收到：B 不能同时在两个家，所以让 C 自己的第二台手机 C2 加入家 2
+        C2, eC2, _ = phone('C2')
+        codeC = C.evaluate("FamSync.invite().then(r=>r.code)")
+        C2.evaluate("async c=>{const p=await FamSync.parseCode(c);await FamSync.join(p,{name:'舅妈',babyIds:[]})}", codeC)
+        _poll(C2, "FamSync.joined()", 6000)
+        for _ in range(2):
+            C.evaluate(f"""fetch('{S}/v1/families/{credC["familyId"]}/messages',{{method:'POST',headers:{{'Content-Type':'application/json',Authorization:'{cauth}'}},body:JSON.stringify({{ct:'{ct_good}',kind:'rec'}})}})""")
+        sync(C2)
+        dC2 = C2.evaluate("FamSync.state()")
+        forgedC2 = C2.evaluate("(()=>{let n=0;Storage.Meta.walk(Storage.get(),(s,t,id)=>{if(String(id).startsWith('forged-'))n++});return n})()")
+        check('#332 防串家庭：家 1 的密文以 C 的身份注入家 2、再重放一次 → 家 2 的手机全部丢弃（解不开），一条都没进', forgedC2 == 0 and dC2['why'].get('decrypt', 0) >= 2, dC2['why'])
+        # 正常的那条 B 能收（证明上面的丢弃不是因为通道坏了）
+        A.evaluate(forge, ['good', S, mi, credC]); sync(B)
+        check('#332 对照：同一构造方式的合法消息 B 正常收下', any(r['id'] == 'forged-good' for r in recs(B, mi)))
+        check('#332 坏消息不让页面报错', not eB and not eC2, (eB[:2], eC2[:2]))
+
+        # ================= 7. 推送：SW 解密路径（真 Service Worker + CDP 假 push 事件） =================
+        B.evaluate("navigator.serviceWorker.ready.then(()=>1)")
+        cdp = cB.new_cdp_session(B)
+        cdp.send('ServiceWorker.enable')
+        regs = []
+        cdp.on('ServiceWorker.workerRegistrationUpdated', lambda ev: regs.extend(ev.get('registrations', [])))
+        B.wait_for_timeout(800)
+        rid = next((r['registrationId'] for r in regs if r.get('scopeURL', '').startswith(URL.split('index.html')[0])), None)
+        payload_ok = A.evaluate("""async ()=>{const c=await FamDB.get('cred');const K=await FamCrypto.deriveKeys(FamCrypto.unb64u(c.k));
+            const ct=await FamCrypto.encrypt(K.push,FamCrypto.pushAad(c.familyId,c.deviceId,'come'),{v:1,a:'come',n:'妈妈',at:Date.now(),note:'早上第一顿 80ml',amount:80});
+            return JSON.stringify({t:'come',f:c.familyId,from:c.deviceId,ct,at:Date.now()})}""")
+        bad_payload = json.dumps({'t': 'come', 'f': cred['familyId'], 'from': cred['deviceId'], 'ct': 'AQ' + 'A' * 60, 'at': 1})
+        texts = []
+        # 无头 Chromium 拿不到通知权限（showNotification 直接拒绝），所以在真 SW 里把 showNotification 换成记录器：
+        # push 事件仍由 CDP 投递给真的 SW push 处理器，解密 / 校验 / 生成文字的路径一行不少，只是最后不真弹系统通知
+        sws = [w for w in cB.service_workers if w.url.endswith('/sw.js')]
+        if rid and sws:
+            origin = URL.split('/index.html')[0]
+            sws[0].evaluate("self.__shown=[];self.registration.showNotification=(t,o)=>{self.__shown.push([t,o&&o.body,o&&o.tag]);return Promise.resolve()};1")
+            for pl in (payload_ok, bad_payload):
+                cdp.send('ServiceWorker.deliverPushMessage', {'origin': origin, 'registrationId': rid, 'data': pl})
+                B.wait_for_timeout(900)
+            texts = [x[:2] for x in sws[0].evaluate("self.__shown")]
+        check('#332 推送（真 SW + 假 push 事件）：解出「妈妈 叫你过来一下」，通知里不带记录内容（80ml / 第一顿）',
+              any(t == ['咿呀', '妈妈 叫你过来一下'] for t in texts) and not any(('80' in t[1] or '第一顿' in t[1]) for t in texts), (rid, texts))
+        check('#332 推送解密失败 → 通用「咿呀：家里有新消息」', any(t == ['咿呀', '家里有新消息'] for t in texts), texts)
+        unit = B.evaluate("""async (pl)=>{const c=await FamDB.get('cred');const d=JSON.parse(pl);const out={};
+            out.ok=await FamPush.text(d,c,{});
+            out.otherFam=await FamPush.text(Object.assign({},d,{f:'f_AAAAAAAAAAAAAAAAAAAAAA'}),c,{});
+            out.kindSwap=await FamPush.text(Object.assign({},d,{t:'sync'}),c,{});
+            out.noCred=await FamPush.text(d,null,{});
+            return out}""", payload_ok)
+        check('#332 FamPush.text 单测：正常 / 别的家 / 换 kind / 本机没凭据', unit['ok']['body'] == '妈妈 叫你过来一下' and unit['otherFam']['body'] == '家里有新消息'
+              and unit['kindSwap']['body'] == '家里有新消息' and unit['noCred']['body'] == '家里有新消息', unit)
+        xss_name = A.evaluate("""async ()=>{const c=await FamDB.get('cred');const K=await FamCrypto.deriveKeys(FamCrypto.unb64u(c.k));
+            const ct=await FamCrypto.encrypt(K.push,FamCrypto.pushAad(c.familyId,c.deviceId,'come'),{v:1,a:'come',n:'<img src=x onerror=alert(1)>',at:Date.now()});
+            return JSON.stringify({t:'come',f:c.familyId,from:c.deviceId,ct,at:Date.now()})}""")
+        ux = B.evaluate("async pl=>{const c=await FamDB.get('cred');return (await FamPush.text(JSON.parse(pl),c,{})).body}", xss_name)
+        check('#332 推送里的称呼去掉尖括号等字符、限 8 字', '<' not in ux and '>' not in ux and ux.endswith(' 叫你过来一下') and len(ux.split(' ')[0]) <= 8, ux)
+        cr = A.evaluate("FamSync.come()")
+        check('#332 「你来一下」真走中转 notify：B 没开通知 → noSub 1', cr.get('noSub') == 1 and cr.get('sent') == 0, cr)
+        A.evaluate("App.showTab('home')"); A.wait_for_timeout(600)
+        check('#332 首页日期旁有「叫家人来一下」入口', A.evaluate("!!document.querySelector('.home-greet [data-fam-come]')"))
+        A.click('.home-greet [data-fam-come]'); A.wait_for_timeout(700)
+        A.screenshot(path=str(OUT / 'r332_come.png'))
+        island = A.evaluate("document.body.innerText")
+        check('#332 点「叫家人来一下」→ 咿呀岛反馈（家人还没开通知）', '家人还没开通知' in island)
+
+        # ================= 8. XSS：同步进来的称呼 =================
+        A.evaluate(f"""async ()=>{{const c=await FamDB.get('cred');const K=await FamCrypto.deriveKeys(FamCrypto.unb64u(c.k));
+            const env={{v:1,familyId:c.familyId,from:c.deviceId,kind:'meta',babyIds:[],sentAt:Date.now(),body:{{name:'<img src=x onerror="window.__pwn332b=1">',babies:[]}}}};
+            const ct=await FamCrypto.encrypt(K.msg,FamCrypto.aad(c.familyId,c.deviceId,'meta'),env);
+            await fetch('{S}/v1/families/'+c.familyId+'/messages',{{method:'POST',headers:{{'Content-Type':'application/json',Authorization:'Bearer '+c.deviceId+':'+c.token}},body:JSON.stringify({{ct,kind:'meta'}})}})}}""")
+        sync(B)
+        B.evaluate("App.showTab('settings')"); B.wait_for_timeout(300)
+        B.evaluate("""(()=>{const g=[...document.querySelectorAll('.set-group summary')].find(s=>s.textContent.includes('家庭共享'));g.click()})()""")
+        _poll(B, "document.querySelectorAll('#famBox .fam-m').length>=2", 6000)
+        B.evaluate("App.showTab('bottle')"); B.wait_for_timeout(600)
+        check('#332 XSS：同步进来的称呼含 <img onerror> → 不执行、成员列表 / 「X记」都不生成元素',
+              B.evaluate("!window.__pwn332b&&!document.querySelector('img[onerror]')"))
+
+        # ================= 6. 导出不含家庭信息 =================
+        exp = A.evaluate("Storage.exportJSON()")
+        expP = A.evaluate("Storage.exportJSON({excludePrivate:true})")
+        secrets = [cred['k'], cred['token'], cred['familyId'], cred['deviceId'], credB['deviceId']]
+        check('#332 导出文件（完整 / 给家人的）不含家庭密钥、token、familyId、任何设备 ID', all(s_ not in exp and s_ not in expP for s_ in secrets)
+              and '"fam"' in exp, [s_[:6] for s_ in secrets if s_ in exp])
+        check('#332 localStorage 里也没有家庭密钥 / token（只在 IndexedDB）', A.evaluate(f"!Object.keys(localStorage).some(k=>{{const v=localStorage.getItem(k)||'';return v.includes('{cred['k']}')||v.includes('{cred['token']}')}})"))
+
+        # ================= 5. 被移除（401）→ 凭据清除、数据保留；再加入别的家不带旧家数据 =================
+        nB_before = len(recs(B, mi))
+        A.evaluate(f"FamSync.removeMember('{credB['deviceId']}')")
+        B.evaluate("FamSync.sync()"); B.wait_for_timeout(800)
+        k401 = B.evaluate("Promise.all([FamDB.get('cred'),FamSync.joined(),localStorage.getItem('yiya_fam_state')])")
+        check('#332 被移除 → 下次同步收到 401：凭据（密钥 / token）和家庭状态清除，不再同步', k401[0] is None and k401[1] is False and k401[2] is None, k401)
+        check('#332 被移除后本地记录保留，并提示', len(recs(B, mi)) == nB_before and B.evaluate("document.querySelector('#cfmTitle')&&document.querySelector('#cfmTitle').textContent.includes('不在家里')"))
+        B.evaluate("document.querySelector('[data-cfm-i]')&&document.querySelector('[data-cfm-i]').click()")
+        # B 加入 C 的家（家 2）
+        codeC2 = C.evaluate("FamSync.invite().then(r=>r.code)")
+        B.evaluate("async c=>{const p=await FamSync.parseCode(c);await FamSync.join(p,{name:'爸爸',babyIds:[]})}", codeC2)
+        _poll(B, "FamSync.joined()", 6000)
+        canShareOld = B.evaluate(f"FamSync.setShare('{mi}',true)")
+        B.evaluate(f"FamSync.setShare('{bMine}',true)")
+        sync(B, C, n=3)
+        cb = C.evaluate("Storage.get().babies.map(b=>b.id)")
+        csup = C.evaluate("Storage.get().supplies.map(s=>s.name)")
+        check('#332 退出后加入别的家：旧家的宝宝不能共享（来源标记），C 只收到 B 自己的宝宝', canShareOld is False and mi not in cb and bMine in cb, (canShareOld, cb))
+        check('#332 旧家来的用品（来源标记）不会带进新家', '纸尿裤 L' not in csup, csup)
+        allC = C.evaluate("JSON.stringify(Storage.get())")
+        check('#332 新家里找不到旧家的任何记录 / 设备 ID', cred['deviceId'] not in allC and '早上第一顿' not in allC)
+        # 退出（Util.yiyaAsk 确认，红色）
+        B.evaluate("App.showTab('settings')"); B.wait_for_timeout(300)
+        B.evaluate("""(()=>{const g=[...document.querySelectorAll('.set-group summary')].find(s=>s.textContent.includes('家庭共享'));g.click()})()""")
+        B.wait_for_timeout(300)
+        B.click('#famBox [data-fam="leave"]'); B.wait_for_timeout(300)
+        danger = B.evaluate("!!document.querySelector('[data-fam-leave-ok].btn-danger')")
+        B.click('[data-fam-leave-ok]'); B.wait_for_timeout(800)
+        lv = B.evaluate("Promise.all([FamDB.get('cred'),FamSync.joined()])")
+        check('#332 退出家庭：红色确认卡 → 删除密钥、停同步，本地数据保留', danger and lv[0] is None and lv[1] is False and len(recs(B, mi)) == nB_before, (danger, lv))
+        check('#332 全程页面零报错', not eA and not eB and not eC, (eA[:2], eB[:2], eC[:2]))
+    finally:
+        for c in ctxs:
+            try: c.close()
+            except Exception: pass
+        relay.terminate()
+
+
 def main():
     if '--only' in sys.argv:
         names = sys.argv[sys.argv.index('--only') + 1].split(',')
@@ -8067,7 +8437,7 @@ def test_r330(b):
     夜里喂完「去睡吧」；白天、关灯、设置关闭都不出；不联网。SW v292。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
     idx = (ROOT / 'index.html').read_text(encoding='utf-8')
-    check('#330 SW v292、nightwin.js 预缓存并引入', "var CACHE = 'baoma-static-v292';" in sw and "'js/nightwin.js'" in sw and 'src="js/nightwin.js"' in idx)
+    check('#330 SW v292（第 332 次升 v293）、nightwin.js 预缓存并引入', "var CACHE = 'baoma-static-v293';" in sw and "'js/nightwin.js'" in sw and 'src="js/nightwin.js"' in idx)
     nw = (ROOT / 'js' / 'nightwin.js').read_text(encoding='utf-8')
     check('#330 不联网：nightwin.js 没有 fetch / XMLHttpRequest / geolocation', not any(k in nw for k in ('fetch(', 'XMLHttpRequest', 'geolocation')))
     ctx = b.new_context(viewport={'width': 393, 'height': 852}, timezone_id='Asia/Shanghai')
