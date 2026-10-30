@@ -161,14 +161,17 @@
     var box = ensure();
     if (!runs.length) {
       if (!box.hidden && box.innerHTML) leave(box);
+      var was = !!box.innerHTML;
       box.hidden = true; box.innerHTML = ''; box._run = null; box._keys = ''; box._sig = '';
       doc.body.classList.remove('has-live');
+      if (was && global.DockFuse) DockFuse.ctaChanged(); /* 第 320 次：二级页那一行少了正在进行胶囊 → 记录条可以下落了 */
       return;
     }
     if (idx >= runs.length) idx = 0;
     var r = runs[idx];
     var appearing = box.hidden || !box.innerHTML;
     box.hidden = false;
+    if (appearing && global.DockFuse) setTimeout(function () { DockFuse.ctaChanged(); }, 0); /* 第 320 次：胶囊并进二级页那一行 */
     doc.body.classList.add('has-live');
     box.setAttribute('data-accent', r.go);
     /* 第 291 次：每次换页 / 原地重画都会走到这里。以前整串重写 className 把 dl-shown（形变出现过、不再补播 CSS 入场动画）和 lg-band
@@ -230,7 +233,6 @@
   };
 
   /* ---------- 第 277 次：玻璃与形变 ---------- */
-  function sideMode() { var c = doc.body.classList; return c.contains('dock-left') || c.contains('dock-right'); }
   function glass(box) {
     var DR = global.DockRefract;
     if (!DR || !DR.isOn || !box || box.hidden) return false;
@@ -270,7 +272,7 @@
     if (ghost) { endGhost(); }
     var bar = doc.getElementById('tabbar');
     box.classList.remove('dl-shown');
-    if (reduced || sideMode() || !bar || !box.animate) { box.classList.add('dl-fade'); setTimeout(function () { box.classList.remove('dl-fade'); }, 400); return; }
+    if (reduced || !bar || !box.animate) { box.classList.add('dl-fade'); setTimeout(function () { box.classList.remove('dl-fade'); }, 400); return; }
     if (morph) cancelAnimationFrame(morph.raf);
     /* dl-shown：形变走完后摘掉 dl-morph 时不让 CSS 入场动画 dl-in 再播一遍（会从透明再弹一次，折射边也会因「看不见」被关掉） */
     box.classList.add('dl-morph', 'dl-shown');
@@ -294,7 +296,7 @@
     var bar = doc.getElementById('tabbar');
     if (morph) { cancelAnimationFrame(morph.raf); morph = null; clearFrame(box); box.classList.remove('dl-morph'); }
     box.classList.remove('dl-shown');
-    if (reduced || sideMode() || !bar || !box.animate) { if (global.DockRefract && DockRefract.unsurface) DockRefract.unsurface('live'); return; }
+    if (reduced || !bar || !box.animate) { if (global.DockRefract && DockRefract.unsurface) DockRefract.unsurface('live'); return; }
     var R1 = box.getBoundingClientRect(), D = bar.getBoundingClientRect();
     if (R1.width < 20) { if (global.DockRefract) DockRefract.unsurface('live'); return; }
     if (ghost) endGhost();
@@ -331,7 +333,7 @@
   }
   /* 改尺寸：宽度从旧值过渡到新值，折射形状逐帧跟着 */
   function resize(box, oldW) {
-    if (reduced || sideMode() || !oldW) return;
+    if (reduced || !oldW) return;
     var newW = box.getBoundingClientRect().width;
     if (Math.abs(newW - oldW) < 2) return;
     box.classList.add('dl-resizing');

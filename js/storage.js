@@ -178,11 +178,7 @@
         /* 第 286 次：日期页底部快捷记录条。null = 默认（亲喂/瓶喂/辅食/生长/尿布）；'auto' = 按近 30 天使用次数挑 5 个；
            数组 = 自选（模块 id，最多 5 个；渲染时只认白名单） */
         calQuick: null,
-        /* 第 100 次：底栏五口集中排列——normal=居中横排（默认）/ left=左下竖排 /
-           right=右下竖排。left/right 时首页、日期记录、快记加号、宝宝切换、设置
-           五个入口全部收进屏幕同侧一根竖排胶囊。取代第 87 次只镜像快记钮的
-           leftHand（旧值 true 迁移为 'left'；该字段当时未入白名单，本就不落盘）。 */
-        handMode: 'normal',
+        /* 第 320 次：handMode（第 100 次左右手竖排 → 第 304 次简洁模式）整项移除；旧值在 load 里静默清掉 */
         /* 第 103 次（OP-GAP-03）：全局字号倍率。三档 normal / lg / xl，
            由 App.applyFontScale() 落到 body 类上，CSS 覆盖 --fs-* 五个变量。
            起因是第七版审计的缺口——CSS 变量早已齐备（styles.css:57-61），
@@ -417,9 +413,7 @@
       /* 第 286 次：日期页快捷条（'auto' 或最多 5 个 [a-z] 模块 id；其余回默认） */
       if (s.calQuick === 'auto') base.settings.calQuick = 'auto';
       else if (Array.isArray(s.calQuick)) base.settings.calQuick = s.calQuick.filter(function (x) { return typeof x === 'string' && /^[a-z]{2,16}$/.test(x); }).slice(0, 5);
-      /* 第 100 次：底栏五口排列模式（三值枚举；旧 leftHand=true 迁移为 'left'，随导入导出带走） */
-      if (s.handMode === 'left' || s.handMode === 'right' || s.handMode === 'normal') base.settings.handMode = s.handMode;
-      else if (s.leftHand === true) base.settings.handMode = 'left';
+      /* 第 320 次：handMode / leftHand（左右手 · 简洁模式）不再读——白名单里没有它，导入的旧备份同样静默回到默认排列 */
       /* 第 48 次：磁贴按阶段筛选开关（同样要随导入导出带走） */
       if (typeof s.tilesByStage === 'boolean') base.settings.tilesByStage = s.tilesByStage;
       /* 第 66 次：情绪中性提示关闭标记（随导入导出带走） */
@@ -701,6 +695,9 @@
       if (!raw) { this.data = defaultData(); return this.data; }
       try {
         this.data = sanitize(JSON.parse(raw));
+        /* 第 320 次：左右手 / 简洁模式已移除。已存的 handMode / leftHand 旧值静默迁移为默认（sanitize 白名单已丢掉），
+           这里把清洗后的数据当场写回一次，localStorage 里不再留旧键（不触感、不提示） */
+        if (/"(handMode|leftHand)"\s*:/.test(raw)) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data)); this._handMigrated = true; } catch (eM) { /* 配额满：下次正常保存时自然清掉 */ } }
         this.migrate();
         this._supDedupe();
       } catch (e) {

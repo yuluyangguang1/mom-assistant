@@ -1882,48 +1882,11 @@ body.dark.deep-night {
    边距提到 20px，命中区完整落在手势区之外。
    同时把底部抬到 16px：iPhone 有home 指示条（sab 34px），
    贴底那一个按钮的下缘会压到指示条上，同样吃掉点击。 */
-body.dock-left .tabbar { left: 20px; right: auto; transform: none; }
-body.dock-right .tabbar { left: auto; right: 20px; transform: none; }
-body.dock-left .tabbar, body.dock-right .tabbar {
-  /* ============================================================
-   第 100 次：底栏五口集中排列（body.dock-left / body.dock-right，
-   设置 · 外观 · 底栏排列）——取代第 87 次只镜像快记钮的 left-hand。
-   left/right 时：底栏变竖排胶囊固定屏幕同侧下缘，五口=首页 / 日期记录 /
-   快记＋ / 宝宝切换 / 设置；页签只留图标（竖排没文字空间）；
-   快记 FAB 隐藏（＋已在底栏，转发点击复用原逻辑），动作列改从底栏上方
-   展开（定位吃 --dock-h，由 buildTabbar 按真实胶囊高度注入）；
-   顶栏齿轮隐藏（设置已在底栏），头像保留（身份展示 + 也能开切换面板）。
-   normal 不挂类、一条规则都不吃，居中横排原样。
-   ============================================================ */
-  flex-direction: column; flex-wrap: nowrap; align-items: center;
-  overflow: visible;
-  padding: 8px 6px; gap: 6px; /* 第 181 次：2→6px，与横排同节奏 */
-  /* 第 101 次修复：定位完全自持——不依赖覆盖 base 的 left:50%/transform 链。
-     个别内核（X5/夸克等）对 fixed + left:50% + translateX(-50%) + 覆盖的组合
-     解析异常时胶囊会整体漂出画面；四向显式声明后任何内核都只能得出同一结果。 */
-  top: auto;
-  /* ↑ 第 171 次：同名选择器合并到此处 */
-  bottom: calc(16px + env(safe-area-inset-bottom));
-}
 
-body.dock-left .tab, body.dock-right .tab {
-  flex: 0 0 auto; min-width: 0; width: 46px; padding: 9px 0;
-}
-body.dock-left .tab .ico, body.dock-right .tab .ico { width: 22px; height: 22px; }
 /* 第 181 次：删掉竖排专用的「＋浅主色底」与「隐藏齿轮」——三种排列按钮内容、配色完全一致，
    左右手只改方向（齿轮现在就在胶囊里，藏掉它等于把设置入口删了）。 */
 /* 二级页竖排：返回在上、＋在下，不再沿用横排的 152px 最小宽 */
-body.dock-left .tabbar.is-sub, body.dock-right .tabbar.is-sub {
-  min-width: 0; padding: 6px; justify-content: flex-start; gap: 8px;
-}
 /* 快记 FAB 隐藏；动作列从竖排底栏上方展开，与底栏同侧对齐 */
-body.dock-left #quickDock, body.dock-right #quickDock {
-  right: auto; bottom: calc(10px + env(safe-area-inset-bottom) + var(--dock-h, 260px) + 12px);
-}
-body.dock-left #quickDock { left: 12px; }
-body.dock-right #quickDock { left: auto; right: 12px; }
-body.dock-left #quickDock .qd-fab, body.dock-right #quickDock .qd-fab { display: none; }
-body.dock-left #quickDock .qd-actions { align-items: flex-start; }
 /* 第 101 次修复：toast 避让——toast 居中且默认可宽达全屏减 32px，
    dock 模式下左右两侧被竖排胶囊占据，长提示（如「已切左手模式…」）
    会盖住胶囊按钮约 2.5s。收窄 max-width 留出两侧胶囊区，不再重叠。 */
@@ -1931,19 +1894,7 @@ body.dock-left #quickDock .qd-actions { align-items: flex-start; }
 /* 第 101 次审查修复：横屏矮屏（vh≈390）下动作列若仍从胶囊上方纵向展开
    （bottom≈268px + 列高≈230px），前几项会溢出画面顶部。改从胶囊朝屏幕
    中心一侧水平展开、bottom 与胶囊对齐，两行 wrap 后高约 100px，稳在画面内。 */
-@media (orientation: landscape) {
-  body.dock-left #quickDock, body.dock-right #quickDock {
-    bottom: calc(10px + env(safe-area-inset-bottom));
-  }
-  body.dock-left #quickDock { left: 84px; right: auto; }   /* 胶囊右缘 72px + 12px */
-  body.dock-right #quickDock { left: auto; right: 84px; }
-  body.dock-left #quickDock .qd-actions, body.dock-right #quickDock .qd-actions {
-    flex-direction: row; flex-wrap: wrap; align-items: flex-start;
-    justify-content: flex-start; margin-bottom: 0;
-    max-width: min(62vw, 440px);
-  }
-  body.dock-right #quickDock .qd-actions { justify-content: flex-end; }
-}
+
 @media (prefers-reduced-motion: reduce) {
   .seg-btn.active .ico, .view-enter > *, .view-enter .stat-num, .progress-bar { animation-duration: .01ms !important; }
 }
@@ -2821,7 +2772,6 @@ body::after {
 /* 第 192 次（左/右手模式实测）：竖排胶囊高约 262px，沿用横排的 112px 留白时，
    滚到底最后两三行（首页「妈妈情绪」、设置末项等）永远压在胶囊下面点不到。
    竖排时留白 = 胶囊真实高度（--dock-h，buildTabbar 注入）+ 胶囊离底 16px + 12px 呼吸。 */
-body.dock-left .view, body.dock-right .view { padding-bottom: calc(var(--dock-h, 262px) + 28px + env(safe-area-inset-bottom)); }
 
 /* ============================================================
    第 146 次（P0-3 / P0-4）：首页首屏「此刻」条——进行中计时 + 零表单快记。
@@ -3773,7 +3723,6 @@ body .tabbar.is-sub .dn-art { width: 36px; height: 36px; box-shadow: none; }
 body .tabbar.is-sub .dn-eq { inset: 7px; }
 body .tabbar.is-sub .dn-txt { display: flex; }
 body .tabbar.is-sub .dn-pp, body .tabbar.is-sub .dn-stop { display: grid; }
-body .tabbar.is-vertical .dock-now { margin: 4px 0; }
 @media (max-width: 350px) { body .tabbar.is-sub .dn-txt b { max-width: 4.5em; overflow: hidden; text-overflow: ellipsis; } }
 @media (prefers-reduced-motion: reduce) { .dn-eq i { animation: none; } .dn-ring .dn-fg { transition: none; } }
 
@@ -3789,9 +3738,6 @@ html.wp-lock body::after, html.wp-lock .touch-glow { display: none; }
 html.wp-lock .dock-live { visibility: hidden; }
 .wn-player .wp-body { padding-bottom: calc(10px + 62px + 18px + env(safe-area-inset-bottom)); }
 .wn-player .wp-tip, .wn-player .wp-warn { margin-top: 22px; }
-body.dock-left .wn-player .wp-body, body.dock-right .wn-player .wp-body { padding-bottom: calc(26px + env(safe-area-inset-bottom)); }
-body.dock-left .wn-player .wp-ctrl { padding-left: 64px; }
-body.dock-right .wn-player .wp-ctrl { padding-right: 64px; }
 /* 第 271 次：play() 还没兑现（iOS 上是异步的）——显示暂停形状但轻轻呼吸，读屏报「正在开始」 */
 .wp-play.is-starting svg { animation: wpStarting 1s ease-in-out infinite; }
 @keyframes wpStarting { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
@@ -4573,7 +4519,7 @@ body .tabbar.lg.lg-press { scale: 1.02; } /* 第 277 次：按下时玻璃轻微
    缩放原点是盒子中心，但盒子又被 translateX(-50%) 挪走半宽，结果右缘不动、左缘缩进 ~6px。
    把缩放原点放到盒子左缘中点（translate 之后它正好落在 dock 中心），按下就两边对称收。
    左右手竖排时 transform 为 none，原点保持默认中心。 */
-body:not(.dock-left):not(.dock-right) .tabbar.lg { transform-origin: 0 50%; }
+body .tabbar.lg:not(.is-sub) { transform-origin: 0 50%; } /* 第 320 次：竖排已移除，原条件改为非二级态 */
 
 body.dark .tabbar.lg {
   --lg-tint: color-mix(in srgb, var(--surface) 46%, transparent);
@@ -4708,9 +4654,6 @@ body.qd-open .dock-live { opacity: 0; visibility: hidden; }
 /* 有胶囊时页面底部多留一截，最后一张卡不会被挡 */
 body.has-live .view { padding-bottom: calc(162px + env(safe-area-inset-bottom)); }
 /* 左右手竖排：胶囊贴底、让开竖条 */
-body.dock-left .dock-live { left: 84px; right: 12px; transform: none; bottom: calc(10px + env(safe-area-inset-bottom)); min-width: 0; width: auto; animation: none; }
-body.dock-right .dock-live { left: 12px; right: 84px; transform: none; bottom: calc(10px + env(safe-area-inset-bottom)); min-width: 0; width: auto; animation: none; }
-body.dock-left.has-live .view, body.dock-right.has-live .view { padding-bottom: calc(var(--dock-h, 262px) + 28px + env(safe-area-inset-bottom)); }
 @media (prefers-reduced-transparency: reduce) { .dock-live { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 body.hc .dock-live { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
 @media (prefers-reduced-motion: reduce) { .dock-live, .dl-pulse { animation: none; } }
@@ -4724,12 +4667,11 @@ html[data-nav] #dockLive:not([hidden]) { view-transition-name: dock-live; }
 ::view-transition-old(dock), ::view-transition-old(dock-live) { display: none; }
 ::view-transition-new(dock), ::view-transition-new(dock-live) { animation: none; }
 /* ② 设置与橙色 ＋ 之间留缝，选中水滴不再贴着 ＋ */
-body .tabbar:not(.is-vertical):not(.is-sub) { gap: 2px; }
-body .tabbar:not(.is-vertical):not(.is-sub) .tab-plus { margin-left: 8px; }
-body .tabbar.is-vertical .tab-plus { margin-top: 8px; }
+body .tabbar:not(.is-sub) { gap: 2px; }
+body .tabbar:not(.is-sub) .tab-plus { margin-left: 8px; }
 @media (max-width: 360px) {
-  body .tabbar:not(.is-vertical):not(.is-sub) { gap: 0; }
-  body .tabbar:not(.is-vertical):not(.is-sub) .tab-plus { margin-left: 4px; }
+  body .tabbar:not(.is-sub) { gap: 0; }
+  body .tabbar:not(.is-sub) .tab-plus { margin-left: 4px; }
 }
 
 /* ============================================================
@@ -4752,24 +4694,24 @@ body .tabbar.is-vertical .tab-plus { margin-top: 8px; }
 html.lg-refract body #dockOrb.lg { -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.04); backdrop-filter: blur(14px) saturate(190%) brightness(1.04); }
 /* 第 240 次：右移改用 left，不再写进 transform。iOS 按下时 dock 的 scale 回弹走合成层，
    WebKit 合成层解析 translateX(calc(-50% + 35px)) 会丢掉 px 部分，整条 dock 往左缩一下再弹回。 */
-body.has-orb #tabbar:not(.is-vertical) { left: calc(50% - 35px); }
+body.has-orb #tabbar { left: calc(50% - 35px); }
 /* 第 246 次（真机录屏：首页 / 日期 / 搜索互切时 dock 闪到左边、压在宝宝圆钮上）：
    iOS Safari 给带 view-transition-name 的元素拍快照时，translateX(-50%) 会被再算一次，
    新快照整条往左偏半个 dock 宽。一级页也改成和二级页一样：left 直接算出左缘，transform 不放位移。 */
-body.has-orb #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 258px) / 2 - 35px); transform: none; transform-origin: 50% 50%; }
+body.has-orb #tabbar.lg { left: calc(50% - var(--dock-w, 258px) / 2 - 35px); transform: none; transform-origin: 50% 50%; }
 body.ftf-open #dockOrb { visibility: hidden; }
 /* 第 244 次：二级页 dock 左缘钉在一级页 dock 的左缘（圆钮右边 8px），进出二级页 dock 不再左移 / 右移，
    只是右侧收短；按下缩放回到以中心为原点。 */
-body.sub-anchor #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 258px) / 2 - 35px); transform: none; transform-origin: 50% 50%; }
+body.sub-anchor #tabbar.lg { left: calc(50% - var(--dock-w, 258px) / 2 - 35px); transform: none; transform-origin: 50% 50%; }
 html[data-nav] #dockOrb:not([hidden]) { view-transition-name: dock-orb; }
 ::view-transition-group(dock-orb) { animation: none; }
 ::view-transition-old(dock-orb) { animation: vtFadeOut .16s ease-out both; } /* 第 244 次：进二级页时圆钮淡出，不再瞬间消失 */
 ::view-transition-new(dock-orb) { animation: none; }
 @media (max-width: 360px) {
   #dockOrb.dock-orb { --orb: 54px; left: calc(50% + var(--dock-w, 240px) / 2 - 23px); bottom: calc(14px + env(safe-area-inset-bottom)); }
-  body.has-orb #tabbar:not(.is-vertical) { left: calc(50% - 31px); }
-  body.has-orb #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 240px) / 2 - 31px); }
-  body.sub-anchor #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 240px) / 2 - 31px); }
+  body.has-orb #tabbar { left: calc(50% - 31px); }
+  body.has-orb #tabbar.lg { left: calc(50% - var(--dock-w, 240px) / 2 - 31px); }
+  body.sub-anchor #tabbar.lg { left: calc(50% - var(--dock-w, 240px) / 2 - 31px); }
 }
 
 /* ============================================================
@@ -4978,7 +4920,6 @@ body.qd-open .touch-glow { display: none; }
 .view:has(> .ft-page) > *, .view:has(> .mod-cta) > * { flex-shrink: 0; }
 .view > .ft-page { flex: 1 0 auto; display: flex; flex-direction: column; }
 .ft-page > * { flex-shrink: 0; }
-body.dock-left .view:has(> .ft-page), body.dock-right .view:has(> .ft-page), body.dock-left .view:has(> .mod-cta), body.dock-right .view:has(> .mod-cta) { min-height: 0; }
 
 /* 第 255 次：喂养底部「切换钮 + 开始 | ⊕」 */
 .fd-cta { gap: 10px; align-items: stretch; }
@@ -5625,31 +5566,12 @@ body.dark .spw-wd.on { color: var(--tile-on); }
    ============================================================ */
 /* --cta-h 默认值写在 :root、--cta-b 默认值写在 body 主规则里（CSS 不重复选择器） */
 body.has-live { --cta-b: calc(154px + env(safe-area-inset-bottom)); }
-body.dock-left, body.dock-right { --cta-b: calc(16px + env(safe-area-inset-bottom)); }
-body.dock-left.has-live, body.dock-right.has-live { --cta-b: calc(10px + 56px + 14px + env(safe-area-inset-bottom)); }
 #view .mod-cta {
   position: fixed; z-index: 5; left: 0; right: 0; bottom: var(--cta-b); top: auto;
   max-width: 640px; margin: 0 auto; padding: 0 16px; box-sizing: border-box;
 }
-body.dock-left #view .mod-cta { padding-left: 92px; }
-body.dock-right #view .mod-cta { padding-right: 92px; }
-#view .mod-cta::before, .nav-ghost-view .mod-cta::before { /* 第 318 次：横推里旧页的按钮带着底衬一起走 */
-  content: ''; position: absolute; z-index: -1; pointer-events: none;
-  left: calc(50% - 50vw); right: calc(50% - 50vw); top: -22px; bottom: calc(-1 * var(--cta-b) - 2px);
-  /* 与 body 同样的两层背景、同样 fixed 到视口：底衬和它后面的页面逐像素同色（iOS 不支持 fixed 时按底衬自身的盒子铺，色差 ≤ 4 级） */
-  background:
-    linear-gradient(180deg,
-      rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1))),
-      rgba(var(--sky-ambient-bottom, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul, 1)))) fixed,
-    var(--bg-grad) fixed;
-  background-color: var(--bg-end, #F2EBDF);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 22px);
-}
-/* 浏览器里页底那条 body::after 渐隐带（z 9）会盖在按钮上（竖排 dock 时按钮贴底，整颗被压淡）；有底衬就不需要它 */
-body.has-cta::after { display: none; }
+/* 第 320 次：记录条下方铺到屏幕底的不透明底衬（原 #view .mod-cta::before）删除——记录条本身是玻璃，内容照常滚到它和 dock 后面被折射 */
 body.has-cta .view { padding-bottom: calc(var(--cta-b) + var(--cta-h) + 20px); }
-body.has-cta.dock-left .view, body.has-cta.dock-right .view { padding-bottom: calc(var(--cta-b) + var(--cta-h) + 20px); }
 /* 入场动画：按钮所在的那个容器自己不动（transform 会让 fixed 改成相对它定位），改由它的子元素各自淡入上浮 */
 .view-enter > :has(.mod-cta) { animation: none; }
 .view-enter > :has(.mod-cta) > * { animation: fadeUp var(--dur-page) var(--ease-ios) both; } /* 第 292 次：与整页入场同一节奏 */
@@ -6313,13 +6235,6 @@ body.dark #quickDock .qm-it.qm-mono .qd-badge { background: rgba(255, 255, 255, 
 #quickDock.qd-menu.open .qd-action, body #quickDock.qd-menu.open .qd-action { animation-delay: calc(var(--i, 0) * 14ms); }
 #quickDock.qd-menu.open.qd-closing .qd-action, body #quickDock.qd-menu.open.qd-closing .qd-action { animation: none; }
 /* 左右手竖排 dock：快捷记录从竖排胶囊上方展开，菜单太高放不下——菜单居中贴底，竖排胶囊退到遮罩下面 */
-body.dock-left #quickDock.qd-menu, body.dock-right #quickDock.qd-menu { left: 50%; right: auto; bottom: calc(10px + env(safe-area-inset-bottom)); }
-body.dock-left #quickDock.qd-menu .qd-actions, body.dock-right #quickDock.qd-menu .qd-actions {
-  max-width: none; flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: flex-start;
-  max-height: calc(100vh - 10px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 56px);
-  max-height: calc(100dvh - 10px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 56px);
-}
-body.qm-open.dock-left .tabbar, body.qm-open.dock-right .tabbar { z-index: 10; }
 @media (prefers-reduced-motion: reduce) {
   body #quickDock.open.qd-closing.qd-dragged .qd-actions { transform: translateX(-50%); }
   body #quickDock.open:not(.qd-closing) .qd-actions { transform: translateX(-50%) translateY(var(--qd-dy, 0px)); }
@@ -6860,7 +6775,6 @@ p.backfill-note::before { top: 10px; }
 /* 第 315 次：72×56 → 64×44（支付宝 22:03 / 16:57 录屏量：栏高 61.7pt、页签间距 64.7pt、图标 22pt、文字约 10pt；我们三页签 + ＋ 珠按同一比例收紧） */
 body .tabbar .tab.dk-tab { width: 64px; min-width: 64px; max-width: 64px; height: 44px; min-height: 44px; color: var(--muted); touch-action: none; -webkit-touch-callout: none;
   flex-direction: column; gap: 1px; justify-content: center; align-items: center; padding: 0; }
-body .tabbar.is-vertical .tab.dk-tab { width: 46px; min-width: 46px; max-width: 46px; height: 52px; min-height: 52px; }
 .dk-ic { position: relative; display: block; font-style: normal; width: 34px; height: 34px; pointer-events: none; }
 .dk-ic .dk-l { position: absolute; left: 50%; top: 50%; width: 27px; height: 27px; margin: 0; translate: -50% -50%; color: currentColor;
   transition: opacity .18s var(--ease), scale .28s cubic-bezier(.34, 1.56, .64, 1); }
@@ -6971,7 +6885,7 @@ body.dark .bp-ava { background: linear-gradient(#5a4448, #4a3a40); }
 @media (horizontal-viewport-segments: 2) {
   :root { --seg-l: env(viewport-segment-width 0 0, 50vw); --seg-r0: env(viewport-segment-left 1 0, 50vw); }
   .view, .app-header { max-width: none; width: var(--seg-l); margin-left: 0; margin-right: 0; }
-  body.has-orb #tabbar.lg:not(.is-vertical) { left: calc(var(--seg-l) / 2 - var(--dock-w, 258px) / 2 - 35px); }
+  body.has-orb #tabbar.lg { left: calc(var(--seg-l) / 2 - var(--dock-w, 258px) / 2 - 35px); }
   #dockOrb.dock-orb { left: calc(var(--seg-l) / 2 + var(--dock-w, 240px) / 2 - 27px); }
 }
 
@@ -6979,20 +6893,7 @@ body.dark .bp-ava { background: linear-gradient(#5a4448, #4a3a40); }
 .tb-ava img.tb-yiya { width: 86%; height: 86%; margin: 7%; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(140, 70, 60, .22)); }
 
 /* ———— 第 304 次 · 简洁模式（左 / 右）：一级页只留 ＋，点按快记、长按弹出整条 dock ———— */
-body.dock-sl #dockOrb.dock-orb { left: 18px; }
-body.dock-sr #dockOrb.dock-orb { left: auto; right: 18px; }
-body.dock-simple.has-orb #tabbar.lg:not(.is-vertical) {
-  bottom: calc(10px + env(safe-area-inset-bottom) + var(--dock-bh, 62px) + 10px); transform: none;
-  opacity: 0; visibility: hidden; pointer-events: none; translate: 0 14px; scale: .86;
-  transition: opacity .18s var(--ease), translate .34s cubic-bezier(.34, 1.56, .64, 1), scale .34s cubic-bezier(.34, 1.56, .64, 1), visibility 0s linear .18s;
-}
-body.dock-sl.has-orb #tabbar.lg:not(.is-vertical) { left: 18px; right: auto; transform-origin: 0 100%; }
-body.dock-sr.has-orb #tabbar.lg:not(.is-vertical) { left: auto; right: 18px; transform-origin: 100% 100%; }
-body.dock-simple.dock-peek.has-orb #tabbar.lg:not(.is-vertical) { opacity: 1; visibility: visible; pointer-events: auto; translate: 0 0; scale: 1; transition-delay: 0s; }
-body.dock-sl #tabbar.is-sub { left: 18px; right: auto; transform: none; }
-body.dock-sr #tabbar.is-sub { left: auto; right: 18px; transform: none; }
-body.dock-sl #quickDock .qd-actions, body.dock-sr #quickDock .qd-actions { max-width: calc(100vw - 24px); }
-@media (prefers-reduced-motion: reduce) { body.dock-simple.has-orb #tabbar.lg:not(.is-vertical) { transition: none; } }
+
 
 /* ———— 第 305 次 · 图标 v3 点缀色：主线跟模块色，点缀（.ia 描边 / .iaf 填充）各有一种暖色 ———— */
 .ico .ia { stroke: var(--ic-a, currentColor); }
@@ -7012,8 +6913,8 @@ body.dock-sl #quickDock .qd-actions, body.dock-sr #quickDock .qd-actions { max-w
 .ico[data-i="water"] .iaf, .ico[data-i="period"] .iaf, .ico[data-i="breast"] .iaf, .ico[data-i="sun"] .iaf, .ico[data-i="meds"] .iaf { opacity: .7; }
 
 /* 第 307 次：「正在进行」胶囊对准胶囊 dock 的中线（＋ 珠在右边，整组偏左 35px），像从 dock 顶上长出来 */
-body.has-orb:not(.dock-simple) .dock-live { left: calc(50% - 35px); max-width: calc(100vw - 40px - 70px); }
-@media (max-width: 360px) { body.has-orb:not(.dock-simple) .dock-live { left: calc(50% - 31px); } }
+body.has-orb .dock-live { left: calc(50% - 35px); max-width: calc(100vw - 40px - 70px); }
+@media (max-width: 360px) { body.has-orb .dock-live { left: calc(50% - 31px); } }
 
 /* ============================================================
    第 309 次 · dock 透镜（定稿 fix303/mock303n · 第十四版，js/liquid-dock.js + js/dock-refract.js）
@@ -7109,9 +7010,9 @@ body.dark .tabbar.lg-drag .tab.dk-tab.active:not(.lg-hover) .dk-t { color: #D9C6
 body.hc .dk-t { color: var(--text); }
 /* 栏变高后 ＋ 珠也变大（--dock-bh），整组居中的偏移跟着珠子大小算，不再写死 35px */
 @media (min-width: 361px) {
-  body.has-orb #tabbar.lg:not(.is-vertical), body.sub-anchor #tabbar.lg:not(.is-vertical) { left: calc(50% - var(--dock-w, 258px) / 2 - (var(--dock-bh, 62px) + 8px) / 2); }
+  body.has-orb #tabbar.lg, body.sub-anchor #tabbar.lg { left: calc(50% - var(--dock-w, 258px) / 2 - (var(--dock-bh, 62px) + 8px) / 2); }
   #dockOrb.dock-orb { left: calc(50% + var(--dock-w, 240px) / 2 - (var(--dock-bh, 62px) - 8px) / 2); }
-  body.has-orb:not(.dock-simple) .dock-live { left: calc(50% - (var(--dock-bh, 62px) + 8px) / 2); }
+  body.has-orb .dock-live { left: calc(50% - (var(--dock-bh, 62px) + 8px) / 2); }
 }
 
 /* ============================================================
@@ -7305,3 +7206,124 @@ body .tabbar.lg.lg-lensing.lg-shrink .tab.dk-tab.active.dk-pop .dk-baby .dk-c { 
 body .tabbar.lg.lg-lensing.lg-shrink .tab.dk-tab.active.dk-pop .dk-home .dk-c { animation: dkHome .24s cubic-bezier(.3, .7, .3, 1) !important; }
 body .tabbar.lg.lg-lensing.lg-shrink .tab.dk-tab.active.dk-pop .dk-cal .dk-c { animation: dkCal .24s cubic-bezier(.3, .7, .3, 1) !important; }
 @media (prefers-reduced-motion: reduce) { body .tabbar.lg.lg-lensing.lg-shrink .tab.dk-tab.dk-pop .dk-c { animation: none !important; } }
+
+/* ============================================================
+   第 320 次：二级页底部重设计与融合（js/dock-fuse.js + dock-refract.js 融合程序）
+   · 返回 / ＋：两颗 52pt 液态玻璃圆钮（一左一右，和记录条左右对齐）；＋ 保留一级 ＋ 珠的粉色芯（推入时同一颗按钮从珠子滑过去，不换样子）。
+   · 记录条（.mod-cta）：第三块玻璃，模块色调由 JS 按最坏背景算出（--fz-t / --fz-a / --fz-on，白字 ≥ 4.5:1），离圆钮 10pt；去掉不透明底衬。
+   · GL 在画（html.fz-gl）：三块玻璃全由 dock 那张画布画（smooth-min 黏连），DOM 只剩图标 / 文字；
+     GL 不在（Chromium、没快照、减少透明度）：DOM 自己是 CSS 玻璃，形状照样动、只是叠放没有黏连。
+   · 正在进行胶囊：并进圆钮那一行（中间）；这时记录条不下落（不遮挡优先）。
+   ============================================================ */
+body.fz-sub { --cta-b: calc(76px + env(safe-area-inset-bottom)); }
+html body #tabbar.lg.is-sub {
+  left: max(16px, calc(50% - 304px)); right: max(16px, calc(50% - 304px)); width: auto; max-width: none; min-width: 0;
+  height: 60px; padding: 0; gap: 0; transform: none; translate: none; scale: none;
+  background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-color: transparent;
+  border-width: 0; /* 第 320 次：1px 透明边框让圆钮的 DOM 盒子比 GL 形状偏 1px（圆钮 absolute 以内边距盒为参照） */
+  pointer-events: none; overflow: visible; transition: none;
+}
+html body #tabbar.lg.is-sub::before, html body #tabbar.lg.is-sub::after { display: none; }
+html body #tabbar.lg.is-sub > #backBtn, html body #tabbar.lg.is-sub > .tab-plus {
+  position: absolute; top: 4px; width: 52px; height: 52px; min-width: 0; max-width: none; min-height: 0; margin: 0;
+  border-radius: var(--radius-pill); pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; flex: none;
+  transform-origin: 0 0; box-sizing: border-box;
+}
+html body #tabbar.lg.is-sub > #backBtn { left: 0; padding: 0; background: transparent; color: #6E5547; }
+html body #tabbar.lg.is-sub > .tab-plus { left: calc(100% - 52px); padding: 9px; background-clip: content-box; }
+html body #tabbar.lg.is-sub > #backBtn > *, html body #tabbar.lg.is-sub > .tab-plus > * { opacity: var(--fz-io, 1); }
+html body #tabbar.lg.is-sub > #backBtn .ico { width: 24px; height: 24px; stroke-width: 1.8; color: inherit; }
+html body #tabbar.lg.is-sub > .tab-plus .ico { width: 22px; height: 22px; stroke-width: 1.8; }
+body.dark #tabbar.lg.is-sub > #backBtn { color: #D9C6B5; }
+html body #tabbar.lg.is-sub > #backBtn:active, html body #tabbar.lg.is-sub > .tab-plus:active { transform: none; }
+/* CSS 玻璃（GL 不在时）：与一级 dock 同一组磨砂 / 底色 / 高光描边 */
+html:not(.fz-gl) body #tabbar.lg.is-sub > #backBtn, html:not(.fz-gl) body #tabbar.lg.is-sub > .tab-plus,
+html:not(.fz-gl) body.fz-sub .mod-cta > .fd-mode, html:not(.fz-gl) body.fz-sub .mod-cta > .ft-mini,
+html:not(.fz-gl) body.fz-sub .dock-live {
+  -webkit-backdrop-filter: blur(7.33px) contrast(.53) brightness(1.22) saturate(1.1); backdrop-filter: blur(7.33px) contrast(.53) brightness(1.22) saturate(1.1);
+  box-shadow: inset 0 1.5px 1.5px -.5px rgba(255, 255, 255, .85), inset 0 0 0 1px rgba(255, 255, 255, .38), inset 0 -1px 2px rgba(120, 96, 76, .10),
+    0 1px 1px rgba(90, 74, 62, .06), 0 10px 26px -12px rgba(90, 74, 62, .34);
+}
+html:not(.fz-gl) body #tabbar.lg.is-sub > #backBtn, html:not(.fz-gl) body.fz-sub .mod-cta > .fd-mode, html:not(.fz-gl) body.fz-sub .mod-cta > .ft-mini,
+html:not(.fz-gl) body.fz-sub .dock-live { background-color: color-mix(in srgb, var(--surface) 28%, transparent); }
+html:not(.fz-gl) body #tabbar.lg.is-sub > .tab-plus {
+  background: linear-gradient(180deg, var(--primary-fill) 0%, var(--primary-strong) 100%) content-box, color-mix(in srgb, var(--surface) 28%, transparent) border-box;
+}
+html:not(.fz-gl) body.dark #tabbar.lg.is-sub > #backBtn, html:not(.fz-gl) body.dark.fz-sub .mod-cta > .fd-mode, html:not(.fz-gl) body.dark.fz-sub .mod-cta > .ft-mini,
+html:not(.fz-gl) body.dark.fz-sub .dock-live {
+  background-color: color-mix(in srgb, var(--surface) 22%, transparent);
+  -webkit-backdrop-filter: blur(7.33px) contrast(.78) brightness(.85) saturate(1.06); backdrop-filter: blur(7.33px) contrast(.78) brightness(.85) saturate(1.06);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, .22), inset 0 0 0 1px rgba(255, 255, 255, .10), 0 10px 26px -12px rgba(0, 0, 0, .6);
+}
+html.fz-gl body #tabbar.lg.is-sub > .tab-plus { box-shadow: none; }
+html body #tabbar.lg.is-sub > .tab-plus::before { inset: 9px; }
+/* 记录条：模块色调玻璃（无实色块），高 52，与圆钮同高 */
+html body.fz-sub #view .mod-cta, html body.fz-sub #ctaFloat .mod-cta { z-index: 11; }
+html body.fz-sub #view .mod-cta > *, html body.fz-sub #ctaFloat .mod-cta > * { opacity: var(--fz-co, 1); }
+html body.fz-sub #view .mod-cta > .mc-main, html body.fz-sub #view .mod-cta > .ft-split, html body.fz-sub #view .mod-cta > .ft-mini, html body.fz-sub #view .mod-cta > .fd-mode,
+html body.fz-sub #ctaFloat .mod-cta > .mc-main, html body.fz-sub #ctaFloat .mod-cta > .ft-split, html body.fz-sub #ctaFloat .mod-cta > .ft-mini, html body.fz-sub #ctaFloat .mod-cta > .fd-mode,
+html body.fz-sub #view .fd-cta > .ft-split, html body.fz-sub #ctaFloat .fd-cta > .ft-split {
+  min-height: 52px; height: 52px; box-sizing: border-box; transform: none; border: 0;
+}
+html body.fz-sub #view .mod-cta > .mc-main, html body.fz-sub #view .mod-cta > .ft-split,
+html body.fz-sub #ctaFloat .mod-cta > .mc-main, html body.fz-sub #ctaFloat .mod-cta > .ft-split {
+  background: rgba(var(--fz-t, 120, 90, 70), var(--fz-a, .82)); color: var(--fz-on, #fff);
+  -webkit-backdrop-filter: blur(7.33px) contrast(.53) brightness(1.22) saturate(1.1); backdrop-filter: blur(7.33px) contrast(.53) brightness(1.22) saturate(1.1);
+  box-shadow: inset 0 1.5px 1.5px -.5px rgba(255, 255, 255, .5), inset 0 0 0 1px rgba(255, 255, 255, .18), 0 10px 24px -12px rgba(var(--fz-t, 120, 90, 70), .55);
+}
+html body.dark.fz-sub #view .mod-cta > .mc-main, html body.dark.fz-sub #view .mod-cta > .ft-split,
+html body.dark.fz-sub #ctaFloat .mod-cta > .mc-main, html body.dark.fz-sub #ctaFloat .mod-cta > .ft-split {
+  -webkit-backdrop-filter: blur(7.33px) contrast(.78) brightness(.85) saturate(1.06); backdrop-filter: blur(7.33px) contrast(.78) brightness(.85) saturate(1.06);
+}
+html body.fz-sub .mod-cta > .mc-main .ico, html body.fz-sub .mod-cta > .mc-main svg, html body.fz-sub .mod-cta > .ft-split button { color: inherit; }
+html body.fz-sub .mod-cta > .mc-main:active, html body.fz-sub .mod-cta > .fd-mode:active { transform: none; }
+html body.fz-sub .mod-cta.fz-press > * { filter: brightness(1.04); }
+/* GL 在画：DOM 不画底（GL 画同一块玻璃、带黏连） */
+html.fz-gl body.fz-sub #view .mod-cta > *, html.fz-gl body.fz-sub #ctaFloat .mod-cta > *, html.fz-gl body.fz-sub .fd-cta > .ft-split {
+  background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
+}
+html.fz-gl body.fz-sub .dock-live { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+html.fz-gl body.fz-sub .dock-live > .dl-glass, html.fz-gl body.fz-sub .dock-live::before { display: none; }
+/* 计时条 / 喂养切换钮：中性玻璃（字色不变），计时条里的「结束」仍是模块色小胶囊 */
+html body.fz-sub .mod-cta > .ft-mini { border: 0; }
+/* 正在进行胶囊并进圆钮那一行 */
+html body.fz-sub .dock-live {
+  left: calc(max(16px, 50% - 304px) + 62px); right: calc(max(16px, 50% - 304px) + 62px); width: auto; min-width: 0; max-width: none;
+  transform: none; translate: none; bottom: calc(14px + env(safe-area-inset-bottom)); height: 52px; min-height: 0; animation: none;
+  opacity: var(--fz-lo, 1);
+}
+body.fz-sub.has-live .view { padding-bottom: calc(98px + env(safe-area-inset-bottom)); }
+body.fz-sub.has-live.has-cta .view { padding-bottom: calc(var(--cta-b) + var(--cta-h) + 20px); }
+/* 横推里浮起来的记录条（#ctaFloat：dock 之上、不跟页面走） */
+#ctaFloat { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 11; pointer-events: none; }
+#ctaFloat > .fz-fl { position: fixed !important; inset: 0 !important; margin: 0 !important; padding: 0 !important; min-height: 0 !important; height: auto !important;
+  background: none !important; box-shadow: none !important; animation: none !important; transform: none !important; pointer-events: none !important; overflow: visible !important; display: block !important; }
+#ctaFloat .mod-cta { position: fixed; z-index: 11; left: 0; right: 0; bottom: var(--cta-b); top: auto; max-width: 640px; margin: 0 auto; padding: 0 16px; box-sizing: border-box; display: flex; justify-content: center; pointer-events: none; animation: none; }
+body.fz-swap #view .mod-cta, #view .mod-cta.fz-hide, .nav-ghost .mod-cta.fz-hide { visibility: hidden !important; }
+/* 推入 / 返回的形变中：一级 dock 的 CSS 玻璃让给 GL（GL 不在时不藏，DOM 自己就是形状） */
+html.fz-gl body.fz-morph #tabbar.lg, html.fz-gl body.fz-morph #dockOrb.lg { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+html.fz-gl body.fz-morph #tabbar.lg::before, html.fz-gl body.fz-morph #tabbar.lg::after, html.fz-gl body.fz-morph #dockOrb.lg::before, html.fz-gl body.fz-morph #dockOrb.lg::after { opacity: 0; }
+body.fz-morph #tabbar.lg .lg-thumb { opacity: 0 !important; }
+body.fz-morph #tabbar .tab.dk-tab { opacity: var(--fz-ta, 1); }
+body.fz-morph #tabbar.lg, body.fz-morph #dockOrb { transition: none; }
+/* 替身（推入：一级页签跟着胶囊缩走；返回：返回图标跟着长回去） */
+.fz-ghost { position: fixed !important; z-index: 10; pointer-events: none !important; margin: 0 !important;
+  background: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; box-shadow: none !important; border-color: transparent !important;
+  transform-origin: 50% 50%; transition: none !important; animation: none !important; }
+.fz-ghost::before, .fz-ghost::after { display: none !important; }
+.fz-ghost-back { display: inline-flex; align-items: center; justify-content: center; color: #6E5547; border: 0; padding: 0; }
+.fz-ghost-back .ico { width: 24px; height: 24px; stroke-width: 1.8; }
+body.dark .fz-ghost-back { color: #D9C6B5; }
+@media (prefers-reduced-transparency: reduce) {
+  html body #tabbar.lg.is-sub > #backBtn, html body.fz-sub .mod-cta > .fd-mode, html body.fz-sub .mod-cta > .ft-mini { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  html body.fz-sub #view .mod-cta > .mc-main, html body.fz-sub #view .mod-cta > .ft-split { background: rgb(var(--fz-t, 120, 90, 70)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+body.hc #tabbar.lg.is-sub > #backBtn { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+body.hc.fz-sub #view .mod-cta > .mc-main, body.hc.fz-sub #view .mod-cta > .ft-split { background: rgb(var(--fz-t, 120, 90, 70)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* 记录条变体：喂养切换钮做成和圆钮同大的 52 圆，补记 ⊕ 52 宽——并进一行（234 宽）时「开始亲喂」不折行 */
+html body.fz-sub .mod-cta > .fd-mode { width: 52px; min-width: 52px; flex: 0 0 52px; border-radius: var(--radius-pill); padding: 0; gap: 0; }
+html body.fz-sub .mod-cta > .fd-mode img { width: 24px; height: 24px; }
+html body.fz-sub .mod-cta > .fd-mode small { font-size: 10px; line-height: 1.05; white-space: nowrap; }
+html body.fz-sub .mod-cta .ft-split-add { width: 52px; }
+html body.fz-sub .mod-cta .ft-split-main span, html body.fz-sub .mod-cta > .mc-main span { white-space: nowrap; }
+html body.fz-sub .fd-cta { gap: 10px; }

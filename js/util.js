@@ -1455,8 +1455,7 @@
   function dockCardW() { return Math.min(360, (global.innerWidth || 360) - 24); }
   function dockPlace(root, r) {
     var vw = global.innerWidth || 0, vh = global.innerHeight || 0, w = dockCardW();
-    var side = document.body.classList.contains('dock-left') || document.body.classList.contains('dock-right');
-    var cx = side ? vw / 2 : r.left + r.width / 2;
+    var cx = r.left + r.width / 2;
     cx = Math.max(w / 2 + 12, Math.min(vw - w / 2 - 12, cx));
     root.classList.add('at-dock');
     root.style.top = 'auto';

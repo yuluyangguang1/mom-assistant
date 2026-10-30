@@ -1069,18 +1069,6 @@
         '<input type="checkbox" id="sAwake"' + (s.settings.keepAwake !== false ? ' checked' : '') + '></div>';
       html += '<p class="hint">宫缩计时、胎动计数、亲喂计时进行中，屏幕不会自动变暗锁屏。睡眠计时不常亮，免得亮一整夜。'
         + (('wakeLock' in navigator) ? '' : '<b>当前浏览器不支持</b>，iPhone 需 iOS 16.4 以上。') + '</p>';
-      /* 第 100 次：底栏五口排列（取代第 87 次只镜像快记钮的「左手模式」开关）——
-         left/right 时首页、日期记录、快记＋、宝宝切换、设置五口收进同侧竖排胶囊 */
-      /* 第 304 次：左右手竖排退役，改为简洁模式（只留一颗 ＋，点按快记、长按弹出整条 dock） */
-      var HAND_OPTS = [['normal', '完整'], ['left', '简洁 · 左'], ['right', '简洁 · 右']];
-      var curHand = (s.settings.handMode === 'left' || s.settings.handMode === 'right') ? s.settings.handMode : 'normal';
-      html += '<span class="lbl-text">底栏样式</span><div class="seg seg-wrap2" id="sHandSeg">'
-        + HAND_OPTS.map(function (m) {
-          return '<button type="button" class="seg-btn' + (curHand === m[0] ? ' active' : '') + '" data-hand-mode="' + m[0] + '">' + m[1] + '</button>';
-        }).join('')
-        + '</div>';
-      html += '<p class="hint">简洁模式只在屏幕左下或右下留一颗 ＋：点一下快速记录，长按弹出宝宝 / 首页 / 日历。'
-        + '单手抱娃时拇指够得着，画面也更干净。</p>';
       /* 第 97 次：底栏右侧自定义快捷槽位——两页签之后加一个直达常用记录的入口 */
       var SLOT_OPTS = [
         ['', '不显示'], ['feeding', '喂养'], ['diaper', '尿布'], ['sleep', '睡眠'],
@@ -1606,32 +1594,6 @@
         st.settings.hapticEnabled = hap.checked;
         Storage.save();
         Util.toast(hap.checked ? '已开启保存震动（安卓手机才有实际效果）' : '已关闭保存震动', 'ok');
-      });
-
-      /* 第 100 次：底栏五口排列——落盘后走 applyTheme 挂类 + buildTabbar 重建，
-         与主题同管道（幂等），切完即刻生效不用刷新 */
-      var handSeg = view.querySelector('#sHandSeg');
-      if (handSeg) handSeg.addEventListener('click', function (e) {
-        var t = e.target;
-        while (t && t !== handSeg && !(t.getAttribute && t.getAttribute('data-hand-mode'))) t = t.parentNode;
-        if (!t || t === handSeg) return;
-        var v = t.getAttribute('data-hand-mode');
-        var st = Storage.get();
-        st.settings.handMode = v;
-        /* 第 119 次：删除了原「旧字段 leftHand 同步写」那行死代码。
-           它是死写入：leftHand 不在 sanitize() 白名单里（storage.js 逐键白名单），
-           save() 落盘后下次 load 就被丢掉；且全仓没有任何代码读这个字段——
-           唯一引用是 storage.js 的「导入旧备份时把旧布尔值迁移为 handMode=left」，
-           那是读外部数据，不是读这里的写入。原注释声称「只读旧字段的代码语义不破」
-           并不成立。真实现役字段是上一行的 handMode（三值枚举）。 */
-        Storage.save();
-        if (global.App && typeof App.applyTheme === 'function') App.applyTheme();
-        if (global.App && typeof App.buildTabbar === 'function') App.buildTabbar();
-        Array.prototype.forEach.call(handSeg.querySelectorAll('.seg-btn'), function (x) { x.classList.remove('active'); });
-        t.classList.add('active');
-        Util.toast(v === 'left' ? '已切左手模式：底栏竖排贴左侧'
-          : v === 'right' ? '已切右手模式：底栏竖排贴右侧'
-          : '已恢复正常排列', 'ok');
       });
 
       /* 第 97 次：底栏快捷入口选择——落盘后即时重建底栏（槽位显隐随选随生效） */

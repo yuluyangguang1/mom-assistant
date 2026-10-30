@@ -350,16 +350,7 @@
     } catch (e) { /* 极旧内核：CSS 回落默认值 0，仍是原来的10px + env() 行为 */ }
   }
 
-  /* 第 100 次：底栏五口排列模式。normal=居中横排（默认）/ left=左下竖排 / right=右下竖排。
-     存储只存字符串，这里统一收口读取；无效值一律回落 normal。 */
-  function handMode() {
-    try {
-      var dd = Storage.get();
-      var s = dd && dd.settings;
-      if (s && (s.handMode === 'left' || s.handMode === 'right')) return s.handMode;
-    } catch (e) { /* 存储未就绪按正常排列渲染 */ }
-    return 'normal';
-  }
+  /* 第 320 次：左右手 / 简洁模式整套移除（设置项、CSS、JS、已存旧值；旧值在 Storage.load 静默迁移为默认），底栏只有一种排列 */
 
   var _dockNodes = {};
   var _dkLast = null;
@@ -367,7 +358,7 @@
      真机逐帧（21:56 录屏第 193 帧）：每次切页 / 原地重画都整条重建，① dock 里的 WebGL 折射画布被摘下再挂回（至少一帧没有 = 整条 dock 背景闪成 CSS 兜底）；
      ② 选中指示器 / 透镜被拆掉重建（透镜一帧内消失）；③ 彩色图标 <img> 重新异步解码（晚 10 帧才出来）。 */
   function dockKey(slot) {
-    return [handMode(), slot || '', TABS.map(function (t) { return t.id; }).join(',')].join('|');
+    return [slot || '', TABS.map(function (t) { return t.id; }).join(',')].join('|');
   }
   /* 第 319 次：选中图标小动作——透镜在场时先记下，等透镜开始收回再播（liquid-dock.js popNow）；时长压到 ≤250ms */
   function dkPop(b, bar) {
@@ -390,7 +381,6 @@
     if (!(slot0 && Modules[slot0] && slot0 !== current && !isTopTab(slot0) && (global.innerWidth || 400) >= 380)) slot0 = null;
     var key0 = dockKey(slot0);
     if (bar && bar._dkKey === key0 && bar.querySelector('.tab.dk-tab') && (document.querySelector('[data-qd-toggle]'))) {
-      document.body.classList.remove('dock-peek');
       syncTabbarActive(bar);
       var pl = document.querySelector('.tab-plus[data-qd-toggle]');
       if (pl) pl.setAttribute('aria-expanded', document.body.classList.contains('qd-open') ? 'true' : 'false');
@@ -407,15 +397,12 @@
     var gearEl = _dockNodes.gear || (_dockNodes.gear = document.getElementById('settingsBtn'));
     var backEl = _dockNodes.back || (_dockNodes.back = document.getElementById('backBtn'));
     bar.innerHTML = '';
-    var hand = handMode();
     /* 第 181 次（修：左右手 ⇄ 正常来回切，底栏少按钮）：
        以前左右手模式走一条独立分支，自己造五个按钮，而头像 / 设置 / 返回这三个
        「搬进胶囊的原顶栏节点」在上面 innerHTML='' 时被一并清出 DOM、再没放回去——
        切回正常排列时 getElementById 全部取不到，宝宝切换、设置、返回就丢了。
        同时两种模式的按钮内容也不一样（竖排没有快捷槽位，＋ 的颜色也另一套）。
        现在三种排列共用同一份按钮清单与同一套节点，左右手只是 CSS 把胶囊竖起来。 */
-    bar.classList.remove('is-vertical'); /* 第 304 次：不再有竖排 */
-    document.body.classList.remove('dock-peek'); /* 切页 / 重建时收起简洁模式长按弹出的 dock */
     /* 第 135 次：胶囊最左 = 宝宝切换（原顶栏左上角头像）。 */
     /* 第 239 次：正常横排时，宝宝切换单独做一颗玻璃圆钮放在 dock 左边（#dockOrb），
        和首页页签分开，免得点首页时误触切换宝宝；左右手竖排仍留在胶囊里。 */
@@ -478,23 +465,7 @@
     plus.innerHTML = icon('dk-plus');
     plus.setAttribute('aria-expanded', document.body.classList.contains('qd-open') ? 'true' : 'false');
     plus.setAttribute('aria-controls', 'qdActions');
-    /* 第 304 次：简洁模式下长按 ＋ 弹出整条 dock（再长按 / 点别处收起）；长按后的那次 click 吞掉 */
-    var lpT = 0, lpFired = false;
-    plus.addEventListener('pointerdown', function () {
-      lpFired = false; clearTimeout(lpT);
-      if (handMode() === 'normal' || !isTopTab(current) || subExit) return;
-      lpT = setTimeout(function () {
-        lpFired = true;
-        if (document.body.classList.contains('qd-open') && App._qdClose) { try { App._qdClose(true); } catch (eQ) {} }
-        document.body.classList.toggle('dock-peek');
-        try { if (navigator.vibrate) navigator.vibrate(12); } catch (eV) {}
-        try { if (global.LiquidDock) LiquidDock.refresh(); } catch (eL) {}
-      }, 420);
-    });
-    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) { plus.addEventListener(ev, function () { clearTimeout(lpT); }); });
-    plus.addEventListener('contextmenu', function (e) { if (handMode() !== 'normal') e.preventDefault(); });
     plus.addEventListener('click', function (e) {
-      if (lpFired) { lpFired = false; e.preventDefault(); return; }
       if (Util.hapEcho && Util.hapEcho(e)) return; /* 第 286 次：触感层回声不当第二下（否则开了马上又关） */
       var f = document.getElementById('qdFab');
       if (f && f.click) f.click();
@@ -630,6 +601,8 @@
     var view = document.getElementById('view');
     if (view) { view.style.removeProperty('--nav-top'); }
     freezeCta(false);
+    /* 第 320 次：先把记录条从「相对旧页的 top」还原回 fixed 再让融合层量（二级换二级时原来量到的是冻结位置，GL 记录条比 DOM 高 42px） */
+    try { if (global.DockFuse) DockFuse.navEnd(); } catch (eF) { /* */ }
     statusColorCache = '';
     syncStatusColor();
     if (global.Glass) global.Glass.wake();
@@ -649,6 +622,9 @@
       fromX = Math.max(0, Math.min(vw, fromX));
     }
     _swipeX = null;
+    /* 第 320 次：dock 融合玻璃——横推开始前记下旧形状（一级胶囊 / 旧记录条浮出来不跟旧页走） */
+    var fzInfo = null;
+    try { if (global.DockFuse) fzInfo = DockFuse.navBegin(kind, current, id); } catch (eF) { fzInfo = null; }
     clearSwipeStyles();
     html.classList.add('nav-anim'); html.setAttribute('data-navx', kind);
     freezeCta(true); /* 旧页的底部主按钮换算成相对页面的 top，跟着旧页走 */
@@ -684,6 +660,8 @@
     freezeCta(true); /* 新页的底部主按钮同理（#view 在转场里有 transform） */
     var push = kind === 'push';
     var dur = push ? NAV_PUSH_MS : Math.round(NAV_POP_MS * (1 - 0.45 * fromX / vw));
+    /* 第 320 次：新页已渲染——一级 dock ⇄ 返回 / ＋ 圆钮的形变、记录条冒出 / 吸回（同一张 GL 画布），记录条在横推里留在原处 */
+    try { if (global.DockFuse) DockFuse.navAfter(fzInfo, dur); } catch (eF2) { /* 形变异常不影响横推 */ }
     var o = { duration: dur, easing: NAV_EASE, fill: 'both' };
     var anims = [];
     var p0 = fromX / vw;
@@ -847,7 +825,7 @@
   /* 第 319 次：等 dock 透镜收起、按下缩放停稳（最多 1 秒）再做的非紧急活 */
   function afterDockIdle(fn, n) {
     n = n || 0;
-    var busy = global.LiquidDock && LiquidDock.animating && LiquidDock.animating();
+    var busy = (global.LiquidDock && LiquidDock.animating && LiquidDock.animating()) || (global.DockFuse && DockFuse.morphing && DockFuse.morphing());
     if (busy && n < 20) { setTimeout(function () { afterDockIdle(fn, n + 1); }, 50); return; }
     (global.requestAnimationFrame || setTimeout)(function () { try { fn(); } catch (e) { /* */ } });
   }
@@ -1079,20 +1057,9 @@
     /* 夜间标记：供 CSS 压掉动效与饱和度（不是功能开关，只影响观感） */
     if (isNightNow()) document.body.classList.add('is-night');
     else document.body.classList.remove('is-night');
-    /* 第 87 次：深夜降档（暗色+23:00–05:00 时 CSS 把表面再压一档）。
-       第 100 次起：底栏排列由 leftHand 开关升级为 handMode 三态——
-       dock-left / dock-right 把五个入口收进屏幕同侧竖排，normal 不挂类。 */
+    /* 第 87 次：深夜降档（暗色+23:00–05:00 时 CSS 把表面再压一档）。 */
     document.body.classList.toggle('deep-night', dark && isDeepNightNow());
     if (global.syncStatusColor) global.syncStatusColor();
-    /* dock-left/right 用 add/remove 而非 toggle(cls, force)：QA 桩的 toggle 不吃 force
-       会退化成「反转」（与 showTab in-module 同款处理），真实语义两者等价且幂等 */
-    /* 第 304 次：左右手竖排退役，left / right 改为「简洁模式 · 左 / 右」——一级页只留一颗 ＋ 在同侧角落，
-       点一下快记，长按弹出整条 dock。旧的 dock-left / dock-right 类不再挂（竖排样式整套不生效）。 */
-    var hand = handMode();
-    document.body.classList.remove('dock-left'); document.body.classList.remove('dock-right');
-    if (hand === 'left') document.body.classList.add('dock-sl'); else document.body.classList.remove('dock-sl');
-    if (hand === 'right') document.body.classList.add('dock-sr'); else document.body.classList.remove('dock-sr');
-    if (hand !== 'normal') document.body.classList.add('dock-simple'); else { document.body.classList.remove('dock-simple'); document.body.classList.remove('dock-peek'); }
     /* 第 103 次（OP-GAP-03）：字号倍率。与上面三处同款处理——
        add/remove 而非 toggle(force)，因为 QA 桩的 toggle 不吃 force 会退化成反转。 */
     applyFontScale();
@@ -1165,7 +1132,7 @@
      而明度分离会把每张磁贴推成"近白重底 + 重描边"，整体气质从柔和变硬朗，
      不适合强加给所有人。所以默认关。
 
-     为什么挂 <body> 类而不是 <html>：与 applyFontScale / dock-left 同款，
+     为什么挂 <body> 类而不是 <html>：与 applyFontScale 同款，
      QA 桩可以直接断言 body.classList，不必碰根元素。
 
      ⚠ 暗色下这个类**仍会挂上**，但 CSS 里高对比段全部写成 body.hc:not(.dark)，
@@ -2029,6 +1996,8 @@
     _syncCta: function () { syncCta(); },
     currentTab: function () { return current; },
     _isTop: function () { return isTopTab(current) && !subExit; },
+    isTopTab: function (id) { return isTopTab(id); },
+    _histDepth: function () { return historyDepth; },
     _topCache: function (off) { if (off != null) { _topCache.off = !!off; if (off) _topCache.pages = {}; } return { off: _topCache.off, pages: Object.keys(_topCache.pages), put: _topCache.stats.put, hit: _topCache.stats.hit, miss: _topCache.stats.miss, renders: JSON.parse(JSON.stringify(_topCache.stats.renders)) }; }, /* 第 319 次：一级页 DOM 缓存（QA） */
     _dropTopCache: function (id) { topCacheVeto(id); },
     _prerender: function () { prerenderTops(); return Object.keys(_topCache.pages); },
@@ -2200,6 +2169,7 @@
       var prev = pendingRm; pendingRm = null;
       /* 第 135 次：遮罩可见性挂在 body.qd-open 上（它不再是 #quickDock 的子节点） */
       bodyCls('qd-open', false); bodyCls('qm-open', false); bodyCls('qd-drag', false);
+      try { if (global.DockFuse) DockFuse.absorb(false); } catch (eF) { /* 第 320 次：收起后记录条再冒出来 */ }
       syncAria(false);
       setInert(false);
       dragReset();
@@ -2234,6 +2204,7 @@
     /* 收回动画还没走完就要开另一种内容：先把收起落定（菜单那条记录在这里退掉） */
     function flushClosing() { if (pendingRm) { clearTimeout(closingT); closingT = 0; var f = pendingRm; pendingRm = null; f(); } }
     function showOpen(src) {
+      try { if (global.DockFuse && mode === 'quick') DockFuse.absorb(true); } catch (eF) { /* 第 320 次：记录条先被 ＋ 吸收 */ }
       root.classList.add('open');
       bodyCls('qd-open', true);
       bodyCls('qm-open', mode === 'menu');
@@ -2756,13 +2727,6 @@
 
     /* 全局快捷记录 dock（展开式 FAB，所有页面可用） */
     buildQuickDock();
-    /* 第 304 次：简洁模式长按弹出的 dock，点 dock / ＋ 以外任何地方收起 */
-    document.addEventListener('pointerdown', function (e) {
-      if (!document.body.classList.contains('dock-peek')) return;
-      var t = e.target;
-      if (t && t.closest && t.closest('#tabbar, #dockOrb')) return;
-      document.body.classList.remove('dock-peek');
-    }, true);
     /* 模块页返回按钮（第 42 次）：就近的「回首页」出口，不依赖底栏 */
     /* 第 95 次：返回按钮改顶栏内圆形图标（与设置齿轮同语言），fixed 定位漂移根治。
        图标在这里注入；显示/隐藏仍由 showTab 切 hidden。 */
@@ -2961,6 +2925,8 @@
   function syncCta() {
     var view = document.getElementById('view');
     var el = view ? view.querySelector('.mod-cta') : null;
+    /* 第 320 次：横推里新页的记录条暂时浮在 #ctaFloat（不跟页面走），仍算这一页有记录条（留白不跳） */
+    if (!el && global.DockFuse && DockFuse.floating) el = DockFuse.floating();
     if (el) document.body.classList.add('has-cta'); else document.body.classList.remove('has-cta');
     if (!_ctaMO && view && global.MutationObserver) {
       _ctaMO = new MutationObserver(function () {
@@ -2976,6 +2942,7 @@
     var put = function () {
       var h = el.offsetHeight;
       if (h > 0) document.documentElement.style.setProperty('--cta-h', h + 'px');
+      try { if (global.DockFuse) DockFuse.ctaChanged(); } catch (eF) { /* */ }
     };
     put();
     if (global.ResizeObserver) { _ctaRO = new ResizeObserver(put); _ctaRO.observe(el); }
@@ -3008,7 +2975,7 @@
     orb.hidden = !use;
     if (use) document.body.classList.add('has-orb'); else document.body.classList.remove('has-orb');
     /* 第 244 次：二级页 dock 左缘对齐一级页（见 styles.css sub-anchor） */
-    var anchor = !use && handMode() === 'normal';
+    var anchor = !use;
     if (anchor) document.body.classList.add('sub-anchor'); else document.body.classList.remove('sub-anchor');
     if (use) {
       try {
@@ -3027,6 +2994,7 @@
     var bar = document.getElementById('tabbar');
     if (bar) { if (!top || subExit) bar.classList.add('is-sub'); else bar.classList.remove('is-sub'); }
     syncOrb();
+    try { if (global.DockFuse) DockFuse.sync(); } catch (eF) { /* */ }
   }
   function enterSub(onExit) {
     var wasIn = !!subExit;
@@ -3115,7 +3083,7 @@
     var dy = t.clientY - swipeStartY;
     /* 竖直分量明显更大 → 判定为页面滚动，不拦截（让原生滚动正常跑） */
     if (!swipeFired && Math.abs(dy) > Math.abs(dx) * 1.2 && Math.abs(dy) > 12) { swipeActive = false; return; }
-    if (dx <= 0) { swipeActive = false; clearSwipeStyles(); return; } /* 只处理右滑（从左缘往右拖） */
+    if (dx <= 0) { swipeActive = false; clearSwipeStyles(); try { if (global.DockFuse) DockFuse.swipeEnd(false); } catch (eF) {} return; } /* 只处理右滑（从左缘往右拖） */
 
     var now = Date.now();
     var dt = Math.max(1, now - swipeLastT);
@@ -3127,6 +3095,7 @@
     if (e.cancelable) e.preventDefault();
     swipeFired = true;
     animateSwipe(x, false);
+    try { if (global.DockFuse && !subExit) DockFuse.swipe(x / vw); } catch (eF) { /* */ }
   }
 
   function onSwipeEnd() {
@@ -3144,6 +3113,7 @@
       /* 第 318 次：返回的是一个模块页（不是页内二级）时，页停在手指位置，popstate → showTab 的返回横推从这里接着走
          （原来先整页推出去，再在推出去的 #view 里换成首页、240ms 后清样式 = 首页从屏幕外蹦回来闪一下） */
       var slideBack = !subExit;
+      try { if (global.DockFuse) DockFuse.swipeEnd(slideBack); } catch (eF) { /* */ }
       if (slideBack) _swipeX = Math.min(dx, vw * SWIPE_MAX);
       else animateSwipe(vw, true);
       if (global.history && global.history.go) {
@@ -3156,6 +3126,7 @@
     } else {
       /* 没过阈值：回弹到原位 */
       animateSwipe(0, false);
+      try { if (global.DockFuse) DockFuse.swipeEnd(false); } catch (eF) { /* */ }
       setTimeout(clearSwipeStyles, 240);
     }
     return total;

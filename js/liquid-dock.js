@@ -383,7 +383,7 @@
     return out;
   }
   function lensStart(t) {
-    if (lens || !bar || !t || !t.classList.contains('dk-tab') || bar.classList.contains('is-sub') || bar.classList.contains('is-vertical')) return false;
+    if (lens || !bar || !t || !t.classList.contains('dk-tab') || bar.classList.contains('is-sub')) return false;
     var mode = lensMode();
     if (!mode) return false;
     var W = LENS_W, H = Math.round(bar.offsetHeight + LENS_DH);
@@ -747,6 +747,9 @@
     if (reduced || !bar) return;
     var t = e.target && e.target.closest && e.target.closest('button');
     if (!t || !bar.contains(t)) return;
+    /* 第 320 次（Telegram 参考）：二级页分裂 / 合拢途中按下——不缩放整个合成层（GL 画布是栏的子节点，整条 scale 会把黏连的颈部一起放大）、
+       不出透镜；dock-fuse.js 只让被按的那颗钮放大 1.03 */
+    if (global.DockFuse && DockFuse.morphing && DockFuse.morphing()) return;
     dragStart(e, t);
     /* 第 309 次：页签上按下 → 灰胶囊鼓成透镜；不出透镜时（高对比 / 减少透明度）仍是旧的放大 */
     if (lensStart(t)) { dsPress(true); return; }
@@ -779,7 +782,7 @@
   var drag = null, swallowUntil = 0;
   function tabsOf() { return bar ? Array.prototype.filter.call(bar.querySelectorAll('.tab.dk-tab'), function (t) { return t.offsetParent; }) : []; }
   function dragStart(e, t) {
-    if (!t.classList.contains('dk-tab') || bar.classList.contains('is-sub') || bar.classList.contains('is-vertical')) return;
+    if (!t.classList.contains('dk-tab') || bar.classList.contains('is-sub')) return;
     drag = { id: e.pointerId, x0: e.clientX, on: false, hover: null };
   }
   function nearest(x) {
