@@ -7570,7 +7570,13 @@ body.dark .qs-step { background: rgba(255, 255, 255, .08); }
 .qe-list { list-style: none; margin: 0; padding: 0; border-radius: var(--radius-lg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); overflow: hidden; }
 .qe-sheet .qe-list, .qe-sheet .qe-list .qe-row { background: var(--surface-2); }
 body.dark .qe-sheet .qe-list, body.dark .qe-sheet .qe-list .qe-row { background: rgba(255, 255, 255, .06); }
-.qe-row { position: relative; display: flex; align-items: center; gap: 10px; min-height: 64px; padding: 8px 4px 8px 12px; background: var(--surface); }
+.qe-row { position: relative; display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-areas: 'del ico name grip' 'del . mode grip'; align-items: center; column-gap: 10px; row-gap: 4px; min-height: 64px; padding: 8px 4px 8px 12px; background: var(--surface); }
+.qe-row > .qe-del { grid-area: del; }
+.qe-row > .qe-ico { grid-area: ico; }
+.qe-row > .qe-name { grid-area: name; font-size: var(--t-body); font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.qe-row > .qe-mode, .qe-row > .qe-only { grid-area: mode; justify-self: start; }
+.qe-row > .qe-grip { grid-area: grip; }
+@media (max-width: 374px) { .qe-row { grid-template-areas: 'del ico name grip' 'del mode mode grip'; } }
 .qe-row + .qe-row { box-shadow: inset 0 1px 0 var(--border); }
 .qe-dragging .qe-row { transition: transform .2s var(--ease-ios, ease); }
 .qe-dragging .qe-row.qe-drag { transition: none; z-index: 2; box-shadow: var(--shadow-card), inset 0 0 0 1px var(--border); border-radius: var(--radius-sm); }
@@ -7581,9 +7587,7 @@ body.dark .qe-sheet .qe-list, body.dark .qe-sheet .qe-list .qe-row { background:
 body.dark .qe-sheet .qe-ico { background: rgba(255, 255, 255, .1); }
 .qe-ico { flex: none; width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: var(--tile-weak); }
 .qe-ico .ico { width: 20px; height: 20px; color: var(--tile); }
-.qe-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.qe-main > b { font-size: var(--t-body); font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
-.qe-mode { display: inline-flex; flex-wrap: wrap; padding: 2px; border-radius: var(--radius-pill, 999px); background: var(--surface-2); }
+.qe-mode { display: inline-flex; flex-wrap: nowrap; padding: 2px; border-radius: var(--radius-pill, 999px); background: var(--surface-2); }
 .qe-sheet .qe-mode { background: var(--surface); }
 body.dark .qe-mode { background: rgba(255, 255, 255, .08); }
 .qe-mode button { min-height: 32px; padding: 0 12px; border: 0; border-radius: var(--radius-pill, 999px); background: none; color: var(--muted); font: inherit; font-size: var(--t-sm); font-weight: 600; cursor: pointer; white-space: nowrap; }
@@ -7610,3 +7614,12 @@ body.dark .qe-sheet .qe-addb { background: rgba(255, 255, 255, .08); }
 @media (max-width: 374px) { .kv-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 body.fs-xl .kv-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .kv-stats li span { white-space: normal; overflow-wrap: anywhere; }
+/* 第 333 次：设置 › 宝宝与我 的宝宝行——名字和生日占满一行（不截断），资料 / 照片 / 删除放第二行，左边和名字对齐 */
+.st-list.baby-list li { display: flex; flex-wrap: wrap; align-items: center; row-gap: 8px; padding: 12px 8px; border-radius: var(--radius-sm); }
+.st-list.baby-list li + li { box-shadow: inset 0 1px 0 var(--border); }
+.st-list.baby-list li .li-main { flex: 1 1 0; min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; }
+.st-list.baby-list li .li-main b { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-right: 0; overflow-wrap: anywhere; }
+.st-list.baby-list .baby-sub { overflow-wrap: anywhere; }
+.st-list.baby-list .baby-ops { flex: 1 0 100%; margin-left: 0; padding-left: 52px; box-sizing: border-box; flex-wrap: wrap; }
+/* 第 333 次：设置三级页里的分段按钮按字宽自适应换行（320 宽 + 1.33 倍字号下「宝宝已出生」「妈妈情绪」不被 25% 定宽挤压） */
+.st-card .seg .seg-btn, .st-card .seg-wrap2 .seg-btn { flex: 1 0 auto; min-width: max-content; white-space: nowrap; padding-left: 14px; padding-right: 14px; }

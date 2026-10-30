@@ -409,13 +409,12 @@
       h += '<li class="qe-row" data-i="' + i + '" data-k="' + it.k + '" data-accent="' + K.acc + '">'
         + '<button type="button" class="qe-del" data-qe-del="' + i + '" aria-label="移除 ' + esc(name) + '"><i aria-hidden="true"></i></button>'
         + '<span class="qe-ico">' + ic(K.ico) + '</span>'
-        + '<span class="qe-main"><b>' + esc(name) + '</b>'
+        + '<b class="qe-name">' + esc(name) + '</b>'
         + (ms.length > 1
           ? '<span class="qe-mode" role="radiogroup" aria-label="' + esc(name) + '的方式">'
             + '<button type="button" role="radio" aria-checked="' + (it.m === 'tap') + '" class="' + (it.m === 'tap' ? 'on' : '') + '" data-qe-mode="' + i + ':tap">点一下就记</button>'
             + '<button type="button" role="radio" aria-checked="' + (it.m === 'step') + '" class="' + (it.m === 'step' ? 'on' : '') + '" data-qe-mode="' + i + ':step">弹出一步</button></span>'
-          : '<small class="qe-only">' + (ms[0] === 'tap' ? '点一下就记' : '弹出一步') + '</small>')
-        + '</span>'
+          : '<small class="qe-only">' + (ms[0] === 'tap' ? '只能点一下就记' : '只能弹出一步') + '</small>')
         + '<button type="button" class="qe-grip" data-qe-grip="' + i + '" aria-label="拖动排序：' + esc(name) + '（也可以用上下方向键）">' + GRIP + '</button></li>';
     });
     h += '</ul>';
