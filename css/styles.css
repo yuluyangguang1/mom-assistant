@@ -1110,15 +1110,11 @@ body.in-home .mod-date { visibility: hidden; }
    三级页里：区块标题 .st-cap → 白卡分组列表 .st-card（行 .st-row / 操作行 .st-act）→ 一句说明 .st-foot。
    <details> 内容始终在 DOM 里（无障碍 / 页内查找 / 回归测试不受折叠影响）。
    ============================================================ */
-.sg-sec { margin: 0 0 var(--s-6, 24px); }
+.sg-sec { margin: 0 0 var(--s-6, 24px); border-radius: var(--radius-lg); }
 .sg-cap, .st-cap { margin: 0 4px 8px; font-size: var(--t-sm); font-weight: 600; color: var(--muted); }
-.sg-sec > .set-group, .sg-sec > .sg-inline { background: var(--surface); }
-.sg-sec > .set-group:first-of-type, .sg-sec > .sg-cap + .set-group { border-top-left-radius: var(--radius-lg); border-top-right-radius: var(--radius-lg); }
-.sg-sec > :last-child { border-bottom-left-radius: var(--radius-lg); border-bottom-right-radius: var(--radius-lg); }
-.sg-sec { border-radius: var(--radius-lg); }
-.sg-sec > .set-group, .sg-sec > .sg-inline { box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border); }
-.sg-sec > .set-group:first-of-type, .sg-sec > .sg-cap + .set-group { box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border), inset 0 1px 0 var(--border); }
-.sg-sec > :last-child { box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border), inset 0 -1px 0 var(--border); }
+.sg-sec > .set-group, .sg-sec > .sg-inline { background: var(--surface); box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border); }
+.sg-sec > .set-group:first-of-type, .sg-sec > .sg-cap + .set-group { border-top-left-radius: var(--radius-lg); border-top-right-radius: var(--radius-lg); box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border), inset 0 1px 0 var(--border); }
+.sg-sec > :last-child { border-bottom-left-radius: var(--radius-lg); border-bottom-right-radius: var(--radius-lg); box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border), inset 0 -1px 0 var(--border); }
 .sg-sec > .set-group:first-of-type:last-child, .sg-sec > .sg-cap + .set-group:last-child { box-shadow: inset 0 0 0 1px var(--border); }
 .set-group { overflow: hidden; }
 .set-group summary {
@@ -1134,7 +1130,7 @@ body.in-home .mod-date { visibility: hidden; }
 .sg-inline { position: relative; }
 .set-group summary::-webkit-details-marker { display: none; }
 .set-group summary:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-.set-group .sg-ico, .sg-inline .sg-ico { width: 32px; height: 32px; flex-shrink: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+.set-group .sg-ico, .sg-inline .sg-ico { width: 32px; height: 32px; flex-shrink: 0; border-radius: var(--radius-xs); display: inline-flex; align-items: center; justify-content: center;
   background: var(--tile-weak, var(--primary-weak)); color: var(--tile, var(--primary)); }
 .set-group .sg-ico .ico, .sg-inline .sg-ico .ico { width: 20px; height: 20px; }
 .set-group .sg-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -1181,10 +1177,9 @@ body.in-home .mod-date { visibility: hidden; }
 .st-list { margin: 4px -4px; }
 .st-list li { min-height: 64px; }
 .st-src li { padding: 8px 0; font-size: var(--t-sm); }
-.kv-stats { margin: 12px 0; }
 /* 页脚：关于 */
 .st-about { margin: 8px 0 24px; text-align: center; color: var(--muted); }
-.st-logo { width: 48px; height: 48px; margin: 0 auto 8px; border-radius: 14px; display: flex; align-items: center; justify-content: center; background: var(--primary-weak); color: var(--primary-text); }
+.st-logo { width: 48px; height: 48px; margin: 0 auto 8px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; background: var(--primary-weak); color: var(--primary-text); }
 .st-logo .ico { width: 28px; height: 28px; }
 .st-about b { display: block; font-size: var(--t-md); font-weight: 700; color: var(--text); }
 .st-about small { display: block; margin-top: 2px; font-size: var(--t-sm); }
@@ -1484,6 +1479,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
   box-shadow: var(--shadow-card);
   min-height: 44px;
   transition: transform .15s var(--spring), background .2s var(--ease);
+  position: relative; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
 }
 /* 第 84 次：动作列逐项入场——展开时每个动作按 --i 序号 30ms 步进淡入+轻上移。
    作用域锁在 .open（收起无动画）；fill 用 backwards（只在 delay 期压住首帧，
@@ -1894,11 +1890,6 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 .review-card p { line-height: 1.7; }
 .review-card .btn { width: 100%; margin-top: var(--space-sm); }
 
-.farewell-card { --bar-c: var(--primary); }
-.farewell-card h2 { display: flex; align-items: center; gap: 6px; }
-.farewell-card h2 .ico { width: 18px; height: 18px; }
-.farewell-card p { line-height: 1.7; }
-.farewell-card .btn { margin-top: 6px; }
 
 /* ============================================================
    U-08 触控目标 44×44（取 WCAG 2.2 SC 2.5.5 AAA，高于 SC 2.5.8 AA 的 24×24）：
@@ -1927,7 +1918,6 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
    ============================================================ */
 body.is-night .notice-banner,
 body.is-night .review-card,
-body.is-night .farewell-card { filter: saturate(.85); }
 body.is-night .seg-btn.active .ico,
 body.is-night .progress-bar,
 body.is-night .view-enter > *,
@@ -2293,12 +2283,6 @@ body.fs-xl {
   border: 1px dashed var(--border); border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
-.fss-display {
-  font-size: var(--fs-display); font-weight: 700; color: var(--primary-text);
-  line-height: 1.05; letter-spacing: -.5px;
-  font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
-}
-.fss-body { flex: 1 1 auto; min-width: 0; font-size: var(--fs-body); color: var(--text); line-height: 1.5; }
 
 /* 触屏：取消「粘住」的 hover 态（与上方既有 @media (hover: none) 同策略） */
 @media (hover: none) {
@@ -3417,7 +3401,7 @@ input[type=time]::-webkit-date-and-time-value { text-align: left; margin: 0; }
 /* 卡片里的列表不再套一层容器（卡片本身就是容器） */
 .card .list:not(:empty), .card .kv:not(:empty) { background: none; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
 /* 第 176 次：喂养参考、睡眠参考、哺乳期与月经这类纯说明卡（.info-card）也走浅色横幅，颜色跟随所在模块 */
-.notice-banner, .review-card, .farewell-card, .card.backfill-note, .card.info-card {
+.notice-banner, .review-card, .card.backfill-note, .card.info-card {
   background: color-mix(in srgb, var(--bar-c, var(--primary)) 9%, var(--surface));
   border-color: transparent; box-shadow: none;
 }
@@ -3539,10 +3523,10 @@ body.dark .mod-hero.is-warn .hero-status { color: #FFB38F; }
    避免「和什么有关」「想多说一句」贴着上一排药丸（情绪页实测 0–4px）。 */
 .seg + .lbl-text,.seg + label,.ruler + label,.ruler + .lbl-text { margin-top: 16px; }
 /* ⑤ 设置·数据统计：三列小格（数字在上、模块名在下），零记录淡显 */
-.kv-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.kv-stats { margin: 12px 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .card .kv-stats li, .kv-stats li + li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 0; border-radius: var(--radius-sm); background: var(--surface-2); }
 .kv-stats li b { font-size: calc(18px * var(--fs-mul)); font-variant-numeric: tabular-nums; line-height: 1.2; }
-.kv-stats li span { font-size: calc(12px * var(--fs-mul)); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kv-stats li span { font-size: calc(12px * var(--fs-mul)); color: var(--muted); white-space: normal; overflow-wrap: anywhere; }
 .card .kv-stats li.is-zero { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
 .kv-stats li.is-zero b { color: var(--muted); font-weight: 500; }
 /* ⑥ seg-wrap2（设置·底栏快捷入口 8 枚 / 天空时刻 5 枚）：此前类名无规则，8 枚药丸挤一行
@@ -4082,15 +4066,15 @@ body.dark .sheet-card { background: rgba(255,255,255,.04); }
    第 218 次 · 现有卡片打磨：记录卡 / 距上次卡 / 下次喂奶参考
    统一：主题色淡底渐变 + 图标头 + 大号主值 + 次要信息
    ============================================================ */
-.rc-card, .lc-card, .fn-card {
+.lc-card, .fn-card {
   background: linear-gradient(160deg, var(--tile-weak, var(--surface)) 0%, var(--surface) 62%);
   border: 1px solid color-mix(in srgb, var(--tile, var(--primary)) 14%, transparent);
 }
-body.dark .rc-card, body.dark .lc-card, body.dark .fn-card {
+body.dark .lc-card, body.dark .fn-card {
   /* 第 219 次：深色下叠在卡片原底色上，不再透出天空变成发灰的亮块 */
   background: linear-gradient(160deg, var(--tile-weak) 0%, transparent 70%), var(--surface-solid, #2A2522);
 }
-.rc-h, .lc-head {
+.lc-head {
   display: flex; align-items: center; gap: 8px; margin: 0 0 12px;
   font-size: calc(14px * var(--fs-mul)); font-weight: 700; color: var(--tile-text, var(--text));
 }
@@ -4100,10 +4084,8 @@ body.dark .rc-card, body.dark .lc-card, body.dark .fn-card {
   background: color-mix(in srgb, var(--tile, var(--primary)) 14%, transparent); color: var(--tile, var(--primary));
 }
 .rc-ico .ico { width: 16px; height: 16px; color: var(--tile, var(--primary)); }
-.card h2.rc-h { color: var(--tile-text, var(--text)); }
 .lc-arrow { margin-left: auto; color: var(--muted); opacity: .55; display: inline-flex; }
 .lc-arrow .ico { width: 15px; height: 15px; }
-.rc-card .hint { color: var(--muted); }
 .lc-card { display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
 .lc-card .lc-head { margin-bottom: 4px; }
 .lc-big { font-size: calc(28px * var(--fs-mul)); font-weight: 800; line-height: 1.12; letter-spacing: -.01em; color: var(--text); }
@@ -5950,7 +5932,6 @@ body.dark .dm-group { background: rgba(255,255,255,.06); }
 .dm-back { min-height: 40px; padding: 0 4px; border: none; background: none; color: var(--primary-text); font-family: inherit; font-size: calc(14px * var(--fs-mul)); font-weight: 600; cursor: pointer; }
 .dm-sub { margin: 6px 6px 4px; font-size: calc(13px * var(--fs-mul)); font-weight: 700; color: var(--muted); }
 .dm-file { margin: 0 6px 10px; font-weight: 700; overflow-wrap: anywhere; }
-.dm-seg { margin: 4px 0 12px; }
 .dm-big { margin: 6px 6px 4px; font-size: calc(14px * var(--fs-mul)); color: var(--muted); }
 .dm-big b { font-size: calc(28px * var(--fs-mul)); font-weight: 800; color: var(--text); margin-right: 4px; font-variant-numeric: tabular-nums; }
 .dm-parts { list-style: none; margin: 0 0 4px; padding: 0 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
@@ -7543,7 +7524,6 @@ body.dark .qk-ok .ico { color: var(--tile-on, #222); }
   background: none; color: var(--primary-text); font: inherit; font-weight: 700; cursor: pointer; }
 .qk-empty .ico { width: 20px; height: 20px; }
 /* 「＋」面板：弹出一步的格子同样右上角三个点；最后一格「编辑快记」是次要样式 */
-#quickDock .qd-action { position: relative; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 #quickDock .qd-action .qk-more { top: 6px; right: 8px; }
 body #quickDock .qd-action.qd-edit { background: none; box-shadow: inset 0 0 0 1px var(--border); }
 body #quickDock .qd-action.qd-edit .qd-txt b { color: var(--text); }
@@ -7585,7 +7565,7 @@ body.dark .qe-sheet .qe-list, body.dark .qe-sheet .qe-list .qe-row { background:
 .qe-del i::after { content: ''; position: absolute; left: 6px; right: 6px; top: 10px; height: 2px; border-radius: 1px; background: #fff; }
 .qe-sheet .qe-ico { background: var(--surface); }
 body.dark .qe-sheet .qe-ico { background: rgba(255, 255, 255, .1); }
-.qe-ico { flex: none; width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: var(--tile-weak); }
+.qe-ico { flex: none; width: 32px; height: 32px; border-radius: var(--radius-xs); display: inline-flex; align-items: center; justify-content: center; background: var(--tile-weak); }
 .qe-ico .ico { width: 20px; height: 20px; color: var(--tile); }
 .qe-mode { display: inline-flex; flex-wrap: nowrap; padding: 2px; border-radius: var(--radius-pill, 999px); background: var(--surface-2); }
 .qe-sheet .qe-mode { background: var(--surface); }
@@ -7613,7 +7593,6 @@ body.dark .qe-sheet .qe-addb { background: rgba(255, 255, 255, .08); }
 /* 第 333 次：记录数小格在窄屏 / 大字号下退到两列，名字不截断 */
 @media (max-width: 374px) { .kv-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 body.fs-xl .kv-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.kv-stats li span { white-space: normal; overflow-wrap: anywhere; }
 /* 第 333 次：设置 › 宝宝与我 的宝宝行——名字和生日占满一行（不截断），资料 / 照片 / 删除放第二行，左边和名字对齐 */
 .st-list.baby-list li { display: flex; flex-wrap: wrap; align-items: center; row-gap: 8px; padding: 12px 8px; border-radius: var(--radius-sm); }
 .st-list.baby-list li + li { box-shadow: inset 0 1px 0 var(--border); }

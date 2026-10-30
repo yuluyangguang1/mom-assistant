@@ -227,7 +227,7 @@ def test_css_rules(b):
     check('顶栏不 sticky / fixed', not hdr, [h[0].strip()[:60] for h in hdr])
     # 3. 没有死样式：CSS 里出现的类名都要在 JS/HTML 里找得到（动态拼接的前缀除外）
     code = ''.join(open(f, encoding='utf-8').read() for f in glob.glob(str(ROOT / 'js' / '**' / '*.js'), recursive=True) + [str(ROOT / 'index.html')])
-    DYN = ('lv', 'theme-card--', 'toast-', 'ob-in-')
+    DYN = ('lv', 'theme-card--', 'toast-', 'ob-in-', 'qk-n')
     cls = set(re.findall(r'\.([a-zA-Z_][\w-]*)', re.sub(r'url\([^)]*\)|\d\.\d+', '', nc)))
     dead = sorted(c for c in cls if not c.startswith(DYN)
                   and not re.search(r'(?<![\w-])' + re.escape(c) + r'(?![\w-])', code))
@@ -4724,14 +4724,14 @@ def test_r291(b):
     n0 = ev("Storage.get().feedings.length")
     t1 = tap('qdFeed')
     lf = ev("(()=>{const f=Storage.get().feedings;return f[f.length-1]})()")
-    check('#291 点「喂奶」：提示「已快记：母乳 18 分钟 · 右侧」，记下的是一条亲喂（不是泵奶）', t1 and t1[0].startswith('已快记：母乳 18 分钟 · 右侧') and '泵奶' not in t1[0]
+    check('#291 点「喂奶」：提示「已记录：母乳 18 分钟 · 右侧」，记下的是一条亲喂（不是泵奶）', t1 and t1[0].startswith('已记录：母乳 18 分钟 · 右侧') and '泵奶' not in t1[0]
           and ev("Storage.get().feedings.length") == n0 + 1 and lf['type'] == 'breast' and lf['durationMin'] == 18 and lf['side'] == 'right', [t1, lf])
     open_qd(); t2 = tap('qdDiaper'); ld = ev("(()=>{const a=Storage.get().diapers;return a[a.length-1].type})()")
-    check('#291 点「尿了」：提示「已快记：尿布 · 尿」，记下尿布 pee', t2 and t2[0] == '已快记：尿布 · 尿' and ld == 'pee', [t2, ld])
+    check('#291 点「尿了」：提示「已记录：尿布 · 尿」，记下尿布 pee', t2 and t2[0] == '已记录：尿布 · 尿' and ld == 'pee', [t2, ld])
     open_qd(); t3 = tap('qdPoop'); ld = ev("(()=>{const a=Storage.get().diapers;return a[a.length-1].type})()")
-    check('#291 点「拉了」：提示「已快记：尿布 · 便」，记下尿布 poop', t3 and t3[0] == '已快记：尿布 · 便' and ld == 'poop', [t3, ld])
+    check('#291 点「拉了」：提示「已记录：尿布 · 便」，记下尿布 poop', t3 and t3[0] == '已记录：尿布 · 便' and ld == 'poop', [t3, ld])
     open_qd(); t4 = tap('qdMeds'); lm = ev("(()=>{const a=Storage.get().meds;return a[a.length-1].name})()")
-    check('#291 点「维生素 D3」：提示「已快记：维生素 D3」，记下吃药 维生素 D3', t4 and t4[0] == '已快记：维生素 D3' and lm == '维生素 D3', [t4, lm])
+    check('#291 点「维生素 D3」：提示「已记录：维生素 D3」，记下吃药 维生素 D3', t4 and t4[0] == '已记录：维生素 D3' and lm == '维生素 D3', [t4, lm])
     open_qd()
     fn0 = ev("(Storage.get().fetal||[]).length")
     t5 = tap('qdFetal')
@@ -4744,7 +4744,7 @@ def test_r291(b):
     open_qd()
     sub2 = ev("document.querySelector('#qdFeed small').textContent")
     t6 = tap('qdFeed'); lf = ev("(()=>{const f=Storage.get().feedings;return f[f.length-1]})()")
-    check('#291 最近喂的是瓶喂、之后又吃了辅食：「喂奶」= 奶瓶 母乳 80 · 配方奶 40 ml，记下瓶喂', sub2 == '奶瓶 母乳 80 · 配方奶 40 ml' and t6 and t6[0].startswith('已快记：奶瓶 母乳 80 · 配方奶 40 ml')
+    check('#291 最近喂的是瓶喂、之后又吃了辅食：「喂奶」= 奶瓶 母乳 80 · 配方奶 40 ml，记下瓶喂', sub2 == '奶瓶 母乳 80 · 配方奶 40 ml' and t6 and t6[0].startswith('已记录：奶瓶 母乳 80 · 配方奶 40 ml')
           and lf['type'] == 'bottle' and lf['amountBm'] == 80 and lf['amountFm'] == 40, [sub2, t6, lf])
     # 首页首屏快记（同一份默认值）
     check('#291 首页快捷记录卡「喂奶按上次」与 ＋ 面板同源（不出现泵奶 / 辅食）', ev("(()=>{const h=document.querySelector('#view .hn-hint');return !h||(!/泵奶|辅食/.test(h.textContent))})()"))
