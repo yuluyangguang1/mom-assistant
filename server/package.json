@@ -1,0 +1,16 @@
+{
+  "name": "yiya-relay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "咿呀宝妈助手：家庭共享端到端加密中转 + Web Push（服务器只存密文）",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/index.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  },
+  "dependencies": {
+    "web-push": "3.6.7"
+  }
+}
