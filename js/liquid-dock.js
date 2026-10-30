@@ -238,7 +238,13 @@
     /* 第 319 次：按下整条 dock 放大（对照支付宝 22:03 +3.6% / App Store 23:38 +3.7%）——整块合成层 scale，GL 画布跟着一起缩放、不重新取样。
        按下 k 1500 ζ 0.8 朝 1.038；松手 k 250 ζ 0.6 回 1：83ms 松手时峰值 +3.6%（≈92ms）、≈268ms 回到 1、下冲 −0.32%（≈340ms）、≈470ms 停稳 */
     press: { k: 1500, z: 0.8, amp: 0.038 }, release: { k: 250, z: 0.6 },
-    catchUp: 1.5                   /* 帧间隔超过 1.5 帧：追赶量分两帧摊开 */
+    catchUp: 1.5,                  /* 帧间隔超过 1.5 帧：追赶量分两帧摊开 */
+    /* 第 321 次（Telegram 参考 A2）：长按 / 拖动时的速度形变——横向 sx = 1 + min(0.15, |v| / 2400)，纵向 sy = (1/√sx)·(1 − 0.08·(sx−1)/0.15)（满形变 ≈ 0.92/√sx，面积近似守恒）；
+       临界阻尼 k 1500：停手后 ≈120ms 内回到 1（残差 < 1%）。点击不用这套（仍是 tapV 0.45 的旧形变，17 帧节奏不变） */
+    bigV: 2400, bigMax: 0.15, bigSq: 0.08, bigShape: { k: 1500, z: 1 },
+    /* 第 321 次收尾：连点改目标时，两条边的弹簧目标不再一步跳到新页签——目标从透镜当前位置按一阶低通（τ 80ms）滑过去，
+       原来目标突变、前缘 k 1200 第二帧就冲出 21pt（相邻帧阈值 14pt）。只管改目标那一下，第一次按下的 17 帧节奏不受影响 */
+    retargetTau: 80
   };
   /* 半隐式欧拉，4ms 子步；v 单位 px/s */
   function springStep(x, v, target, p, dt, crit) {
@@ -248,8 +254,14 @@
     return [x, v];
   }
   /* 速度 → 形变目标（体积大致守恒：1.12 × 0.89 ≈ 1） */
-  function deformTarget(vx, rb, red, tap) {
+  function deformTarget(vx, rb, red, tap, big) {
     if (red) return [1, 1, 0];
+    if (big) {
+      var ex = Math.min(PHYS.bigMax, Math.abs(vx) / PHYS.bigV), sxB = 1 + ex;
+      var rB = Math.min(1, Math.abs(rb || 0) / PHYS.rubber);
+      var aB = Math.min(1, Math.abs(vx) / 1000 / PHYS.vFull); aB = aB * (2 - aB);
+      return [sxB + 0.10 * rB, (1 / Math.sqrt(sxB)) * (1 - PHYS.bigSq * ex / PHYS.bigMax) - 0.05 * rB, aB];
+    }
     var a = Math.min(1, Math.abs(vx) * (tap ? PHYS.tapV : 1) / 1000 / PHYS.vFull); a = a * (2 - a);
     var r = Math.min(1, Math.abs(rb || 0) / PHYS.rubber);
     return [1 + PHYS.stretch * a + 0.10 * r, 1 - PHYS.squash * a - 0.05 * r, a];
@@ -258,7 +270,7 @@
   LD._simulate = function (o) {
     o = o || {}; var dt = o.dt || 16, out = [], red = !!o.reduced;
     if (o.kind === 'grow') { var s = 0, vs = 0; for (var t = 0; t <= (o.ms || 500); t += dt) { out.push(s); var q = springStep(s, vs, 1, PHYS.grow, dt, red); s = q[0]; vs = q[1]; } return out; }
-    if (o.kind === 'deform') { var tg = deformTarget(o.vx || 0, o.rb || 0, red, !!o.tap); return { sx: tg[0], sy: tg[1], a: tg[2] }; }
+    if (o.kind === 'deform') { var tg = deformTarget(o.vx || 0, o.rb || 0, red, !!o.tap, !!o.big); return { sx: tg[0], sy: tg[1], a: tg[2] }; }
     /* 第 319 次：拖动跟手滞后——手指匀速 v（pt/s）走 ms 毫秒，返回稳态落后的距离（pt）与时间（ms） */
     if (o.kind === 'follow') {
       var v0 = o.v || 357, x = 0, vx = 0, tgt = 0, T = o.ms || 600;
@@ -403,12 +415,34 @@
     lens = { mode: mode, W: W, H: H, x: x0, vx: 0, tx: x, s: 0, vs: 0, sx: 1, vsx: 0, sy: 1, vsy: 0, rb: 0, m: 0, a: 0, hl: 0, flash: 1,
       phase: 'grow', tap: true, t0: n, last: n, pw: pw0, ph: Math.max(t.offsetHeight, bar.offsetHeight - 2 * THUMB_INSET), tab: t, boxes: mode === 'gl' ? iconBoxes() : [],
       /* 第 319 次：点击的两条边（未缩放视口 x）、长按 / 拖动的「大透镜」比例 bf（0 = 点击：栏内 56 高、宽 ≤104；1 = 第十四版：栏高 + 12、宽 110） */
-      eL: x0 - pw0 / 2, eR: x0 + pw0 / 2, veL: 0, veR: 0, bf: 0, down: true, br: G, Ht: Math.round(bar.offsetHeight + PHYS.tapDH), debt: 0 };
+      eL: x0 - pw0 / 2, eR: x0 + pw0 / 2, veL: 0, veR: 0, bf: 0, down: true, br: G, Ht: Math.round(bar.offsetHeight + PHYS.tapDH), debt: 0, tp: n, retargets: 0 };
     bar.classList.remove('lg-lensend', 'lg-shrink'); bar.classList.add('lg-lensing');
     bar.classList.toggle('lg-lens-gl', mode === 'gl');
     if (thumb) { thumb.classList.add('lg-lhide'); thumb.classList.remove('lg-grow'); }
     lensApply();
     el.classList.add('on');
+    if (!lensRaf && !LD._manual) lensRaf = global.requestAnimationFrame(lensFrame);
+    return true;
+  }
+  /* 第 321 次（Telegram 参考 A1）：透镜还在（鼓起 / 滑行 / 吸附 / 收回任一阶段）时再次按下别的（或同一个）页签——
+     不重启：位置 x、速度 vx、左右两条边 eL / eR 和各自速度、鼓起 s 都保留，只改目标 tx；正在收回就回到滑行（s 从当前值接着鼓）；
+     整条 dock 按下放大从当前缩放接着按（DS.s 不归 1）。原来 lensStart 见到 lens 在场直接返回 false，透镜照旧滑回第一次点的页签、页面却切到第二个 → 落定时胶囊一跳 */
+  function lensRetarget(t) {
+    var L = lens;
+    if (!L || !bar || !t || !t.classList.contains('dk-tab') || bar.classList.contains('is-sub')) return false;
+    var n = nowMs();
+    /* 第 321 次收尾：tp 记在透镜自己的时间轴上（手动时钟下 nowMs 是墙钟，会比 L.last 超前）；
+       目标平滑：gx 从透镜当前位置出发，逐帧低通滑向新页签（lensStep 里），两条边追 gx 而不是一步跳到 tx；
+       鼓起速度 vs 清零——收回中的 vs 很负，不清零回到滑行后 s 还会先掉到 0.68 再鼓 */
+    L.tab = t; L.tx = tabCenter(t); L.down = true; L.tap = true; L.tp = L.last || n; L.rb = 0;
+    L.gx = L.x; L.gsm = true; L.vs = 0;
+    L.pw = t.offsetWidth + THUMB_PX;
+    if (L.phase === 'shrink' || L.phase === 'settle') {
+      L.phase = 'hold';
+      if (bar.classList.contains('lg-shrink')) bar.classList.remove('lg-shrink');
+      if (thumb) { thumb.style.removeProperty('opacity'); thumb.style.removeProperty('transition'); thumb.classList.add('lg-lhide'); }
+    }
+    L.retargets = (L.retargets || 0) + 1;
     if (!lensRaf && !LD._manual) lensRaf = global.requestAnimationFrame(lensFrame);
     return true;
   }
@@ -455,11 +489,17 @@
     var L = lens, n = L.last, red = reduced;
     var q;
     /* 第 319 次：长按（还按着、超过 bigAfter）或拖动 → 第十四版大透镜；点击 → 栏内小透镜。两者之间按 35ms 指数过渡，不跳 */
-    var bigT = (!L.tap || (L.down && n - L.t0 > PHYS.bigAfter)) ? 1 : 0;
+    var bigT = (!L.tap || (L.down && n - (L.tp || L.t0) > PHYS.bigAfter)) ? 1 : 0;   /* 第 321 次：tp = 这一次按下的时刻（连点改目标时重记，t0 不动） */
     L.bf += (bigT - L.bf) * (1 - Math.exp(-dt / 35));
     if (Math.abs(bigT - L.bf) < 0.002) L.bf = bigT;
     var edges = L.tap && L.bf < 0.5;   /* 点击：两条边各走各的弹簧，中心 = 两边均值 */
     var exitOK = false;
+    /* 第 321 次收尾：弹簧实际追的目标 TX——只有连点改目标后才低通滑过去（gsm），拖动 / 第一次按下直接等于 tx */
+    if (L.gsm && L.tap) {
+      L.gx += (L.tx - L.gx) * (1 - Math.exp(-dt / PHYS.retargetTau));
+      if (Math.abs(L.tx - L.gx) < 0.2) { L.gx = L.tx; L.gsm = false; }
+    } else { L.gx = L.tx; L.gsm = false; }
+    var TX = L.gx;
     if (L.phase === 'shrink') {
       q = springStep(L.s, L.vs, -0.25, PHYS.shrink, dt, true); L.s = q[0]; L.vs = q[1];
     } else {
@@ -467,7 +507,7 @@
       if (L.phase === 'grow' && n - L.t0 > 150) L.phase = 'hold';
     }
     if (edges) {
-      var hw = L.pw / 2, tL = L.tx - hw, tR = L.tx + hw, dir = L.tx > L.x + 0.01 ? 1 : L.tx < L.x - 0.01 ? -1 : 0;
+      var hw = L.pw / 2, tL = TX - hw, tR = TX + hw, dir = L.tx > L.x + 0.01 ? 1 : L.tx < L.x - 0.01 ? -1 : 0;
       var trailGo = n - L.t0 > PHYS.trailHold || dir === 0;
       if (dir >= 0) {
         q = springStep(L.eR, L.veR, tR, PHYS.lead, dt, true); L.eR = q[0]; L.veR = q[1];
@@ -483,7 +523,7 @@
     } else {
       /* 拖动 / 长按 / 松手吸附：原来的中心弹簧；两条边跟着中心（切回点击形态时不跳） */
       var pX = L.phase === 'settle' || L.phase === 'shrink' ? (L.tap ? PHYS.tap : PHYS.snap) : (L.tap ? PHYS.tap : PHYS.drag);
-      q = springStep(L.x, L.vx, L.tx, pX, dt, L.phase === 'settle' ? (L.tap || red) : true); L.x = q[0]; L.vx = q[1];
+      q = springStep(L.x, L.vx, TX, pX, dt, L.phase === 'settle' ? (L.tap || red) : true); L.x = q[0]; L.vx = q[1];
       L.eL = L.x - L.pw / 2; L.eR = L.x + L.pw / 2; L.veL = L.veR = L.vx;
       exitOK = true;
     }
@@ -504,11 +544,13 @@
     } else if (L.phase === 'shrink') {
       if (L.s <= 0.02 || n - L.t1 > 400) return false;
     }
-    var tg = deformTarget(L.vx, L.rb, red, L.tap);
+    var big = L.bf > 0.5 && L.phase !== 'shrink';   /* 第 321 次：长按 / 拖动（大透镜）才用速度形变新公式 */
+    var tg = deformTarget(L.vx, L.rb, red, L.tap, big);
     if (red) { L.sx = L.sy = 1; L.vsx = L.vsy = 0; }
     else {
-      q = springStep(L.sx, L.vsx, tg[0], PHYS.shape, dt); L.sx = q[0]; L.vsx = q[1];
-      q = springStep(L.sy, L.vsy, tg[1], PHYS.shape, dt); L.sy = q[0]; L.vsy = q[1];
+      var shp = big ? PHYS.bigShape : PHYS.shape;
+      q = springStep(L.sx, L.vsx, tg[0], shp, dt, big); L.sx = q[0]; L.vsx = q[1];
+      q = springStep(L.sy, L.vsy, tg[1], shp, dt, big); L.sy = q[0]; L.vsy = q[1];
     }
     L.a = tg[2];
     L.m += (tg[2] - L.m) * (1 - Math.exp(-dt / (tg[2] > L.m ? 40 : 170)));
@@ -752,6 +794,7 @@
     if (global.DockFuse && DockFuse.morphing && DockFuse.morphing()) return;
     dragStart(e, t);
     /* 第 309 次：页签上按下 → 灰胶囊鼓成透镜；不出透镜时（高对比 / 减少透明度）仍是旧的放大 */
+    if (lens && lensRetarget(t)) { dsPress(true); return; }   /* 第 321 次：连点不重启，只改目标 */
     if (lensStart(t)) { dsPress(true); return; }
     /* 第 315 次：出透镜时整条 dock 不再按下放大（CSS scale 1.02）、边缘折射也不加强——真机逐帧（21:56 第 186 / 188 帧）
        离透镜很远的「宝宝」一带 dock 背景、图标、外轮廓都跟着变了（帧差 7）；支付宝透镜外的 dock 纹丝不动。只有不出透镜的降级路径保留旧按压 */
@@ -883,7 +926,7 @@
   var r3 = function (v) { return Math.round(v * 1000) / 1000; };
   LD._state = function () { return { refract: refractOn, thumb: !!(thumb && thumb.classList.contains('on')), map: mapKey,
     lens: lens ? { mode: lens.mode, phase: lens.phase, s: r3(lens.s), m: r3(lens.m), x: Math.round(lens.x * 10) / 10, vx: Math.round(lens.vx),
-      sx: r3(lens.sx), sy: r3(lens.sy), tap: !!lens.tap, eL: Math.round(lens.eL * 10) / 10, eR: Math.round(lens.eR * 10) / 10, bf: r3(lens.bf), hl: r3(lens.hl), flash: r3(lens.flash), rb: Math.round(lens.rb * 10) / 10, tx: Math.round(lens.tx * 10) / 10 } : null }; };
+      sx: r3(lens.sx), sy: r3(lens.sy), tap: !!lens.tap, eL: Math.round(lens.eL * 10) / 10, eR: Math.round(lens.eR * 10) / 10, bf: r3(lens.bf), retargets: lens.retargets || 0, w: Math.round((lens.eR - lens.eL) * 10) / 10, hl: r3(lens.hl), flash: r3(lens.flash), rb: Math.round(lens.rb * 10) / 10, tx: Math.round(lens.tx * 10) / 10 } : null }; };
 
   global.LiquidDock = LD;
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', function () { setTimeout(LD.init, 0); });
