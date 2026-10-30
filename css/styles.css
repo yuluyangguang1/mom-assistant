@@ -12,6 +12,22 @@
    ============================================================ */
 
 :root {
+  /* 第 331 次：dock 原生尺寸 token（量法与出处见文末第 331 次段） */
+  --dk-m: 21px;                                                          /* 栏 / 圆钮离屏幕左右 */
+  --dk-b: max(21px, calc(env(safe-area-inset-bottom, 0px) - 13px));      /* 栏底离屏幕底 */
+  --dk-h: 62px;                                                          /* 栏高 = 圆钮直径 */
+  --dk-orb: var(--dk-h);
+  --dk-gap-min: 8px;                                                     /* 栏与圆钮最小间距（窄屏页签收缩） */
+  --dk-pad: 9px;                                                         /* 栏边 → 首页签左缘（含边框） */
+  --dk-slot: 86px;                                                       /* 页签宽 */
+  --dk-ico: 24px;                                                        /* 图标盒 */
+  --dk-ico-y: 12px;                                                      /* 栏顶 → 图标盒顶（图标中心 24） */
+  --dk-lbl: 10px;                                                        /* 文字字号 */
+  --dk-lbl-lh: 12px;
+  --dk-lbl-gap: 5px;                                                     /* 图标盒底 → 文字行盒顶 = 字面顶（原生 5） */
+  --dk-pill-in: 5px;                                                     /* 选中胶囊上下内缩（liquid-dock.js THUMB_INSET） */
+  --dk-pill-px: 8px;                                                     /* 选中胶囊比页签宽（THUMB_PX） */
+  --dk-top: calc(var(--dk-b) + var(--dk-h));                             /* 栏顶离屏幕底：上方所有浮层按它排 */
   /* —— 奶油底色 ——
      第 118 次（对标 Cali 裁定 · 页底加深）：末两档由 #FBF5EF / #F8F2EC 加深到
      #F6F0E5 / #F2EBDF，让「白卡 vs 页底」的 CIE L* 明度差从 4.2 提到 6.7
@@ -736,7 +752,7 @@ body.dark .list li .ing-tag.ing-staple { color: #E3C88E; background: rgba(227, 2
      与「底栏快捷槽位」叠在一起视觉过重；且圆角 18px 偏生硬。现对齐项目
      圆角规范：与 .tab 激活底/快记 FAB/返回钮同用 999px 全胶囊（白名单字面量），
      宽度 max-content 居中（100vw-24px 兜底防窄屏溢出）。 */
-  position: fixed; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 10;
+  position: fixed; left: 50%; bottom: var(--dk-b); z-index: 10; /* 第 331 次：原生栏底离屏幕底 21（旧 10 + 安全区，真机 44） */
   transform: translateX(-50%);
   display: flex;
   /* 第 117 次（真机：底栏右侧页签点不动）：**移除 overflow-x: auto**。
@@ -2538,10 +2554,9 @@ body .tabbar .tab-plus:active { transform: scale(.9); }
 #quickDock {
   /* 全局快捷记录 dock（第 40 次）：展开式 FAB，悬在底栏右上角；
    默认只有「＋」，点开才出现动作列 + 半透明遮罩——刻意多一次点击，不放误触面。 */
-  position: fixed; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 40;
+  position: fixed; right: 16px; bottom: calc(var(--dk-top) + 6px); z-index: 40;
   /* ↑ 第 171 次：同名选择器合并到此处 */
   left: 50%; right: auto; transform: translateX(-50%);
-  bottom: calc(76px + env(safe-area-inset-bottom));
 }
 #quickDock .qd-actions {
   display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
@@ -2814,11 +2829,11 @@ body.dark .home-greet {
    ============================================================ */
 body::after {
   content: ''; position: fixed; left: 0; right: 0; bottom: 0; z-index: 9;
-  height: calc(88px + env(safe-area-inset-bottom));
+  height: calc(var(--dk-top) + 18px); /* 第 331 次：跟栏顶（旧 88 + 安全区 = 旧栏顶 70 + 18） */
   background: linear-gradient(to bottom, transparent 0%, var(--bg-end, #F2EBDF) 78%);
   pointer-events: none;
 }
-.view { padding-bottom: calc(98px + env(safe-area-inset-bottom)); } /* 第 315 次：dock 74 → 60，留白 112 → 98 */
+.view { padding-bottom: calc(var(--dk-top) + 28px); } /* 第 315 次：dock 74 → 60，留白 112 → 98 */
 /* 第 192 次（左/右手模式实测）：竖排胶囊高约 262px，沿用横排的 112px 留白时，
    滚到底最后两三行（首页「妈妈情绪」、设置末项等）永远压在胶囊下面点不到。
    竖排时留白 = 胶囊真实高度（--dock-h，buildTabbar 注入）+ 胶囊离底 16px + 12px 呼吸。 */
@@ -3313,7 +3328,7 @@ body {
      （正午亮板 ~.10、深夜暗板 ~.17），暗色板必须更高透明度才能染上页面；
      暗色模式再乘 --amb-mul（.6）兜底防灰。变量未就绪回落 9% 白（暖奶油）。 */
   --amb-mul: 1;
-  --cta-b: calc(92px + env(safe-area-inset-bottom)); /* 第 282 次：底部主按钮离屏幕底（横排 dock 上方） */
+  --cta-b: calc(var(--dk-top) + 22px); /* 第 331 次：栏顶 + 22（旧 92 + 安全区 = 旧栏顶 70 + 22） */ /* 第 282 次：底部主按钮离屏幕底（横排 dock 上方） */
   background:
     linear-gradient(180deg,
       rgba(var(--sky-ambient-top, 255, 255, 255), calc(var(--sky-ambient-a, .09) * var(--amb-mul))),
@@ -3786,7 +3801,7 @@ body .tabbar.is-sub .dn-pp, body .tabbar.is-sub .dn-stop { display: grid; }
    同为 z 9 的页底渐隐带 body::after、触摸光斑会画在播放页上面，开着时关掉。 */
 html.wp-lock body::after, html.wp-lock .touch-glow { display: none; }
 html.wp-lock .dock-live { visibility: hidden; }
-.wn-player .wp-body { padding-bottom: calc(10px + 62px + 18px + env(safe-area-inset-bottom)); }
+.wn-player .wp-body { padding-bottom: calc(var(--dk-top) + 18px); }
 .wn-player .wp-tip, .wn-player .wp-warn { margin-top: 22px; }
 /* 第 271 次：play() 还没兑现（iOS 上是异步的）——显示暂停形状但轻轻呼吸，读屏报「正在开始」 */
 .wp-play.is-starting svg { animation: wpStarting 1s ease-in-out infinite; }
@@ -4652,7 +4667,7 @@ body .tabbar .tab.active .ico { color: var(--primary); }
 
 .dock-live {
   position: fixed; left: 50%; transform: translateX(-50%);
-  bottom: calc(10px + 62px + 10px + env(safe-area-inset-bottom));
+  bottom: calc(var(--dk-top) + 8px); /* 第 331 次：原生迷你播放条离栏顶 8 */
   z-index: 11;
   display: flex; align-items: center; gap: 4px;
   min-width: 248px; max-width: calc(100vw - 40px); width: max-content;
@@ -4708,7 +4723,7 @@ body.qd-open .dock-live { opacity: 0; visibility: hidden; }
   .dl-cycle { min-width: 34px; padding: 0 2px; }
 }
 /* 有胶囊时页面底部多留一截，最后一张卡不会被挡 */
-body.has-live .view { padding-bottom: calc(162px + env(safe-area-inset-bottom)); }
+body.has-live .view { padding-bottom: calc(var(--dk-top) + 92px); }
 /* 左右手竖排：胶囊贴底、让开竖条 */
 @media (prefers-reduced-transparency: reduce) { .dock-live { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 body.hc .dock-live { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -4764,7 +4779,6 @@ html[data-nav] #dockOrb:not([hidden]) { view-transition-name: dock-orb; }
 ::view-transition-old(dock-orb) { animation: vtFadeOut .16s ease-out both; } /* 第 244 次：进二级页时圆钮淡出，不再瞬间消失 */
 ::view-transition-new(dock-orb) { animation: none; }
 @media (max-width: 360px) {
-  #dockOrb.dock-orb { --orb: 54px; left: calc(50% + var(--dock-w, 240px) / 2 - 23px); bottom: calc(14px + env(safe-area-inset-bottom)); }
   body.has-orb #tabbar { left: calc(50% - 31px); }
   body.has-orb #tabbar.lg { left: calc(50% - var(--dock-w, 240px) / 2 - 31px); }
   body.sub-anchor #tabbar.lg { left: calc(50% - var(--dock-w, 240px) / 2 - 31px); }
@@ -5621,7 +5635,7 @@ body.dark .spw-wd.on { color: var(--tile-on); }
      页面侧滑返回时 app.js 把按钮临时换算成相对 #view 的 top。
    ============================================================ */
 /* --cta-h 默认值写在 :root、--cta-b 默认值写在 body 主规则里（CSS 不重复选择器） */
-body.has-live { --cta-b: calc(154px + env(safe-area-inset-bottom)); }
+body.has-live { --cta-b: calc(var(--dk-top) + 84px); }
 #view .mod-cta {
   position: fixed; z-index: 5; left: 0; right: 0; bottom: var(--cta-b); top: auto;
   max-width: 640px; margin: 0 auto; padding: 0 16px; box-sizing: border-box;
@@ -6243,8 +6257,8 @@ body.qd-now #quickDock .qd-action { animation: none !important; }
    第 293 次：顶上留出咿呀岛的位置（提示 48 + 8）——分组按归属拆开后内容变高，面板会顶到屏幕上沿，提示岛只能下移压住面板内容 */
 body #quickDock.qd-menu .qd-actions {
   display: flex; flex-direction: column; padding: 0; overflow: hidden;
-  max-height: calc(100vh - 76px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 56px);
-  max-height: calc(100dvh - 76px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 56px);
+  max-height: calc(100vh - var(--dk-top) - 6px - env(safe-area-inset-top) - 56px);
+  max-height: calc(100dvh - var(--dk-top) - 6px - env(safe-area-inset-top) - 56px);
 }
 body #quickDock.qd-menu .qd-actions:focus { outline: none; }
 .qd-grab { flex: none; display: flex; justify-content: center; padding: 8px 0 2px; cursor: grab; touch-action: none; }
@@ -7068,7 +7082,6 @@ body.hc .dk-t { color: var(--text); }
 @media (min-width: 361px) {
   body.has-orb #tabbar.lg, body.sub-anchor #tabbar.lg { left: calc(50% - var(--dock-w, 258px) / 2 - (var(--dock-bh, 62px) + 8px) / 2); }
   #dockOrb.dock-orb { left: calc(50% + var(--dock-w, 240px) / 2 - (var(--dock-bh, 62px) - 8px) / 2); }
-  body.has-orb .dock-live { left: calc(50% - (var(--dock-bh, 62px) + 8px) / 2); }
 }
 
 /* ============================================================
@@ -7271,7 +7284,7 @@ body .tabbar.lg.lg-lensing.lg-shrink .tab.dk-tab.active.dk-pop .dk-cal .dk-c { a
      GL 不在（Chromium、没快照、减少透明度）：DOM 自己是 CSS 玻璃，形状照样动、只是叠放没有黏连。
    · 正在进行胶囊：并进圆钮那一行（中间）；这时记录条不下落（不遮挡优先）。
    ============================================================ */
-body.fz-sub { --cta-b: calc(76px + env(safe-area-inset-bottom)); }
+body.fz-sub { --cta-b: calc(var(--dk-b) + 66px); }
 html body #tabbar.lg.is-sub {
   left: max(16px, calc(50% - 304px)); right: max(16px, calc(50% - 304px)); width: auto; max-width: none; min-width: 0;
   height: 60px; padding: 0; gap: 0; transform: none; translate: none; scale: none;
@@ -7345,10 +7358,10 @@ html body.fz-sub .mod-cta > .ft-mini { border: 0; }
 /* 正在进行胶囊并进圆钮那一行 */
 html body.fz-sub .dock-live {
   left: calc(max(16px, 50% - 304px) + 62px); right: calc(max(16px, 50% - 304px) + 62px); width: auto; min-width: 0; max-width: none;
-  transform: none; translate: none; bottom: calc(14px + env(safe-area-inset-bottom)); height: 52px; min-height: 0; animation: none;
+  transform: none; translate: none; bottom: calc(var(--dk-b) + 4px); height: 52px; min-height: 0; animation: none;
   opacity: var(--fz-lo, 1);
 }
-body.fz-sub.has-live .view { padding-bottom: calc(98px + env(safe-area-inset-bottom)); }
+body.fz-sub.has-live .view { padding-bottom: calc(var(--dk-b) + 88px); }
 body.fz-sub.has-live.has-cta .view { padding-bottom: calc(var(--cta-b) + var(--cta-h) + 20px); }
 /* 横推里浮起来的记录条（#ctaFloat：dock 之上、不跟页面走） */
 #ctaFloat { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 11; pointer-events: none; }
@@ -7425,14 +7438,43 @@ body .rec-sheet .mw-inbox { min-height: var(--ctl-tile-h); align-items: center; 
    外观尺寸不变：边框盒 = 原来的 GL 外沿（左右各外扩 1、上下各外扩 1），内容盒（页签 / 透镜 / 水滴的定位原点）位置不动。
    ＋ 珠、正在进行胶囊位置和原来一样（公式里补回 2px）；二级页（.is-sub）规则不受影响。CSS 退化（无 lg-gl）不变。
    ============================================================ */
-html.lg-gl body #tabbar.lg:not(.is-sub) { border-width: 2px; margin-bottom: -1px; }
+html.lg-gl body #tabbar.lg:not(.is-sub) { border-width: 2px; --dk-bw: 2px; } /* 第 331 次：去掉 margin-bottom −1（GL 与 CSS 同一边框盒，见第 331 次段） */
 html.lg-gl body #tabbar.lg:not(.is-sub) > canvas.lg-gl { inset: -2px; width: calc(100% + 4px); height: calc(100% + 4px); }
 @media (min-width: 361px) {
-  html.lg-gl body.has-orb #tabbar.lg:not(.is-sub), html.lg-gl body.sub-anchor #tabbar.lg:not(.is-sub) { left: calc(50% - var(--dock-w, 258px) / 2 - (var(--dock-bh, 62px) + 6px) / 2); }
-  html.lg-gl #dockOrb.dock-orb { --orb: calc(var(--dock-bh, 62px) - 2px); }
-  html.lg-gl body.has-orb .dock-live { left: calc(50% - (var(--dock-bh, 62px) + 6px) / 2); }
 }
 @media (max-width: 360px) {
   /* 窄屏栏的 left 公式（− dock-w / 2 − 31px）在 dock-w + 2 时正好左移 1px = 原 GL 外沿，不用改；＋ 珠的公式会右移 1px，补回来 */
-  html.lg-gl #dockOrb.dock-orb { left: calc(50% + var(--dock-w, 240px) / 2 - 24px); }
+}
+
+/* ============================================================
+   第 331 次：dock 按原生尺寸重新规范（对照用户 10-31 00:28 Apple Music 录屏 + 10-29 照片 App 全屏录屏，@3x 逐像素量，单位 pt）
+   原生 iOS 26 标签栏：栏高 62、全圆角 31；左右离屏 21、栏底离屏幕底 21（不是在 home 指示条安全区之上再加，独立模式 env = 34 时 34 − 13 = 21）；
+   选中胶囊 = 栏高 − 10（上下各 5）× 页签宽 + 8；首 / 末页签中心离栏边 51.8 → 内边距 9 + 页签宽 86（照片 App 两页签 85.7）；
+   图标盒 24、中心离栏顶 24；文字 10pt（中文字面 9pt 高）、字面中心离栏顶 45；图标底 → 字面顶 5；
+   独立圆钮（照片 App 搜索）直径 = 栏高 62、贴右边距 21、与栏底齐；栏宽按页签数收拢（不铺满），中间留空。
+   以前：栏 218×60（GL 220×62）居中、底 10 + 安全区（真机 44）、＋ 珠 60 紧挨栏 8；这里全部改成下面这组 token。
+   GL（html.lg-gl）与 CSS 退化同一个边框盒（第 327 次的「GL 外扩 2px」不再需要：GL 时只是边框 2px、内容盒各缩 1px）。
+   ============================================================ */
+html body #tabbar.lg:not(.is-sub) {
+  --dk-bw: 1px;
+  bottom: var(--dk-b); height: var(--dk-h); min-height: 0; margin: 0;
+  width: max-content; max-width: calc(100vw - 2 * var(--dk-m) - var(--dk-orb) - var(--dk-gap-min));
+  padding: 0 calc(var(--dk-pad) - var(--dk-bw)); gap: 0; align-items: stretch;
+}
+html body.has-orb #tabbar.lg:not(.is-sub), html body.sub-anchor #tabbar.lg:not(.is-sub),
+html.lg-gl body.has-orb #tabbar.lg:not(.is-sub), html.lg-gl body.sub-anchor #tabbar.lg:not(.is-sub) { left: var(--dk-m); transform: none; }
+html body #tabbar.lg:not(.is-sub) > .tab.dk-tab, html body #tabbar.lg:not(.is-sub) > .tab.tab-slot {
+  flex: 0 1 auto; width: var(--dk-slot); min-width: 0; max-width: var(--dk-slot); height: auto; min-height: 0;
+  justify-content: flex-start; align-items: center; gap: var(--dk-lbl-gap);
+  padding: calc(var(--dk-ico-y) - var(--dk-bw)) 0 0;
+}
+html body #tabbar.lg:not(.is-sub) > .tab.dk-tab .dk-ic,
+html body #tabbar.lg:not(.is-sub) > .tab.dk-tab .dk-ic .dk-l,
+html body #tabbar.lg:not(.is-sub) > .tab.dk-tab .dk-ic .dk-c { width: var(--dk-ico); height: var(--dk-ico); flex: none; }
+html body #tabbar.lg:not(.is-sub) > .tab.tab-slot .ico { width: var(--dk-ico); height: var(--dk-ico); }
+html body #tabbar .tab.dk-tab .dk-t { font-size: var(--dk-lbl); line-height: var(--dk-lbl-lh); }
+/* ＋ 玻璃珠：直径 = 栏高，贴右边距，与栏底齐（照片 App 搜索圆） */
+html body #dockOrb.dock-orb, html.lg-gl body #dockOrb.dock-orb {
+  --orb: var(--dk-orb);
+  left: calc(100% - var(--dk-m) - var(--orb)); right: auto; bottom: var(--dk-b); transform: none;
 }
