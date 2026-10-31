@@ -13,7 +13,9 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v296';
+var CACHE = 'baoma-static-v297';
+/* v297（第 336 次 · 图标 v4）：用户 GPT 生成的 30 个彩色线面图标接入（assets/icons/v4/，icons.js 加 i4 标记，styles.css 按容器白名单换图）；
+   新增 120 张透明 webp 预缓存（30 × 浅 / 深 × 2x / 3x，见 ASSETS 末尾），quickrec.js 瓶喂快记换奶瓶图标、settings.js 家庭共享换「全家」图标。 */
 /* v296（第 335 次 · 系统通知级提醒）：新增 js/notify.js（提醒来源盘点 + 预约同步 + 前台咿呀岛 + 打开时补发 + 设置「系统通知」）；
    famcrypto.js 加本机提醒密钥 FamRemind 与家人记录推送文案；famsync.js 发「家人记了一条」推送；settings.js / famui.js / index.html 小改。
    SW：push 按类型分流（rem 本机提醒 / come、rec 家庭），App 在前台时转给页面弹咿呀岛（WebKit 仍须 showNotification，弹出后立即收起）；
@@ -266,6 +268,15 @@ var ASSETS = [
   'js/touchfx.js',
   'js/modules/search.js'
 ];
+/* 第 336 次：图标 v4 —— 30 个 × 浅 / 深（-d 提亮版）× 2x（96px）/ 3x（144px）= 120 张透明 webp，约 375KB。
+   页面用 CSS -webkit-image-set 按屏幕倍率挑一张，两种倍率都预缓存，离线、换机型都不缺图。
+   带底块整颗版（assets/icons/v4/tile/）页面不引用，不预缓存。名单与 js/icons.js 的 V4 表、styles.css「图标 v4」段一致。 */
+var ICONS_V4 = ['baby', 'breast', 'bottle', 'pump', 'solid', 'diaper', 'sleep', 'growth', 'vaccine', 'meds', 'temp', 'sick',
+  'jaundice', 'bath', 'swim', 'sun', 'water', 'fetal', 'prenatal', 'packing', 'mom', 'mood', 'period', 'contraction',
+  'home', 'calendar', 'noise', 'search', 'settings', 'family'];
+ICONS_V4.forEach(function (n) {
+  ['', '-d'].forEach(function (v) { ['2x', '3x'].forEach(function (r) { ASSETS.push('assets/icons/v4/' + n + v + '@' + r + '.webp'); }); });
+});
 
 self.addEventListener('install', function (e) {
   e.waitUntil(

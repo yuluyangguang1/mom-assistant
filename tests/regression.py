@@ -1407,7 +1407,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v291（第 329 次（续）升）', "var CACHE = 'baoma-static-v296';" in sw)
+    check('#275 SW 版本 v291（第 329 次（续）升）', "var CACHE = 'baoma-static-v297';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求；第 300 次多一张浅色字图），整页 HTML < 60KB',
@@ -5772,7 +5772,7 @@ def test_r317(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#317 SW 版本 v279+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v296';" in sw)
+    check('#317 SW 版本 v279+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v297';" in sw)
     js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     check('#317 着色器：横向位移只看本行离左右边的距离、纵向位移只看 y（第 329 次：两端改往里取样 + 端部竖向放大，只压在最外几 pt；第 329 次（续）位移封顶）；内部以中心缩小 uMagI；图标层不缩（gIc）',
           "float ty=tabl(clamp((hz.y-ya)/B,0.,1.));" in js and "te=clamp((xe-abs(q.x))/BE,0.,1.),pe=pow(1.-te,1.6)" in js
@@ -5858,7 +5858,7 @@ def test_r318(b):
     _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
     p.wait_for_timeout(600)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#318 SW 版本 v280+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v296';" in sw)
+    check('#318 SW 版本 v280+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v297';" in sw)
     # —— A1 推入：逐帧采样（rAF）——
     ev("""(()=>{window.__nv=[];const v=document.getElementById('view');const L=()=>{const g=document.querySelector('.nav-ghost');const st=DockRefract._stats();const cv=document.querySelector('#tabbar canvas.lg-gl');
       const m=e=>{const t=getComputedStyle(e).transform;return t&&t!=='none'?new DOMMatrix(t).m41:0};
@@ -5993,7 +5993,7 @@ def test_r319(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#319 SW 版本 v281+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v296';" in sw)
+    check('#319 SW 版本 v281+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v297';" in sw)
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=3)
     ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
     p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
@@ -6210,7 +6210,7 @@ def test_r320(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#320 SW 版本 v282+（第 329 次（续）升 v291）、dock-fuse.js 进预缓存、index.html 引入', "var CACHE = 'baoma-static-v296';" in sw and "'js/dock-fuse.js'" in sw
+    check('#320 SW 版本 v282+（第 329 次（续）升 v291）、dock-fuse.js 进预缓存、index.html 引入', "var CACHE = 'baoma-static-v297';" in sw and "'js/dock-fuse.js'" in sw
           and '<script src="js/dock-fuse.js" defer></script>' in (ROOT / 'index.html').read_text(encoding='utf-8'))
     # —— 1. 简洁模式移除 + 旧值迁移 ——
     src = {n: (ROOT / n).read_text(encoding='utf-8') for n in ('js/app.js', 'js/modules/settings.js', 'js/liquid-dock.js', 'js/dock-live.js', 'js/dock-refract.js', 'js/util.js', 'js/dock-fuse.js', 'css/styles.css')}
@@ -6464,7 +6464,7 @@ def test_r321(b):
     整条缩放从当前值接着按）；A2 长按 / 拖动速度形变 sx = 1 + min(0.15, |v|/2400)、sy ≈ 0.92/√sx（满形变），停手 120ms 内恢复、点击不做；
     A4 拖动中只换颜色不切页、抬手才切；17 帧点击节奏 / 0.97× / 点击透镜在栏内不变；SW v283。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#321 SW 版本 v283+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v296';" in sw)
+    check('#321 SW 版本 v283+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v297';" in sw)
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2)
     ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
     p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
@@ -6574,7 +6574,7 @@ def test_r321(b):
 
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321', 'test_r322', 'test_r323', 'test_r324', 'test_r325', 'test_r326', 'test_r327', 'test_r329', 'test_r330', 'test_r332', 'test_r333', 'test_r333b', 'test_r334', 'test_r335')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321', 'test_r322', 'test_r323', 'test_r324', 'test_r325', 'test_r326', 'test_r327', 'test_r329', 'test_r330', 'test_r332', 'test_r333', 'test_r333b', 'test_r334', 'test_r335', 'test_r336')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -6617,7 +6617,7 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r301',),
           ('test_r302',),
           ('test_r309',),
-          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',), ('test_r322',), ('test_r323',), ('test_r324',), ('test_r325',), ('test_r326',), ('test_r327',), ('test_r329',), ('test_r330',), ('test_r332',), ('test_r333',), ('test_r333b',), ('test_r334',), ('test_r335',))  # 第 335 次：系统通知级提醒一组（起本地中转 v0.2.0 + 假推送服务）。 第 333 次：导入只按 uuid + 我的快记一组、设置页重做一组。 第 332 次：家庭共享一组（起本地中转服务）。 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',), ('test_r322',), ('test_r323',), ('test_r324',), ('test_r325',), ('test_r326',), ('test_r327',), ('test_r329',), ('test_r330',), ('test_r332',), ('test_r333',), ('test_r333b',), ('test_r334',), ('test_r335',), ('test_r336',))  # 第 336 次：图标 v4 一组。 第 335 次：系统通知级提醒一组（起本地中转 v0.2.0 + 假推送服务）。 第 333 次：导入只按 uuid + 我的快记一组、设置页重做一组。 第 332 次：家庭共享一组（起本地中转服务）。 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 
@@ -6628,7 +6628,7 @@ def test_r322(b):
     A3 长按顶过端点页签时栏端被拉出：外凸 = 0.6 × 越界量、上限 7pt，GL 里「透镜 × 一级 dock」单独 k_end = 10 的 smooth-min；Chromium SVG 退化为不外凸、不出错。
     不变：17 帧点击节奏、0.97×、图标 0.24s；SW v284。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#322 SW 版本 v284+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v296';" in sw)
+    check('#322 SW 版本 v284+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v297';" in sw)
     drs = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     css = '\n'.join(pp.read_text(encoding='utf-8') for pp in (ROOT / 'css').glob('*.css'))
     check('#322 不变：透镜内 0.97×、选中图标 dk-pop .24s、A3 只在主程序 dk()（二级融合程序 FSF 里不用 uEP）',
@@ -6755,7 +6755,7 @@ def test_r323(b):
     不带倍率的 px 字号全部改为跟随字号档（等值替换：标准档零视觉差），只留 dock 标签 10px 与装饰字形；字号 lint。SW v285。"""
     import re
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#323 SW 版本 v285+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v296';" in sw)
+    check('#323 SW 版本 v285+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v297';" in sw)
     css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
     nc = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
     root = nc[nc.index(':root'):nc.index('}', nc.index(':root'))]
@@ -6810,7 +6810,7 @@ def test_r324(b):
     """第 324 次（设计审查分批 · 第二批）：对比度——12 个模块页面主按钮白字用加深后的模块色 --tile-fill（≥4.5:1）、时间轴辅助文字统一 --muted（不叠透明度）、
     新增 --placeholder 并全站 ::placeholder 一个颜色；P0——再点当前一级页签只滚回顶部，不清空重画、不闪白。SW v286。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#324 SW 版本 v286+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v296';" in sw)
+    check('#324 SW 版本 v286+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v297';" in sw)
     p, errs = fresh(b)
     ev = p.evaluate
     p.wait_for_timeout(600)
@@ -6872,7 +6872,7 @@ def test_r325(b):
     「点一下就保存」、没有保存条的面板（生长设置、营养品提醒 / 管理）照旧只有顶栏 ✓；保存条主按钮一种规格（54 / pill / 17/700 / 不带 ✓ 图标）；
     面板输入控件一套（文本 / 数字 / 日期 / 下拉 = --ctl-h 48、--surface-2、无描边，分段外框 48）。逐个打开面板核对，并实际点保存条存几条记录。SW v287。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#325 SW 版本 v287+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v296';" in sw)
+    check('#325 SW 版本 v287+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v297';" in sw)
     p, errs = fresh(b)
     ev = p.evaluate
     p.wait_for_timeout(500)
@@ -6982,7 +6982,7 @@ def test_r326(b):
     字段按 SCHEMA（show 条件不变）、校验与写回走同一个 commit（没动的时间保留秒、未来时间拦下、亲喂至少一侧、瓶喂奶量合计、
     醒来晚于入睡、最长连续重算）、保存后「已保存修改 · 撤销」；面板里「删除这条记录」与时间轴删除同一条路（可撤销）。SW v288。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#326 SW 版本 v288+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v296';" in sw)
+    check('#326 SW 版本 v288+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v297';" in sw)
     p, errs = fresh(b)
     ev = p.evaluate
     p.wait_for_timeout(500)
@@ -7524,7 +7524,7 @@ def test_r316(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready", 5000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#316 SW 版本 v278+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v296';" in sw)
+    check('#316 SW 版本 v278+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v297';" in sw)
     ph = ev("LiquidDock.PHYS")
     check('#316 弹簧参数：点击滑行 tap 临界阻尼 k≈600、点击速度形变 ×0.45、收回 k≥1500（~4 帧）、松手吸附 k 560、提前收回阈值',
           ph['tap']['k'] == 600 and ph['tap']['z'] >= 1 and abs(ph['tapV'] - 0.45) < 1e-6 and ph['shrink']['k'] >= 1500 and ph['snap']['k'] == 560
@@ -7633,7 +7633,7 @@ def test_r327(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#327 SW 版本 v289+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v296';" in sw)
+    check('#327 SW 版本 v289+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v297';" in sw)
     js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     fu = (ROOT / 'js' / 'dock-fuse.js').read_text(encoding='utf-8')
     css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
@@ -7884,7 +7884,7 @@ def test_r329(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#329 SW 版本 v290+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v296';" in sw)
+    check('#329 SW 版本 v290+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v297';" in sw)
     ld = (ROOT / 'js' / 'liquid-dock.js').read_text(encoding='utf-8')
     js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     go = (ROOT / 'js' / 'glass-optics.js').read_text(encoding='utf-8')
@@ -8085,7 +8085,7 @@ def test_r332(b):
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
     idx = (ROOT / 'index.html').read_text(encoding='utf-8')
     check('#332 SW v293、famcrypto / famsync / famui / 两个 vendor 预缓存，SW importScripts famcrypto 并处理 push',
-          "var CACHE = 'baoma-static-v296';" in sw and all(("'js/%s'" % f) in sw for f in ('famcrypto.js', 'famsync.js', 'famui.js', 'vendor/qrcode.js', 'vendor/jsqr.min.js'))
+          "var CACHE = 'baoma-static-v297';" in sw and all(("'js/%s'" % f) in sw for f in ('famcrypto.js', 'famsync.js', 'famui.js', 'vendor/qrcode.js', 'vendor/jsqr.min.js'))
           and "importScripts('js/famcrypto.js')" in sw and "addEventListener('push'" in sw and "addEventListener('notificationclick'" in sw)
     check('#332 index.html 引入三个脚本、CSP connect-src 加上 api.yiya.help',
           all(('src="js/%s"' % f) in idx for f in ('famcrypto.js', 'famsync.js', 'famui.js')) and 'https://api.yiya.help' in idx.split('connect-src')[1].split(';')[0])
@@ -8491,7 +8491,7 @@ def test_r335(b):
     idx = (ROOT / 'index.html').read_text(encoding='utf-8')
     nj = (ROOT / 'js' / 'notify.js').read_text(encoding='utf-8')
     check('#335 SW v296、notify.js 预缓存并引入；SW 处理 push（rem / 家庭分流）、notificationclick（swClick）、pushsubscriptionchange',
-          "var CACHE = 'baoma-static-v296';" in sw and "'js/notify.js'" in sw and 'src="js/notify.js"' in idx
+          "var CACHE = 'baoma-static-v297';" in sw and "'js/notify.js'" in sw and 'src="js/notify.js"' in idx
           and "data.t === 'rem'" in sw and 'function swClick' in sw and "addEventListener('pushsubscriptionchange'" in sw)
     check('#335 notify.js 不在加载时申请权限：requestPermission 只出现在开关的 change 处理里（一处）', nj.count('Notification.requestPermission()') == 1
           and nj.index('Notification.requestPermission()') > nj.index('function onChange'))
@@ -8894,6 +8894,180 @@ def test_r335(b):
         except Exception: pass
 
 
+
+V4_NAMES = ('baby', 'breast', 'bottle', 'pump', 'solid', 'diaper', 'sleep', 'growth', 'vaccine', 'meds', 'temp', 'sick',
+            'jaundice', 'bath', 'swim', 'sun', 'water', 'fetal', 'prenatal', 'packing', 'mom', 'mood', 'period', 'contraction',
+            'home', 'calendar', 'noise', 'search', 'settings', 'family')
+V4_MISSING = ('milestone', 'supplement', 'pregnancy', 'momweight', 'finance', 'supplies')  # 新套系里没有，保留 v3 线稿
+
+
+def _webp_size(path):
+    """读 webp 头拿画布尺寸（VP8X / VP8 / VP8L），不依赖 PIL。"""
+    b = path.read_bytes()
+    if b[:4] != b'RIFF' or b[8:12] != b'WEBP':
+        return None
+    ck = b[12:16]
+    if ck == b'VP8X':
+        return (1 + int.from_bytes(b[24:27], 'little'), 1 + int.from_bytes(b[27:30], 'little'))
+    if ck == b'VP8 ':
+        return (int.from_bytes(b[26:28], 'little') & 0x3fff, int.from_bytes(b[28:30], 'little') & 0x3fff)
+    if ck == b'VP8L':
+        v = int.from_bytes(b[21:25], 'little')
+        return ((v & 0x3fff) + 1, ((v >> 14) & 0x3fff) + 1)
+    return None
+
+
+def test_r336(b):
+    """第 336 次：图标 v4——用户 GPT 生成的 30 个彩色线面图标（assets/icons/v4/：透明图形 浅 / 深（-d）× 2x 96 / 3x 144，带底块整颗版在 tile/）。
+    icons.js 给 V4 表里的键加 i4 + data-i4，styles.css 按容器白名单换成 CSS 背景图（底块仍由 App 画模块淡底 / 深色 token），
+    按钮里的行内小图标、搜索框、顶栏齿轮、dock 不换；图加载失败（html.i4-off）退回线稿。SW v297，120 张预缓存。"""
+    import re as _re
+    sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
+    css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
+    icj = (ROOT / 'js' / 'icons.js').read_text(encoding='utf-8')
+    D = ROOT / 'assets' / 'icons' / 'v4'
+    # —— 文件 ——
+    bad = []
+    for n in V4_NAMES:
+        for v in ('', '-d'):
+            for r, px in (('2x', 96), ('3x', 144)):
+                f = D / f'{n}{v}@{r}.webp'
+                if not f.exists() or _webp_size(f) != (px, px):
+                    bad.append([f.name, _webp_size(f) if f.exists() else '缺'])
+        for r, px in (('2x', 96), ('3x', 144)):
+            f = D / 'tile' / f'{n}@{r}.webp'
+            if not f.exists() or _webp_size(f) != (px, px):
+                bad.append(['tile/' + f.name, _webp_size(f) if f.exists() else '缺'])
+    check('#336 30 个图标 × 透明浅 / 深 × 2x 96 / 3x 144 + 带底块 2x / 3x 全在、尺寸对', not bad and len(V4_NAMES) == 30, bad[:6])
+    tot = sum(f.stat().st_size for f in D.glob('*.webp'))
+    check('#336 页面用到的 120 张透明图总计 < 450KB（每张 < 9KB）', tot < 450 * 1024 and max(f.stat().st_size for f in D.glob('*.webp')) < 9 * 1024, tot)
+    # —— SW ——
+    m = _re.search(r"var ICONS_V4 = \[(.*?)\];", sw, _re.S)
+    swn = tuple(_re.findall(r"'([a-z]+)'", m.group(1))) if m else ()
+    check('#336 SW v297，ICONS_V4 名单 = 30 个，浅 / 深 × 2x / 3x 全部进 ASSETS', "var CACHE = 'baoma-static-v297';" in sw and swn == V4_NAMES
+          and "ASSETS.push('assets/icons/v4/' + n + v + '@' + r + '.webp')" in sw and "['', '-d']" in sw and "['2x', '3x']" in sw, swn)
+    check('#336 icons.js V4 表、styles.css 每个图标的浅 / 深两条规则与 SW 名单一致',
+          all(f'"../assets/icons/v4/{n}@2x.webp"' in css and f'"../assets/icons/v4/{n}-d@3x.webp"' in css for n in V4_NAMES)
+          and all(_re.search(r"\b" + n + r": '" + n + "'", icj) for n in V4_NAMES), [n for n in V4_NAMES if f'{n}@2x.webp' not in css])
+    check('#336 图是 CSS 背景（-webkit-image-set 2x / 3x），不是一个个 <img>；dock-icons.js 不引用 v4',
+          '-webkit-image-set(url("../assets/icons/v4/' in css and 'icons/v4' not in (ROOT / 'js' / 'dock-icons.js').read_text(encoding='utf-8'))
+
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2)
+    p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
+    r404 = []; v4req = []
+    p.on('response', lambda r: (r404.append(r.url) if r.status >= 400 else None, v4req.append(r.url) if '/icons/v4/' in r.url else None))
+    p.goto(URL); p.wait_for_timeout(600); ev('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(900)
+    PROBE = """(sel)=>{const out=[];document.querySelectorAll(sel).forEach(c=>{const s=c.querySelector('svg.ico');if(!s)return;const cs=getComputedStyle(s);
+        const r=s.getBoundingClientRect(),rc=c.getBoundingClientRect();const kid=s.firstElementChild;
+        out.push({i:s.dataset.i,i4:s.dataset.i4||'',bg:cs.backgroundImage,kids:kid?getComputedStyle(kid).display:'',w:r.width,h:r.height,
+          inside:r.left>=rc.left-1&&r.right<=rc.right+1&&r.top>=rc.top-1&&r.bottom<=rc.bottom+1})});return out}"""
+
+    def scan(sel):
+        return ev(PROBE, sel)
+
+    def ok_v4(rows, dark=False):
+        bads = []
+        for x in rows:
+            if x['i4']:
+                good = ('icons/v4/' + x['i4'] + ('-d@' if dark else '@')) in x['bg'] and x['kids'] == 'none' and x['w'] >= 14 and abs(x['w'] - x['h']) < .6 and x['inside']
+            else:
+                good = x['bg'] == 'none' and x['kids'] != 'none'
+            if not good:
+                bads.append(x)
+        return bads
+    # 全部功能
+    ev("App.showTab('alltools',{noVT:true})"); p.wait_for_timeout(500)
+    at = scan('#view .tools-grid .tool-tile, #view .tools-grid > *')
+    ids4 = sorted({x['i4'] for x in at if x['i4']}); line = sorted({x['i'] for x in at if not x['i4']})
+    check('#336 全部功能：有 v4 图的格子全换成彩色图（背景 = v4、线稿隐藏、方形不变形、不出格），缺图的保留线稿',
+          len(at) >= 25 and not ok_v4(at) and set(line) <= set(V4_MISSING) | {'grid'}, [len(at), ok_v4(at)[:3], line])
+    check('#336 全部功能：喂养→奶瓶、哄睡白噪音→音符、生病记录 / 黄疸 / 宫缩 / 产检 / 待产包 / 设置 / 日期记录都用新图',
+          {'bottle', 'noise', 'sick', 'jaundice', 'contraction', 'prenatal', 'packing', 'settings', 'calendar'} <= set(ids4), ids4)
+    # 设置
+    ev("App.showTab('settings',{noVT:true})"); p.wait_for_timeout(500)
+    st = scan('#view .sg-ico')
+    st4 = {x['i'] for x in st if x['i4']}
+    check('#336 设置分组 32 图标块：宝宝与我 / 家庭共享（全家）/ 天气 / 数据与隐私 / 知识来源换新图，其余（快记、卡片、外观、提醒、导出、分享）留线稿',
+          {'baby', 'family', 'sun', 'settings', 'search'} <= st4 and not ok_v4(st), [sorted(st4), ok_v4(st)[:3]])
+    # 宝宝页（常用格子 + 孕期 / 妈妈和全家行）
+    ev("App.showTab('baby',{noVT:true})"); p.wait_for_timeout(500)
+    bp = scan('#view .bp-ti, #view .bp-ri')
+    check('#336 宝宝页格子：v4 图 + 模块淡底块，缺图项（孕期行等）留线稿', len(bp) >= 8 and not ok_v4(bp) and sum(1 for x in bp if x['i4']) >= 7, ok_v4(bp)[:3])
+    # ＋ 面板（快记格子）
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(400)
+    qk = scan('#view .qk-ico')
+    ev("document.getElementById('qdFab').click()"); p.wait_for_timeout(600)
+    qd = scan('#quickDock .qd-badge')
+    ev("document.getElementById('qdFab').click()"); p.wait_for_timeout(500)
+    check('#336 ＋ 面板 / 首页快记卡：喂奶 / 睡了 / 维生素 D3 用新图，尿了 / 拉了 / 编辑留线稿',
+          not ok_v4(qd) and not ok_v4(qk) and {'feeding', 'sleep', 'meds'} <= {x['i'] for x in qd if x['i4']} and {'pee', 'poop'} <= {x['i'] for x in qd if not x['i4']}, [ok_v4(qd)[:2], ok_v4(qk)[:2]])
+    # 首页卡片头 / 模块页头 / 时间轴 / 搜索结果
+    hm = scan('#view .rc-ico, #view .hw-ico, #view .rt-ico')
+    ev("App.showTab('sleep',{noVT:true})"); p.wait_for_timeout(500)
+    tl = scan('#view .tl-ico')
+    ev("App.showTab('search',{noVT:true})"); p.wait_for_timeout(400)
+    ev("(()=>{const i=document.querySelector('#view input[type=search]');i.value='喂';i.dispatchEvent(new Event('input',{bubbles:true}))})()"); p.wait_for_timeout(500)
+    sr = scan('#view .sr-row .row-ico'); mh = scan('.mod-head-ico')
+    check('#336 首页卡片头、模块页头、时间轴行、搜索结果行都换新图', len(hm) >= 3 and len(tl) >= 3 and len(sr) >= 5 and len(mh) >= 1
+          and all(x['i4'] or x['i'] in V4_MISSING + ('check',) for x in tl + sr + mh) and sum(1 for x in sr if x['i4']) >= 5 and not ok_v4(hm + tl + sr + mh),
+          [len(hm), len(tl), len(sr), sorted({x['i'] for x in tl + sr + mh if not x['i4']}), ok_v4(hm + tl + sr + mh)[:3]])
+    # 不换的地方：搜索框放大镜、dock、按钮里的行内图标
+    keep = ev("""(()=>{const q=[...document.querySelectorAll('.home-search .ico, .si-ico .ico, #tabbar svg, .ft-chip .ico, .ft-mini-open .ico')];
+        return q.filter(s=>getComputedStyle(s).backgroundImage!=='none').length})()""")
+    check('#336 搜索框放大镜、dock、按钮里的行内小图标仍是线稿（没背景图）', keep == 0, keep)
+    # 深色
+    ev("(()=>{const s=Storage.get();s.settings.themeAuto=false;s.settings.themeMode='dark';s.settings.theme='dark';Storage.save()})()"); p.reload(); p.wait_for_timeout(900)
+    ev("App.showTab('alltools',{noVT:true})"); p.wait_for_timeout(600)
+    atd = scan('#view .tools-grid > *')
+    check('#336 深色：换成 -d 提亮版', ev("document.body.classList.contains('dark')") and not ok_v4(atd, dark=True), ok_v4(atd, dark=True)[:3])
+    # 深色可见：截一格，图形像素与底块的亮度差（WCAG 对比 ≥ 3 的像素占图形的一半以上）
+    from PIL import Image as _I
+    import io as _io
+    vis = []
+    for key in ('feeding', 'growth', 'swim', 'settings', 'sick', 'whitenoise'):
+        el = p.query_selector(f'#view .tools-grid [data-go="{key}"] .ti-ico .ico') or p.query_selector(f'#view .tools-grid [data-tab="{key}"] .ti-ico .ico')
+        if not el:
+            vis.append([key, '找不到']); continue
+        bgc = ev("e=>{const t=e.closest('[data-accent]')||e.parentElement;const c=document.createElement('canvas').getContext('2d');c.fillStyle=getComputedStyle(t).backgroundColor;c.fillRect(0,0,1,1);return [...c.getImageData(0,0,1,1).data]}", el)
+        im = _I.open(_io.BytesIO(el.screenshot())).convert('RGB')
+        def L(c):
+            f = [((v / 255) / 12.92 if v <= 10 else (((v / 255) + .055) / 1.055) ** 2.4) for v in c[:3]]
+            return .2126 * f[0] + .7152 * f[1] + .0722 * f[2]
+        lb = L(bgc); px = list(im.getdata())
+        diff = [c for c in px if abs(L(c) - lb) > .02]
+        hi = [c for c in diff if (max(L(c), lb) + .05) / (min(L(c), lb) + .05) >= 3]
+        vis.append([key, round(len(hi) / max(1, len(diff)), 2), len(diff)])
+    check('#336 深色可见：图形像素里对底块对比 ≥ 3:1 的占一半以上（喂养 / 生长 / 游泳 / 设置 / 生病 / 白噪音）',
+          all(isinstance(v[1], float) and v[1] >= .5 and v[2] > 200 for v in vis), vis)
+    # 320 宽 + 1.33 倍字号：不变形、不出格
+    ctx2 = b.new_context(viewport={'width': 320, 'height': 640}, device_scale_factor=2)
+    p2 = ctx2.new_page(); p2.on('pageerror', lambda e: errs.append(str(e)[:160])); p2.on('response', lambda r: r404.append(r.url) if r.status >= 400 else None)
+    p2.goto(URL); p2.wait_for_timeout(600); p2.evaluate('t=>Storage.importJSON(t)', SEED_V3)
+    p2.evaluate("(()=>{const s=Storage.get();s.settings.fontScale='xl';Storage.save()})()"); p2.reload(); p2.wait_for_timeout(900)
+    small = []
+    for tab, sel in (('alltools', '#view .tools-grid > *'), ('settings', '#view .sg-ico'), ('baby', '#view .bp-ti, #view .bp-ri'), ('home', '#view .qk-ico, #view .rc-ico, #view .hw-ico')):
+        p2.evaluate(f"App.showTab('{tab}',{{noVT:true}})"); p2.wait_for_timeout(500)
+        rows = p2.evaluate(PROBE, sel)
+        small.append([tab, len(rows), ok_v4(rows)[:2]])
+    fsm = p2.evaluate("document.body.classList.contains('fs-xl')")
+    check('#336 320 宽 + 1.33 倍字号：全部功能 / 设置 / 宝宝页 / 首页的 v4 图方形、不出格、不变形', fsm and all(n > 0 and not bb for _, n, bb in small), small)
+    ctx2.close()
+    # 兜底：图加载失败 → html.i4-off → 全退回线稿
+    fb = ev("""(()=>{document.documentElement.classList.add('i4-off');const s=document.querySelector('#view .tools-grid .ico.i4');const r=[getComputedStyle(s).backgroundImage,getComputedStyle(s.firstElementChild).display];
+        document.documentElement.classList.remove('i4-off');return r})()""")
+    check('#336 兜底：html.i4-off 时没有背景图、线稿显示', fb[0] == 'none' and fb[1] != 'none', fb)
+    probe = ev("""new Promise(r=>{const i=new Image();i.onload=()=>r([i.naturalWidth,i.naturalHeight]);i.onerror=()=>r('err');i.src='assets/icons/v4/swim-d@3x.webp'})""")
+    check('#336 无 404、无报错，v4 图按需请求（深色页只取 -d）', not r404 and not errs and probe == [144, 144] and v4req and any('-d@' in u for u in v4req), [r404[:3], errs[:2], probe, len(v4req)])
+    # 列表里大量图标：滚动帧时间
+    ev("App.showTab('search',{noVT:true})"); p.wait_for_timeout(300)
+    ev("(()=>{const i=document.querySelector('#view input[type=search]');i.value='奶';i.dispatchEvent(new Event('input',{bubbles:true}))})()"); p.wait_for_timeout(600)
+    fr = ev("""new Promise(res=>{const n=document.querySelectorAll('#view .sr-row .ico.i4').length;const ts=[];let k=0;const se=document.scrollingElement;
+        function f(t){ts.push(t);se.scrollTop=(k%2?0:2000)*0+k*40;if(++k<60)requestAnimationFrame(f);else{const d=ts.slice(1).map((x,i)=>x-ts[i]).sort((a,b)=>a-b);res({n,p50:d[d.length>>1],p95:d[Math.floor(d.length*.95)]})}}
+        requestAnimationFrame(f)})""")
+    check('#336 搜索结果 30+ 行彩色图标滚动：中位帧 ≤ 20ms、p95 ≤ 50ms（headless 软渲染下的宽松线）', fr['n'] >= 30 and fr['p50'] <= 20 and fr['p95'] <= 50, fr)
+    ctx.close()
+
+
 def main():
     if '--only' in sys.argv:
         names = sys.argv[sys.argv.index('--only') + 1].split(',')
@@ -8933,7 +9107,7 @@ def test_r330(b):
     夜里喂完「去睡吧」；白天、关灯、设置关闭都不出；不联网。SW v292。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
     idx = (ROOT / 'index.html').read_text(encoding='utf-8')
-    check('#330 SW v292（第 332 次升 v293）、nightwin.js 预缓存并引入', "var CACHE = 'baoma-static-v296';" in sw and "'js/nightwin.js'" in sw and 'src="js/nightwin.js"' in idx)
+    check('#330 SW v292（第 332 次升 v293）、nightwin.js 预缓存并引入', "var CACHE = 'baoma-static-v297';" in sw and "'js/nightwin.js'" in sw and 'src="js/nightwin.js"' in idx)
     nw = (ROOT / 'js' / 'nightwin.js').read_text(encoding='utf-8')
     check('#330 不联网：nightwin.js 没有 fetch / XMLHttpRequest / geolocation', not any(k in nw for k in ('fetch(', 'XMLHttpRequest', 'geolocation')))
     ctx = b.new_context(viewport={'width': 393, 'height': 852}, timezone_id='Asia/Shanghai')
@@ -9019,7 +9193,7 @@ def test_r333(b):
     OUT.mkdir(exist_ok=True)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
     idx = (ROOT / 'index.html').read_text(encoding='utf-8')
-    check('#333 SW v294、quickrec.js 预缓存并引入', "var CACHE = 'baoma-static-v296';" in sw and "'js/quickrec.js'" in sw and 'src="js/quickrec.js"' in idx)
+    check('#333 SW v294、quickrec.js 预缓存并引入', "var CACHE = 'baoma-static-v297';" in sw and "'js/quickrec.js'" in sw and 'src="js/quickrec.js"' in idx)
     p, errs = fresh(b)
     ev = p.evaluate
 
@@ -9367,7 +9541,7 @@ def test_r334(b):
     css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
     utl = (ROOT / 'js' / 'util.js').read_text(encoding='utf-8')
     tfx = (ROOT / 'js' / 'touchfx.js').read_text(encoding='utf-8')
-    check('#334 SW 版本 v295+（第 335 次升 v296）', "var CACHE = 'baoma-static-v296';" in sw)
+    check('#334 SW 版本 v295+（第 335 次升 v296）', "var CACHE = 'baoma-static-v297';" in sw)
 
     def theme(p, dark, xl):
         p.evaluate("([d,x])=>{const s=Storage.get();s.settings.themeAuto=false;s.settings.themeMode=d?'dark':'light';s.settings.theme=d?'dark':'light';s.settings.fontScale=x?'xl':'normal';Storage.save()}", [dark, xl])

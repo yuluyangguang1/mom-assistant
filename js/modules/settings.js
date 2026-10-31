@@ -796,7 +796,7 @@
       html += '<button class="st-link" id="sReOnboard" type="button">重新走一遍首次引导</button>';
       html += '</details>';
       /* 第 332 次：家庭共享（js/famui.js 渲染进 #famBox），功能不变，挪到宝宝下面 */
-      html += sgOpen('home', '家庭共享', famOn ? '已开启' + (famN ? ' · ' + famN + ' 台设备' : '') : '和家人一起记', 'mood');
+      html += sgOpen('family', '家庭共享', famOn ? '已开启' + (famN ? ' · ' + famN + ' 台设备' : '') : '和家人一起记', 'mood');
       html += '<div id="famBox" class="fam-box"></div>';
       html += '</details>';
       html += '</div>';
