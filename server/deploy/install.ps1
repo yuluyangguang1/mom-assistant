@@ -8,8 +8,9 @@
     1. 建目录 app / data / secrets / logs，secrets 只给 SYSTEM 和 Administrators
     2. 在 app\server 里 npm.cmd ci --omit=dev
     3. 没有 .env 就写一份默认的（已有的不覆盖）
-    4. 注册计划任务 YiyaRelay：SYSTEM、开机启动，另外每 5 分钟检查一次（已在运行则忽略，挂了就拉起）
-    5. 重启任务并用 http://127.0.0.1:8787/v1/health 自检
+    4. 停掉旧进程，备份 data\relay.db 到 data\backup（保留最近 5 份）
+    5. 注册计划任务 YiyaRelay：SYSTEM、开机启动，另外每 5 分钟检查一次（已在运行则忽略，挂了就拉起）
+    6. 重启任务并用 http://127.0.0.1:8787/v1/health 自检（打印版本号）
   不碰：cloudflared 配置、3000 端口上的旧后端、其他软件。
 #>
 param(
@@ -68,6 +69,10 @@ VAPID_SUBJECT=mailto:admin@yiya.help
 MSG_TTL_DAYS=30
 FAMILY_IDLE_DAYS=180
 MAX_DEVICES=12
+# 预约提醒（v0.2.0，以下都有默认值，一般不用改）
+# MAX_REMINDERS=64
+# REMIND_STALE_SEC=21600
+# REMIND_PUSH_TTL_SEC=14400
 "@ | Set-Content -Path $envFile -Encoding UTF8
   Write-Host "已写入默认 $envFile"
 } else { Write-Host '已有 .env，不覆盖' }
@@ -79,6 +84,19 @@ if ($existing) {
   Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
 }
 Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like "*$App*src*index.js*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+
+# 第 335 次（v0.2.0）：重启前先备份数据库（服务已停，WAL 文件一起拷），保留最近 5 份
+Step '备份数据库'
+Start-Sleep -Seconds 1
+$db = Join-Path $Root 'data\relay.db'
+if (Test-Path $db) {
+  $bk = Join-Path $Root 'data\backup'
+  New-Item -ItemType Directory -Force -Path $bk | Out-Null
+  $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+  foreach ($ext in '', '-wal', '-shm') { if (Test-Path "$db$ext") { Copy-Item "$db$ext" (Join-Path $bk "relay-$stamp.db$ext") -Force } }
+  Get-ChildItem $bk -Filter 'relay-*.db' | Sort-Object Name -Descending | Select-Object -Skip 5 | ForEach-Object { Remove-Item ($_.FullName + '*') -Force }
+  Write-Host "已备份到 $bk\relay-$stamp.db"
+} else { Write-Host '还没有数据库（首次安装），跳过' }
 
 $action = New-ScheduledTaskAction -Execute $Node -Argument "--disable-warning=ExperimentalWarning `"$App\src\index.js`"" -WorkingDirectory $App
 $tBoot = New-ScheduledTaskTrigger -AtStartup

@@ -52,7 +52,32 @@ function open(dataDir) {
       PRIMARY KEY (device_id, seq)
     ) WITHOUT ROWID;
     CREATE INDEX IF NOT EXISTS pending_seq ON pending(seq);
+
+    /* 第 335 次（v0.2.0）：预约提醒。设备与家庭无关（单机用户也能用），每台手机注册一次。 */
+    CREATE TABLE IF NOT EXISTS rdevs (
+      id            TEXT PRIMARY KEY,
+      token_hash    TEXT NOT NULL,
+      push_sub      TEXT,
+      present_until INTEGER NOT NULL DEFAULT 0,
+      created_at    INTEGER NOT NULL,
+      last_seen     INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS reminders (
+      device_id   TEXT NOT NULL REFERENCES rdevs(id) ON DELETE CASCADE,
+      rid         TEXT NOT NULL,
+      at          INTEGER NOT NULL,          /* 下次到点，UTC 毫秒 */
+      every       INTEGER,                   /* 重复间隔（毫秒），NULL = 一次性 */
+      until       INTEGER,                   /* 重复截止（UTC 毫秒），NULL = 不截止 */
+      ct          TEXT NOT NULL,             /* 不透明密文：服务器解不开 */
+      updated_at  INTEGER NOT NULL,
+      sent        INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (device_id, rid)
+    ) WITHOUT ROWID;
+    CREATE INDEX IF NOT EXISTS reminders_at ON reminders(at);
+    CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);
+    INSERT OR IGNORE INTO meta (k, v) VALUES ('schema', '2');
   `);
+  db.exec(`UPDATE meta SET v = '2' WHERE k = 'schema' AND CAST(v AS INTEGER) < 2`);
   return db;
 }
 

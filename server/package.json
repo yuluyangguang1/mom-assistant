@@ -1,8 +1,8 @@
 {
   "name": "yiya-relay",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
-  "description": "咿呀宝妈助手：家庭共享端到端加密中转 + Web Push（服务器只存密文）",
+  "description": "咿呀宝妈助手：家庭共享端到端加密中转 + 预约提醒 + Web Push（服务器只存密文）",
   "type": "commonjs",
   "main": "src/index.js",
   "engines": { "node": ">=22.13" },

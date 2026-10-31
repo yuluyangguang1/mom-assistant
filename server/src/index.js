@@ -17,7 +17,9 @@ server.requestTimeout = 30e3;
 server.keepAliveTimeout = 65e3;
 
 server.listen(cfg.port, cfg.host, () => {
-  log.info('listening', { host: cfg.host, port: cfg.port, node: process.version, pid: process.pid });
+  log.info('listening', { host: cfg.host, port: cfg.port, node: process.version, pid: process.pid, version: require('../package.json').version });
+  /* 第 335 次：预约提醒调度（状态在库里，重启后接着排；停机期间过点的按补发窗口处理） */
+  app.scheduler.start();
   if (process.send) process.send('ready');
 });
 
@@ -27,6 +29,7 @@ gcTimer.unref();
 
 function shutdown(sig) {
   log.info('shutdown', { sig });
+  try { app.scheduler.stop(); } catch {}
   server.close(() => { try { database.close(); } catch {} process.exit(0); });
   setTimeout(() => process.exit(0), 5000).unref();
 }

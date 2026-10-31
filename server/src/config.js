@@ -39,13 +39,24 @@ const cfg = {
     msgTtlDays: num('MSG_TTL_DAYS', 30),
     familyIdleDays: num('FAMILY_IDLE_DAYS', 180),
     inviteMinutes: num('INVITE_MINUTES', 15),
-    pageSize: 100
+    pageSize: 100,
+    /* 第 335 次（v0.2.0）：预约提醒（每台设备自己的到点提醒，服务器只存「到点时间 + 不透明密文 + 推送订阅」） */
+    maxReminders: num('MAX_REMINDERS', 64),             /* 每台设备最多几条预约 */
+    remindChars: num('MAX_REMIND_CHARS', 2048),         /* 单条提醒密文（base64url 字符数） */
+    remindAheadDays: num('REMIND_AHEAD_DAYS', 400),     /* 最远能约到多少天后 */
+    remindMinEverySec: num('REMIND_MIN_EVERY_SEC', 900),/* 重复间隔下限（15 分钟），防止拿来当高频叫醒 */
+    remindStaleSec: num('REMIND_STALE_SEC', 6 * 3600),  /* 服务停机后补发窗口：过点超过 6 小时的不再补发（重复的直接续排到下一次） */
+    remindPushTtlSec: num('REMIND_PUSH_TTL_SEC', 4 * 3600), /* 手机离线时推送服务替我们留多久 */
+    presenceSec: num('PRESENCE_SEC', 90),               /* App 在前台的心跳有效期：在前台时不发系统推送，由 App 自己弹咿呀岛 */
+    rdevIdleDays: num('RDEV_IDLE_DAYS', 180)            /* 提醒设备多久没出现就整台删除（连同预约） */
   },
   rate: {
     createFamilyPerHour: num('RATE_CREATE_PER_HOUR', 6),
     joinPerHour: num('RATE_JOIN_PER_HOUR', 30),
     devicePerMinute: num('RATE_DEVICE_PER_MIN', 240),
-    notifyPerMinute: num('RATE_NOTIFY_PER_MIN', 12)
+    notifyPerMinute: num('RATE_NOTIFY_PER_MIN', 12),
+    rdevCreatePerHour: num('RATE_RDEV_PER_HOUR', 10),
+    remindWritePerMinute: num('RATE_REMIND_WRITE_PER_MIN', 60)
   }
 };
 
