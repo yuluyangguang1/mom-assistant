@@ -23,10 +23,12 @@ v0.2.0 新增「预约提醒」（App 的系统通知）。**VAPID 密钥不变*
    ```powershell
    $d = "D:\yiya-backup-$(Get-Date -Format yyyyMMdd-HHmm)"; New-Item -ItemType Directory $d | Out-Null
    Stop-ScheduledTask -TaskName YiyaRelay
+   Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*yiya-relay*index.js*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+   Start-Sleep -Seconds 1
    Copy-Item D:\yiya-relay\secrets\* $d -Force
    Copy-Item D:\yiya-relay\data\relay.db* $d -Force
    ```
-   （`install.ps1` 会自己把任务重新拉起来，这里停掉不用管。）
+   （先确认 node 进程已退出再拷，避免 WAL 拷到半截；`install.ps1` 会自己把任务重新拉起来，这里停掉不用管。）
 
 4. **拉新代码**
    ```powershell
