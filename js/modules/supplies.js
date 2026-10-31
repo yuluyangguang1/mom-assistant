@@ -398,10 +398,11 @@
   var KGROUPS = [{ g: 'feed', n: '喂养' }, { g: 'care', n: '日常护理' }, { g: 'nutri', n: '营养补充' }];
   /* 立体物件图：统一生成后在这里登记 kind → 文件名（assets/supplies/<文件>），没登记的显示线性图标 */
   /* 第 337 次：3D 黏土物件 30 张接入（assets/supplies/，tools/clay/export.py 出 360px webp）。同屏不再重复（原来 5 个辅食碗、8 个用品袋）。
-     纸尿裤 / 辅食碗借现成 3D（尿布类型卡的干净尿布、辅食分类卡的空碗）；奶瓶、泵奶器、学饮杯、体温计没有 3D，用 v4 扁平图（.su-ico 在 v4 白名单里）。
+     纸尿裤 / 辅食碗借现成 3D（尿布类型卡的干净尿布、辅食分类卡的空碗）。
+     第 338 次：奶瓶、泵奶器、学饮杯、体温计补上 3D（babybottle / pump / sippycup / thermometer），不再用 v4 扁平图兜底——34 种物件全部是 3D。
      维生素 D3 / AD / D、生理盐水共用「滴剂」，钙 / 铁共用「液体」，益生菌用「粉剂」——同一剂型同一张图。 */
   var ART = {
-    formula: 'formula.webp', pacifier: 'pacifier.webp', brush: 'brush.webp', bag: 'milkbag.webp', pad: 'nursingpad.webp', bib: 'bib.webp',
+    formula: 'formula.webp', bottle: 'babybottle.webp', pump: 'pump.webp', cup: 'sippycup.webp', thermo: 'thermometer.webp', pacifier: 'pacifier.webp', brush: 'brush.webp', bag: 'milkbag.webp', pad: 'nursingpad.webp', bib: 'bib.webp',
     bowl: '../solid/c_other.webp', spoon: 'spoon.webp', puree: 'puree.webp', biscuit: 'biscuit.webp',
     diaper: '../diaper/clean.webp', wipes: 'wipes.webp', cotton: 'cottontowel.webp', underpad: 'changingpad.webp', cream: 'diapercream.webp',
     tissue: 'tissue.webp', swab: 'swab.webp', wash: 'babywash.webp', lotion: 'lotion.webp', towel: 'towel.webp', swaddle: 'swaddle.webp',

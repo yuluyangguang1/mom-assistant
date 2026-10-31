@@ -13,7 +13,9 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v298';
+var CACHE = 'baoma-static-v299';
+/* v299（第 338 次 · 补 4 个 3D 物件）：奶瓶 / 吸奶器 / 学饮杯 / 体温计（assets/supplies/babybottle、pump、sippycup、thermometer）进预缓存，
+   supplies.js ART 表登记后用品清单 / 选择物件 34 种物件全部是 3D，不再用 v4 扁平图兜底。 */
 /* v298（第 337 次 · 三套新图）：① 扁平补图 23 个 + 重画 4 个（宝宝 / 亲喂 / 宫缩 / 黄疸）进 assets/icons/v4/（ICONS_V4 名单 30 → 53）；
    ② dock 三颗换扁平（assets/dock/<k>-on[-d]@2x/3x/4x，dock-icons.js 内联 72px 位图）；③ 3D 黏土物件 30 张（assets/supplies/，用品清单 / 营养品剂型）；
    ④ 小咿呀表情换新一套透明 3D 头像（assets/yiya/ 27 张 + cheer 加油、yiya.webp、dock/baby-lg.webp）。styles.css 图标 v4 段改成变量写法、白名单扩容。 */
@@ -290,7 +292,8 @@ ICONS_V4.forEach(function (n) {
 });
 var SUPPLIES_3D = ['capsule', 'tablet', 'gummy', 'drops', 'powder', 'liquid', 'formula', 'pacifier', 'brush', 'milkbag', 'nursingpad', 'bib', 'spoon',
   'puree', 'biscuit', 'wipes', 'cottontowel', 'changingpad', 'diapercream', 'tissue', 'swab', 'babywash', 'lotion', 'towel', 'swaddle', 'detergent',
-  'nailclipper', 'toothpaste', 'sunscreen', 'repellent'];
+  'nailclipper', 'toothpaste', 'sunscreen', 'repellent',
+  'babybottle', 'pump', 'sippycup', 'thermometer'];   // 第 338 次补 4 张
 SUPPLIES_3D.forEach(function (n) { ASSETS.push('assets/supplies/' + n + '.webp'); });
 ASSETS.push('assets/yiya/cheer.webp');
 
