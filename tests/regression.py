@@ -8332,10 +8332,17 @@ def test_r332(b):
         check('#332 「你来一下」真走中转 notify：B 没开通知 → noSub 1', cr.get('noSub') == 1 and cr.get('sent') == 0, cr)
         A.evaluate("App.showTab('home')"); A.wait_for_timeout(600)
         check('#332 首页日期旁有「叫家人来一下」入口', A.evaluate("!!document.querySelector('.home-greet [data-fam-come]')"))
-        A.click('.home-greet [data-fam-come]'); A.wait_for_timeout(700)
-        A.screenshot(path=str(OUT / 'r332_come.png'))
+        # 第 335 次：固定等 700ms 再截图后读文字不稳（满载时整页截图本身要 1–2 秒，咿呀岛已经收起），改成先等文字出现、读完再截图
+        t0 = A.evaluate("Date.now()")
+        A.click('.home-greet [data-fam-come]')
+        try:
+            A.wait_for_function("document.body.innerText.includes('家人还没开通知')", timeout=4000)
+        except Exception:
+            pass
         island = A.evaluate("document.body.innerText")
-        check('#332 点「叫家人来一下」→ 咿呀岛反馈（家人还没开通知）', '家人还没开通知' in island)
+        dt = A.evaluate("Date.now()") - t0
+        A.screenshot(path=str(OUT / 'r332_come.png'))
+        check('#332 点「叫家人来一下」→ 咿呀岛反馈（家人还没开通知）', '家人还没开通知' in island, {'ms': dt})
 
         # ================= 8. XSS：同步进来的称呼 =================
         A.evaluate(f"""async ()=>{{const c=await FamDB.get('cred');const K=await FamCrypto.deriveKeys(FamCrypto.unb64u(c.k));
