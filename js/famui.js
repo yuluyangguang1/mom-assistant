@@ -141,7 +141,8 @@
     /* 通知 */
     html += '<div class="card fam-push"><h2>通知</h2><div class="row-switch"><label for="famPush">家人点「叫家人来一下」时通知我</label>'
       + '<input type="checkbox" id="famPush"' + (st.push ? ' checked' : '') + '></div>'
-      + '<p class="hint">通知里只有「爸爸 叫你过来一下」这样的称呼和动作，不会出现任何喂养或健康记录。iPhone 需要 iOS 16.4 以上、并从主屏幕图标打开咿呀。</p></div>';
+      + '<p class="hint">通知里只有「爸爸 叫你过来一下」这样的称呼和动作，不会出现任何喂养或健康记录。iPhone 需要 iOS 16.4 以上、并从主屏幕图标打开咿呀。'
+      + '「家人记了一条」的通知在 设置 → 记录与提醒 → 系统通知 里开关（只写称呼和记录类型，不写量和备注）。</p></div>';
     html += '<div class="card fam-leave"><button type="button" class="btn btn-danger" data-fam="leave">退出家庭</button>'
       + '<p class="hint">退出后这台手机不再同步，家庭密钥会从本机删除；本机已有的记录都保留。</p></div>';
     box.innerHTML = html;

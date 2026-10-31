@@ -54,7 +54,8 @@
 
   function blankState() {
     return { v: 1, cursor: 0, outbox: {}, gen: 0, dropped: 0, why: {}, lastSync: 0, lastErr: null, famBabies: {},
-      shareFam: true, members: {}, sameName: [], snapsSent: {}, push: false, helloAt: 0 };
+      shareFam: true, members: {}, sameName: [], snapsSent: {}, push: false, helloAt: 0,
+      nrec: false, nsent: {}, pushEp: '' };   /* 第 335 次：nrec = 本机想收「家人记了一条」通知（随 meta 告诉家人）；nsent = 已推过通知的记录 id */
   }
   function loadState() {
     var s = null;
@@ -216,13 +217,14 @@
     return sendEnts('rec', r.ents).then(function () {
       ks.forEach(function (k) { if (st.outbox[k] === snapGen[k]) delete st.outbox[k]; });
       saveState();
+      try { recNotify(r.ents); } catch (eN) {}
       return r.ents.length;
     });
   }
 
   function sendMeta(to) {
     if (!cred) return Promise.resolve();
-    return post('meta', { name: cred.myName || '', babies: babyList() }, Object.keys(sharedSet()), to);
+    return post('meta', { name: cred.myName || '', babies: babyList(), nrec: st.nrec ? 1 : 0 }, Object.keys(sharedSet()), to);
   }
 
   /** 给新加入的设备发分片快照（只含共享宝宝 + 打开时的用品储奶），带 to 只给它 */
@@ -351,17 +353,19 @@
     }, function () { drop('decrypt'); });
   }
 
-  function memberName(id, name) {
+  function memberName(id, name, nrec) {
     var n = cleanName(name);
     if (!DEVICE_RE.test(id)) return;
-    st.members[id] = { name: n, u: now() };
+    var old = st.members[id];
+    st.members[id] = { name: n, u: now(), nrec: (nrec === 0 || nrec === 1) ? nrec : (old && old.nrec === 1 ? 1 : 0) };
     syncNamesToSW();
   }
 
   function route(m, env) {
     var b = env.body;
     if (m.kind === 'hello' || m.kind === 'meta') {
-      if (typeof b.name === 'string') memberName(m.from, b.name);
+      if (typeof b.name === 'string') memberName(m.from, b.name, b.nrec);
+      else if ((b.nrec === 0 || b.nrec === 1) && st.members[m.from]) st.members[m.from].nrec = b.nrec;
       mergeBabyList(b.babies);
       saveState();
       if (m.kind === 'hello') return sendSnapshot(m.from).then(function () { st.snapsSent[m.from] = now(); saveState(); }).catch(function () {});
@@ -452,7 +456,7 @@
     if (busy) return Promise.resolve(false);
     if (!force && now() < nextAt) return Promise.resolve(false);
     busy = true;
-    var helloP = (!st.helloAt) ? post('hello', { name: cred.myName || '', babies: babyList() }, Object.keys(sharedSet())).then(function () { st.helloAt = now(); saveState(); }) : Promise.resolve();
+    var helloP = (!st.helloAt) ? post('hello', { name: cred.myName || '', babies: babyList(), nrec: st.nrec ? 1 : 0 }, Object.keys(sharedSet())).then(function () { st.helloAt = now(); saveState(); }) : Promise.resolve();
     return helloP.then(flush).then(pull).then(function () {
       fails = 0; nextAt = 0; st.lastSync = now(); st.lastErr = null; saveState();
       return true;
@@ -580,7 +584,8 @@
     try { localStorage.removeItem(LS_STATE); } catch (e) {}
     st = blankState();
     void hadPush;
-    {
+    /* 第 335 次：系统通知（本机提醒）还开着时，同一个推送订阅还要用，不能退订 */
+    if (!(global.Notify && Notify.wantsPush && Notify.wantsPush())) {
       try {
         if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
           navigator.serviceWorker.getRegistration().then(function (reg) {
@@ -653,13 +658,74 @@
       if (!pk || pk.length !== 65) throw new Error('服务器推送公钥不对');
       return reg.pushManager.getSubscription().then(function (old) { return old || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pk }); });
     }).then(function (sub) {
-      return api('PUT', '/families/' + cred.familyId + '/devices/me/push', { subscription: sub.toJSON ? sub.toJSON() : sub });
+      var js = sub.toJSON ? sub.toJSON() : sub;
+      return api('PUT', '/families/' + cred.familyId + '/devices/me/push', { subscription: js }).then(function () { st.pushEp = epTag(js); });
     }).then(function () { st.push = true; saveState(); return true; });
+  }
+  function epTag(js) { var e = String((js && js.endpoint) || ''); return e.length + ':' + e.slice(-12); }
+  /** 第 335 次：推送订阅换了（Notify 发现的）→ 家庭这边开着推送时也重新上报 */
+  function refreshPush(js) {
+    if (!cred || !st.push || !js || !js.endpoint || st.pushEp === epTag(js)) return Promise.resolve(false);
+    return api('PUT', '/families/' + cred.familyId + '/devices/me/push', { subscription: js }).then(function () { st.pushEp = epTag(js); saveState(); return true; }).catch(function () { return false; });
+  }
+  /** 第 335 次：本机想不想收「家人记了一条」（系统通知里的开关）。打开时顺带把家庭推送订阅开好（权限已在系统通知开关里拿到，不会再弹框） */
+  function setNotifyRec(on) {
+    on = !!on;
+    if (!st) loadState();
+    var changed = st.nrec !== on;
+    st.nrec = on; saveState();
+    if (!cred) return Promise.resolve(false);
+    var p = (on && !st.push && pushSupported() && global.Notification && Notification.permission === 'granted') ? enablePush().catch(function () {}) : Promise.resolve();
+    return p.then(function () { return changed ? sendMeta().catch(function () {}) : null; }).then(function () { return true; });
+  }
+
+  /* ---------- 第 335 次：家人记了一条 → 给想收的家人推送一条加密的「称呼 + 记录类型」 ---------- */
+  var REC_KIND = { sleeps: 'sleep', diapers: 'diaper', meds: 'meds', temps: 'temp', supplements: 'sup', baths: 'bath', growth: 'growth' };
+  var REC_SKIP = { supplementPlans: 1, 'vaccines.subs': 1, milestoneObs: 1 };
+  function recKind(e) {
+    if (e.t === 'feedings') { var ty = e.r && e.r.type; return ty === 'pump' ? null : ({ breast: 'breast', bottle: 'bottle', solid: 'solid' }[ty] || 'feed'); }
+    return REC_KIND[e.t] || 'other';
+  }
+  function recTime(e) {
+    var tf = TIME_FIELD[e.t], v = tf && e.r ? e.r[tf] : null;
+    var t = v ? new Date(String(v).length === 10 ? v + 'T12:00:00' : v).getTime() : NaN;
+    return isNaN(t) ? null : t;
+  }
+  var recPend = { c: 0, k: null, timer: 0, last: 0 };
+  function recNotify(ents) {
+    if (!cred || !keys) return;
+    var t = now(), fresh = [];
+    ents.forEach(function (e) {
+      if (!e || e.d != null || e.t === 'baby' || FAM_TYPES[e.t] || MAP_TYPES[e.t] || REC_SKIP[e.t] || st.nsent[e.id]) return;
+      var rt = recTime(e), k = recKind(e);
+      if (!k || rt == null || rt < t - 12 * 3600e3 || rt > t + 3600e3) return;   /* 只报最近 12 小时内发生的新记录；补录旧的、改旧的不打扰 */
+      st.nsent[e.id] = t; fresh.push(k);
+    });
+    var ids = Object.keys(st.nsent);
+    if (ids.length > 300) ids.sort(function (a, b) { return st.nsent[a] - st.nsent[b]; }).slice(0, ids.length - 300).forEach(function (k) { delete st.nsent[k]; });
+    if (!fresh.length) return;
+    saveState();
+    recPend.k = (recPend.c === 0 && fresh.length === 1) ? fresh[0] : 'other';
+    recPend.c += fresh.length;
+    clearTimeout(recPend.timer);
+    var wait = Math.max(0, recPend.last + 20000 - t);   /* 同一台手机 20 秒内最多推一条，期间的合并成「记了 N 条」 */
+    recPend.timer = setTimeout(sendRecNotify, wait);
+  }
+  function sendRecNotify() {
+    if (!cred || !keys || !recPend.c) return Promise.resolve(null);
+    var to = Object.keys(st.members).filter(function (id) { return id !== cred.deviceId && DEVICE_RE.test(id) && st.members[id] && st.members[id].nrec === 1; });
+    var body = { v: 1, a: 'rec', n: cred.myName || '', c: recPend.c, k: recPend.k || 'other', at: now() };
+    recPend.c = 0; recPend.k = null; recPend.last = now();
+    if (!to.length) return Promise.resolve(null);
+    return FC.encrypt(keys.push, FC.pushAad(cred.familyId, cred.deviceId, 'rec'), body).then(function (ct) {
+      return api('POST', '/families/' + cred.familyId + '/notify', { kind: 'rec', ct: ct, to: to });
+    }).catch(function () { return null; });
   }
   function disablePush() {
     if (!cred) return Promise.resolve();
     return api('DELETE', '/families/' + cred.familyId + '/devices/me/push').catch(function () {}).then(function () {
       st.push = false; saveState();
+      if (global.Notify && Notify.wantsPush && Notify.wantsPush()) return;   /* 第 335 次：本机提醒还要用这个订阅 */
       if (pushSupported()) return navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (s) { if (s) return s.unsubscribe(); }).catch(function () {});
     });
   }
@@ -700,6 +766,7 @@
     init: init, create: create, invite: invite, parseCode: parseCode, join: join, leave: leave, wipe: wipe,
     devices: devices, removeMember: removeMember, rename: rename, setShare: setShare, setShareFam: setShareFam,
     enablePush: enablePush, disablePush: disablePush, come: come, pushSupported: pushSupported,
+    refreshPush: refreshPush, setNotifyRec: setNotifyRec, _recNotifyNow: function () { clearTimeout(recPend.timer); return sendRecNotify(); },
     sync: function () { return tick(true); },
     joined: function () { return !!cred; },
     info: function () {

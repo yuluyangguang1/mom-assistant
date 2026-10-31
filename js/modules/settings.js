@@ -872,6 +872,8 @@
         + sw('sNightWin', '夜里的窗', s.settings.nightWindow !== false, '夜里全屏计时的背景换成此刻的月亮和星星'), '');
       html += card('提醒', sw('sRemind', '首页提醒卡', s.settings.remindersEnabled !== false, '')
         + sw('sReview', '每周回顾提醒', !!s.settings.weeklyReviewEnabled, '每周最多一次，不催、不打卡'), '');
+      /* 第 335 次：系统通知（js/notify.js 渲染进 #sNotifyBox：总开关 + 按类型开关 + 锁屏不显示详情 + 状态一句话） */
+      html += card('系统通知', '<div id="sNotifyBox" class="nf-box"></div>', '');
       html += '</details>';
       html += '<div class="st-row row-switch sg-inline" data-accent="mood"><span class="sg-ico" aria-hidden="true">' + icon('heart') + '</span>'
         + '<label for="sHaptic">保存时轻震一下<small>仅安卓手机有效</small></label>'
@@ -943,6 +945,7 @@
          各组内容仍一次性渲染在 DOM 里，下面的事件绑定一行不用改；
          组内改设置触发 rerender（silent）时，按 _sgCur 原地回到同一组，不会被踢回目录。 */
       if (global.FamUI) FamUI.mount(view.querySelector('#famBox'));
+      if (global.Notify) Notify.mount(view.querySelector('#sNotifyBox'));
       if (global.QuickRec) QuickRec.mountEditor(view.querySelector('#sQuickBox'), function () {
         /* 一级目录那一行的「N 个」跟着变（不整页重画，免得打断拖动） */
         var g = view.querySelector('#sQuickBox');

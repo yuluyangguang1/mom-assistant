@@ -13,7 +13,11 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v294';
+var CACHE = 'baoma-static-v296';
+/* v296（第 335 次 · 系统通知级提醒）：新增 js/notify.js（提醒来源盘点 + 预约同步 + 前台咿呀岛 + 打开时补发 + 设置「系统通知」）；
+   famcrypto.js 加本机提醒密钥 FamRemind 与家人记录推送文案；famsync.js 发「家人记了一条」推送；settings.js / famui.js / index.html 小改。
+   SW：push 按类型分流（rem 本机提醒 / come、rec 家庭），App 在前台时转给页面弹咿呀岛（WebKit 仍须 showNotification，弹出后立即收起）；
+   notificationclick 聚焦已有窗口并跳到对应页（没有窗口就 openWindow('./?go=…')）；pushsubscriptionchange 重新订阅并上报。 */
 /* v294（第 333 次 · 设置页重做 + 我的快记）：新增 js/quickrec.js（首页快记卡与「＋」面板共用的快记清单、记法、编辑）；
    settings.js / home.js / app.js / storage.js / datamgr.js / styles.css 有改动。 */
 /* v293（第 332 次 · 家庭共享）：famcrypto.js（页面与 SW 共用的加密 + IndexedDB 密钥仓库）、famsync.js、famui.js、
@@ -219,6 +223,7 @@ var ASSETS = [
   'js/famcrypto.js', /* 第 332 次：家庭共享 */
   'js/famsync.js',
   'js/famui.js',
+  'js/notify.js', /* 第 335 次：系统通知级提醒 */
   'js/quickrec.js',
   'js/vendor/qrcode.js',
   'js/vendor/jsqr.min.js',
@@ -359,27 +364,79 @@ function netFirst(e, req) {
 }
 
 
-/* ============ 第 332 次：家庭共享推送 ============
-   服务器转来的负载：{ t: kind, f: familyId, from: deviceId, ct, at }。
-   文字只由 FamPush.text() 生成（白名单动作 + 发送者称呼），绝不带记录内容；解密 / 校验任何一步不对 → 「咿呀：家里有新消息」。 */
+/* ============ 第 332 次：家庭共享推送 / 第 335 次：系统通知级提醒 ============
+   负载两类：
+     本机提醒（中转到点推送）：{ t:'rem', r: 提醒设备 ID, id: 提醒 ID, ct, at }  → FamRemind.text()（本机提醒密钥解密）
+     家庭（家人叫你 / 家人记了一条）：{ t:'come'|'rec', f, from, ct, at }        → FamPush.text()（家庭推送子密钥解密）
+   文字只由这两个出口生成（白名单 + 纯文本清洗），解不开 → 通用文案（「咿呀记有一条提醒」/「咿呀：家里有新消息」）。
+   App 在前台（有可见窗口）：把文字转给页面弹顶部咿呀岛，不留系统通知。WebKit（iPhone / Mac Safari）规定每个 push 都必须 showNotification，
+   否则三次就吊销订阅，所以在 WebKit 上照样弹出、随即收起；Chromium 有可见窗口时允许不弹。 */
+var SW_WEBKIT = (function () { try { var ua = self.navigator.userAgent || ''; return /AppleWebKit/.test(ua) && !/Chrome|Chromium|CriOS|Edg|Android/.test(ua); } catch (e) { return true; } })();
+var GO_OK = /^[a-z]{2,16}$/, BID_OK = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+function swText(data) {
+  var DB = self.FamDB;
+  if (data && data.t === 'rem') {
+    var GR = { title: '咿呀记', body: '咿呀记有一条提醒', ok: false, go: 'home', tag: 'yiya-rem' };
+    if (!self.FamRemind || !DB) return Promise.resolve(GR);
+    return Promise.all([DB.get('rcred'), DB.get('nprefs')]).then(function (r) { return self.FamRemind.text(data, r[0], r[1]); }).catch(function () { return GR; });
+  }
+  var GF = { title: '咿呀', body: '家里有新消息', ok: false, go: 'home', tag: 'yiya-family' };
+  if (!self.FamPush || !DB) return Promise.resolve(GF);
+  return Promise.all([DB.get('cred'), DB.get('names'), DB.get('nprefs')]).then(function (r) { return self.FamPush.text(data, r[0], r[1], r[2]); }).catch(function () { return GF; });
+}
+function swDeliver(m) {
+  var go = GO_OK.test(m.go || '') ? m.go : 'home', bid = BID_OK.test(m.bid || '') ? m.bid : null;
+  var opts = { body: m.body, icon: 'assets/icon-192.png', badge: 'assets/icon-192.png', tag: m.tag || 'yiya', renotify: true, data: { go: go, bid: bid } };
+  return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+    var vis = list.filter(function (c) { return c.visibilityState === 'visible'; });
+    if (!vis.length) return self.registration.showNotification(m.title, opts);
+    vis.forEach(function (c) { try { c.postMessage({ type: 'yiya-notify', title: m.title, body: m.body, go: go, bid: bid }); } catch (e) {} });
+    if (!SW_WEBKIT) return null;
+    return self.registration.showNotification(m.title, opts).then(function () {
+      return self.registration.getNotifications({ tag: opts.tag });
+    }).then(function (ns) { (ns || []).forEach(function (n) { n.close(); }); });
+  });
+}
 self.addEventListener('push', function (e) {
   var data = null;
   try { data = e.data ? e.data.json() : null; } catch (eJ) { data = null; }
-  var GEN = { title: '咿呀', body: '家里有新消息', ok: false };
-  var p = (self.FamPush && self.FamDB)
-    ? Promise.all([self.FamDB.get('cred'), self.FamDB.get('names')]).then(function (r) { return self.FamPush.text(data, r[0], r[1]); }).catch(function () { return GEN; })
-    : Promise.resolve(GEN);
-  e.waitUntil(p.then(function (m) {
-    return self.registration.showNotification(m.title, {
-      body: m.body, icon: 'assets/icon-192.png', badge: 'assets/icon-192.png',
-      tag: m.ok ? 'yiya-come' : 'yiya-family', renotify: true, data: { url: './' }
-    });
+  e.waitUntil(swText(data).then(swDeliver).catch(function () {
+    return self.registration.showNotification('咿呀记', { body: '咿呀记有一条提醒', icon: 'assets/icon-192.png', tag: 'yiya', data: { go: 'home' } });
   }));
 });
+/* 点通知：已有窗口 → 聚焦并让页面跳到对应页；没有窗口 → openWindow('./?go=…')（app.js 启动时读 ?go=，notify.js 读 &bid= 切宝宝） */
+function swClick(d) {
+  d = d || {};
+  var go = GO_OK.test(d.go || '') ? d.go : 'home', bid = BID_OK.test(d.bid || '') ? d.bid : null;
+  return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+    for (var i = 0; i < list.length; i++) {
+      var c = list[i];
+      if ('focus' in c) {
+        try { c.postMessage({ type: 'yiya-go', go: go, bid: bid }); } catch (e2) {}
+        return c.focus().catch(function () { return c; });
+      }
+    }
+    if (self.clients.openWindow) return self.clients.openWindow('./?go=' + go + (bid ? '&bid=' + bid : ''));
+  });
+}
 self.addEventListener('notificationclick', function (e) {
   e.notification.close();
-  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
-    for (var i = 0; i < list.length; i++) { if ('focus' in list[i]) return list[i].focus(); }
-    if (self.clients.openWindow) return self.clients.openWindow('./');
-  }));
+  e.waitUntil(swClick(e.notification.data));
+});
+/* 推送服务换了订阅（少见；iOS 基本不发）：用原来的服务器公钥重新订阅，并用本机提醒凭据上报给中转。
+   家庭那边的订阅等 App 下次打开时由 Notify / FamSync 按用户的开关重新上报（SW 读不到「家人叫你」开关在不在开着）。 */
+self.addEventListener('pushsubscriptionchange', function (e) {
+  var DB = self.FamDB;
+  if (!DB) return;
+  var opt = (e.oldSubscription && e.oldSubscription.options) || null;
+  e.waitUntil((e.newSubscription ? Promise.resolve(e.newSubscription)
+    : (opt && opt.applicationServerKey ? self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: opt.applicationServerKey }) : Promise.resolve(null)))
+    .then(function (sub) {
+      if (!sub) return;
+      var js = JSON.stringify({ subscription: sub.toJSON() });
+      return DB.get('rcred').then(function (rc) {
+        if (!rc || !rc.server || !/^r_[A-Za-z0-9_-]{16}$/.test(rc.deviceId || '')) return;
+        return fetch(rc.server + '/v1/rdev/me/push', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + rc.deviceId + ':' + rc.token }, body: js }).catch(function () {});
+      });
+    }).catch(function () {}));
 });
