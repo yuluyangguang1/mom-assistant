@@ -324,7 +324,7 @@
       var cut7 = nowMs - 7 * 864e5;
       var vals = done.filter(function (s) { return tms(s.end) >= cut7; }).map(function (s) { return longestMin(s); }).filter(function (v) { return v > 0; });
       if (vals.length >= 2) zh += '<p class="hint">近 7 天最长连续睡眠在 ' + fmtH(Math.min.apply(null, vals) / 60) + '–' + fmtH(Math.max.apply(null, vals) / 60) + ' 小时之间。</p>';
-      if (zh) ins.push({ ico: icon('clock'), t: '作息', html: '<h2>作息</h2>' + zh + '<p class="hint">都是你自己的记录，和宝宝自己比就好。</p>' });
+      if (zh) ins.push({ ico: icon('routine'), t: '作息', html: '<h2>作息</h2>' + zh + '<p class="hint">都是你自己的记录，和宝宝自己比就好。</p>' });
 
       /* 洞察 ③ 睡眠参考（第 73 次：清醒窗口 / 猛长期，教育性科普，不与数据对照） */
       var sBd = (d.settings.baby && d.settings.baby.birthDate) || null;
@@ -333,7 +333,7 @@
         if (sAge >= 0 && sAge <= 1095) {
           var slRef = Knowledge.all('sleep').filter(function (e) { return sAge >= e.from && sAge <= e.to; });
           if (slRef.length) {
-            ins.push({ ico: icon('moon'), t: '睡眠参考', html: '<h2>睡眠参考</h2>' + slRef.map(function (e) { return '<p class="hint">' + esc(e.text) + '</p>'; }).join('')
+            ins.push({ ico: icon('sources'), t: '睡眠参考', html: '<h2>睡眠参考</h2>' + slRef.map(function (e) { return '<p class="hint">' + esc(e.text) + '</p>'; }).join('')
               + '<p class="hint">以上是哄睡时机的参考，不是你家宝宝要达到的标准——他的节奏说了算。</p>' });
           }
         }

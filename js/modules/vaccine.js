@@ -938,9 +938,9 @@
         var ckDone = (d.checkups && d.checkups.done) || {}, cks = planCheckups(baby.birthDate);
         var ckN = cks.filter(function (c) { return ckDone[c.key]; }).length;
         var rs = remState();
-        html += '<div class="card vac-tools"><button type="button" class="vt-row" data-vck><span class="vt-ico">' + icon('heart') + '</span><b>儿保体检</b><small>已记 ' + ckN + ' / ' + cks.length + '</small></button>'
-          + '<button type="button" class="vt-row" data-vremind><span class="vt-ico">' + icon('bell') + '</span><b>疫苗提醒</b><small>' + (rs === 'cal' ? '已导出到日历' : '未开启') + '</small></button>'
-          + '<button type="button" class="vt-row" data-vbirth><span class="vt-ico">' + icon('calendar') + '</span><b>宝宝生日</b><small>' + esc(baby.birthDate) + '</small></button></div>';
+        html += '<div class="card vac-tools"><button type="button" class="vt-row" data-vck><span class="vt-ico">' + icon('checkup') + '</span><b>儿保体检</b><small>已记 ' + ckN + ' / ' + cks.length + '</small></button>'
+          + '<button type="button" class="vt-row" data-vremind><span class="vt-ico">' + icon('reminder') + '</span><b>疫苗提醒</b><small>' + (rs === 'cal' ? '已导出到日历' : '未开启') + '</small></button>'
+          + '<button type="button" class="vt-row" data-vbirth><span class="vt-ico">' + icon('birthday') + '</span><b>宝宝生日</b><small>' + esc(baby.birthDate) + '</small></button></div>';
         html += '<p class="ms-ref vac-ref">排期按《国家免疫规划疫苗儿童免疫程序及说明（2026 年版）》推算，仅供参考，以接种门诊安排为准。</p>';
         html += '<div class="mod-cta"><button type="button" class="mc-main" data-vnew>' + icon('plus') + '<span>记一次接种</span></button></div>';
       }

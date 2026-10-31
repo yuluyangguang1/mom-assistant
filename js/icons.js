@@ -552,7 +552,16 @@
     sleep: 'sleep', growth: 'growth', vaccine: 'vaccine', meds: 'meds', temp: 'temp', sick: 'sick',
     jaundice: 'jaundice', bath: 'bath', swim: 'swim', sun: 'sun', water: 'water', fetal: 'fetal',
     prenatal: 'prenatal', packing: 'packing', mom: 'mom', mood: 'mood', period: 'period', contraction: 'contraction',
-    noise: 'noise', whitenoise: 'noise', home: 'home', calendar: 'calendar', search: 'search', settings: 'settings', family: 'family'
+    noise: 'noise', whitenoise: 'noise', home: 'home', calendar: 'calendar', search: 'search', settings: 'settings', family: 'family',
+    /* 第 337 次：扁平补图 23 个（同一套 v4 squircle 总表，tools/icons_v4 SET=337 切图）。
+       pee / poop / 六个缺图模块 / edit 直接用原键；其余是新键（线稿兜底见下方 ICONS 别名），由调用点按语义改用：
+       alltools 全部功能页头、cards 首页卡片、quick 我的快记、appearance 外观、weather 天气与农历、reminder 记录与提醒 / 疫苗提醒、
+       haptic 保存时轻震、transfer 导入与导出、tofamily 给家人和医生、privacy 数据与隐私、sources 知识来源 / 睡眠参考、
+       checkup 儿保体检、birthday 宝宝生日、routine 作息规律。 */
+    pee: 'pee', poop: 'poop', milestone: 'milestone', supplement: 'supplement', pregnancy: 'pregnancy', momweight: 'momweight',
+    finance: 'finance', supplies: 'supplies', edit: 'edit', alltools: 'alltools', cards: 'cards', quick: 'quick', appearance: 'appearance',
+    weather: 'weather', reminder: 'reminder', haptic: 'haptic', transfer: 'transfer', tofamily: 'tofamily', privacy: 'privacy',
+    sources: 'sources', checkup: 'checkup', birthday: 'birthday', routine: 'routine'
   };
   global.ICON_V4 = V4;
   (function probeV4() {
@@ -583,6 +592,10 @@
   /* 第 336 次：家庭共享（设置）有了 v4 图；线稿兜底沿用房子 */
   if (!ICONS.family) ICONS.family = ICONS.home;
   if (!ICONS.mom) ICONS.mom = ICONS.mood;
+  /* 第 337 次：新键的线稿兜底（i4-off / 不在白名单的容器里显示）= 原来那颗线稿 */
+  var ALIAS337 = { alltools: 'grid', cards: 'grid', quick: 'plus', appearance: 'image', weather: 'sun', reminder: 'bell', haptic: 'heart',
+    transfer: 'export', tofamily: 'share', privacy: 'settings', sources: 'search', checkup: 'heart', birthday: 'calendar', routine: 'clock' };
+  for (var ak in ALIAS337) { if (ALIAS337.hasOwnProperty(ak) && !ICONS[ak]) ICONS[ak] = ICONS[ALIAS337[ak]]; }
 
   /* 预渲染图标字符串表（备用） */
   var MomIcons = {};

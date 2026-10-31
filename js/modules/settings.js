@@ -803,10 +803,10 @@
 
       /* ── ② 我的快记 · 首页卡片 ── */
       html += sec('首页');
-      html += sgOpen('plus', '我的快记', qn ? qn + ' 个' : '还没有快记', 'feeding');
+      html += sgOpen('quick', '我的快记', qn ? qn + ' 个' : '还没有快记', 'feeding');
       html += '<div class="qe-box" id="sQuickBox"></div>';
       html += '</details>';
-      html += sgOpen('grid', '首页卡片', hOn + ' 张', 'diaper');
+      html += sgOpen('cards', '首页卡片', hOn + ' 张', 'diaper');
       ['快捷记录', '上次', '今日', '趋势', '距上次', '功能入口'].forEach(function (gname) {
         var rows = hcat.filter(function (c) { return c.group === gname; });
         if (!rows.length) return;
@@ -825,7 +825,7 @@
 
       /* ── ③ 外观 · 天气与农历 · 记录与提醒 · 轻震 ── */
       html += sec('使用');
-      html += sgOpen('image', '外观', modeName + ' · 字号' + fsName, 'sun');
+      html += sgOpen('appearance', '外观', modeName + ' · 字号' + fsName, 'sun');
       html += card('主题', '<div class="theme-cards" id="sThemeSeg">' + MODES.map(function (m) {
         var act = (curMode === m[0]);
         return '<button type="button" class="theme-card theme-card--' + m[0] + (act ? ' active' : '') + '" data-theme-mode="' + m[0] + '" aria-pressed="' + (act ? 'true' : 'false') + '">'
@@ -846,7 +846,7 @@
       }).join('') + '</div>', '在底栏页签右边多一个直达入口。');
       html += '</details>';
 
-      html += sgOpen('sun', '天气与农历', (wxc.on ? '天气开' : '天气关') + ' · ' + (s.settings.lunarDate !== false ? '农历开' : '农历关'), 'temp');
+      html += sgOpen('weather', '天气与农历', (wxc.on ? '天气开' : '天气关') + ' · ' + (s.settings.lunarDate !== false ? '农历开' : '农历关'), 'temp');
       var wxIn = sw('sWxOn', '首页显示真实天气', wxc.on, '唯一会联网的功能；只发大致位置');
       if (wxc.on) {
         wxIn += '<div class="st-pad"><div class="seg" id="sWxMode">'
@@ -863,7 +863,7 @@
       html += card('', sw('sLunar', '首页日期显示农历', s.settings.lunarDate !== false, ''), '');
       html += '</details>';
 
-      html += sgOpen('bell', '记录与提醒', '一天从 ' + curDs + ':00 算', 'sleep');
+      html += sgOpen('reminder', '记录与提醒', '一天从 ' + curDs + ':00 算', 'sleep');
       var DAY_STARTS = [['0', '0:00'], ['4', '4:00'], ['6', '6:00']];
       html += card('一天从几点开始算', '<div class="seg seg-wrap2" id="sDayStartSeg">' + DAY_STARTS.map(function (m) {
         return '<button type="button" class="seg-btn' + (curDs === m[0] ? ' active' : '') + '" data-day-start="' + m[0] + '">' + m[1] + '</button>';
@@ -875,14 +875,14 @@
       /* 第 335 次：系统通知（js/notify.js 渲染进 #sNotifyBox：总开关 + 按类型开关 + 锁屏不显示详情 + 状态一句话） */
       html += card('系统通知', '<div id="sNotifyBox" class="nf-box"></div>', '');
       html += '</details>';
-      html += '<div class="st-row row-switch sg-inline" data-accent="mood"><span class="sg-ico" aria-hidden="true">' + icon('heart') + '</span>'
+      html += '<div class="st-row row-switch sg-inline" data-accent="mood"><span class="sg-ico" aria-hidden="true">' + icon('haptic') + '</span>'
         + '<label for="sHaptic">保存时轻震一下<small>仅安卓手机有效</small></label>'
         + '<input type="checkbox" id="sHaptic"' + (s.settings.hapticEnabled !== false ? ' checked' : '') + '></div>';
       html += '</div>';
 
       /* ── ④ 导入与导出 · 给家人和医生 · 数据与隐私 ── */
       html += sec('数据');
-      html += sgOpen('export', '导入与导出', last ? '上次备份 ' + String(last).slice(0, 10) : '还没有备份过', 'finance');
+      html += sgOpen('transfer', '导入与导出', last ? '上次备份 ' + String(last).slice(0, 10) : '还没有备份过', 'finance');
       var bh = (global.Reminders && typeof Reminders.backupHint === 'function') ? Reminders.backupHint(s, Date.now()) : null;
       html += card('备份', '<button class="st-act" id="sExport" type="button">' + icon('export') + '导出完整备份（JSON）<small>换手机、恢复用</small></button>'
         + '<button class="st-act" id="sImport" type="button">' + icon('import') + '导入备份<small>先看会加多少条，再决定</small></button>'
@@ -897,7 +897,7 @@
         + '<option value="supplements">营养品服用记录</option>'
         + '</select><button class="btn btn-mini" id="sCsv" type="button">导出</button></div>', 'Excel / WPS 可以直接打开。');
       html += '</details>';
-      html += sgOpen('share', '给家人和医生', '交接班、就诊摘要、报告', 'vaccine');
+      html += sgOpen('tofamily', '给家人和医生', '交接班、就诊摘要、报告', 'vaccine');
       html += card('', '<button class="st-act" id="sHandoff" type="button">' + icon('share') + '交接班摘要<small>上次吃 / 睡 / 换尿布，发给接手的家人</small></button>'
         + '<button class="st-act" id="sVisit" type="button">' + icon('meds') + '就诊摘要<small>生长、疫苗、发育、近期日常，一段文字</small></button>'
         + '<button class="st-act" id="sPrint" type="button">' + icon('growth') + '打印成长报告<small>一页汇总，可另存 PDF</small></button>'
@@ -905,7 +905,7 @@
         + '<button class="st-act" id="sExportShare" type="button">' + icon('export') + '导出给家人 / 医生（JSON）<small>不含情绪、经期、记账</small></button>',
         '都在这台手机上生成，不经过网络。');
       html += '</details>';
-      html += sgOpen('settings', '数据与隐私', '记录只存在这台手机', 'supplies');
+      html += sgOpen('privacy', '数据与隐私', '记录只存在这台手机', 'supplies');
       var stats = Storage.stats();
       var usage = (typeof Storage.usage === 'function') ? Storage.usage() : null;
       var cbInfo = Storage.corruptBackupInfo ? Storage.corruptBackupInfo() : null;
@@ -921,7 +921,7 @@
 
       /* ── ⑤ 知识来源 ── */
       html += sec('');
-      html += sgOpen('search', '知识来源', '内容出处', 'milestone');
+      html += sgOpen('sources', '知识来源', '内容出处', 'milestone');
       var usedSrc = {};
       Knowledge.all().forEach(function (e) { usedSrc[e.source] = (usedSrc[e.source] || 0) + 1; });
       Knowledge.MILESTONES.forEach(function (e) { var code = (e.kind === 'obs') ? 'GJ-2025' : 'YJZX'; usedSrc[code] = (usedSrc[code] || 0) + 1; });

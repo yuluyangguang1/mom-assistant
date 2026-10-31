@@ -3,8 +3,9 @@ from darkv import darkify
 from PIL import Image, ImageDraw
 OUT=sys.argv[1] if len(sys.argv)>1 else 'out_v4'
 os.makedirs(OUT+'/tile',exist_ok=True)
-meta=json.load(open('meta.json'))
-NAMES=list(meta.keys())
+from sets import CFG
+meta=json.load(open(CFG['meta']))
+NAMES=[n for n in meta.keys() if n not in CFG.get('skip_build',())]
 BIG=576
 def superellipse(size,n=5.0,ss=4):
     S=size*ss; y,x=np.mgrid[0:S,0:S]; c=(S-1)/2; r=S/2

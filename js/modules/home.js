@@ -1157,7 +1157,7 @@
         /* 第 210 次：两格改成可点的绿色小组件，去掉说明句（点进生长页看曲线） */
         var inner = '<h2>生长速览</h2><div class="gs-row">';
         if (wPts.length >= 2) {
-          inner += '<div class="gs-cell" data-accent="growth" data-gs-go="growth" role="button" tabindex="0"><span class="gs-lbl">' + icon('growth') + '体重</span>'
+          inner += '<div class="gs-cell" data-accent="growth" data-gs-go="growth" role="button" tabindex="0"><span class="gs-lbl">' + icon('momweight') + '体重</span>'
             + '<span class="gs-val">' + wPts[wPts.length - 1].weightKg + ' kg</span>'
             + spark(wPts.map(function (r) { return r.weightKg; })) + '</div>';
         }
@@ -1726,7 +1726,7 @@
   var TODAY_IDS = ['w-feed-today', 'w-diaper-today', 'w-sleep-today', 'w-temp'];
   var CARD_IDS = W_IDS.concat(TODAY_IDS).concat(['w-today', 'w-week-feed', 'w-week-sleep', 'w-age', 'feednext', 'growthspark', 'last-feeding', 'last-diaper', 'last-sleep', 'last-growth', 'last-temp']);
   var CARDS_META = {
-    'quick': { name: '快记', icon: 'plus' },
+    'quick': { name: '快记', icon: 'quick' },  /* 第 337 次：plus → quick（扁平「我的快记」图，线稿兜底仍是加号） */
     'w-feed-today': { name: '今日喂奶', icon: 'feeding' },
     'w-diaper-today': { name: '今日尿布', icon: 'diaper' },
     'w-sleep-today': { name: '今日睡眠', icon: 'sleep' },

@@ -1266,7 +1266,8 @@
    */
   var YIYA_FACES = ['happy', 'drink', 'sleep', 'cheeky', 'puzzled', 'sorry', 'wow', 'proud', 'wave',
     'send', 'phone', 'heart', 'flag', 'hug', 'whisper', 'thumb', 'clap', 'shy',
-    'yawn', 'bday', 'spoon', 'bath', 'blanket', 'look', 'wait', 'oops', 'think'];
+    'yawn', 'bday', 'spoon', 'bath', 'blanket', 'look', 'wait', 'oops', 'think',
+    'cheer'];  /* 第 337 次：表情换成新一套 3D 透明头像（tools/yiya），新增 cheer 加油（握拳）：文案里有「加油 / 坚持 / 连续 N 天」时用 */
   Util.YIYA_FACES = YIYA_FACES.slice();
   Util.yiyaSrc = function (face) { return YIYA_FACES.indexOf(face) >= 0 ? 'assets/yiya/' + face + '.webp' : YIYA_SRC; };
   /* 按提示的类型 / 文案 / 所在页挑表情。opts.face 显式指定时优先。 */
@@ -1280,6 +1281,7 @@
     if (/备份|导出|已复制|已分享|全部完成|都勾完|已完成/.test(msg)) return 'proud';
     if (/发给|已发送|已通知|已邀请/.test(msg)) return 'send';
     if (/同步|加载|正在/.test(msg)) return 'wait';
+    if (/加油|坚持|连续\s*\d+\s*天/.test(msg)) return 'cheer';
     if (route === 'sick' || /生病|症状|就医/.test(msg)) return 'blanket';
     if (route === 'bath' || /洗澡|抚触/.test(msg)) return 'bath';
     if (route === 'solid' || /辅食|新食物/.test(msg)) return 'spoon';

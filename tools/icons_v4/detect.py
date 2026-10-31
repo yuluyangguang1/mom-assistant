@@ -1,7 +1,8 @@
 import numpy as np
 from PIL import Image
 from scipy import ndimage as ndi
-im=np.asarray(Image.open('../sheet_v4.png').convert('RGB')).astype(np.float32)
+from sets import CFG
+im=np.asarray(Image.open(CFG['sheet']).convert('RGB')).astype(np.float32)
 H,W,_=im.shape
 # page bg = median of image corners
 page=np.median(np.concatenate([im[:20,:20].reshape(-1,3),im[-20:,-20:].reshape(-1,3)]),0)
@@ -18,4 +19,4 @@ for i,s in enumerate(objs):
 print(len(tiles))
 tiles.sort(key=lambda t:(round(t[0]/100),t[1]))
 for t in tiles: print(t, t[2]-t[0], t[3]-t[1])
-import json;json.dump({'page':page.tolist(),'tiles':tiles},open('tiles.json','w'))
+import json;json.dump({'page':page.tolist(),'tiles':tiles},open(CFG['tiles'],'w'))

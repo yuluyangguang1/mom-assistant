@@ -44,7 +44,8 @@
        不再用 <img> webp：换页 / 重建时不用等异步解码（真机录屏：选中图标晚 10 帧才出来 = 「图标闪」） */
     var cls = 'dk-ic ' + ({ baby: 'dk-baby', home: 'dk-home', cal: 'dk-cal' }[k] || '');
     if (global.DockIcons) return '<i class="' + cls + '">' + DockIcons.lineSvg(k) + DockIcons.fillSvg(k) + '</i>';
-    return '<i class="' + cls + '">' + (DK_LINE[k] || '') + '<img class="dk-c" src="assets/dock/' + k + '.webp" alt="" draggable="false" decoding="async"></i>';
+    /* 兜底（dock-icons.js 没载入）：线稿 + 扁平选中态文件（第 337 次） */
+    return '<i class="' + cls + '">' + (DK_LINE[k] || '') + '<img class="dk-c" src="assets/dock/' + k + '-on@2x.webp" srcset="assets/dock/' + k + '-on@2x.webp 2x, assets/dock/' + k + '-on@3x.webp 3x" alt="" draggable="false" decoding="async"></i>';
   }
   /* 第 276 次（用户同意）：搜索移出 dock（一级、二级都去掉）。入口改成：首页到顶后继续下拉（pull-search.js）、
      菜单面板顶部搜索框（第 290 次起；原侧拉页）、「全部功能」页搜索框。搜索页路由保留，改算二级页（有返回、侧滑回首页）。 */
@@ -67,7 +68,7 @@
      第 118 次补 alltools（页面图标记为 grid 四宫格）与 whitenoise（图标键是 noise，
      此前调 icon('whitenoise') 拿不到图、页头留一个空槽）。
      与 modules/alltools.js 里的 ICON_KEY 口径必须一致。 */
-  var ICON_KEY = { alltools: 'grid', whitenoise: 'noise' };
+  var ICON_KEY = { alltools: 'alltools', whitenoise: 'noise' };  /* 第 337 次：全部功能页头 grid → alltools（扁平新图，线稿兜底仍是四宫格） */
 
   /* 第 116 次（真机实测：iOS 添加到桌面后顶部一条白色渐变 + 顶栏元素挤成一团）：
      独立模式（PWA 添加到桌面）下，env(safe-area-inset-top) 本身已包含 iOS 状态栏高度，
@@ -1344,7 +1345,7 @@
   function bpRow(k, ico, title, sub, items, open) {
     return '<section class="bp-card bp-fold' + (open ? ' open' : '') + '" data-fold="' + k + '">'
       + '<button type="button" class="bp-row" data-bp="' + k + '" aria-expanded="' + (open ? 'true' : 'false') + '">'
-      + '<span class="bp-ri" data-accent="' + bpEsc(ico === 'heart' ? 'mood' : ico) + '">' + (global.icon ? icon(ico) : '') + '</span>'
+      + '<span class="bp-ri" data-accent="' + bpEsc(ico === 'heart' || ico === 'mom' ? 'mood' : ico) + '">' + (global.icon ? icon(ico) : '') + '</span>'
       + '<span class="bp-rt"><b>' + bpEsc(title) + '</b><small>' + bpEsc(sub) + '</small></span>'
       + '<span class="bp-chv" aria-hidden="true">' + (global.icon ? icon('chevron-right') : '') + '</span></button>'
       + (open ? '<div class="bp-grid">' + items.map(bpTile).join('') + '</div>' : '') + '</section>';
@@ -1390,7 +1391,7 @@
       + '</section>';
     if (!pregFirst) h += pregBlock;
     if (!preg && gp) h += bpRow('preg', 'pregnancy', '孕期', '孕周 · 胎动 · 产检 · 待产包', gp.items, babyOpen.preg);
-    if (gm) h += bpRow('mom', 'heart', gm.title, gm.items.map(function (x) { return x.name.replace('妈妈', ''); }).join(' · '), gm.items, babyOpen.mom);
+    if (gm) h += bpRow('mom', 'mom', gm.title, gm.items.map(function (x) { return x.name.replace('妈妈', ''); }).join(' · '), gm.items, babyOpen.mom);
     h += '</div>';
     view.innerHTML = h;
     view.onclick = function (e) {
@@ -2462,7 +2463,7 @@
 
     /* ———— 菜单面板（第 290 次，取代左侧侧拉页；入口一个不少） ———— */
     var MENU_TOP = [
-      { go: 'home', ico: 'dk-home', name: '首页' },
+      { go: 'home', ico: 'home', name: '首页' },  /* 第 337 次：dk-home 不在 V4 表，换 home 才显示 v4 小房子 */
       { go: 'calendar', ico: 'calendar', name: '日期记录' },
       { go: 'whitenoise', ico: 'noise', name: '哄睡声音' },
       { go: '__edit', ico: 'edit', name: '编辑首页' },

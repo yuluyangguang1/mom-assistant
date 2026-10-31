@@ -1,7 +1,8 @@
 import json,sys,os
 from PIL import Image, ImageDraw, ImageFont
 D=sys.argv[1]; OUT=sys.argv[2]
-N=list(json.load(open('meta.json')).keys())
+from sets import CFG
+N=[n for n in json.load(open(CFG['meta'])).keys() if n not in CFG.get('skip_build',())]
 font=ImageFont.truetype(os.path.expanduser('~/.fonts/NotoSansSC-500.otf'),18)
 cell=176; cols=10
 def panel(bg,sub='',suffix='@3x'):

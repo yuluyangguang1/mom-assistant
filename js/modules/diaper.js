@@ -84,7 +84,9 @@
   function typeArt(t, color) {
     return '<span class="dpt-art">' + diaperImg(stainSrc(t, color), 'dpt-img') + '</span>';
   }
-  function miniIco(r) { return diaperImg(stainSrc(r.type, r.color), 'tl-img'); }
+  /* 第 337 次：时间轴 30px 那一处不再用 3D 照片（同一列表里跟别的模块扁平图混排）——尿 = 尿了、便 = 拉了、尿+便 = 尿布（v4 扁平）；
+     便便颜色仍在记录面板的 3D 类型卡和详情里看 */
+  function miniIco(r) { return icon(r.type === 'pee' ? 'pee' : r.type === 'poop' ? 'poop' : 'diaper'); }
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function agoText(iso) {
     var t = new Date(iso).getTime();

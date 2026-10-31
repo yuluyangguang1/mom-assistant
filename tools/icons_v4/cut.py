@@ -1,11 +1,10 @@
 import numpy as np, json, os
 from PIL import Image
 from scipy import ndimage as ndi
-SRC=np.asarray(Image.open('../sheet_v4.png').convert('RGB')).astype(np.float32)
-J=json.load(open('tiles.json')); PAGE=np.array(J['page'],np.float32)
-NAMES=['baby','breast','bottle','pump','solid','diaper','sleep','growth','vaccine','meds','temp','sick',
-'jaundice','bath','swim','sun','water','fetal','prenatal','packing','mom','mood','period','contraction',
-'home','calendar','noise','search','settings','family']
+from sets import SET, CFG
+SRC=np.asarray(Image.open(CFG['sheet']).convert('RGB')).astype(np.float32)
+J=json.load(open(CFG['tiles'])); PAGE=np.array(J['page'],np.float32)
+NAMES=CFG['names']
 os.makedirs('raw',exist_ok=True)
 def gblur(a,s): return ndi.gaussian_filter(a,s)
 def inpaint(img,known,s=6):
@@ -18,7 +17,9 @@ def inpaint(img,known,s=6):
         bad=w<0.02; out[bad]=o2[bad]; w=np.where(bad,w2,w)
     return out
 meta={}
-TH={'breast':6.5,'prenatal':7,'mom':7,'mood':7}
+TH=CFG.get('th',{})
+CLOSE_BOTTOM=CFG.get('close_bottom',set())
+BGFIT=CFG.get('bgfit',False)
 P=10
 for idx,(y0,x0,y1,x1) in enumerate(J['tiles']):
     name=NAMES[idx]
@@ -31,7 +32,13 @@ for idx,(y0,x0,y1,x1) in enumerate(J['tiles']):
     ring=inner & ~ndi.binary_erosion(inner,iterations=8)
     tb=np.median(C[ring],0)
     # rough bg: pixels close to page (outside tile) or close to tile bg (inside)
-    dtb=np.sqrt(((C-tb)**2).sum(-1))
+    # 第 337 次：底块带渐变（编辑 黄→桃、全部功能 粉→桃）→ 用环带像素拟合二次曲面当局部底色，不再用单一中位色
+    yy,xx=np.mgrid[0:h,0:w].astype(np.float32); yy/=h; xx/=w
+    Aall=np.stack([np.ones_like(xx),xx,yy,xx*xx,yy*yy,xx*yy],-1)
+    rr=ring&(np.sqrt(((C-tb)**2).sum(-1))<40)
+    coef,_,_,_=np.linalg.lstsq(Aall[rr],C[rr],rcond=None)
+    TBF=Aall@coef
+    dtb=np.sqrt(((C-TBF)**2).sum(-1)) if BGFIT else np.sqrt(((C-tb)**2).sum(-1))
     cand=np.where(tile,dtb<14,dpage<10)
     # flood from crop border + ring
     seed=np.zeros_like(cand); seed[0,:]=seed[-1,:]=seed[:,0]=seed[:,-1]=True; seed|=ring&cand
@@ -76,6 +83,12 @@ for idx,(y0,x0,y1,x1) in enumerate(J['tiles']):
             idx=np.arange(1,n+1); sz=ndi.sum(weak,lab,idx); weak=np.isin(lab,idx[sz>=150])
         fg=ndi.binary_fill_holes(fg|weak)
         weakset=weak
+    # 第 337 次：身体一直画到底块下沿、没有底边轮廓的（黄疸的脖子肩膀、亲喂妈妈的身子）→ 在最低处补一条横线再填洞，收回和底块同色的皮肤
+    if name in CLOSE_BOTTOM:
+        ys_,xs_=np.where(fg); yb=ys_.max()
+        cl=fg.copy(); row=xs_[ys_>=yb-3]; cl[yb,row.min():row.max()+1]=True
+        cl=ndi.binary_fill_holes(cl); cl[yb,:]=fg[yb,:]|(cl[yb,:]&fg[yb-1,:])
+        fg=cl
     # remove specks / low-contrast arcs
     lab,n=ndi.label(fg)
     if n:
@@ -108,5 +121,5 @@ for idx,(y0,x0,y1,x1) in enumerate(J['tiles']):
     ys,xs=np.where(alpha>0.3); ty,tx=np.where(tile)
     meta[name]=dict(tb=tb.tolist(),gbox=[int(ys.min()),int(xs.min()),int(ys.max()),int(xs.max())],tbox=[int(ty.min()),int(tx.min()),int(ty.max()),int(tx.max())],
         touch=bool((alpha[ty.min()+1:ty.max(),tx.min()+1:tx.max()]>0).sum()==0))
-json.dump(meta,open('meta.json','w'),indent=0)
+json.dump(meta,open(CFG['meta'],'w'),indent=0)
 print('ok')
