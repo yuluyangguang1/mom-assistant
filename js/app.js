@@ -841,6 +841,57 @@
     if (busy && n < 20) { setTimeout(function () { afterDockIdle(fn, n + 1); }, 50); return; }
     (global.requestAnimationFrame || setTimeout)(function () { try { fn(); } catch (e) { /* */ } });
   }
+  var NUM_SEL = '.mod-stats b, .stat-num, .dash-card b, .pk-prog b, .su-num, .qk-n, [data-num]';
+  function numSnapshot(view) {
+    var out = [];
+    try { Array.prototype.forEach.call(view.querySelectorAll(NUM_SEL), function (e) { out.push(e.textContent); }); } catch (e) { /* */ }
+    return out;
+  }
+  function numTick(view, before) {
+    try {
+      var reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduce) return;
+      var now = view.querySelectorAll(NUM_SEL);
+      if (now.length !== before.length) return; /* 结构变了（多了 / 少了一块）就不猜对应关系 */
+      Array.prototype.forEach.call(now, function (e, i) {
+        var t = e.textContent;
+        if (t !== before[i] && /\d/.test(t)) e.classList.add('num-tick');
+      });
+    } catch (e) { /* */ }
+  }
+  /* 第 334 次：模块内切换（分段 / 筛选 / 指标标签点了之后原地重画）：控件所在那一块不动，下面的内容块淡入上移 6px（calSwap）。
+     点击时记下控件在 #view 第几块，重画后给它后面的兄弟块加 .swap-in；装着底部主按钮的块不加（fixed 祖先不能有 transform）。 */
+  var SWAP_SEL = '.seg-btn, [role="tab"], .ft-chip, .chip, [data-filter], [data-metric], [data-range]';
+  var swapHint = null;
+  document.addEventListener('click', function (e) {
+    var t = e.target && e.target.closest ? e.target.closest(SWAP_SEL) : null;
+    var view = document.getElementById('view');
+    if (!t || !view || !view.contains(t) || t.closest('.modal-mask, .ftf')) return;
+    var box = swapBox(view);
+    if (!box.contains(t) || box === t) return;
+    var top = t; while (top && top.parentElement !== box) top = top.parentElement;
+    if (!top) return;
+    swapHint = { t: Date.now(), idx: Array.prototype.indexOf.call(box.children, top) };
+  }, true); /* 捕获：控件自己的点击处理会同步原地重画，冒泡到 document 时它已经被换掉了（只记一个提示，触感回声重复记无害） */
+  /* 很多模块整页包在一个 .ft-page 里（用品、生长……）：一路往下找到真正分块的那一层（只有一个非主按钮子块的包装层跳过） */
+  function swapBox(view) {
+    var c = view;
+    for (var n = 0; n < 4; n++) {
+      var kids = Array.prototype.filter.call(c.children, function (k) { return !k.classList.contains('mod-cta'); });
+      if (kids.length === 1 && kids[0].children.length > 1) c = kids[0]; else break;
+    }
+    return c;
+  }
+  function swapIn(view) {
+    var h = swapHint; swapHint = null;
+    if (!h || Date.now() - h.t > 700 || h.idx < 0) return;
+    var kids = swapBox(view).children;
+    for (var i = h.idx + 1; i < kids.length; i++) {
+      var k = kids[i];
+      if (k.classList.contains('mod-cta') || k.querySelector('.mod-cta')) continue;
+      k.classList.add('swap-in');
+    }
+  }
   function showTabNow(id, opts) {
     /* 第 286 次：真正切页（不是原地重画）时快捷记录面板立即收起，不留在新页上 */
     if (!(opts && opts.silent) && id !== current && global.App && App._qdClose) { try { App._qdClose(true); } catch (eQ) {} }
@@ -892,6 +943,9 @@
     if (opts && opts.silent) topCacheDrop(id);
     var cached = topSwapNow ? topCacheTake(id) : null;
     if (cached) { topCacheRestore(id, view, cached, opts); return; }
+    /* 第 334 次：原地重画（保存 / 撤销 / 快记后）时，看板上变了的数字跳一下（和咿呀岛 .toast-num 同一个动作）。
+       按「选择器 + 序号」对上新旧节点；只认含数字、文字真的变了的那几个。 */
+    var numSnap = (opts && opts.silent && prevId === id) ? numSnapshot(view) : null;
     view.innerHTML = '';
     if (!(opts && opts.silent)) view.classList.remove('sg-in'); /* 第 188 次：设置二级态标记不跨页残留 */
     /* 模块页「分色身份」：给记录类模块页打 data-accent，让列表/图标/标题继承其柔彩色；
@@ -908,6 +962,7 @@
     } catch (e) {
       view.innerHTML = '<div class="card"><p>加载出错：' + Util.escapeHtml(e && e.message ? e.message : e) + '</p></div>';
     }
+    if (numSnap) { numTick(view, numSnap); swapIn(view); }
     /* 第 304 次：天气天空铺到 dock 的三个页面——宝宝页、日期记录页在页面最底层也画一片天空（随页面滚动，宽屏左右铺满） */
     if (id === 'baby' || id === 'calendar') mountPageSky(view); else view.classList.remove('has-psky');
     /* 第 318 次：首页天空图层钉成与宝宝 / 日历页同高的天空带，放在 #view 叠放层底下（styles.css .has-hsky） */
@@ -930,6 +985,8 @@
       } else
       head.innerHTML = '<span class="mod-head-ico">' + icon(ICON_KEY[id] || id) + '</span><h1>' + Util.escapeHtml(Modules[id].title) + '</h1>';
       view.insertBefore(head, view.firstChild);
+      /* 第 334 次：空状态（.sk-empty 大插画）时页头那幅小插画和状态行藏起（一页一幅插画）；用类而不用 :has(~ * .sk-empty)（太贵） */
+      if (head.classList.contains('has-hero') && view.querySelector('.sk-empty')) head.classList.add('hh-empty');
     }
     /* 返回按钮 + 日期收起态（第 42 次）：模块页显示返回，回到首页则隐藏。
        底栏两个页签（首页/日期记录）之外的任何页，都需要一个就近的返回出口。 */
@@ -2928,15 +2985,29 @@
     syncOrb();
     try { if (global.DockFuse) DockFuse.sync(); } catch (eF) { /* */ }
   }
+  /* 第 334 次：页内三级页（设置分组、生长趋势 / 喂养与体重…）进 / 出也横推——和二级页同一组关键帧（vtInRight / vtInLeft）、
+     同一条 --ease-ios；只动 #view 子元素的 transform / opacity，装着底部主按钮的容器不动（fixed 祖先不能有 transform，第 282 次）。
+     减少动态效果：只淡入。 */
+  var subAnimT = 0;
+  function subAnim(dir) {
+    var view = document.getElementById('view'); if (!view) return;
+    clearTimeout(subAnimT);
+    view.classList.remove('sub-push', 'sub-pop');
+    void view.offsetWidth;
+    view.classList.add(dir === 'pop' ? 'sub-pop' : 'sub-push');
+    subAnimT = setTimeout(function () { view.classList.remove('sub-push', 'sub-pop'); }, 460);
+  }
   function enterSub(onExit) {
     var wasIn = !!subExit;
     subExit = onExit || function () {};
-    if (!wasIn) pushHistory('__sub');
+    if (!wasIn) { pushHistory('__sub'); subAnim('push'); }
     syncSubDock();
   }
   function exitSubNow() {
     var f = subExit; subExit = null;
     syncSubDock();
+    /* 侧滑返回：手指已经把页推走了，下面露出的就该是落定的目录，不再补一段横推 */
+    if (f && !document.documentElement.classList.contains('nav-drag')) subAnim('pop');
     if (f) { try { f(); } catch (e) { /* 模块回调异常不影响返回 */ } }
   }
   function inSub() { return !!subExit; }

@@ -1,7 +1,7 @@
 /**
  * touchfx.js —— 第 246 次：触摸反馈（用户：点按反馈很小、手指划过卡片没有任何反馈、苹果网页没震动）
  *
- * ① 按压：手指按上按钮 / 卡片立刻缩一点（按钮 0.95，卡片 0.98），松手带一点回弹（弹簧曲线）。
+ * ① 按压：手指按上按钮 / 卡片立刻缩一点，松手带一点回弹（弹簧曲线）。第 334 次起三档缩放 + 列表行底色都读 CSS 变量 --press-*（见 styles.css :root）。
  *    用 Web Animations 动 CSS 的 scale 属性——不碰元素自己的 transform / transition，不和已有样式打架。
  * ② 光斑：手指在卡片上（包括滑动页面时手指扫过的卡片）出现一团跟手的柔光，离开淡出。
  *    一个全局浮层，按当前卡片的位置和圆角贴上去，z-index 低于 dock。
@@ -10,10 +10,35 @@
  */
 (function (global) {
   'use strict';
-  var PRESS_SEL = 'button, [role="button"], a[href], summary, label.row-switch, .record-tile, .canvas-card[data-go], .tool-item, .sheet-card, .seg-btn';
+  var PRESS_SEL = 'button, [role="button"], a[href], summary, label.row-switch, .record-tile, .canvas-card[data-go], .tool-item, .sheet-card, .seg-btn, [data-go], [data-tab]';
   var GLOW_SEL = '.card, .record-tile, .canvas-card, .tool-item, .sheet-card, .set-group > summary, .hq-b, .hn-q';
   var SKIP_SEL = '#tabbar, #dockOrb, #quickDock .qd-fab, .record-grid.is-editing, .tp-off, input, textarea, select';
-  var BIG_SEL = '.card, .record-tile, .canvas-card, .sheet-card, .set-group > summary';
+  var BIG_SEL = '.card, .record-tile, .canvas-card, .sheet-card, .alltools-entry, .bp-search, .gs-cell, .hl2, .home-search, .lc-card, .ob-card, .sp-card, .tl-card, .vb-cover';
+  /* 第 334 次：按压态三档 + 行底色，全部读 CSS 变量（styles.css :root 的 --press-*），和鼠标的 :active 同一套数 */
+  var ICO_SEL = '.bp-gear, .btn-mini, .header-back, .header-gear, .home-avatar, .icon-btn, .sb-clear, .tile-del, .tl-more, .gr-gear, .rs-x, .ftf-rb';
+  /* 分组列表行：iOS 式按下整行变灰、不缩放（行贴着卡片边，缩放会露出缝） */
+  var ROW_SEL = '.set-group > summary, .st-act, .st-link, .vt-row, .sr-row, .su-row, label.row-switch, .wt-row';
+  var TOK = null;
+  function tok() {
+    if (TOK) return TOK;
+    var cs = null; try { cs = global.getComputedStyle(document.documentElement); } catch (e) { cs = null; }
+    var g = function (k, d) { var v = cs ? String(cs.getPropertyValue(k)).trim() : ''; return v || d; };
+    var ms = function (v, d) { var n = parseFloat(v); return isFinite(n) ? (/ms$/.test(v) ? n : n * 1000) : d; };
+    TOK = {
+      btn: g('--press-btn', '.96'), card: g('--press-card', '.985'), ico: g('--press-ico', '.92'),
+      inMs: ms(g('--dur-press', '120ms'), 120), outMs: ms(g('--dur-release', '420ms'), 420),
+      inEase: g('--ease-out', 'cubic-bezier(.2,.8,.2,1)'), outEase: g('--spring', 'cubic-bezier(.34,1.56,.64,1)')
+    };
+    return TOK;
+  }
+  function rowTint() {
+    /* --press-row 是 color-mix（随深浅色变）：取当前算好的颜色 */
+    try {
+      var p = document.createElement('i'); p.style.cssText = 'position:absolute;width:0;height:0;background:var(--press-row)';
+      document.body.appendChild(p); var c = global.getComputedStyle(p).backgroundColor; p.remove(); return c;
+    } catch (e) { return 'rgba(0,0,0,.06)'; }
+  }
+  var rowAnim = null, rowEl = null;
 
   var reduce = false;
   try { reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
@@ -61,20 +86,36 @@
     if (glow) glow.classList.remove('on');
   }
 
+  function tierOf(el) { return el.matches(ROW_SEL) ? 'row' : el.matches(BIG_SEL) ? 'card' : el.matches(ICO_SEL) ? 'ico' : 'btn'; }
   function pressDown(el) {
-    if (reduce || !el.animate) return;
-    var s = el.matches(BIG_SEL) ? 0.98 : 0.94;
+    if (!el.animate) return;
+    var T = tok(), tier = tierOf(el);
+    if (tier === 'row') {
+      /* 行底色：减少动态效果时也给（颜色变化不是运动），只是不渐变 */
+      rowEl = el;
+      try { rowAnim = el.animate([{ backgroundColor: rowTint() }], { duration: reduce ? 0 : T.inMs, easing: T.inEase, fill: 'forwards' }); } catch (e) { rowAnim = null; }
+      return;
+    }
+    if (reduce) return;
     try {
-      pressAnim = el.animate([{ scale: '1' }, { scale: String(s) }], { duration: 110, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' });
+      pressAnim = el.animate([{ scale: '1' }, { scale: String(T[tier]) }], { duration: T.inMs, easing: T.inEase, fill: 'forwards' });
     } catch (e) { pressAnim = null; }
   }
   function pressUp(el) {
     if (!el) return;
+    var T = tok();
+    if (rowEl === el && rowAnim) {
+      var a = rowAnim; rowAnim = null; rowEl = null;
+      var c0 = ''; try { c0 = global.getComputedStyle(el).backgroundColor; } catch (e) { /* */ }
+      try { a.cancel(); } catch (e) { /* */ }
+      if (!reduce && c0) { try { el.animate([{ backgroundColor: c0 }, {}], { duration: 220, easing: T.inEase }); } catch (e) { /* */ } }
+      return;
+    }
     var from = '1';
     try { from = global.getComputedStyle(el).scale || '1'; } catch (e) {}
     if (pressAnim) { try { pressAnim.cancel(); } catch (e) {} pressAnim = null; }
     if (reduce || !el.animate || from === '1' || from === 'none') return;
-    try { el.animate([{ scale: from }, { scale: '1' }], { duration: 420, easing: 'cubic-bezier(.34,1.56,.64,1)' }); } catch (e) {}
+    try { el.animate([{ scale: from }, { scale: '1' }], { duration: T.outMs, easing: T.outEase }); } catch (e) {}
   }
 
   /* 第 249 次（真机：iPhone 还是不震）：新版 iOS 只认「手指真实点到」switch 的 label，脚本调 label.click() 不再出触感。
@@ -181,5 +222,5 @@
   document.addEventListener('touchcancel', function () { if (pressEl) { pressUp(pressEl); pressEl = null; } hideGlow(); }, { passive: true, capture: true });
   global.addEventListener('scroll', function () { if (glowEl && !raf) raf = requestAnimationFrame(paintGlow); }, { passive: true });
 
-  global.TouchFX = { _glow: function () { return glow; } };
+  global.TouchFX = { _glow: function () { return glow; }, _tier: tierOf, _tok: function () { TOK = null; return tok(); }, _down: pressDown, _up: pressUp, PRESS_SEL: PRESS_SEL, ROW_SEL: ROW_SEL };
 })(window);

@@ -1298,7 +1298,7 @@
     var ico = TOAST_KIND_ICON[e.kind] || 'check';
     var ic = (window.icon && icon(ico)) ? icon(ico) : '';
     var accent = TOAST_KIND_ACCENT[e.kind] || (TOAST_ROUTE_KIND[e.route] ? e.route : '');
-    el.className = 'toast toast-' + e.type + ' toast-island' + (el._dock ? ' toast-dock' : '') + (el._glassOn ? ' lg-on' : '');
+    el.className = 'toast toast-' + e.type + ' toast-island' + (el._glassOn ? ' lg-on' : '');
     el.setAttribute('data-kind', e.kind);
     if (accent) el.setAttribute('data-accent', accent); else el.removeAttribute('data-accent');
     var canvas = el.querySelector(':scope > canvas.lg-gl2');
@@ -1322,10 +1322,6 @@
       });
       el.appendChild(act);
     }
-    if (el._dock) {
-      var bar = document.createElement('i'); bar.className = 'toast-bar'; bar.setAttribute('aria-hidden', 'true');
-      el.appendChild(bar);
-    }
     el._toastMsg = e.msg;
     el._toastHasAction = !!e.action;
     el._toastRoute = e.route;
@@ -1336,14 +1332,6 @@
     clearTimeout(TST.timer);
     TST.t0 = Date.now(); TST.left = ms;
     TST.timer = setTimeout(toastExpire, ms);
-    /* 第 302 次：dock 卡片底部的倒计时细条，从剩余比例走到 0（垫在下面的撤销回来时接着走） */
-    var bar = TST.el && TST.el._dock && TST.el.querySelector('.toast-bar');
-    if (bar && TST.cur) {
-      bar.style.animation = 'none'; void bar.offsetWidth;
-      bar.style.setProperty('--bar-from', Math.max(0.05, Math.min(1, ms / (TST.cur.dur || ms))).toFixed(3));
-      bar.style.animation = '';
-      bar.style.animationDuration = ms + 'ms';
-    }
   }
   function toastPause() { if (!TST.timer) return; clearTimeout(TST.timer); TST.timer = 0; TST.left = Math.max(600, TST.left - (Date.now() - TST.t0)); }
   function toastResume() { if (TST.timer || !TST.cur || TST.leaving) return; toastArm(TST.left || 1200); }
@@ -1429,12 +1417,11 @@
     el._toastMsg = e.msg; el._toastAt = e.at; el._toastEntry = e;
   }
   /* -----------------------------------------------------------
-   * 第 302 次：要点的提示（带「撤销」等按钮）从 dock 里长出来——
-   *   dock 看得见时：提示卡贴在 dock 的位置，从 dock 的形状弹性放大成卡片（dock 同时淡出），
-   *   点完 / 倒计时结束再缩回 dock 的形状、dock 淡回来。拇指不用够到屏幕顶上。
-   *   dock 看不见（记录面板 / 全屏计时 / 引导 / 快记菜单开着）时，仍走顶部咿呀岛，不压住面板的保存条。
-   * 只看不点的提示一律留在顶部咿呀岛。
+   * 第 334 次（用户：「咿呀岛弹出提醒全部挪到上方，不要在下方了」）：第 302 次「带撤销的提示从 dock 长出卡片」整套删掉——
+   *   所有提示（只看的、带「撤销」的）一律是顶部咿呀岛，撤销按钮留在岛里（第 288 次规则不变）。
+   *   确认框（Util.confirm / Util.yiyaAsk）是要做决定的模态对话框，不是提示，仍从 dock 长出（dockpopOff 留给它用）。
    */
+  /* 确认框从 dock 长出：dock 此刻看得见时给它的矩形（面板 / 全屏计时 / 引导 / 快记菜单开着时为 null，确认框从底部升起） */
   function toastDockRect() {
     var bar = document.getElementById('tabbar'); if (!bar) return null;
     var bc = document.body.classList;
@@ -1450,54 +1437,14 @@
     } catch (eD) { return null; }
   }
   Util._toastDockRect = toastDockRect;
-  function dockBlockedByOverlay() {
-    var bc = document.body.classList;
-    return bc.contains('sheet-open') || bc.contains('qd-open') || bc.contains('menu-open') || !!document.querySelector('#modalRoot .modal-mask');
-  }
-  function dockCardW() { return Math.min(360, (global.innerWidth || 360) - 24); }
-  function dockPlace(root, r) {
-    var vw = global.innerWidth || 0, vh = global.innerHeight || 0, w = dockCardW();
-    var cx = r.left + r.width / 2;
-    cx = Math.max(w / 2 + 12, Math.min(vw - w / 2 - 12, cx));
-    root.classList.add('at-dock');
-    root.style.top = 'auto';
-    root.style.left = cx.toFixed(1) + 'px';
-    root.style.bottom = Math.max(4, Math.round(vh - r.bottom - 4)) + 'px';
-  }
-  function dockScaleVars(el, r) {
-    var w = el.offsetWidth || dockCardW(), h = el.offsetHeight || 64;
-    el.style.setProperty('--dk-sx', Math.max(0.2, Math.min(1, r.width / w)).toFixed(3));
-    el.style.setProperty('--dk-sy', Math.max(0.3, Math.min(1, r.height / h)).toFixed(3));
-  }
-  function rootTop(root) {
-    root = root || document.getElementById('toastRoot'); if (!root) return;
-    root.classList.remove('at-dock'); root.style.left = ''; root.style.bottom = ''; root.style.top = '';
-  }
   function dockpopOff() {
-    if (TST.el && TST.el._dock && !TST.leaving) return;
     if (document.querySelector('.cfm-mask.cfm-from-dock')) return;
     document.body.classList.remove('dockpop');
   }
   Util._dockpopOff = dockpopOff;
   function toastShow(e, ms, opt) {
-    /* 第 303 次：带按钮的提示常在「保存 → 关面板」的同一拍里发出——那一刻面板还算开着，
-       dock 被判成被遮住、提示就跑去了顶部。挡住 dock 的只是正在关的面板时，等这一拍跑完
-       （面板的 MutationObserver 微任务已更新 sheet-open）再决定位置。 */
-    if (e.action && !(opt && opt._settled) && !toastDockRect() && dockBlockedByOverlay()) {
-      setTimeout(function () { if (!e.acted) toastShow(e, ms, Object.assign({}, opt || {}, { _settled: true })); }, 0);
-      return;
-    }
     var root = toastRoot();
     var el = TST.el;
-    var dockR = e.action ? toastDockRect() : null;
-    var wantDock = !!dockR;
-    if (el && el.isConnected && !TST.leaving && !!el._dock !== wantDock) {
-      /* 顶部 ↔ dock 换位：旧的直接摘掉，新的按新位置重新出现（不在两处之间形变） */
-      toastMorphEnd(el);
-      if (el.parentNode) el.parentNode.removeChild(el);
-      TST.el = el = null;
-      if (!wantDock) { rootTop(root); dockpopOff(); }
-    }
     var swap = !!(el && el.isConnected && !TST.leaving);
     if (!swap) {
       if (el && el.parentNode) el.parentNode.removeChild(el);
@@ -1505,7 +1452,6 @@
       el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); el.setAttribute('aria-atomic', 'true');
       el._toastDismiss = function () { toastDismissAll(); };
       el._mo = null;
-      el._dock = wantDock;
       toastSwipe(el);
       TST.leaving = false;
     }
@@ -1516,9 +1462,7 @@
     if (inplace) toastUpdate(el, e, opt.prev);
     else toastFill(el, e);
     if (!swap) {
-      if (wantDock) dockPlace(root, dockR); else rootTop(root);
       root.appendChild(el); toastGlass(el); if (el._glassOn) el.classList.add('lg-on');
-      if (wantDock) { dockScaleVars(el, dockR); document.body.classList.add('dockpop'); }
     }
     if (!swap) {
       Util.placeToasts();
@@ -1543,13 +1487,11 @@
     el.classList.remove('show');
     if (global.DockRefract && DockRefract.kick) DockRefract.kick(300);
     /* 第 81 次动效纪律：退场比入场快（.24s），移除稍后 */
-    if (el._dock) setTimeout(function () { if (TST.el === el || !TST.el) dockpopOff(); }, 150);
     setTimeout(function () {
       if (el.parentNode) el.parentNode.removeChild(el);
       if (TST.el === el) {
         TST.el = null; TST.leaving = false;
         if (global.DockRefract && DockRefract.unsurface) DockRefract.unsurface('toast');
-        if (el._dock) { rootTop(); dockpopOff(); }
       }
     }, 260);
   }
@@ -1564,8 +1506,8 @@
     });
     el.addEventListener('pointermove', function (ev) {
       if (id !== ev.pointerId) return;
-      var raw = (ev.clientY - y0) * (el._dock ? -1 : 1);
-      dy = (raw < 0 ? raw : raw * 0.25) * (el._dock ? -1 : 1);
+      var raw = ev.clientY - y0;
+      dy = raw < 0 ? raw : raw * 0.25;
       var t = ev.timeStamp || Date.now();
       if (t > lastT) { v = (ev.clientY - lastY) / (t - lastT); lastY = ev.clientY; lastT = t; }
       el.style.translate = '0 ' + dy.toFixed(1) + 'px';
@@ -1574,7 +1516,7 @@
     var end = function (ev) {
       if (id !== ev.pointerId) return;
       id = null; el.classList.remove('dragging');
-      if (el._dock ? (dy > 22 || v > 0.35) : (dy < -22 || v < -0.35)) { toastDismissAll(!el._dock); return; }
+      if (dy < -22 || v < -0.35) { toastDismissAll(true); return; }
       el.style.translate = '';
       if (global.DockRefract && DockRefract.kick) DockRefract.kick(360);
       toastResume();
@@ -1637,15 +1579,6 @@
     var root = document.getElementById('toastRoot'); if (!root) return;
     try {
       var el = TST.el;
-      if (el && el.isConnected && el._dock && !TST.leaving) {
-        var dr = toastDockRect();
-        if (dr) { dockPlace(root, dr); return; }
-        /* dock 被面板 / 全屏计时盖住了：这张卡改回顶部咿呀岛，不压住面板的保存条 */
-        el._dock = false; el.classList.remove('toast-dock');
-        var ob = el.querySelector('.toast-bar'); if (ob) ob.remove();
-        rootTop(root); document.body.classList.remove('dockpop');
-      }
-      if (root.classList.contains('at-dock')) rootTop(root);
       root.style.top = '';
       if (!el || !el.isConnected) return;
       var vw = global.innerWidth || 0;

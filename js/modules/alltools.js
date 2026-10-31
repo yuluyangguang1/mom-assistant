@@ -154,7 +154,7 @@
       /* 顶部搜索入口：与首页 .home-search 完全同一套类名与结构，点击跳到搜索页。 */
       html += '<button class="home-search" data-go="search" type="button">'
         + '<span class="si-ico">' + iconOf('search') + '</span>'
-        + '<span>搜索记录、里程碑、用品…</span>'
+        + '<span>搜索全部记录</span>' /* 第 334 次审查：和宝宝页搜索条同一句；原句 320 宽 + 1.33 倍字号被省略号截断 */
         + '</button>';
 
       groups.forEach(function (g) {

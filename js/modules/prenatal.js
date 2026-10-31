@@ -96,8 +96,10 @@
       tags: editing && Array.isArray(rec.tags) ? rec.tags.slice() : [],
       photos: editing && PH ? PH.clean(rec.photos) : []
     };
+    /* 第 334 次审查：日期改成全站面板同一种日期磁贴（ft-tile，原来是唯一一个裸露的原生日期框） */
     var body = '<p class="rs-lbl">日期与孕周</p>'
-      + '<div class="pv-dateRow"><span>产检日期</span><label class="pv-date"><input type="date" id="pvDate" max="' + today + '" value="' + esc(st.date) + '" aria-label="产检日期"></label></div>'
+      + '<div class="rs-when ft-when ml-when"><label class="rs-tile ft-tile"><span class="ft-ti">' + ((FT.SV && FT.SV.cal) || '') + '</span><span class="ft-tt"><small>产检日期</small>'
+      + '<b data-show="pvDate"></b><input type="date" class="ft-hid" id="pvDate" max="' + today + '" value="' + esc(st.date) + '" aria-label="产检日期"></span></label></div>'
       + '<div class="pv-ga" id="pvGa"></div>'
       + '<div class="pv-stage" id="pvStage"></div>'
       + '<p class="rs-lbl">超声测量 <span class="rs-lbl-n">可选</span></p>';
@@ -115,6 +117,7 @@
       var box = api.box, closed = false, busy = false, saving = false;
       api.onClose = (function (prev) { return function () { closed = true; if (prev) prev.apply(this, arguments); }; })(api.onClose);
       var dateI = box.querySelector('#pvDate');
+      if (FT.bindWhen) { FT.bindWhen(box); if (dateI._paint) dateI._paint(); }
       function paintTop() {
         var dd = Storage.get(), ga = gaAt(dd, st.date), stg = ga ? stageOf(ga.w) : null, n = nthAt(dd, st.date, editing ? rec.id : null);
         box.querySelector('#pvGa').innerHTML = '<p><small>孕周</small><b>' + (ga ? esc(gaText(ga)) : '—') + '</b></p><span>' + (ga ? '按预产期自动计算' : '填了预产期就能自动算') + '</span>';
@@ -151,7 +154,7 @@
       paintTop(); paintPh();
       dateI.addEventListener('change', function () {
         if (okDay(dateI.value) && dateI.value <= Util.todayISO()) st.date = dateI.value;
-        else { Util.toast(dateI.value > Util.todayISO() ? '这一天还没到，请检查一下' : '日期不完整', 'warn'); dateI.value = st.date; }
+        else { Util.toast(dateI.value > Util.todayISO() ? '这一天还没到，请检查一下' : '日期不完整', 'warn'); dateI.value = st.date; if (dateI._paint) dateI._paint(); }
         paintTop();
       });
       box.addEventListener('input', function (e) {

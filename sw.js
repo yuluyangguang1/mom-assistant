@@ -13,7 +13,9 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v294';
+var CACHE = 'baoma-static-v295';
+/* v295（第 334 次 · UI 统一批）：二级 dock 对齐一级原生尺寸（dock-fuse.js 读 --dk-h / --dk-m）、提示全部回到顶部咿呀岛（util.js 删 dock 卡片）、
+   按压态 token 化（touchfx.js）、三级页横推 / 展开收起 / 模块切换 / 数字变化过渡（app.js）、审查修正（styles.css / alltools / calendar / growth / prenatal / quickrec）。 */
 /* v294（第 333 次 · 设置页重做 + 我的快记）：新增 js/quickrec.js（首页快记卡与「＋」面板共用的快记清单、记法、编辑）；
    settings.js / home.js / app.js / storage.js / datamgr.js / styles.css 有改动。 */
 /* v293（第 332 次 · 家庭共享）：famcrypto.js（页面与 SW 共用的加密 + IndexedDB 密钥仓库）、famsync.js、famui.js、

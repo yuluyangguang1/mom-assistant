@@ -25,7 +25,18 @@
   var doc = global.document;
   if (!doc) return;
   var F = {};
-  var CIR = 52, GAP = 10, PUSH_MS = 320, POP_MS = 300;
+  /* 第 334 次：二级圆钮按一级 dock 的原生尺寸（--dk-orb 62、左右 --dk-m 21、同一底边 --dk-b），进页时从 CSS 变量读；
+     正在进行胶囊 / 记录条仍 52 高（PIECE），落在圆钮那一行的中线上 */
+  var CIR = 62, DKM = 21, PIECE = 52, GAP = 10, PUSH_MS = 320, POP_MS = 300;
+  function readDk() {
+    try {
+      var cs = global.getComputedStyle(doc.documentElement);
+      var c = parseFloat(cs.getPropertyValue('--dk-h')), m = parseFloat(cs.getPropertyValue('--dk-m'));
+      if (c > 20 && c < 120) CIR = c;
+      if (m >= 0 && m < 80) DKM = m;
+      if (F.K) { F.K.CIR = CIR; F.K.DKM = DKM; }
+    } catch (e) { /* */ }
+  }
   var PRESS_PIECE = 0.03;   /* 第 320 次：形变途中按下单颗钮的放大量 */
   var K_REST = 6, K_DROP = 12, K_EMERGE = 16, K_SPLIT = 14;
   var reduced = false;
@@ -207,18 +218,19 @@
     var cx = r.left + r.width / 2, cy = r.top + r.height / 2, w = r.width / k, h = r.height / k;
     return { left: cx - w / 2, top: cy - h / 2, width: w, height: h, right: cx + w / 2, bottom: cy + h / 2 };
   }
-  /* 二级几何：栏（透明容器，60 高）中线 = 圆钮中线；记录条在圆钮上方 10pt */
+  /* 二级几何：栏（透明容器，62 高 = 一级栏）中线 = 圆钮中线；记录条在圆钮上方 10pt */
   function measure() {
     var b = bar(); if (!b) return null;
     var W = global.innerWidth || 390, H = global.innerHeight || 844;
     var br = b.getBoundingClientRect();
-    var colL = Math.max(0, (W - 640) / 2) + 16, colR = W - colL;
+    readDk();
+    var colL = DKM, colR = W - DKM;
     var cy = br.top + br.height / 2;
     var G = { W: W, H: H, bar: br.width > 0 ? { left: br.left, top: br.top, width: br.width, height: br.height, right: br.right, bottom: br.bottom } : null,
       colL: colL, colR: colR, cy: cy,
       back: { x: colL, y: cy - CIR / 2, w: CIR, h: CIR }, plus: { x: colR - CIR, y: cy - CIR / 2, w: CIR, h: CIR } };
     var lv = liveEl();
-    G.live = lv && isSubDom() ? { x: colL + CIR + GAP, y: cy - CIR / 2, w: colR - colL - 2 * (CIR + GAP), h: CIR } : null;
+    G.live = lv && isSubDom() ? { x: colL + CIR + GAP, y: cy - PIECE / 2, w: colR - colL - 2 * (CIR + GAP), h: PIECE } : null;
     var root = ctaRoot();
     G.cta = null;
     if (root && isSubDom()) {
@@ -253,8 +265,18 @@
     var root = ctaRoot(), cy = G.cta.cy;
     if (!root || !G.cta.els[0] || !G.cta.els[0].isConnected) { G.cta.pc = G.cta.pe.map(function (r) { return { x: r.x, y: cy - r.h / 2, w: r.w, h: r.h }; }); return G.cta.pc; }
     var tf = root.style.transform, pl = root.style.paddingLeft, prr = root.style.paddingRight;
-    root.style.transform = 'none'; root.style.paddingLeft = root.style.paddingRight = (16 + CIR + GAP) + 'px';
+    root.style.transform = 'none'; root.style.paddingLeft = root.style.paddingRight = (DKM + CIR + GAP) + 'px';
     G.cta.pc = G.cta.els.map(function (el) { var r = rect(el.getBoundingClientRect()); r.y = cy - r.h / 2; return r; });
+    /* 第 334 次：圆钮 52 → 62 后中间那一行变窄（320 宽 + 1.33 倍字号只剩 134）：放不下（任何一块文字溢出）就不并入，记录条留在上面 */
+    G.cta.noFit = G.cta.els.some(function (el) {
+      if (el.scrollWidth > el.clientWidth + 1) return true;
+      return Array.prototype.some.call(el.querySelectorAll('span, b, small'), function (n) { return n.scrollWidth > n.clientWidth + 1 && n.clientWidth > 0; });
+    });
+    if (G.cta.noFit) {
+      S.collapseOk = false;
+      /* 已经在并入（或正在并入）却量出放不下（字号 / 内容变了、换了新几何）：立刻展开回去，不留截字的一行 */
+      if (S.c.t !== 0) { S.c.t = 0; if (reduced) { S.c.x = 0; S.c.v = 0; } global.setTimeout(kick, 0); }
+    }
     root.style.transform = tf; root.style.paddingLeft = pl; root.style.paddingRight = prr;
     return G.cta.pc;
   }
@@ -306,7 +328,7 @@
       { x: plus.x, y: plus.y, w: plus.w, h: plus.h, k: kp, tm: 0, a: 1, lf: 0, band: 18, id: 'plus' }
     ];
     var dockMid = { x: (back0.x + plus0.x + plus0.w) / 2 - 22, y: G.cy - 20, w: 44, h: 22 };   /* 用按下放大前的位置：按住一颗钮时记录条 / 种子不跟着挪 */
-    var plusSeed = { x: G.plus.x + 11, y: G.cy - 10, w: 30, h: 20 };
+    var plusSeed = { x: G.plus.x + CIR / 2 - 15, y: G.cy - 10, w: 30, h: 20 };
     if (G.cta) {
       var cs = ctaShapes(G, S.e, S.c.x, S.ab.x, S.pr.x, dockMid, plusSeed);
       cs.forEach(function (q) { q.id = 'cta' + q._i; list.push(q); });
@@ -396,7 +418,7 @@
     /* 记录条：左右留白（并入一行）+ transform（冒出 / 吸收 / 按下）+ 内容透明度 */
     var root = ctaRoot();
     if (root && G.cta && sub) {
-      var c = S.c.x, pad = 16 + (CIR + GAP) * c;
+      var c = S.c.x, pad = DKM + (CIR + GAP) * c;
       root.style.paddingLeft = root.style.paddingRight = (c > 0.0005 ? pad.toFixed(2) + 'px' : '');
       var cur = list.filter(function (x) { return /^cta/.test(x.id); });
       if (cur.length) {
@@ -723,7 +745,9 @@
     if (!S.collapseOk || !isSubDom()) on = false;
     var t = on ? 1 : 0;
     if (S.c.t === t) return;
-    if (t && S.G) pcOf(S.G);
+    /* 每次要并入都重新量一次（缓存的 pc 可能是字号 / 内容变化前量的），放不下就不并入 */
+    if (t && S.G) { if (S.G.cta) S.G.cta.pc = null; pcOf(S.G); if (!S.collapseOk) t = 0; }
+    if (S.c.t === t) return;
     S.c.t = t;
     if (reduced) { S.c.x = t; S.c.v = 0; }
     kick();
@@ -803,7 +827,7 @@
   F._step = function (ms) { S.last = now() - (ms || 16.67); if (S.raf) { global.cancelAnimationFrame(S.raf); S.raf = 0; } frame(); return F._state(); };
   F._measure = function () { return measure(); };
   F._clock = function (f) { clk = typeof f === 'function' ? f : null; };
-  F.K = { REST: K_REST, DROP: K_DROP, EMERGE: K_EMERGE, SPLIT: K_SPLIT, CIR: CIR, GAP: GAP, PRESS_PIECE: PRESS_PIECE, PUSH_MS: PUSH_MS, SPRING: { k: 300, z: 0.86 } };
+  F.K = { REST: K_REST, DROP: K_DROP, EMERGE: K_EMERGE, SPLIT: K_SPLIT, CIR: CIR, DKM: DKM, PIECE: PIECE, GAP: GAP, PRESS_PIECE: PRESS_PIECE, PUSH_MS: PUSH_MS, SPRING: { k: 300, z: 0.86 } };
 
   function init() {
     global.addEventListener('scroll', onScroll, { passive: true });
