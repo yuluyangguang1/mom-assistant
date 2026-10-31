@@ -488,10 +488,9 @@
       var cardTiles = [];
       /* 第 211 次：小组件卡（喂奶/尿布/睡眠/哄睡声音）与快捷记录卡 */
       W_IDS.forEach(function (wid) {
-        if (wid === 'quick' && stageNow211 === 'pregnancy' && !isDual(d)) return;
         cardTiles.push({ id: wid, _card: true, name: CARDS_META[wid].name, icon: CARDS_META[wid].icon });
       });
-      ['quick-h', 'quick-s'].concat(TODAY_IDS).forEach(function (cid) {
+      TODAY_IDS.forEach(function (cid) {
         if (stageNow211 === 'pregnancy' && !isDual(d)) return;
         cardTiles.push({ id: cid, _card: true, name: CARDS_META[cid].name, icon: CARDS_META[cid].icon });
       });
@@ -502,14 +501,7 @@
       });
       if (feedNextReady()) cardTiles.push({ id: 'feednext', _card: true, name: CARDS_META['feednext'].name, icon: CARDS_META['feednext'].icon });
       if (growthSparkReady()) cardTiles.push({ id: 'growthspark', _card: true, name: CARDS_META['growthspark'].name, icon: CARDS_META['growthspark'].icon });
-      /* 第 122 次：直接记录组件——条件永远成立（随时可记），与 last-* 同纪律：
-         不进默认画布基线，目录常驻等用户挑（否则首次编辑物化会塞两张记录卡进首页）。 */
-      cardTiles.push({ id: 'rec-diaper', _card: true, name: CARDS_META['rec-diaper'].name, icon: CARDS_META['rec-diaper'].icon });
-      cardTiles.push({ id: 'rec-sleep', _card: true, name: CARDS_META['rec-sleep'].name, icon: CARDS_META['rec-sleep'].icon });
-      /* 第 123 次：瓶喂/亲喂/吸奶直接记录卡——同 122 次纪律（不进基线、目录常驻）。 */
-      ['rec-bottle', 'rec-breast', 'rec-pump'].forEach(function (rid) {
-        cardTiles.push({ id: rid, _card: true, name: CARDS_META[rid].name, icon: CARDS_META[rid].icon });
-      });
+      /* 第 333 次：五张「直接记录」卡（rec-*）收进「我的快记」（见 js/quickrec.js），目录里不再单列 */
       var nowMs121 = Date.now();
       LAST_DEFS_IDS.forEach(function (cid) {
         var def = LAST_DEFS[cid];
@@ -534,104 +526,6 @@
           } : null
         });
       });
-      /* 第 122 次：直接记录组件工厂（render 作用域闭包，与 feedNextHTML 同模式）。
-         数据 shape 与 diaper.js / sleep.js 落库完全同源（同字段、同 save 流程、
-         同撤销 toast（尿布 C2）/时长 toast（睡眠 C1）语义）——只把入口搬进画布，
-         不新造数据、不另写一套字段。编辑模式内嵌按钮 disabled（编辑 ≠ 误记录，
-         与「编辑模式 data-go 跳过」同一和解方式）。 */
-      function recDiaperHTML(extraCls, badges) {
-        var dayNow = careDayNow(); /* 第 131 次（P1-a）：与磁贴同口径 */
-        var cnt = (d.diapers || []).filter(function (r) { return careKeyOf(r.time) === dayNow; }).length;
-        var dis = editing ? ' disabled' : '';
-        return '<div class="card canvas-card rc-card' + extraCls + '" data-cid="rec-diaper" data-accent="diaper"><h2 class="rc-h"><span class="rc-ico">' + icon('diaper') + '</span>记尿布</h2>'
-          + '<div class="rec-keys">'
-          + '<button class="quick-btn" data-reccd="pee" type="button"' + dis + '>' + icon('pee') + '尿</button>'
-          + '<button class="quick-btn" data-reccd="poop" type="button"' + dis + '>' + icon('poop') + '便</button>'
-          + '<button class="quick-btn" data-reccd="both" type="button"' + dis + '>' + icon('diaper') + '尿+便</button>'
-          + '</div>'
-          + '<p class="hint">今天已记 ' + cnt + ' 次</p>' + badges + '</div>';
-      }
-      function recSleepHTML(extraCls, badges) {
-        var dis = editing ? ' disabled' : '';
-        var os = d.openSleep;
-        var html = '<div class="card canvas-card rc-card' + extraCls + '" data-cid="rec-sleep" data-accent="sleep"><h2 class="rc-h"><span class="rc-ico">' + icon('sleep') + '</span>睡眠计时</h2>';
-        if (os && os.start) {
-          var ms = Date.now() - new Date(os.start).getTime()
-            - ((os.pausedMs || 0) + (os.pauseStart ? Date.now() - os.pauseStart : 0));
-          html += '<p class="rec-running">' + Util.fmtDuration(Math.max(0, ms)) + '</p>'
-            + '<div class="rec-keys"><button class="btn" data-recsl="end" type="button"' + dis + '>结束睡眠</button></div>';
-        } else {
-          html += '<div class="rec-keys"><button class="btn" data-recsl="start" type="button"' + dis + '>开始睡眠</button></div>'
-            + '<p class="hint">在首页直接开始计时，不用先进睡眠页。</p>';
-        }
-        return html + badges + '</div>';
-      }
-
-      /* 第 123 次：瓶喂/亲喂/吸奶直接记录卡（render 作用域闭包）。
-         数据 shape 与 feeding.js #fSave 落库逐字同源（十二字段全量写，
-         不走快记捷径）；校验文案与 feeding.js 一致；步进状态存
-         Modules.home._recState（会话内瞬时）。 */
-      function recState(k, dflt) {
-        Modules.home._recState = Modules.home._recState || {};
-        if (!Modules.home._recState[k]) Modules.home._recState[k] = dflt;
-        return Modules.home._recState[k];
-      }
-      function recBottleHTML(extraCls, badges) {
-        var st = recState('bottle', { kind: 'bottle', amount: 60 });
-        var dis = editing ? ' disabled' : '';
-        return '<div class="card canvas-card rc-card' + extraCls + '" data-cid="rec-bottle" data-accent="feeding"><h2 class="rc-h"><span class="rc-ico">' + icon('feeding') + '</span>瓶喂</h2>'
-          + '<div class="rec-seg" role="group" aria-label="奶的种类">'
-          + '<button class="rec-seg-btn' + (st.kind === 'bottle' ? ' active' : '') + '" data-recbk="bottle" type="button"' + dis + '>母乳</button>'
-          + '<button class="rec-seg-btn' + (st.kind === 'formula' ? ' active' : '') + '" data-recbk="formula" type="button"' + dis + '>配方奶</button>'
-          + '</div>'
-          + '<div class="rec-stepper">'
-          + '<button class="rec-step" data-recstep="bottle:-10" type="button"' + dis + ' aria-label="减少 10 毫升">−10</button>'
-          + '<b class="rec-num">' + st.amount + '<i>ml</i></b>'
-          + '<button class="rec-step" data-recstep="bottle:10" type="button"' + dis + ' aria-label="增加 10 毫升">+10</button>'
-          + '</div>'
-          + '<div class="rec-keys"><button class="btn" data-recf="bottle" type="button"' + dis + '>记录瓶喂</button></div>'
-          + badges + '</div>';
-      }
-      function recBreastHTML(extraCls, badges) {
-        var st = recState('breast', { L: 0, R: 0 });
-        var dis = editing ? ' disabled' : '';
-        return '<div class="card canvas-card rc-card' + extraCls + '" data-cid="rec-breast" data-accent="feeding"><h2 class="rc-h"><span class="rc-ico">' + icon('breast') + '</span>亲喂</h2>'
-          + '<div class="rec-stepper">'
-          + '<button class="rec-step" data-recstep="breast.L:-1" type="button"' + dis + ' aria-label="左侧减少 1 分钟">−1</button>'
-          + '<b class="rec-num">左 ' + st.L + '<i>分</i></b>'
-          + '<button class="rec-step" data-recstep="breast.L:1" type="button"' + dis + ' aria-label="左侧增加 1 分钟">+1</button>'
-          + '</div>'
-          + '<div class="rec-stepper">'
-          + '<button class="rec-step" data-recstep="breast.R:-1" type="button"' + dis + ' aria-label="右侧减少 1 分钟">−1</button>'
-          + '<b class="rec-num">右 ' + st.R + '<i>分</i></b>'
-          + '<button class="rec-step" data-recstep="breast.R:1" type="button"' + dis + ' aria-label="右侧增加 1 分钟">+1</button>'
-          + '</div>'
-          + '<div class="rec-keys"><button class="btn" data-recf="breast" type="button"' + dis + '>记录亲喂</button></div>'
-          + badges + '</div>';
-      }
-      function recPumpHTML(extraCls, badges) {
-        var st = recState('pump', { L: 0, R: 0, ml: 0 });
-        var dis = editing ? ' disabled' : '';
-        return '<div class="card canvas-card rc-card' + extraCls + '" data-cid="rec-pump" data-accent="feeding"><h2 class="rc-h"><span class="rc-ico">' + icon('pump') + '</span>吸奶</h2>'
-          + '<div class="rec-stepper">'
-          + '<button class="rec-step" data-recstep="pump.L:-1" type="button"' + dis + ' aria-label="左侧减少 1 分钟">−1</button>'
-          + '<b class="rec-num">左 ' + st.L + '<i>分</i></b>'
-          + '<button class="rec-step" data-recstep="pump.L:1" type="button"' + dis + ' aria-label="左侧增加 1 分钟">+1</button>'
-          + '</div>'
-          + '<div class="rec-stepper">'
-          + '<button class="rec-step" data-recstep="pump.R:-1" type="button"' + dis + ' aria-label="右侧减少 1 分钟">−1</button>'
-          + '<b class="rec-num">右 ' + st.R + '<i>分</i></b>'
-          + '<button class="rec-step" data-recstep="pump.R:1" type="button"' + dis + ' aria-label="右侧增加 1 分钟">+1</button>'
-          + '</div>'
-          + '<div class="rec-stepper">'
-          + '<button class="rec-step" data-recstep="pump.ml:-10" type="button"' + dis + ' aria-label="奶量减少 10 毫升">−10</button>'
-          + '<b class="rec-num">' + st.ml + '<i>ml</i></b>'
-          + '<button class="rec-step" data-recstep="pump.ml:10" type="button"' + dis + ' aria-label="奶量增加 10 毫升">+10</button>'
-          + '</div>'
-          + '<div class="rec-keys"><button class="btn" data-recf="pump" type="button"' + dis + '>记录吸奶</button></div>'
-          + badges + '</div>';
-      }
-
       /* 编辑角标（磁贴/卡共用同构 HTML；非编辑模式零节点） */
       var noBadges = false; /* 第 217 次：添加目录里的预览不带编辑角标 */
       function editBadges(t) {
@@ -672,11 +566,6 @@
         if (W_HTML[t.id]) return W_HTML[t.id](cls, editBadges(t));
         if (t.id === 'feednext') return feedNextHTML(cls, editBadges(t));
         if (t.id === 'growthspark') return growthSparkHTML(cls, editBadges(t));
-        if (t.id === 'rec-diaper') return recDiaperHTML(cls, editBadges(t));
-        if (t.id === 'rec-sleep') return recSleepHTML(cls, editBadges(t));
-        if (t.id === 'rec-bottle') return recBottleHTML(cls, editBadges(t));
-        if (t.id === 'rec-breast') return recBreastHTML(cls, editBadges(t));
-        if (t.id === 'rec-pump') return recPumpHTML(cls, editBadges(t));
         /* 第 218 次：距上次卡改为「大号间隔 + 具体时间 + 明细胶囊」，带主题色 */
         var LACC = { 'last-feeding': 'feeding', 'last-diaper': 'diaper', 'last-sleep': 'sleep', 'last-growth': 'growth', 'last-temp': 'temp' };
         var gapTxt = t._last ? (t._last.gap === '不到 1 分钟' ? '刚刚' : t._last.gap) : '';
@@ -953,7 +842,7 @@
         if (CK) runs.push({ k: 'care', ico: CK[1], label: CK[0], os: d.openCare, go: CK[1] });
       }
       var nowStage = (global.App && typeof App.stageOf === 'function') ? App.stageOf(d) : 'baby';
-      var showQuick = nowStage !== 'pregnancy' || isDual(d); /* 第 220 次：二胎孕期照样要给大宝快记 */
+      void nowStage;
       /* 第 236 次：进行中的计时改由 dock 上方的「正在进行」胶囊统一显示（dock-live.js），首页不再重复一条 */
       void runs;
       /* 第 118 次（首页搜索入口）：放在 .home-main 最前面、紧贴问候卡下方——
@@ -1166,42 +1055,11 @@
           };
         }
       })();
-      if (showQuick) {
-        W_HTML['quick'] = function (cls, bd2) {
-          var h2 = '';
-          var fedQ = (global.App && App._fedDefaults) ? App._fedDefaults() : null;
-          h2 += '<div class="hn-quick" role="group" aria-label="快速记录">'
-            + (fedQ ? '<button type="button" class="hn-q"' + (editing ? ' disabled' : '') + ' data-hnq="feed" data-accent="feeding">' + icon('feeding') + '<span>喂奶</span></button>' : '')
-            + '<button type="button" class="hn-q"' + (editing ? ' disabled' : '') + ' data-hnq="pee" data-accent="diaper">' + icon('pee') + '<span>尿了</span></button>'
-            + '<button type="button" class="hn-q"' + (editing ? ' disabled' : '') + ' data-hnq="poop" data-accent="diaper">' + icon('poop') + '<span>拉了</span></button>'
-            /* 睡眠进行中时「醒了」已在上方计时条里，快记行不再重复 */
-            + ((d.openSleep || (Modules.home._qTarget === 'all' && (d.babies || []).length >= 2)) ? '' /* 第 222 次：睡眠计时只对当前宝宝，「都记」时不显示 */
-              : '<button type="button" class="hn-q"' + (editing ? ' disabled' : '') + ' data-recsl="start" data-accent="sleep">' + icon('sleep') + '<span>睡了</span></button>')
-            + '</div>';
-          if (fedQ) h2 += '<p class="hn-hint">喂奶按上次：' + Util.escapeHtml(fedQ.label) + '</p>';
-          /* 第 222 次：两个及以上宝宝时可选「记给谁」；第 293 次：每个宝宝一个名字（点了即切换）+ 都记，与 ＋ 快捷记录共用 */
-          if (!editing && global.App && App._tgtChips) h2 += App._tgtChips(d, 'hn-tgt');
-          return '<div class="card canvas-card hn-quick-card' + (cls || '') + '" data-cid="quick">' + h2 + (bd2 || '') + '</div>';
-        };
-        /* 第 245 次：快捷记录的横条 / 小卡两种尺寸——同一套 data-hnq / data-recsl 绑定，记法完全一致 */
-        var qBtns = function (short) {
-          var fq = (global.App && App._fedDefaults) ? App._fedDefaults() : null;
-          var dis = editing ? ' disabled' : '';
-          var arr = [];
-          if (fq) arr.push('<button type="button" class="hq-b"' + dis + ' data-hnq="feed" data-accent="feeding" aria-label="喂奶：' + Util.escapeHtml(fq.label) + '"><i>' + icon('feeding') + '</i><span>喂奶</span></button>');
-          arr.push('<button type="button" class="hq-b"' + dis + ' data-hnq="pee" data-accent="diaper"><i>' + icon('pee') + '</i><span>尿了</span></button>');
-          arr.push('<button type="button" class="hq-b"' + dis + ' data-hnq="poop" data-accent="diaper"><i>' + icon('poop') + '</i><span>拉了</span></button>');
-          if (!d.openSleep) arr.push('<button type="button" class="hq-b"' + dis + ' data-recsl="start" data-accent="sleep"><i>' + icon('sleep') + '</i><span>睡了</span></button>');
-          return arr.join('');
-        };
-        W_HTML['quick-h'] = function (cls, bd2) {
-          return '<div class="card canvas-card hq-card hq-h' + (cls || '') + '" data-cid="quick-h" role="group" aria-label="快速记录">' + qBtns() + (bd2 || '') + '</div>';
-        };
-        W_HTML['quick-s'] = function (cls, bd2) {
-          return '<div class="card canvas-card hq-card hq-s' + (cls || '') + '" data-cid="quick-s" role="group" aria-label="快速记录">'
-            + '<span class="hq-title">' + icon('plus') + '快速记录</span><div class="hq-grid">' + qBtns() + '</div>' + (bd2 || '') + '</div>';
-        };
-      }
+      /* 第 333 次：快记卡只有一张，内容是「我的快记」（首页与「＋」面板共用，js/quickrec.js）；半宽时只放前 4 个 */
+      W_HTML['quick'] = function (cls, bd2) {
+        if (!global.QuickRec) return '';
+        return QuickRec.cardHTML(d, { editing: editing, cls: cls || '', badges: bd2 || '', size: /sz-s/.test(cls || '') ? 's' : 'l' });
+      };
       /* 第 91 次：底边过渡带已删除——融合改由画布自身淡出为透明完成
          （sky.js fadeBottomOut），交界处即页面真实背景，日夜零横带。 */
 
@@ -1397,7 +1255,7 @@
            每项直接渲染首页上的真实样子（inert，不可交互），右上角「＋ 添加」。 */
         var addedRow = false;
         /* 第 245 次（用户：卡片编辑分类展示）：七个分类 + 顶部分类胶囊，点胶囊只看那一类 */
-        var groups = { '快捷记录': [], '上次': [], '今日': [], '趋势': [], '直接记录': [], '距上次': [], '功能入口': [] };
+        var groups = { '快捷记录': [], '上次': [], '今日': [], '趋势': [], '距上次': [], '功能入口': [] };
         UNIVERSE().forEach(function (id) {
           if (inCanvas[id]) return;
           var g = '功能入口';
@@ -1769,79 +1627,9 @@
         };
       }
 
-      /* 第 122 次：直接记录组件绑定。数据路径与 diaper.js/sleep.js 同源：
-         同 rec 字段、同 Storage.save() 判定、同撤销 toast（尿布 C2 单手误触高发）、
-         同时长 toast（睡眠 C1 计时类带时长）。 */
-      Array.prototype.forEach.call(view.querySelectorAll('[data-reccd]'), function (b) {
-        b.addEventListener('click', function () {
-          var rec = { id: Util.uid(), type: b.getAttribute('data-reccd'), time: Util.todayISO() + Util.nowLocal().slice(10), note: null };
-          d.diapers.push(rec);
-          if (Storage.save()) {
-            /* 第 125 次：toast 文案与 diaper.js 同源（『已记录：尿/便/尿+便』）。
-               原为笼统的『已记录』，与尿布页反馈不一致。 */
-            var dTypeTxt = ({ pee: '尿', poop: '便', both: '尿+便' })[rec.type] || rec.type;
-            Util.toast('已记录：' + dTypeTxt, 'ok', { label: '撤销', onClick: function () {
-              for (var i = d.diapers.length - 1; i >= 0; i--) {
-                if (d.diapers[i].id === rec.id) { d.diapers.splice(i, 1); break; }
-              }
-              Storage.save(); global.App.rerender(); Util.toast('已撤销', 'ok');
-            } });
-          }
-          global.App.rerender();
-        });
-      });
-      /* 第 146 次：首屏「此刻」条与睡眠磁贴共用同一套开始/结束逻辑（querySelectorAll 绑全部） */
-      Array.prototype.forEach.call(view.querySelectorAll('[data-recsl="start"]'), function (recSlStart) { recSlStart.addEventListener('click', function () {
-        d.openSleep = { id: Util.uid(), start: Util.nowLocal(), pausedMs: 0, pauseStart: null };
-        Storage.save(); Util.toast('开始记录睡眠，醒了点「醒了」', 'ok'); global.App.rerender();
-      }); });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-recsl="end"]'), function (recSlEnd) { recSlEnd.addEventListener('click', function () {
-        var os2 = d.openSleep;
-        if (!os2 || !os2.start) return;
-        /* 第 241 次：与睡眠页同一个出口，全屏里记的醒来次数一并落库 */
-        Modules.sleep._end(Date.now());
-        global.App.rerender();
-      }); });
-
-      /* 第 146 次：首屏快记（与 app.js 快记 dock 同口径：同字段、同撤销） */
-      function hnSave(arrName, rec, msg) {
-        var dd = Storage.get();
-        /* 第 222 次：「两个都记」——每个宝宝名下各写一份（各自独立 id），撤销一起撤 */
-        if (Modules.home._qTarget === 'all' && (dd.babies || []).length >= 2) {
-          var made = [];
-          dd.babies.forEach(function (bb) {
-            var r = JSON.parse(JSON.stringify(rec)); r.id = Util.uid();
-            if (Storage.pushFor(bb.id, arrName, r)) made.push([bb.id, r.id]);
-          });
-          if (Storage.save()) Util.toast(msg + ' · ' + made.length + ' 个宝宝', 'ok', { label: '撤销', onClick: function () {
-            made.forEach(function (m) { Storage.removeFor(m[0], arrName, m[1]); });
-            Storage.save(); global.App.rerender(); Util.toast('已撤销', 'ok');
-          } });
-          global.App.rerender();
-          return;
-        }
-        dd[arrName].push(rec);
-        if (Storage.save()) Util.toast(msg, 'ok', { label: '撤销', onClick: function () {
-          var arr = Storage.get()[arrName];
-          for (var i = arr.length - 1; i >= 0; i--) if (arr[i].id === rec.id) { arr.splice(i, 1); break; }
-          Storage.save(); global.App.rerender(); Util.toast('已撤销', 'ok');
-        } });
-        global.App.rerender();
-      }
+      /* 第 333 次：快记卡（我的快记）——点一格按它的方式记；长按打开编辑。「记给谁」与原来同一套 */
       if (global.App && App._bindTgt) App._bindTgt(view, function () { global.App.rerender(); });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-hnq]'), function (b) {
-        b.addEventListener('click', function () {
-          var k = b.getAttribute('data-hnq');
-          if (k === 'feed') {
-            var fd = App._fedDefaults(), f0 = fd.rec;
-            hnSave('feedings', { id: Util.uid(), type: f0.type, start: Util.nowLocal(),
-              durationMin: f0.durationMin, amount: f0.amount, amountBm: f0.amountBm || null, amountFm: f0.amountFm || null,
-              side: f0.side, note: null }, '已记录：' + fd.label);
-          } else if (k === 'pee' || k === 'poop') {
-            hnSave('diapers', { id: Util.uid(), type: k, time: Util.nowLocal(), note: null }, k === 'pee' ? '已记录：尿布 · 尿' : '已记录：尿布 · 便');
-          }
-        });
-      });
+      if (global.QuickRec && !editing) QuickRec.bindCard(view);
 
       /* 进行中计时每秒走字；页面换掉（元素不在文档里）后自停，重渲染时先清旧的 */
       if (Modules.home._runTick) { clearInterval(Modules.home._runTick); Modules.home._runTick = null; }
@@ -1857,82 +1645,6 @@
           });
         }, 1000);
       }
-
-      /* 第 123 次：瓶喂/亲喂/吸奶绑定。rec 十二字段与 feeding.js #fSave 全量同源；
-         校验文案逐字一致（warn 不落库）；撤销链同 C2；记录成功后步进状态重置。 */
-      Array.prototype.forEach.call(view.querySelectorAll('[data-recstep]'), function (b) {
-        b.addEventListener('click', function () {
-          var spec = b.getAttribute('data-recstep').split(':');
-          var delta = parseInt(spec[1], 10);
-          var parts = spec[0].split('.');
-          var st = Modules.home._recState;
-          if (!st[parts[0]]) return;
-          var field = parts[1] || 'amount';
-          st[parts[0]][field] = Math.max(0, (st[parts[0]][field] || 0) + delta);
-          global.App.rerender();
-        });
-      });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-recbk]'), function (b) {
-        b.addEventListener('click', function () {
-          var st = Modules.home._recState;
-          if (st.bottle) { st.bottle.kind = b.getAttribute('data-recbk'); global.App.rerender(); }
-        });
-      });
-      Array.prototype.forEach.call(view.querySelectorAll('[data-recf]'), function (b) {
-        b.addEventListener('click', function () {
-          var kind = b.getAttribute('data-recf');
-          var st = Modules.home._recState[kind] || {};
-          var rec = {
-            id: Util.uid(),
-            type: kind,
-            start: Util.todayISO() + Util.nowLocal().slice(10),
-            durationMin: null, durationL: null, durationR: null,
-            amount: null, amountBm: null, amountFm: null,
-            side: null, note: null, newFood: null, dish: null, ing: null, steps: null
-          };
-          if (kind === 'bottle') {
-            if (!st.amount) { Util.toast('请至少设置母乳或配方奶的量', 'warn'); return; }
-            rec.amount = st.amount;
-            if (st.kind === 'formula') rec.amountFm = st.amount; else rec.amountBm = st.amount;
-          } else {
-            if (kind === 'breast' && !st.L && !st.R) { Util.toast('请至少设置左侧或右侧的时长', 'warn'); return; }
-            if (kind === 'pump' && !st.L && !st.R && !st.ml) { Util.toast('请至少设置时长或奶量', 'warn'); return; }
-            rec.durationL = st.L || null;
-            rec.durationR = st.R || null;
-            rec.durationMin = (st.L || 0) + (st.R || 0) || null;
-            rec.side = (st.L && st.R) ? 'both' : (st.L ? 'left' : (st.R ? 'right' : null));
-            if (kind === 'pump') rec.amount = st.ml || null;
-          }
-          d.feedings.push(rec);
-          if (Storage.save()) {
-            /* 第 125 次：toast 文案与 feeding.js 同源——带类型名与明细
-               （『已记录：瓶喂 母乳 60 ml』『已记录：亲喂 左 15 分』）。 */
-            var fTxt = ({ bottle: '瓶喂', breast: '亲喂', pump: '泵奶' })[kind] || kind;
-            var fDetail = '';
-            if (kind === 'bottle') fDetail = (st.kind === 'formula' ? '配方奶 ' : '母乳 ') + st.amount + ' ml';
-            else if (kind === 'breast') {
-              var bs = [];
-              if (st.L) bs.push('左 ' + st.L + ' 分');
-              if (st.R) bs.push('右 ' + st.R + ' 分');
-              fDetail = bs.join(' · ');
-            } else {
-              var ps = [];
-              if (st.L) ps.push('左 ' + st.L + ' 分');
-              if (st.R) ps.push('右 ' + st.R + ' 分');
-              if (st.ml) ps.push(st.ml + ' ml');
-              fDetail = ps.join(' · ');
-            }
-            Util.toast('已记录：' + fTxt + (fDetail ? ' ' + fDetail : ''), 'ok', { label: '撤销', onClick: function () {
-              for (var i = d.feedings.length - 1; i >= 0; i--) {
-                if (d.feedings[i].id === rec.id) { d.feedings.splice(i, 1); break; }
-              }
-              Storage.save(); global.App.rerender(); Util.toast('已撤销', 'ok');
-            } });
-          }
-          Modules.home._recState[kind] = null; /* 下次 render 由 recState 重置回默认 */
-          global.App.rerender();
-        });
-      });
 
       /* 启动天空（离开首页时 canvas 被移除，循环自动停止） */
       var canvas = view.querySelector('#skyCanvas');
@@ -2010,13 +1722,11 @@
      ============================================================ */
   var W_IDS = ['quick', 'w-feed', 'w-diaper', 'w-sleep', 'w-noise'];
   /* 第 245 次：快捷记录多两种尺寸（横向条 / 小卡），新增四张「今日」小卡 */
-  var QUICK_IDS = ['quick', 'quick-h', 'quick-s'];
+  var QUICK_IDS = ['quick']; /* 第 333 次：三种快记卡收成一张（旧 quick-h / quick-s 由 storage.js migrateQuick 迁移） */
   var TODAY_IDS = ['w-feed-today', 'w-diaper-today', 'w-sleep-today', 'w-temp'];
-  var CARD_IDS = W_IDS.concat(['quick-h', 'quick-s']).concat(TODAY_IDS).concat(['w-today', 'w-week-feed', 'w-week-sleep', 'w-age', 'feednext', 'growthspark', 'last-feeding', 'last-diaper', 'last-sleep', 'last-growth', 'last-temp', 'rec-diaper', 'rec-sleep', 'rec-bottle', 'rec-breast', 'rec-pump']);
+  var CARD_IDS = W_IDS.concat(TODAY_IDS).concat(['w-today', 'w-week-feed', 'w-week-sleep', 'w-age', 'feednext', 'growthspark', 'last-feeding', 'last-diaper', 'last-sleep', 'last-growth', 'last-temp']);
   var CARDS_META = {
-    'quick': { name: '快捷记录 · 大', icon: 'plus' },
-    'quick-h': { name: '快捷记录 · 横条', icon: 'plus' },
-    'quick-s': { name: '快捷记录 · 小卡', icon: 'plus' },
+    'quick': { name: '快记', icon: 'plus' },
     'w-feed-today': { name: '今日喂奶', icon: 'feeding' },
     'w-diaper-today': { name: '今日尿布', icon: 'diaper' },
     'w-sleep-today': { name: '今日睡眠', icon: 'sleep' },
@@ -2027,13 +1737,6 @@
     'w-noise': { name: '哄睡声音', icon: 'whitenoise' },
     'feednext': { name: '下次喂奶参考', icon: 'bottle' },
     'growthspark': { name: '生长速览', icon: 'growth' },
-    /* 第 122 次：直接记录组件——画布内即记即走（对标第五批 Cali）。 */
-    'rec-diaper': { name: '记尿布', icon: 'diaper' },
-    'rec-sleep': { name: '睡眠计时', icon: 'sleep' },
-    /* 第 123 次：直接记录第二批——瓶喂/亲喂/吸奶（对标报告 §7.4 第 3 条跟进项）。 */
-    'rec-bottle': { name: '瓶喂', icon: 'feeding' },
-    'rec-breast': { name: '亲喂', icon: 'breast' },
-    'rec-pump': { name: '吸奶', icon: 'pump' },
     'last-feeding': { name: '距上次喂奶', icon: 'feeding' },
     'last-diaper': { name: '距上次尿布', icon: 'diaper' },
     'last-sleep': { name: '距上次睡眠', icon: 'sleep' },
@@ -2047,12 +1750,11 @@
   };
   var DATA_IDS = ['w-today', 'w-week-feed', 'w-week-sleep', 'w-age'];
   /* 第 245 次：组件分类（编辑目录与设置页共用） */
-  var GROUP_HINT = { '快捷记录': '一点就记', '上次': '上一次是什么时候', '今日': '今天的次数和总量', '趋势': '一周、成长', '直接记录': '在首页上直接记', '距上次': '多久没做了', '功能入口': '进对应页面' };
+  var GROUP_HINT = { '快捷记录': '一点就记', '上次': '上一次是什么时候', '今日': '今天的次数和总量', '趋势': '一周、成长', '距上次': '多久没做了', '功能入口': '进对应页面' };
   Modules.home._cardGroup = function (id) {
     if (QUICK_IDS.indexOf(id) >= 0) return '快捷记录';
     if (TODAY_IDS.indexOf(id) >= 0 || id === 'w-today') return '今日';
     if (DATA_IDS.indexOf(id) >= 0 || id === 'growthspark' || id === 'feednext') return '趋势';
-    if (/^rec-/.test(id)) return '直接记录';
     if (/^last-/.test(id)) return '距上次';
     if (CARDS_META[id]) return '上次';
     return '功能入口';
@@ -2076,7 +1778,7 @@
   };
   function isDual(d) { return !!(global.App && typeof App.isDualStage === 'function' && App.isDualStage(d)); }
   function defSize(id) {
-    if (id === 'quick' || id === 'quick-h' || id === 'growthspark' || id === 'feednext' || id === 'w-today' || id === 'w-week-feed' || id === 'w-week-sleep' || /^(rec|last)-/.test(id)) return 'l';
+    if (id === 'quick' || id === 'growthspark' || id === 'feednext' || id === 'w-today' || id === 'w-week-feed' || id === 'w-week-sleep' || /^last-/.test(id)) return 'l';
     return 's';
   }
   function defaultLayout(d) {
@@ -2096,12 +1798,12 @@
     hl.items.forEach(function (it) { on[it.id] = 1; });
     var names = {};
     ((Modules.alltools && Modules.alltools._modules) || []).forEach(function (m) { names[m.id] = m.name; });
-    var ACC = { 'quick': 'feeding', 'quick-h': 'feeding', 'quick-s': 'feeding', 'w-noise': 'whitenoise', 'w-feed': 'feeding', 'w-diaper': 'diaper', 'w-sleep': 'sleep',
+    var ACC = { 'quick': 'feeding', 'w-noise': 'whitenoise', 'w-feed': 'feeding', 'w-diaper': 'diaper', 'w-sleep': 'sleep',
       'w-feed-today': 'feeding', 'w-diaper-today': 'diaper', 'w-sleep-today': 'sleep', 'w-temp': 'temp', 'w-today': 'feeding', 'w-week-feed': 'feeding', 'w-week-sleep': 'sleep', 'w-age': 'growth',
       'growthspark': 'growth', 'feednext': 'feeding' };
     var out = [];
     /* 第 245 次：与首页编辑目录同一套分类 */
-    var ORDER = ['快捷记录', '上次', '今日', '趋势', '直接记录', '距上次', '功能入口'];
+    var ORDER = ['快捷记录', '上次', '今日', '趋势', '距上次', '功能入口'];
     var all = CARD_IDS.concat(UNIVERSE().filter(function (id) { return !CARDS_META[id]; }));
     ORDER.forEach(function (g) {
       all.forEach(function (id) {
@@ -2173,11 +1875,6 @@
     arr.splice(to, 0, moved);
     return arr;
   };
-  /* 第 123 次：直接记录卡的步进状态（会话内瞬时，不落库——与 _edit 同性质）。
-     每张卡独立：bottle {kind,amount} / breast {L,R} / pump {L,R,ml}。
-     记录成功后重置回默认（下次进来从默认值开始，不残留上次数字）。 */
-  Modules.home._recState = {};
-
   /* 编辑模式状态（会话内瞬时，不落库；进入编辑由 #homeEdit 按钮切换） */
   Modules.home._edit = false;
   Modules.home._sheet = false;

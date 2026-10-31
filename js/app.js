@@ -1772,6 +1772,30 @@
     return n;
   }
 
+  /* 第 333 次：整体覆盖抽出来，「数据管理」导入预览里的「整体覆盖本机…」也走这一个确认框 */
+  function overwriteFrom(text) {
+    var incoming = null;
+    try { incoming = JSON.parse(text); } catch (e) { incoming = null; }
+    function doImport() {
+      try {
+        Storage.importJSON(text);
+        Util.toast('导入成功，已恢复全部数据。', 'ok');
+        rerender();
+      } catch (e) {
+        Util.toast('导入失败：' + (e && e.message ? e.message : e), 'error');
+      }
+    }
+    if (!incoming || typeof incoming !== 'object') { doImport(); return; }
+    Util.confirm({
+      title: '导入前确认',
+      message: '导入会覆盖本机全部数据：现有 ' + countRecords(Storage.get()) + ' 条记录，将被替换为文件中的 ' + countRecords(incoming) + ' 条，覆盖后无法找回。',
+      okText: '仍要导入',
+      cancelText: '取消',
+      danger: true,
+      extra: { text: '先导出现有数据', onClick: function () { exportAll(); } },
+      onConfirm: doImport
+    });
+  }
   function importAll() {
     var inp = document.createElement('input');
     inp.type = 'file';
@@ -1781,32 +1805,10 @@
       var reader = new FileReader();
       reader.onload = function () {
         var text = String(reader.result);
-        function doImport() {
-          try {
-            Storage.importJSON(text);
-            Util.toast('导入成功，已恢复全部数据。', 'ok');
-            rerender();
-          } catch (e) {
-            Util.toast('导入失败：' + (e && e.message ? e.message : e), 'error');
-          }
-        }
         var incoming = null;
         try { incoming = JSON.parse(text); } catch (e) { /* 让 importJSON 给出解析错误 */ }
-        /* 第 187 次：默认「合并导入」——先算出会新增哪些，确认后只加本机没有的；
-           整体覆盖降为次要入口（换手机恢复备份时用）。 */
-        function askOverwrite() {
-          var cur = countRecords(Storage.get());
-          var inc = countRecords(incoming);
-          Util.confirm({
-            title: '导入前确认',
-            message: '导入会覆盖本机全部数据：现有 ' + cur + ' 条记录，将被替换为文件中的 ' + inc + ' 条，覆盖后无法找回。',
-            okText: '仍要导入',
-            cancelText: '取消',
-            danger: true,
-            extra: { text: '先导出现有数据', onClick: function () { exportAll(); } },
-            onConfirm: doImport
-          });
-        }
+        /* 第 187 次：默认「合并导入」——先算出会新增哪些，确认后只加本机没有的；整体覆盖降为次要入口。
+           第 333 次：宝宝只按 uuid 对应；同名但 uuid 不同的宝宝单独导入，预览里提示一句。 */
         var preview = null;
         if (incoming && typeof incoming === 'object' && !Array.isArray(incoming)) {
           try { preview = Storage.mergeJSON(text, { dryRun: true }); } catch (e) { preview = null; }
@@ -1814,14 +1816,15 @@
         if (preview) {
           var lines = preview.parts.slice(0, 6).map(function (p) { return p.name + ' ' + p.n; }).join('、')
             + (preview.parts.length > 6 ? ' 等' : '');
+          var twin = (preview.sameNameOther || []).length ? '「' + preview.sameNameOther.join('」「') + '」这是另一个宝宝档案，会单独导入。' : '';
           Util.confirm({
-            title: preview.total ? '合并导入：新增 ' + preview.total + ' 条' : '没有新记录',
+            title: preview.total ? '合并导入：' + preview.total + ' 条' : '没有新记录',
             message: preview.total
-              ? '只把文件里本机没有的记录加进来（' + lines + '）' + (preview.newBabies ? '，并新增 ' + preview.newBabies + ' 个宝宝档案' : '') + '。本机现有记录不改、不删。'
+              ? '把文件里本机没有的记录加进来（' + lines + '）' + (preview.newBabies ? '，并新增 ' + preview.newBabies + ' 个宝宝档案' : '') + '。同一条两边都改过的以较新的为准，本机记录不删。' + twin
               : '文件里的记录本机都已经有了。若想用文件整体替换本机数据，可以选「整体覆盖」。',
             okText: preview.total ? '合并导入' : '知道了',
             cancelText: '取消',
-            extra: { text: '整体覆盖…', onClick: askOverwrite },
+            extra: { text: '整体覆盖…', onClick: function () { overwriteFrom(text); } },
             onConfirm: function () {
               if (!preview.total) return;
               try {
@@ -1833,11 +1836,7 @@
               }
             }
           });
-        } else if (incoming && typeof incoming === 'object') {
-          askOverwrite();
-        } else {
-          doImport();
-        }
+        } else overwriteFrom(text);
       };
       reader.readAsText(inp.files[0]);
     });
@@ -2041,6 +2040,7 @@
     exportAll: exportAll,
     exportShare: exportShare,
     importAll: importAll,
+    overwriteFrom: overwriteFrom,
     resetAll: resetAll,
     applyTheme: applyTheme,
     buildTabbar: buildTabbar, /* 第 97 次：设置页改「底栏快捷入口」后即时重建底栏 */
@@ -2374,56 +2374,7 @@
     document.addEventListener('visibilitychange', function () { if (document.hidden) dragEnd(true); });
     list.addEventListener('click', function (e) { if (Date.now() < swallowT) { e.stopPropagation(); e.preventDefault(); } }, true);
 
-    function saveFetal() {
-      var d = Storage.get();
-      var rec = { id: Util.uid(), time: Util.nowLocal() };
-      d.fetal.push(rec);
-      if (Storage.save()) Util.toast('已记录一次胎动', 'ok', { label: '撤销', onClick: function () {
-        for (var i = d.fetal.length - 1; i >= 0; i--) if (d.fetal[i].id === rec.id) { d.fetal.splice(i, 1); break; }
-        Storage.save(); rerender(); Util.toast('已撤销', 'ok');
-      } });
-      rerender();
-    }
-    function saveOne(arrName, rec, msg) {
-      var d2 = Storage.get();
-      /* 第 226 次：＋号快记尿布也按「扣减用品」偏好扣库存，撤销时退回 */
-      var DM = global.Modules && Modules.diaper;
-      /* 第 293 次：两个及以上宝宝时可「都记」——每个宝宝名下各一份（独立 id），撤销一起撤；提示里写明记给了谁 */
-      if (recTarget(d2) === 'all') {
-        var made = [];
-        d2.babies.forEach(function (bb) {
-          var r = JSON.parse(JSON.stringify(rec)); r.id = Util.uid();
-          if (arrName === 'diapers' && DM && typeof DM._autoUse === 'function') DM._autoUse(d2, r);
-          if (Storage.pushFor(bb.id, arrName, r)) made.push([bb.id, r.id, r]);
-        });
-        var savedAll = Storage.save();
-        close(); detachOutside();
-        if (savedAll) Util.toast(msg + ' · ' + made.length + ' 个宝宝都记了', 'ok', { label: '撤销', onClick: function () {
-          made.forEach(function (m) {
-            if (m[2].used && DM && typeof DM._applyUse === 'function') DM._applyUse(Storage.get(), DM._validUsed(Storage.get(), m[2].used), -1);
-            Storage.removeFor(m[0], arrName, m[1]);
-          });
-          Storage.save(); rerender(); Util.toast('已撤销', 'ok');
-        } });
-        rerender();
-        return;
-      }
-      if (arrName === 'diapers' && DM && typeof DM._autoUse === 'function') msg += DM._autoUse(d2, rec);
-      if ((d2.babies || []).length >= 2) msg += ' · 记给' + Storage.babyLabel();
-      d2[arrName].push(rec);
-      /* 第 303 次：先收起快记面板再发提示，提示才会从 dock 长出来（以前面板还开着，提示被挤到顶上） */
-      var saved = Storage.save();
-      close(); detachOutside();
-      if (saved) Util.toast(msg, 'ok', { label: '撤销', onClick: function () {
-        var arr = Storage.get()[arrName];
-        var gone = null;
-        for (var i = arr.length - 1; i >= 0; i--) if (arr[i].id === rec.id) { gone = arr.splice(i, 1)[0]; break; }
-        if (gone && gone.used && DM && typeof DM._applyUse === 'function') DM._applyUse(Storage.get(), DM._validUsed(Storage.get(), gone.used), -1);
-        Storage.save(); rerender(); Util.toast('已撤销', 'ok');
-      } });
-      rerender();
-    }
-
+    /* 第 333 次：快记的写库 / 「都记」/ 撤销 / 扣尿布库存都搬进 js/quickrec.js 的 commit（首页和「＋」共用） */
     fab.addEventListener('click', function (ev) {
       if (Util.hapEcho && Util.hapEcho(ev)) return; /* 第 281 次：触感层的回声 click 不算第二下 */
       /* 第 43 次修正：再点 FAB 应当「收起」，而不是重新展开。
@@ -2440,50 +2391,16 @@
     });
     function fillQuick(again) {
       var d = Storage.get();
-      /* 第 293 次：用统一的孕期判定——这次怀孕已经生了（宝宝生日 ≥ 末次月经）就不再出「胎动 +1」 */
-      var wk = pregnancyWeekOf(d);
-      var fed = fedDefaults();
-      /* 第 84 次：补「尿布：拉了」（pee/poop 是尿布两大类，此前快记只有「尿了」）；
-         动作加识别图标（读得快）+ 内联 --i 序号（CSS 逐项 stagger 入场用） */
-      /* 第 244 次：快记改成玻璃面板 + 两列磁贴（标题 + 一行说明），与新页面同一视觉 */
-      var acts = [
-        { id: 'qdFeed', ico: 'feeding', acc: 'feeding', t: '喂奶', s: fed.label },
-        { id: 'qdDiaper', ico: 'pee', acc: 'diaper', t: '尿了', s: '尿布 · 尿' },
-        { id: 'qdPoop', ico: 'poop', acc: 'diaper', t: '拉了', s: '尿布 · 便' },
-        { id: 'qdMeds', ico: 'meds', acc: 'meds', t: '维生素 D3', s: '吃药 · 1 次' }
-      ];
-      if (wk !== null) acts.push({ id: 'qdFetal', ico: 'fetal', acc: 'fetal', t: '胎动 +1', s: '孕 ' + wk + ' 周' });
-      list.innerHTML = '<p class="qd-head">快速记录<small>点一下就记好，可再去页面里改</small></p>' + tgtChips(d, 'qd-tgt') + '<div class="qd-grid">'
-        + acts.map(function (a, i) {
-          return '<button type="button" class="qd-action" id="' + a.id + '" data-accent="' + a.acc + '" style="--i:' + i + '">'
-            + '<span class="qd-badge">' + (global.icon ? global.icon(a.ico, 'qd-ico') : '') + '</span>'
-            + '<span class="qd-txt"><b>' + Util.escapeHtml(a.t) + '</b><small>' + Util.escapeHtml(a.s) + '</small></span></button>';
-        }).join('') + '</div>';
-      var nAct = acts.length;
+      /* 第 333 次：「＋」面板的快记 = 我的快记（js/quickrec.js，和首页快记卡同一份清单、同一套记法）；
+         点一格按它的方式记（点一下就记 / 弹出一步），长按或点最后一格「编辑快记」打开编辑。
+         原来写死的四项（喂奶按上次 / 尿了 / 拉了 / 维生素 D3）+ 孕期胎动 +1 是新清单的默认值。 */
+      list.innerHTML = '<p class="qd-head">快速记录<small>点一下就记好，长按可以编辑</small></p>' + tgtChips(d, 'qd-tgt')
+        + (global.QuickRec ? QuickRec.panelHTML(d) : '');
+      var nAct = list.querySelectorAll('.qd-action').length;
       Array.prototype.forEach.call(list.querySelectorAll('.qd-action'), function (el, i) { el.style.setProperty('--j', String(nAct - 1 - i)); });
       if (!again) showOpen(null);
       bindTgt(list, function () { fillQuick(true); rerender(); });
-
-      var f0 = fed.rec;
-      list.querySelector('#qdFeed').addEventListener('click', function () {
-        /* 第 103 次（OP-GAP-02）：补 amountBm/amountFm，与喂养页写同一组字段。
-           amount 仍是两者的和——统计侧（feeding.js:51、home.js:105）只读它，口径不变。 */
-        saveOne('feedings', { id: Util.uid(), type: f0.type, start: Util.nowLocal(),
-          durationMin: f0.durationMin, amount: f0.amount,
-          amountBm: f0.amountBm || null, amountFm: f0.amountFm || null,
-          side: f0.side, note: null }, '已快记：' + fed.label + '（可在喂养页改）');
-      });
-      list.querySelector('#qdDiaper').addEventListener('click', function () {
-        saveOne('diapers', { id: Util.uid(), type: 'pee', time: Util.nowLocal(), note: null }, '已快记：尿布 · 尿');
-      });
-      list.querySelector('#qdPoop').addEventListener('click', function () {
-        saveOne('diapers', { id: Util.uid(), type: 'poop', time: Util.nowLocal(), note: null }, '已快记：尿布 · 便');
-      });
-      list.querySelector('#qdMeds').addEventListener('click', function () {
-        saveOne('meds', { id: Util.uid(), name: '维生素 D3', time: Util.nowLocal(), note: null }, '已快记：维生素 D3');
-      });
-      var qdF = list.querySelector('#qdFetal');
-      if (qdF) qdF.addEventListener('click', function () { close(); detachOutside(); saveFetal(); });
+      if (global.QuickRec) QuickRec.bindPanel(list, function () { close(); detachOutside(); });
     }
 
     /* ———— 菜单面板（第 290 次，取代左侧侧拉页；入口一个不少） ———— */

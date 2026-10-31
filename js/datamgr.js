@@ -1,7 +1,7 @@
 /**
  * datamgr.js - 第 286 次：「数据管理」半屏（对照用户发的 Cali 截图 IMG_4721，样式用咿呀记自己的）
  *
- *   导入数据 → 选咿呀记的 JSON 备份 → 预览会新增多少条（按 id 去重，本机已有的跳过）→ 选「合并到当前宝宝 / 新建宝宝」→ 导入
+ *   导入数据 → 选咿呀记的 JSON 备份 → 预览会新增 / 更新多少条、每个宝宝去哪（第 333 次：只按宝宝 uuid 对应，不按名字）→ 导入
  *   导出数据 → 完整 JSON 备份（App.exportAll）· 给家人 / 医生（不含私密，App.exportShare）· 表格 CSV（设置页同一份）
  *   导入历史 → 只存在这台设备（localStorage，不进备份）：时间、文件名、条数；不保存原文件
  *
@@ -45,7 +45,7 @@
       + '<div class="dm-group">'
       + '<button type="button" class="dm-row" data-dm="import"><span class="dm-ico">' + icon('import') + '</span><b>导入数据</b>' + CHEV + '</button>'
       + '<button type="button" class="dm-row" data-dm="export"><span class="dm-ico">' + icon('export') + '</span><b>导出数据</b>' + CHEV + '</button></div>'
-      + '<p class="dm-note">支持咿呀记导出的 JSON 备份。导入时可以选择合并到当前宝宝或新建宝宝，本机已有的记录（同一条）会跳过。</p>'
+      + '<p class="dm-note">支持咿呀记导出的 JSON 备份。同一个宝宝的记录合并，另一个宝宝档案单独导入。</p>'
       + '<div class="dm-group"><button type="button" class="dm-row" data-dm="log"><span class="dm-ico">' + icon('calendar') + '</span><b>导入历史</b>'
       + '<small class="dm-cnt">' + (readLog().length ? readLog().length + ' 次' : '') + '</small>' + CHEV + '</button></div>'
       + '<p class="dm-note">导入历史只保存在这台设备上，只记时间、文件名和条数，不保存原始文件。</p>';
@@ -67,29 +67,37 @@
     if (!a.length) return h + '<p class="dm-empty">还没有导入过</p>';
     h += '<ul class="dm-group dm-log">';
     a.forEach(function (x) {
-      h += '<li><span class="dm-txt"><b>' + esc(x.name || '未命名文件') + '</b><small>' + esc(fmtT(x.t)) + ' · ' + esc(x.target === 'new' ? '新建宝宝' : '合并到当前宝宝') + '</small></span>'
+      h += '<li><span class="dm-txt"><b>' + esc(x.name || '未命名文件') + '</b><small>' + esc(fmtT(x.t)) + ' · ' + esc(x.nb ? '新增 ' + (Number(x.nb) || 0) + ' 个宝宝档案' : (x.target === 'new' ? '新建宝宝' : '合并')) + '</small></span>'
         + '<span class="dm-n">' + (Number(x.n) || 0) + ' 条</span></li>';
     });
     return h + '</ul><button type="button" class="dm-clear" data-dm="clearLog">清空导入历史</button>';
   }
+  /* 第 333 次：宝宝只按 uuid 对应——不再让用户选「合并到当前宝宝 / 新建宝宝」。
+     预览按宝宝列出去向：同一个宝宝（同 uuid）→ 合并；另一个宝宝档案 → 单独导入。
+     同名但 uuid 不同：只提示一句「这是另一个宝宝档案，会单独导入」，不提供合并。 */
   function previewHTML() {
-    var p = pending;
+    var p = pending, pv = p.pv;
     var h = backHTML('导入预览') + '<p class="dm-file">' + esc(p.name) + '</p>';
-    h += '<div class="rs-seg dm-seg sk-n2" role="radiogroup" aria-label="导入到哪里">'
-      + ['current', 'new'].map(function (k) {
-        var on = p.target === k;
-        return '<button type="button" role="radio" aria-checked="' + on + '" class="' + (on ? 'on' : '') + '" data-tgt="' + k + '">' + (k === 'current' ? '合并到当前宝宝' : '新建宝宝') + '</button>';
-      }).join('') + '</div>';
-    var pv = p.pv[p.target];
-    if (!pv) h += '<p class="dm-msg is-warn">这个文件读不出来，换一个试试。</p>';
-    else if (!pv.total) h += '<p class="dm-msg">文件里的记录本机都已经有了，没有要新增的。</p>';
+    if (!pv) return h + '<p class="dm-msg is-warn">这个文件读不出来，换一个试试。</p>';
+    if (!pv.total) h += '<p class="dm-msg">文件里的记录本机都已经有了，没有要新增的。</p>';
     else {
-      h += '<p class="dm-big"><b>' + pv.total + '</b> 条新记录</p><ul class="dm-parts">'
+      h += '<p class="dm-big"><b>' + pv.total + '</b> 条' + (pv.updated && pv.added ? '（新增 ' + pv.added + '，更新 ' + pv.updated + '）' : pv.updated ? '更新' : '新记录') + '</p><ul class="dm-parts">'
         + pv.parts.slice(0, 8).map(function (x) { return '<li><span>' + esc(x.name) + '</span><b>' + x.n + '</b></li>'; }).join('') + '</ul>'
         + (pv.parts.length > 8 ? '<p class="dm-note">还有 ' + (pv.parts.length - 8) + ' 类</p>' : '');
     }
-    h += '<p class="dm-note">' + (p.target === 'new' ? '会新建一个宝宝档案「' + esc(p.babyName) + '」放这些记录，当前宝宝的记录不动。' : '只加本机没有的记录，同一条（同一 id）跳过，现有记录不改、不删。') + '</p>';
-    h += '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" data-dm="doImport"' + (pv && pv.total ? '' : ' disabled') + '>' + (pv && pv.total ? '导入 ' + pv.total + ' 条' : '没有可导入的') + '</button></div>';
+    var bs = (pv.babies || []).filter(function (b) { return b.mode !== 'skip'; });
+    if (bs.length) {
+      h += '<p class="dm-sub">宝宝</p><ul class="dm-group dm-babies">' + bs.map(function (b) {
+        return '<li class="dm-bb" data-bb-mode="' + b.mode + '"><span class="dm-txt"><b>' + esc(b.name) + '</b><small>'
+          + (b.mode === 'merge' ? '合并到本机同一个宝宝' : '新的宝宝档案') + '</small></span><span class="dm-n">' + (Number(b.n) || 0) + ' 条</span></li>';
+      }).join('') + '</ul>';
+    }
+    if ((pv.sameNameOther || []).length) {
+      h += '<p class="dm-msg dm-twin" role="note">「' + esc(pv.sameNameOther.join('」「')) + '」这是另一个宝宝档案，会单独导入。</p>';
+    }
+    h += '<p class="dm-note">同一条记录只留一份，两边都改过的以较新的为准；本机记录不会被删。</p>';
+    if (global.App && App.overwriteFrom) h += '<button type="button" class="dm-clear dm-over" data-dm="overwrite">整体覆盖本机…</button>';
+    h += '<div class="rs-savebar"><button type="button" class="btn btn-primary rs-save" data-dm="doImport"' + (pv.total ? '' : ' disabled') + '>' + (pv.total ? '导入 ' + pv.total + ' 条' : '没有可导入的') + '</button></div>';
     return h;
   }
   function paint() {
@@ -113,9 +121,9 @@
   }
 
   var DataMgr = {
-    open: function () {
+    open: function (start) {
       if (!global.FTUI) return null;
-      view = 'main'; pending = null; lastMsg = ''; busy = false;
+      view = start === 'log' || start === 'export' ? start : 'main'; pending = null; lastMsg = ''; busy = false; /* 第 333 次：设置「导入历史」直接打开到这一页 */
       api = FTUI.openSheet('', '数据管理', '<div class="dm-body"></div>', null);
       if (!api) return null;
       var ok = api.box.querySelector('[data-ok]');
@@ -125,10 +133,10 @@
       api.onClose = function () { api = null; if (prevClose) prevClose(); };
       api.box.addEventListener('click', function (e) {
         if (Util.hapEcho && Util.hapEcho(e)) return;
-        var t = e.target.closest ? e.target.closest('[data-dm],[data-tgt]') : null;
+        var t = e.target.closest ? e.target.closest('[data-dm]') : null;
         if (!t || t.disabled) return;
-        var k = t.getAttribute('data-dm'), tg = t.getAttribute('data-tgt');
-        if (tg && pending) { pending.target = tg; paint(); return; }
+        var k = t.getAttribute('data-dm');
+        if (k === 'overwrite' && pending && global.App && App.overwriteFrom) { var tx = pending.text; api.close(); App.overwriteFrom(tx); return; }
         if (k === 'back') { view = 'main'; pending = null; paint(); return; }
         if (k === 'import') { pickFile(); return; }
         if (k === 'export') { view = 'export'; paint(); return; }
@@ -152,14 +160,9 @@
         view = 'main'; pending = null; paint();
         return false;
       }
-      var pv = {};
-      ['current', 'new'].forEach(function (k) { try { pv[k] = Storage.mergeJSON(text, { dryRun: true, target: k }); } catch (e) { pv[k] = null; } });
-      var bn = '宝宝';
-      try {
-        var act = o.settings && o.settings.activeBabyId, bb = (o.babies || []).filter(function (b) { return b && b.id === act; })[0] || (o.babies || [])[0];
-        if (bb && bb.name) bn = String(bb.name).slice(0, 20);
-      } catch (e2) {}
-      pending = { text: text, name: name, target: 'current', pv: pv, babyName: bn };
+      var pv = null;
+      try { pv = Storage.mergeJSON(text, { dryRun: true }); } catch (e) { pv = null; }
+      pending = { text: text, name: name, pv: pv };
       lastMsg = ''; view = 'preview'; paint();
       return true;
     },
@@ -167,10 +170,10 @@
       if (busy || !pending) return null; /* 第 281 次同款：连点只导一次 */
       busy = true;
       var p = pending, r = null;
-      try { r = Storage.mergeJSON(p.text, { target: p.target }); } catch (e) { Util.toast('导入失败：' + (e && e.message ? e.message : e), 'error'); busy = false; return null; }
-      pushLog({ t: Date.now(), name: p.name, n: r.total, target: p.target });
+      try { r = Storage.mergeJSON(p.text); } catch (e) { Util.toast('导入失败：' + (e && e.message ? e.message : e), 'error'); busy = false; return null; }
+      pushLog({ t: Date.now(), name: p.name, n: r.total, nb: r.newBabies });
       pending = null; view = 'main';
-      lastMsg = '已导入 ' + r.total + ' 条' + (p.target === 'new' ? '，新建了宝宝档案「' + p.babyName + '」' : '') + '。';
+      lastMsg = '已导入 ' + r.total + ' 条' + (r.newBabies ? '，新增 ' + r.newBabies + ' 个宝宝档案' : '') + '。';
       Util.toast(lastMsg, 'ok');
       if (global.App) { if (App.refreshHeaderAvatar) App.refreshHeaderAvatar(); App.rerender(); }
       busy = false;
@@ -178,7 +181,9 @@
       return r;
     },
     _log: readLog,
-    _looksYiya: looksYiya
+    _looksYiya: looksYiya,
+    _pickFile: pickFile,
+    openImport: function () { if (DataMgr.open()) pickFile(); }
   };
   global.DataMgr = DataMgr;
 })(window);

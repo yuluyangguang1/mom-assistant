@@ -13,7 +13,9 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v293';
+var CACHE = 'baoma-static-v294';
+/* v294（第 333 次 · 设置页重做 + 我的快记）：新增 js/quickrec.js（首页快记卡与「＋」面板共用的快记清单、记法、编辑）；
+   settings.js / home.js / app.js / storage.js / datamgr.js / styles.css 有改动。 */
 /* v293（第 332 次 · 家庭共享）：famcrypto.js（页面与 SW 共用的加密 + IndexedDB 密钥仓库）、famsync.js、famui.js、
    js/vendor/qrcode.js（MIT）、js/vendor/jsqr.min.js（Apache-2.0）进预缓存；SW 新增 push / notificationclick：
    推送用家庭密钥派生的推送子密钥解密，通知文字只有「称呼 + 动作」，任何一步不对就显示通用「咿呀：家里有新消息」。 */
@@ -217,6 +219,7 @@ var ASSETS = [
   'js/famcrypto.js', /* 第 332 次：家庭共享 */
   'js/famsync.js',
   'js/famui.js',
+  'js/quickrec.js',
   'js/vendor/qrcode.js',
   'js/vendor/jsqr.min.js',
   'js/modules/feeding.js',
