@@ -68,11 +68,11 @@ powershell -ExecutionPolicy Bypass -File D:\yiya-relay\app\server\deploy\install
 
 ## 二维码里放什么（客户端约定）
 
-`yiya://join?u=https://api.yiya.help&f=<familyId>&i=<invite>&k=<家庭密钥 base64url>&fp=<密钥指纹前 8 位>&n=<邀请人称呼，可选>`
+`yiya://join?u=https://api.yiya.help&f=<familyId>&i=<invite>&k=<家庭密钥 base64url>&fp=<密钥指纹 16 位十六进制（64 位）>&n=<邀请人称呼，可选>`
 服务器地址不写死在 App 里，以二维码 / 设置为准。
 
 客户端（App 第 332 次）约定：
-- `fp` = HKDF-SHA256(家庭密钥, salt `yiya/v1/hkdf`, info `yiya/v1/fp`) 的十六进制前 8 位，加入前用它校验 `k` 没被改 / 没复制全，并在两台手机上显示给人对一眼；
+- `fp` = HKDF-SHA256(家庭密钥, salt `yiya/v1/hkdf`, info `yiya/v1/fp`) 的前 8 字节（16 位十六进制，64 位），界面按 4 组显示；加入前用它校验 `k` 没被改 / 没复制全，并在两台手机上显示给人对一眼；
 - 消息密文：AES-256-GCM，AAD = `yiya/v1|<familyId>|<发送设备 ID>|<kind>`；推送小密文 AAD = `yiya/v1/push|<familyId>|<发送设备 ID>|<kind>`；
 - 建家 / 加入时 `name` 一律传空字符串，真实称呼只在加密消息里互相告知；
 - kind 用到 `hello` / `snap` / `rec` / `meta`（消息）和 `come`（推送）。服务器不需要理解它们。
