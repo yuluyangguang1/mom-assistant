@@ -100,7 +100,11 @@
       + '<rect x="38" y="18" width="44" height="80" rx="4" fill="#D9D3C8" stroke="#5A4A3A" stroke-opacity=".22" stroke-width="1.5"/><rect x="38" y="18" width="44" height="12" rx="3" fill="#E9E4DB"/>'
       + '<rect x="42" y="34" width="5" height="58" rx="2.5" fill="#fff" opacity=".5"/></g>'
   };
+  /* 第 337 次：六种剂型换成 3D 黏土物件（assets/supplies/，与用品清单同一套），「其他」没有对应物件，仍用上面的 SVG 瓶子 */
+  var ART3D = { '胶囊': 'capsule', '片剂': 'tablet', '软糖': 'gummy', '滴剂': 'drops', '粉剂': 'powder', '液体': 'liquid' };
   function art(form, cls) {
+    var k3 = ART3D[formKey(form)];
+    if (k3) return '<img class="sp-art sp-art3d' + (cls ? ' ' + cls : '') + '" src="assets/supplies/' + k3 + '.webp" alt="" aria-hidden="true" decoding="async" draggable="false">';
     return '<svg class="sp-art' + (cls ? ' ' + cls : '') + '" viewBox="0 0 120 120" aria-hidden="true" focusable="false">' + (ART[formKey(form)] || ART['其他']) + '</svg>';
   }
 

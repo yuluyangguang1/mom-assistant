@@ -4179,7 +4179,6 @@ body.dark .dc-dot { box-shadow: 0 0 0 2px rgba(0,0,0,.4); }
   box-shadow: 0 1px 0 rgba(0,0,0,.03), 0 6px 16px -12px rgba(51,48,43,.35); transition: transform .15s var(--spring, ease); }
 .tl-card:active { transform: scale(var(--pa-card)); }
 .tl-ico { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex-shrink: 0; border-radius: var(--radius-xs); background: var(--tile-weak); }
-.tl-ico .tl-img { width: 30px; height: 30px; object-fit: contain; }
 .tl-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .tl-txt b { font-weight: 700; }
 .tl-txt small { font-size: var(--fs-xs, 12px); color: var(--muted); overflow-wrap: anywhere; line-height: 1.45; }
@@ -7096,6 +7095,10 @@ html body .tabbar.lg-drag ~ .lg-lens-el.svg > .lgl-body::after, html body .lg-le
    ============================================================ */
 body .tabbar .tab.dk-tab .dk-ic svg.dk-c { filter: none; overflow: visible; transform-origin: 50% 60%; }
 body .tabbar .tab.dk-tab .dk-ic svg.dk-l { overflow: visible; }
+/* 第 337 次：dock 图标换扁平位图（dock-icons.js）——选中态 SVG 里浅 / 深两张彩色图按主题显示其一；未选中态是遮罩 + currentColor，颜色规则照旧 */
+.dk-c .dk-im-d { display: none; }
+body.dark .dk-c .dk-im-l { display: none; }
+body.dark .dk-c .dk-im-d { display: inline; }
 body .tabbar.lg.lg-lensing.lg-lens-gl.lg-shrink .tab.dk-tab.active .dk-c { opacity: 1 !important; scale: 1 !important; -webkit-mask: none !important; mask: none !important; }
 body .tabbar.lg.lg-lensing.lg-lens-gl.lg-shrink .tab.dk-tab.active .dk-l { opacity: 0 !important; }
 html.lg-gl body .tabbar.lg.lg-lensing.lg-lens-gl.lg-shrink .tab.dk-tab.active .dk-t { -webkit-mask: none !important; mask: none !important; }
@@ -7619,3 +7622,87 @@ details:not(.set-group)[open] > :not(summary) { animation: discIn var(--dur-ctl)
   .swap-in { animation: vtFadeIn .18s linear both !important; }
   /* 半屏面板只淡入：写在「背后页面」那一节的同名规则里（避免重复选择器） */
 }
+
+/* ———— 第 336 次 · 图标 v4（用户 GPT 生成的彩色线面套系）————
+   icons.js 给 V4 表里的图标键加 class="i4" + data-i4；这里决定哪些容器换成彩色图：
+   功能格子（全部功能 / 宝宝页 / 菜单 / ＋ 面板 / 快记卡 / 快记编辑）、设置分组 32 图标块、模块页头、时间轴行、日期页行、
+   搜索结果行、首页卡片头 / 记录磁贴、首页卡片设置行、引导页、关于。按钮里的行内小图标、搜索框、顶栏齿轮不在白名单，仍是线稿。
+   底块照旧由各容器自己画（模块淡底 --tile-weak / 深色 token），图只是透明图形，CSS 背景（不进 DOM、不排队解码）。
+   深色模式换 -d 提亮版（暗色描边按 OKLab 抬到 L≥.70，保证在深色底块上看得清）。
+   html.i4-off（icons.js 探针：图加载失败 / 不支持 webp）时全部退回线稿。 */
+/* 第 337 次：规则收成「每颗图一条变量 + 白名单两条」（原来每颗图 × 浅 / 深各一条带整串白名单的规则，30 颗就 25KB；53 颗照旧写要 45KB）。
+   .ico.i4[data-i4] 上挂 --i4u / --i4d（浅 / 深两套 -webkit-image-set），容器白名单只写一次：换图 = background-image: var(--i4u)。
+   白名单新增（inventory A-mini）：疫苗页行首 .vt-ico、快记编辑「添加」胶囊 .qe-addb、洞察胶囊 .ft-chip、dock 上方进行中胶囊 .dl-ico、dock 快捷槽 .tab-slot、
+   首页生长速览 / 来到世界 / 今日格子小标签 .gs-lbl / .wa-lbl / .wt-lbl、首页宝宝卡日期 .tb-ico、计时迷你条 .ft-mini-open。
+   仍不换（B 类功能小图标）：按钮里的行内图标、搜索框、顶栏齿轮、设置三级页操作行 .st-act、全屏计时层 .ftf-*。 */
+.ico.i4[data-i4="baby"] { --i4u: -webkit-image-set(url("../assets/icons/v4/baby@2x.webp") 2x, url("../assets/icons/v4/baby@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/baby-d@2x.webp") 2x, url("../assets/icons/v4/baby-d@3x.webp") 3x); }
+.ico.i4[data-i4="breast"] { --i4u: -webkit-image-set(url("../assets/icons/v4/breast@2x.webp") 2x, url("../assets/icons/v4/breast@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/breast-d@2x.webp") 2x, url("../assets/icons/v4/breast-d@3x.webp") 3x); }
+.ico.i4[data-i4="bottle"] { --i4u: -webkit-image-set(url("../assets/icons/v4/bottle@2x.webp") 2x, url("../assets/icons/v4/bottle@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/bottle-d@2x.webp") 2x, url("../assets/icons/v4/bottle-d@3x.webp") 3x); }
+.ico.i4[data-i4="pump"] { --i4u: -webkit-image-set(url("../assets/icons/v4/pump@2x.webp") 2x, url("../assets/icons/v4/pump@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/pump-d@2x.webp") 2x, url("../assets/icons/v4/pump-d@3x.webp") 3x); }
+.ico.i4[data-i4="solid"] { --i4u: -webkit-image-set(url("../assets/icons/v4/solid@2x.webp") 2x, url("../assets/icons/v4/solid@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/solid-d@2x.webp") 2x, url("../assets/icons/v4/solid-d@3x.webp") 3x); }
+.ico.i4[data-i4="diaper"] { --i4u: -webkit-image-set(url("../assets/icons/v4/diaper@2x.webp") 2x, url("../assets/icons/v4/diaper@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/diaper-d@2x.webp") 2x, url("../assets/icons/v4/diaper-d@3x.webp") 3x); }
+.ico.i4[data-i4="sleep"] { --i4u: -webkit-image-set(url("../assets/icons/v4/sleep@2x.webp") 2x, url("../assets/icons/v4/sleep@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/sleep-d@2x.webp") 2x, url("../assets/icons/v4/sleep-d@3x.webp") 3x); }
+.ico.i4[data-i4="growth"] { --i4u: -webkit-image-set(url("../assets/icons/v4/growth@2x.webp") 2x, url("../assets/icons/v4/growth@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/growth-d@2x.webp") 2x, url("../assets/icons/v4/growth-d@3x.webp") 3x); }
+.ico.i4[data-i4="vaccine"] { --i4u: -webkit-image-set(url("../assets/icons/v4/vaccine@2x.webp") 2x, url("../assets/icons/v4/vaccine@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/vaccine-d@2x.webp") 2x, url("../assets/icons/v4/vaccine-d@3x.webp") 3x); }
+.ico.i4[data-i4="meds"] { --i4u: -webkit-image-set(url("../assets/icons/v4/meds@2x.webp") 2x, url("../assets/icons/v4/meds@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/meds-d@2x.webp") 2x, url("../assets/icons/v4/meds-d@3x.webp") 3x); }
+.ico.i4[data-i4="temp"] { --i4u: -webkit-image-set(url("../assets/icons/v4/temp@2x.webp") 2x, url("../assets/icons/v4/temp@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/temp-d@2x.webp") 2x, url("../assets/icons/v4/temp-d@3x.webp") 3x); }
+.ico.i4[data-i4="sick"] { --i4u: -webkit-image-set(url("../assets/icons/v4/sick@2x.webp") 2x, url("../assets/icons/v4/sick@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/sick-d@2x.webp") 2x, url("../assets/icons/v4/sick-d@3x.webp") 3x); }
+.ico.i4[data-i4="jaundice"] { --i4u: -webkit-image-set(url("../assets/icons/v4/jaundice@2x.webp") 2x, url("../assets/icons/v4/jaundice@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/jaundice-d@2x.webp") 2x, url("../assets/icons/v4/jaundice-d@3x.webp") 3x); }
+.ico.i4[data-i4="bath"] { --i4u: -webkit-image-set(url("../assets/icons/v4/bath@2x.webp") 2x, url("../assets/icons/v4/bath@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/bath-d@2x.webp") 2x, url("../assets/icons/v4/bath-d@3x.webp") 3x); }
+.ico.i4[data-i4="swim"] { --i4u: -webkit-image-set(url("../assets/icons/v4/swim@2x.webp") 2x, url("../assets/icons/v4/swim@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/swim-d@2x.webp") 2x, url("../assets/icons/v4/swim-d@3x.webp") 3x); }
+.ico.i4[data-i4="sun"] { --i4u: -webkit-image-set(url("../assets/icons/v4/sun@2x.webp") 2x, url("../assets/icons/v4/sun@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/sun-d@2x.webp") 2x, url("../assets/icons/v4/sun-d@3x.webp") 3x); }
+.ico.i4[data-i4="water"] { --i4u: -webkit-image-set(url("../assets/icons/v4/water@2x.webp") 2x, url("../assets/icons/v4/water@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/water-d@2x.webp") 2x, url("../assets/icons/v4/water-d@3x.webp") 3x); }
+.ico.i4[data-i4="fetal"] { --i4u: -webkit-image-set(url("../assets/icons/v4/fetal@2x.webp") 2x, url("../assets/icons/v4/fetal@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/fetal-d@2x.webp") 2x, url("../assets/icons/v4/fetal-d@3x.webp") 3x); }
+.ico.i4[data-i4="prenatal"] { --i4u: -webkit-image-set(url("../assets/icons/v4/prenatal@2x.webp") 2x, url("../assets/icons/v4/prenatal@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/prenatal-d@2x.webp") 2x, url("../assets/icons/v4/prenatal-d@3x.webp") 3x); }
+.ico.i4[data-i4="packing"] { --i4u: -webkit-image-set(url("../assets/icons/v4/packing@2x.webp") 2x, url("../assets/icons/v4/packing@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/packing-d@2x.webp") 2x, url("../assets/icons/v4/packing-d@3x.webp") 3x); }
+.ico.i4[data-i4="mom"] { --i4u: -webkit-image-set(url("../assets/icons/v4/mom@2x.webp") 2x, url("../assets/icons/v4/mom@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/mom-d@2x.webp") 2x, url("../assets/icons/v4/mom-d@3x.webp") 3x); }
+.ico.i4[data-i4="mood"] { --i4u: -webkit-image-set(url("../assets/icons/v4/mood@2x.webp") 2x, url("../assets/icons/v4/mood@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/mood-d@2x.webp") 2x, url("../assets/icons/v4/mood-d@3x.webp") 3x); }
+.ico.i4[data-i4="period"] { --i4u: -webkit-image-set(url("../assets/icons/v4/period@2x.webp") 2x, url("../assets/icons/v4/period@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/period-d@2x.webp") 2x, url("../assets/icons/v4/period-d@3x.webp") 3x); }
+.ico.i4[data-i4="contraction"] { --i4u: -webkit-image-set(url("../assets/icons/v4/contraction@2x.webp") 2x, url("../assets/icons/v4/contraction@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/contraction-d@2x.webp") 2x, url("../assets/icons/v4/contraction-d@3x.webp") 3x); }
+.ico.i4[data-i4="home"] { --i4u: -webkit-image-set(url("../assets/icons/v4/home@2x.webp") 2x, url("../assets/icons/v4/home@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/home-d@2x.webp") 2x, url("../assets/icons/v4/home-d@3x.webp") 3x); }
+.ico.i4[data-i4="calendar"] { --i4u: -webkit-image-set(url("../assets/icons/v4/calendar@2x.webp") 2x, url("../assets/icons/v4/calendar@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/calendar-d@2x.webp") 2x, url("../assets/icons/v4/calendar-d@3x.webp") 3x); }
+.ico.i4[data-i4="noise"] { --i4u: -webkit-image-set(url("../assets/icons/v4/noise@2x.webp") 2x, url("../assets/icons/v4/noise@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/noise-d@2x.webp") 2x, url("../assets/icons/v4/noise-d@3x.webp") 3x); }
+.ico.i4[data-i4="search"] { --i4u: -webkit-image-set(url("../assets/icons/v4/search@2x.webp") 2x, url("../assets/icons/v4/search@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/search-d@2x.webp") 2x, url("../assets/icons/v4/search-d@3x.webp") 3x); }
+.ico.i4[data-i4="settings"] { --i4u: -webkit-image-set(url("../assets/icons/v4/settings@2x.webp") 2x, url("../assets/icons/v4/settings@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/settings-d@2x.webp") 2x, url("../assets/icons/v4/settings-d@3x.webp") 3x); }
+.ico.i4[data-i4="family"] { --i4u: -webkit-image-set(url("../assets/icons/v4/family@2x.webp") 2x, url("../assets/icons/v4/family@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/family-d@2x.webp") 2x, url("../assets/icons/v4/family-d@3x.webp") 3x); }
+.ico.i4[data-i4="pee"] { --i4u: -webkit-image-set(url("../assets/icons/v4/pee@2x.webp") 2x, url("../assets/icons/v4/pee@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/pee-d@2x.webp") 2x, url("../assets/icons/v4/pee-d@3x.webp") 3x); }
+.ico.i4[data-i4="poop"] { --i4u: -webkit-image-set(url("../assets/icons/v4/poop@2x.webp") 2x, url("../assets/icons/v4/poop@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/poop-d@2x.webp") 2x, url("../assets/icons/v4/poop-d@3x.webp") 3x); }
+.ico.i4[data-i4="milestone"] { --i4u: -webkit-image-set(url("../assets/icons/v4/milestone@2x.webp") 2x, url("../assets/icons/v4/milestone@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/milestone-d@2x.webp") 2x, url("../assets/icons/v4/milestone-d@3x.webp") 3x); }
+.ico.i4[data-i4="supplement"] { --i4u: -webkit-image-set(url("../assets/icons/v4/supplement@2x.webp") 2x, url("../assets/icons/v4/supplement@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/supplement-d@2x.webp") 2x, url("../assets/icons/v4/supplement-d@3x.webp") 3x); }
+.ico.i4[data-i4="pregnancy"] { --i4u: -webkit-image-set(url("../assets/icons/v4/pregnancy@2x.webp") 2x, url("../assets/icons/v4/pregnancy@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/pregnancy-d@2x.webp") 2x, url("../assets/icons/v4/pregnancy-d@3x.webp") 3x); }
+.ico.i4[data-i4="momweight"] { --i4u: -webkit-image-set(url("../assets/icons/v4/momweight@2x.webp") 2x, url("../assets/icons/v4/momweight@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/momweight-d@2x.webp") 2x, url("../assets/icons/v4/momweight-d@3x.webp") 3x); }
+.ico.i4[data-i4="finance"] { --i4u: -webkit-image-set(url("../assets/icons/v4/finance@2x.webp") 2x, url("../assets/icons/v4/finance@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/finance-d@2x.webp") 2x, url("../assets/icons/v4/finance-d@3x.webp") 3x); }
+.ico.i4[data-i4="supplies"] { --i4u: -webkit-image-set(url("../assets/icons/v4/supplies@2x.webp") 2x, url("../assets/icons/v4/supplies@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/supplies-d@2x.webp") 2x, url("../assets/icons/v4/supplies-d@3x.webp") 3x); }
+.ico.i4[data-i4="edit"] { --i4u: -webkit-image-set(url("../assets/icons/v4/edit@2x.webp") 2x, url("../assets/icons/v4/edit@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/edit-d@2x.webp") 2x, url("../assets/icons/v4/edit-d@3x.webp") 3x); }
+.ico.i4[data-i4="alltools"] { --i4u: -webkit-image-set(url("../assets/icons/v4/alltools@2x.webp") 2x, url("../assets/icons/v4/alltools@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/alltools-d@2x.webp") 2x, url("../assets/icons/v4/alltools-d@3x.webp") 3x); }
+.ico.i4[data-i4="cards"] { --i4u: -webkit-image-set(url("../assets/icons/v4/cards@2x.webp") 2x, url("../assets/icons/v4/cards@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/cards-d@2x.webp") 2x, url("../assets/icons/v4/cards-d@3x.webp") 3x); }
+.ico.i4[data-i4="quick"] { --i4u: -webkit-image-set(url("../assets/icons/v4/quick@2x.webp") 2x, url("../assets/icons/v4/quick@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/quick-d@2x.webp") 2x, url("../assets/icons/v4/quick-d@3x.webp") 3x); }
+.ico.i4[data-i4="appearance"] { --i4u: -webkit-image-set(url("../assets/icons/v4/appearance@2x.webp") 2x, url("../assets/icons/v4/appearance@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/appearance-d@2x.webp") 2x, url("../assets/icons/v4/appearance-d@3x.webp") 3x); }
+.ico.i4[data-i4="weather"] { --i4u: -webkit-image-set(url("../assets/icons/v4/weather@2x.webp") 2x, url("../assets/icons/v4/weather@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/weather-d@2x.webp") 2x, url("../assets/icons/v4/weather-d@3x.webp") 3x); }
+.ico.i4[data-i4="reminder"] { --i4u: -webkit-image-set(url("../assets/icons/v4/reminder@2x.webp") 2x, url("../assets/icons/v4/reminder@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/reminder-d@2x.webp") 2x, url("../assets/icons/v4/reminder-d@3x.webp") 3x); }
+.ico.i4[data-i4="haptic"] { --i4u: -webkit-image-set(url("../assets/icons/v4/haptic@2x.webp") 2x, url("../assets/icons/v4/haptic@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/haptic-d@2x.webp") 2x, url("../assets/icons/v4/haptic-d@3x.webp") 3x); }
+.ico.i4[data-i4="transfer"] { --i4u: -webkit-image-set(url("../assets/icons/v4/transfer@2x.webp") 2x, url("../assets/icons/v4/transfer@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/transfer-d@2x.webp") 2x, url("../assets/icons/v4/transfer-d@3x.webp") 3x); }
+.ico.i4[data-i4="tofamily"] { --i4u: -webkit-image-set(url("../assets/icons/v4/tofamily@2x.webp") 2x, url("../assets/icons/v4/tofamily@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/tofamily-d@2x.webp") 2x, url("../assets/icons/v4/tofamily-d@3x.webp") 3x); }
+.ico.i4[data-i4="privacy"] { --i4u: -webkit-image-set(url("../assets/icons/v4/privacy@2x.webp") 2x, url("../assets/icons/v4/privacy@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/privacy-d@2x.webp") 2x, url("../assets/icons/v4/privacy-d@3x.webp") 3x); }
+.ico.i4[data-i4="sources"] { --i4u: -webkit-image-set(url("../assets/icons/v4/sources@2x.webp") 2x, url("../assets/icons/v4/sources@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/sources-d@2x.webp") 2x, url("../assets/icons/v4/sources-d@3x.webp") 3x); }
+.ico.i4[data-i4="checkup"] { --i4u: -webkit-image-set(url("../assets/icons/v4/checkup@2x.webp") 2x, url("../assets/icons/v4/checkup@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/checkup-d@2x.webp") 2x, url("../assets/icons/v4/checkup-d@3x.webp") 3x); }
+.ico.i4[data-i4="birthday"] { --i4u: -webkit-image-set(url("../assets/icons/v4/birthday@2x.webp") 2x, url("../assets/icons/v4/birthday@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/birthday-d@2x.webp") 2x, url("../assets/icons/v4/birthday-d@3x.webp") 3x); }
+.ico.i4[data-i4="routine"] { --i4u: -webkit-image-set(url("../assets/icons/v4/routine@2x.webp") 2x, url("../assets/icons/v4/routine@3x.webp") 3x); --i4d: -webkit-image-set(url("../assets/icons/v4/routine-d@2x.webp") 2x, url("../assets/icons/v4/routine-d@3x.webp") 3x); }
+:where(.ti-ico, .bp-ti, .bp-ri, .qd-badge, .qk-ico, .qe-ico, .sg-ico, .mod-head-ico, .tl-ico, .dt-ico, .sr-row .row-ico, .hw-ico, .rt-ico, .rc-ico, .hc-ico, .ob-card-ico, .ob-row-ico, .st-logo, .qm-preg-ico, .vt-ico, .qe-addb, .ft-chip, .dl-ico, .tab-slot, .gs-lbl, .wa-lbl, .wt-lbl, .tb-ico, .ft-mini-open, .su-art.su-ico) .ico.i4 { --i4s: 1.12; }
+html:not(.i4-off) :where(.ti-ico, .bp-ti, .bp-ri, .qd-badge, .qk-ico, .qe-ico, .sg-ico, .mod-head-ico, .tl-ico, .dt-ico, .sr-row .row-ico, .hw-ico, .rt-ico, .rc-ico, .hc-ico, .ob-card-ico, .ob-row-ico, .st-logo, .qm-preg-ico, .vt-ico, .qe-addb, .ft-chip, .dl-ico, .tab-slot, .gs-lbl, .wa-lbl, .wt-lbl, .tb-ico, .ft-mini-open, .su-art.su-ico) .ico.i4 { background: center / contain no-repeat; background-image: var(--i4u); transform: scale(var(--i4s)); color: transparent; }
+html:not(.i4-off) body.dark :where(.ti-ico, .bp-ti, .bp-ri, .qd-badge, .qk-ico, .qe-ico, .sg-ico, .mod-head-ico, .tl-ico, .dt-ico, .sr-row .row-ico, .hw-ico, .rt-ico, .rc-ico, .hc-ico, .ob-card-ico, .ob-row-ico, .st-logo, .qm-preg-ico, .vt-ico, .qe-addb, .ft-chip, .dl-ico, .tab-slot, .gs-lbl, .wa-lbl, .wt-lbl, .tb-ico, .ft-mini-open, .su-art.su-ico) .ico.i4 { background-image: var(--i4d); }
+html:not(.i4-off) :where(.ti-ico, .bp-ti, .bp-ri, .qd-badge, .qk-ico, .qe-ico, .sg-ico, .mod-head-ico, .tl-ico, .dt-ico, .sr-row .row-ico, .hw-ico, .rt-ico, .rc-ico, .hc-ico, .ob-card-ico, .ob-row-ico, .st-logo, .qm-preg-ico, .vt-ico, .qe-addb, .ft-chip, .dl-ico, .tab-slot, .gs-lbl, .wa-lbl, .wt-lbl, .tb-ico, .ft-mini-open, .su-art.su-ico) .ico.i4 > * { display: none; }
+/* 尺寸：线稿 16–20px 的小格子里彩色图偏小，按容器放大一档（只放大图，不动格子和行高） */
+:where(.hw-ico, .rc-ico, .hc-ico) .ico.i4 { --i4s: 1.3; }
+:where(.dt-ico) .ico.i4 { --i4s: 1.3; }
+:where(.tl-ico, .sg-ico, .qe-ico, .bp-ri) .ico.i4 { --i4s: 1.2; }
+:where(.rt-ico) .ico.i4 { --i4s: 1.35; }
+.tools-grid .ti-ico .ico.i4 { --i4s: 1.25; }
+.sr-row .row-ico .ico.i4 { --i4s: 1; width: 22px; height: 22px; }
+/* 第 337 次：A-mini 小格子（跟文字走，16–20px）：彩色图放大一档补足视觉大小，不动行高 */
+:where(.ft-chip, .dl-ico, .gs-lbl, .wa-lbl, .wt-lbl, .tb-ico, .ft-mini-open, .qe-addb) .ico.i4 { --i4s: 1.25; }
+:where(.vt-ico, .tab-slot) .ico.i4 { --i4s: 1.2; }
+.su-art.su-ico .ico.i4 { --i4s: 1.15; }
+/* 第 337 次：营养品剂型 3D 黏土图（<img>，透明底） */
+.sp-art3d { object-fit: contain; -webkit-user-drag: none; user-select: none; }
+

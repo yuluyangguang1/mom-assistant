@@ -18,7 +18,7 @@
   var KIND = {
     feed: { t: '喂奶', ico: 'feeding', acc: 'feeding', arr: 'feedings', step: '选类型和量' },
     breast: { t: '亲喂', ico: 'breast', acc: 'feeding', arr: 'feedings', step: '选哪侧、多久' },
-    bottle: { t: '瓶喂', ico: 'formula', acc: 'feeding', arr: 'feedings', step: '选奶量' },
+    bottle: { t: '瓶喂', ico: 'bottle', acc: 'feeding', arr: 'feedings', step: '选奶量' },
     pump: { t: '吸奶', ico: 'pump', acc: 'feeding', arr: 'feedings', step: '选奶量' },
     pee: { t: '尿了', ico: 'pee', acc: 'diaper', arr: 'diapers', step: '选时间' },
     poop: { t: '拉了', ico: 'poop', acc: 'diaper', arr: 'diapers', step: '选时间' },

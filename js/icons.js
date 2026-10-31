@@ -540,9 +540,41 @@
   };
 
   /* ------------------------------------------------------------- 构造辅助 */
+  /* 第 336 次：图标 v4 —— 用户用 GPT 生成的统一彩色线面套系（assets/icons/v4/，tools/icons_v4/ 切图）。
+     做法：图标键在 V4 表里 → svg 多带 class="i4" + data-i4="文件名"，里面照旧放 v3 线稿当兜底；
+     要不要换成彩色图由 CSS 按容器决定（styles.css「图标 v4」段的白名单：功能格子、设置 32 块、模块页头、
+     时间轴行、首页卡片头、搜索结果……），按钮里的行内小图标、搜索框放大镜、顶栏齿轮不换，仍是线稿。
+     彩色图是 CSS 背景（-webkit-image-set 2x / 3x，深色模式换 -d 提亮版），不进 DOM、不占解码线程；
+     图片加载失败（离线且没缓存 / 不支持 webp）→ 下面的探针给 <html> 加 i4-off，全站退回线稿。
+     dock 图标（dock-icons.js）不在这里，不受影响。 */
+  var V4 = {
+    baby: 'baby', breast: 'breast', bottle: 'bottle', feeding: 'bottle', pump: 'pump', solid: 'solid', diaper: 'diaper',
+    sleep: 'sleep', growth: 'growth', vaccine: 'vaccine', meds: 'meds', temp: 'temp', sick: 'sick',
+    jaundice: 'jaundice', bath: 'bath', swim: 'swim', sun: 'sun', water: 'water', fetal: 'fetal',
+    prenatal: 'prenatal', packing: 'packing', mom: 'mom', mood: 'mood', period: 'period', contraction: 'contraction',
+    noise: 'noise', whitenoise: 'noise', home: 'home', calendar: 'calendar', search: 'search', settings: 'settings', family: 'family',
+    /* 第 337 次：扁平补图 23 个（同一套 v4 squircle 总表，tools/icons_v4 SET=337 切图）。
+       pee / poop / 六个缺图模块 / edit 直接用原键；其余是新键（线稿兜底见下方 ICONS 别名），由调用点按语义改用：
+       alltools 全部功能页头、cards 首页卡片、quick 我的快记、appearance 外观、weather 天气与农历、reminder 记录与提醒 / 疫苗提醒、
+       haptic 保存时轻震、transfer 导入与导出、tofamily 给家人和医生、privacy 数据与隐私、sources 知识来源 / 睡眠参考、
+       checkup 儿保体检、birthday 宝宝生日、routine 作息规律。 */
+    pee: 'pee', poop: 'poop', milestone: 'milestone', supplement: 'supplement', pregnancy: 'pregnancy', momweight: 'momweight',
+    finance: 'finance', supplies: 'supplies', edit: 'edit', alltools: 'alltools', cards: 'cards', quick: 'quick', appearance: 'appearance',
+    weather: 'weather', reminder: 'reminder', haptic: 'haptic', transfer: 'transfer', tofamily: 'tofamily', privacy: 'privacy',
+    sources: 'sources', checkup: 'checkup', birthday: 'birthday', routine: 'routine'
+  };
+  global.ICON_V4 = V4;
+  (function probeV4() {
+    if (typeof Image === 'undefined' || !global.document) return;
+    var im = new Image();
+    im.onerror = function () { document.documentElement.classList.add('i4-off'); };
+    im.src = 'assets/icons/v4/baby@2x.webp';
+  })();
+
   function makeIcon(name, inner, extra) {
     if (!inner) return '';
-    return '<svg class="ico' + (extra ? ' ' + extra : '') + '" data-i="' + name + '" viewBox="0 0 24 24" ' +
+    var f4 = V4.hasOwnProperty(name) ? V4[name] : '';
+    return '<svg class="ico' + (f4 ? ' i4' : '') + (extra ? ' ' + extra : '') + '" data-i="' + name + '"' + (f4 ? ' data-i4="' + f4 + '"' : '') + ' viewBox="0 0 24 24" ' +
       'fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" ' +
       'stroke-linejoin="round" aria-hidden="true" focusable="false">' + inner + '</svg>';
   }
@@ -557,6 +589,13 @@
 
   /* 首页磁贴按 tab id 取图标（icon(t.id)），哄睡页的 tab id 是 whitenoise——与 noise 共用同一图标 */
   ICONS.whitenoise = ICONS.noise;
+  /* 第 336 次：家庭共享（设置）有了 v4 图；线稿兜底沿用房子 */
+  if (!ICONS.family) ICONS.family = ICONS.home;
+  if (!ICONS.mom) ICONS.mom = ICONS.mood;
+  /* 第 337 次：新键的线稿兜底（i4-off / 不在白名单的容器里显示）= 原来那颗线稿 */
+  var ALIAS337 = { alltools: 'grid', cards: 'grid', quick: 'plus', appearance: 'image', weather: 'sun', reminder: 'bell', haptic: 'heart',
+    transfer: 'export', tofamily: 'share', privacy: 'settings', sources: 'search', checkup: 'heart', birthday: 'calendar', routine: 'clock' };
+  for (var ak in ALIAS337) { if (ALIAS337.hasOwnProperty(ak) && !ICONS[ak]) ICONS[ak] = ICONS[ALIAS337[ak]]; }
 
   /* 预渲染图标字符串表（备用） */
   var MomIcons = {};

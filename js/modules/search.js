@@ -64,7 +64,7 @@
     { key: 'momweight',   title: '宝妈体重', go: 'momweight',   icon: 'momweight' },
     { key: 'prenatal',    title: '产检',     go: 'prenatal',    icon: 'prenatal' },
     { key: 'vaccine',     title: '疫苗',     go: 'vaccine',     icon: 'vaccine' },
-    { key: 'checkups',    title: '儿保体检', go: 'vaccine',     icon: 'check' },
+    { key: 'checkups',    title: '儿保体检', go: 'vaccine',     icon: 'checkup' },
     { key: 'babies',      title: '宝宝档案', go: 'settings',    icon: 'baby' }
   ];
 

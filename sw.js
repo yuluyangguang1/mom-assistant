@@ -13,7 +13,14 @@
    ★ 改任何被缓存的静态文件后，必须递增 CACHE 版本号，
      否则已安装用户会一直命中旧缓存（activate 时统一清理旧版本）。 */
 
-var CACHE = 'baoma-static-v296';
+var CACHE = 'baoma-static-v299';
+/* v299（第 338 次 · 补 4 个 3D 物件）：奶瓶 / 吸奶器 / 学饮杯 / 体温计（assets/supplies/babybottle、pump、sippycup、thermometer）进预缓存，
+   supplies.js ART 表登记后用品清单 / 选择物件 34 种物件全部是 3D，不再用 v4 扁平图兜底。 */
+/* v298（第 337 次 · 三套新图）：① 扁平补图 23 个 + 重画 4 个（宝宝 / 亲喂 / 宫缩 / 黄疸）进 assets/icons/v4/（ICONS_V4 名单 30 → 53）；
+   ② dock 三颗换扁平（assets/dock/<k>-on[-d]@2x/3x/4x，dock-icons.js 内联 72px 位图）；③ 3D 黏土物件 30 张（assets/supplies/，用品清单 / 营养品剂型）；
+   ④ 小咿呀表情换新一套透明 3D 头像（assets/yiya/ 27 张 + cheer 加油、yiya.webp、dock/baby-lg.webp）。styles.css 图标 v4 段改成变量写法、白名单扩容。 */
+/* v297（第 336 次 · 图标 v4）：用户 GPT 生成的 30 个彩色线面图标接入（assets/icons/v4/，icons.js 加 i4 标记，styles.css 按容器白名单换图）；
+   新增 120 张透明 webp 预缓存（30 × 浅 / 深 × 2x / 3x，见 ASSETS 末尾），quickrec.js 瓶喂快记换奶瓶图标、settings.js 家庭共享换「全家」图标。 */
 /* v296（第 335 次 · 系统通知级提醒）：新增 js/notify.js（提醒来源盘点 + 预约同步 + 前台咿呀岛 + 打开时补发 + 设置「系统通知」）；
    famcrypto.js 加本机提醒密钥 FamRemind 与家人记录推送文案；famsync.js 发「家人记了一条」推送；settings.js / famui.js / index.html 小改。
    SW：push 按类型分流（rem 本机提醒 / come、rec 家庭），App 在前台时转给页面弹咿呀岛（WebKit 仍须 showNotification，弹出后立即收起）；
@@ -266,6 +273,29 @@ var ASSETS = [
   'js/touchfx.js',
   'js/modules/search.js'
 ];
+/* 第 336 次：图标 v4 —— 30 个 × 浅 / 深（-d 提亮版）× 2x（96px）/ 3x（144px）= 120 张透明 webp，约 375KB。
+   页面用 CSS -webkit-image-set 按屏幕倍率挑一张，两种倍率都预缓存，离线、换机型都不缺图。
+   带底块整颗版（assets/icons/v4/tile/）页面不引用，不预缓存。名单与 js/icons.js 的 V4 表、styles.css「图标 v4」段一致。 */
+var ICONS_V4 = ['baby', 'breast', 'bottle', 'pump', 'solid', 'diaper', 'sleep', 'growth', 'vaccine', 'meds', 'temp', 'sick',
+  'jaundice', 'bath', 'swim', 'sun', 'water', 'fetal', 'prenatal', 'packing', 'mom', 'mood', 'period', 'contraction',
+  'home', 'calendar', 'noise', 'search', 'settings', 'family',
+  /* 第 337 次：扁平补图 23 个 */
+  'pee', 'poop', 'milestone', 'supplement', 'pregnancy', 'momweight', 'finance', 'supplies', 'edit', 'alltools', 'cards', 'quick',
+  'appearance', 'weather', 'reminder', 'haptic', 'transfer', 'tofamily', 'privacy', 'sources', 'checkup', 'birthday', 'routine'];
+ICONS_V4.forEach(function (n) {
+  ['', '-d'].forEach(function (v) { ['2x', '3x'].forEach(function (r) { ASSETS.push('assets/icons/v4/' + n + v + '@' + r + '.webp'); }); });
+});
+/* 第 337 次：dock 选中态 96px（GL 透镜图标层；DOM 用 dock-icons.js 内联的 72px，不走网络）+ 兜底 2x / 3x；
+   3D 黏土物件 30 张（用品清单 / 用品选择器 / 营养品剂型，360px）；咿呀「加油」新表情 */
+['home', 'cal', 'baby'].forEach(function (k) {
+  ['', '-d'].forEach(function (v) { ['2x', '3x', '4x'].forEach(function (r) { ASSETS.push('assets/dock/' + k + '-on' + v + '@' + r + '.webp'); }); });
+});
+var SUPPLIES_3D = ['capsule', 'tablet', 'gummy', 'drops', 'powder', 'liquid', 'formula', 'pacifier', 'brush', 'milkbag', 'nursingpad', 'bib', 'spoon',
+  'puree', 'biscuit', 'wipes', 'cottontowel', 'changingpad', 'diapercream', 'tissue', 'swab', 'babywash', 'lotion', 'towel', 'swaddle', 'detergent',
+  'nailclipper', 'toothpaste', 'sunscreen', 'repellent',
+  'babybottle', 'pump', 'sippycup', 'thermometer'];   // 第 338 次补 4 张
+SUPPLIES_3D.forEach(function (n) { ASSETS.push('assets/supplies/' + n + '.webp'); });
+ASSETS.push('assets/yiya/cheer.webp');
 
 self.addEventListener('install', function (e) {
   e.waitUntil(

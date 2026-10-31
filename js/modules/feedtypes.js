@@ -537,7 +537,7 @@
           }), dayNow, '近 7 天亲喂次数');
         }
         cntHtml += '<p class="hint">每天亲喂的次数。只和宝宝自己比就好。</p>';
-        html += insightChips([{ ico: SV.nurse, t: '左右侧', html: sideHtml }, { ico: icon('clock'), t: '近 7 天', html: cntHtml }]);
+        html += insightChips([{ ico: SV.nurse, t: '左右侧', html: sideHtml }, { ico: icon('routine'), t: '近 7 天', html: cntHtml }]);
       }
 
       html += timeline(list, DS, '最近亲喂记录', function (r) {
