@@ -49,8 +49,20 @@ OBSOLETE_300 = ('#285 内容区右滑 = 前一天', '#285 周条右滑 = 上一�
                 '#286 周条同样分页', '#286 按速度翻页')
 
 
+# 第 334 次：用户要求「咿呀岛弹出提醒全部挪到上方」，第 302 次「带撤销的提示从 dock 长出卡片」整套删除；二级 dock 改成和一级同尺寸（62 圆钮 / 21 边距）。
+# 下面这些断言测的是 dock 卡片本身或 52pt 旧几何，整体作废（不再计入），由 test_r334（① dock 几何、② 提示全部在顶部）
+# 以及就地补的「#334 替代」断言（#302 减少动态效果确认卡、#318 确认框 dockpop、#320 新几何）接替。
+OBSOLETE_334 = ('#6 保存后的提示不压住「+ 记录」主按钮（撤销卡从 dock 长出）',
+                '#277 撤销按钮在最上层可点；（第 302 次：撤销卡从 dock 长出',
+                '#302 撤销提示从 dock 的位置长出来', '#302 dock 卡片在拇指区', '#302 点撤销：回调一次，卡片缩回 dock',
+                '#302 dock 卡片往下滑关闭', '#302 撤销被只读提示顶掉', '#302 撤销卡显示中打开记录面板', '#302 减少动态效果：dock 卡片和确认卡只淡入',
+                '#318 dock 卡片长出来的同一帧 dock 就交接', '#318 dockpop 时 ＋ 玻璃珠（#dockOrb）也藏',
+                '#320 落定：返回 / ＋ 两颗 52pt 圆钮', '#320 下滑：记录条并进两颗圆钮中间那一行', '#320 正在进行胶囊在场：并进圆钮那一行中间',
+                '#320 Chromium 退化（不强开 GL）：不挂 fz-gl')
+
+
 def check(name, cond, detail=''):
-    if name.startswith(OBSOLETE_300):
+    if name.startswith(OBSOLETE_300) or name.startswith(OBSOLETE_334):
         return
     results.append((name, bool(cond), detail))
 
@@ -1395,7 +1407,7 @@ def test_r275_boot(b):
     tc = _re.search(r'<meta name="theme-color" content="([^"]+)"', html).group(1)
     check('#275 启动底色 = manifest background_color = 初始 theme-color', man['background_color'].upper() == tc.upper() == '#221E1A', [man['background_color'], tc])
     check('#275 所有脚本都在 SW 预缓存里', all(("'" + n + "'") in sw for n, a in srcs), [n for n, a in srcs if ("'" + n + "'") not in sw])
-    check('#275 SW 版本 v291（第 329 次（续）升）', "var CACHE = 'baoma-static-v294';" in sw)
+    check('#275 SW 版本 v291（第 329 次（续）升）', "var CACHE = 'baoma-static-v295';" in sw)
     bi = ROOT / 'assets' / 'boot-icon.webp'
     bootsec = html.split('id="boot"')[1].split('</div></div>')[0]
     check('#275 启动层图标 / 字图内联为 data URI（首帧即有，不等低优先级图片请求；第 300 次多一张浅色字图），整页 HTML < 60KB',
@@ -5738,12 +5750,14 @@ def test_r302(b):
     q.goto(URL); q.wait_for_timeout(600); q.evaluate('t=>Storage.importJSON(t)', SEED_V3); q.reload(); q.wait_for_timeout(900)
     q.evaluate("App.showTab('feeding',{noVT:true})"); q.wait_for_timeout(600)
     q.evaluate("Util.toast('已删除 1 条','ok',{label:'撤销',onClick(){}})"); q.wait_for_timeout(100)
-    rm = q.evaluate("(()=>{const t=document.querySelector('#toastRoot .toast');return [t.classList.contains('toast-dock'),getComputedStyle(t).animationName,getComputedStyle(t.querySelector('.toast-yiya img')).animationName,getComputedStyle(t.querySelector('.toast-bar')).display]})()")
+    rm = q.evaluate("(()=>{const t=document.querySelector('#toastRoot .toast');return [t.classList.contains('toast-dock'),getComputedStyle(t).animationName,getComputedStyle(t.querySelector('.toast-yiya img')).animationName,t.querySelector('.toast-bar')?getComputedStyle(t.querySelector('.toast-bar')).display:'none',Math.round(t.getBoundingClientRect().top)]})()")
     q.evaluate("document.querySelector('#toastRoot .toast')._toastDismiss()"); q.wait_for_timeout(300)
     q.evaluate("Util.confirm({title:'确认？',onConfirm(){}})"); q.wait_for_timeout(100)
     rc = q.evaluate("[getComputedStyle(document.querySelector('.cfm-card')).animationName,getComputedStyle(document.querySelector('.cfm-yiya img')).animationName]")
     q.click('[data-cfm-cancel]'); q.wait_for_timeout(50)
     check('#302 减少动态效果：dock 卡片和确认卡只淡入（island-fade），咿呀不动，没有倒计时条，关闭不留替身', rm == [True, 'island-fade', 'none', 'none'] and rc == ['island-fade', 'none'] and q.evaluate("document.querySelectorAll('.cfm-ghost').length") == 0, [rm, rc])
+    check('#334 替代 #302 减少动态效果：带撤销的提示在顶部咿呀岛只淡入（island-fade）、咿呀不动、没有倒计时条；确认卡只淡入、关闭不留替身',
+          rm[:4] == [False, 'island-fade', 'none', 'none'] and rm[4] < 60 and rc == ['island-fade', 'none'] and q.evaluate("document.querySelectorAll('.cfm-ghost').length") == 0, [rm, rc])
     check('#302 减少动态效果无报错', not errs2, errs2)
     ctx.close()
 
@@ -5758,7 +5772,7 @@ def test_r317(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#317 SW 版本 v279+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v294';" in sw)
+    check('#317 SW 版本 v279+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v295';" in sw)
     js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     check('#317 着色器：横向位移只看本行离左右边的距离、纵向位移只看 y（第 329 次：两端改往里取样 + 端部竖向放大，只压在最外几 pt；第 329 次（续）位移封顶）；内部以中心缩小 uMagI；图标层不缩（gIc）',
           "float ty=tabl(clamp((hz.y-ya)/B,0.,1.));" in js and "te=clamp((xe-abs(q.x))/BE,0.,1.),pe=pow(1.-te,1.6)" in js
@@ -5844,7 +5858,7 @@ def test_r318(b):
     _poll(p, "window.DockRefract&&DockRefract._stats().ready&&DockRefract._stats().draws>0", 8000)
     p.wait_for_timeout(600)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#318 SW 版本 v280+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v294';" in sw)
+    check('#318 SW 版本 v280+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v295';" in sw)
     # —— A1 推入：逐帧采样（rAF）——
     ev("""(()=>{window.__nv=[];const v=document.getElementById('view');const L=()=>{const g=document.querySelector('.nav-ghost');const st=DockRefract._stats();const cv=document.querySelector('#tabbar canvas.lg-gl');
       const m=e=>{const t=getComputedStyle(e).transform;return t&&t!=='none'?new DOMMatrix(t).m41:0};
@@ -5909,6 +5923,14 @@ def test_r318(b):
     check('#318 dock 卡片长出来的同一帧 dock 就交接：dockpop 时 #tabbar opacity 0、无过渡（原来 .18s 慢淡 = 第 60–63 帧双轮廓）',
           d0['pop'] and d0['top'] == '0' and d0['ttr'] in ('0s', '0s, 0s'), d0)
     check('#318 dockpop 时 ＋ 玻璃珠（#dockOrb）也藏（opacity 0、无过渡；原来透过卡片磨砂露出淡粉色 ＋）', d0['plus'] and d0['oop'] == '0' and d0['otr'].startswith('0s'), d0)
+    # 第 334 次：快记的撤销提示改在顶部咿呀岛，dock 卡片只剩确认框——同样的交接改由确认框触发
+    ev("document.querySelectorAll('#toastRoot .toast').forEach(t=>t._toastDismiss&&t._toastDismiss())"); p.wait_for_timeout(300)
+    ev("Util.confirm({title:'删除这条记录？',message:'删除后可以撤销。',okText:'删除',danger:true,onConfirm(){}})")
+    d3 = ev("""(()=>{const t=document.getElementById('tabbar'),o=document.getElementById('dockOrb');const c=getComputedStyle(t),q=getComputedStyle(o);
+      return {pop:document.body.classList.contains('dockpop'),top:c.opacity,ttr:c.transitionDuration,oop:q.opacity,otr:q.transitionDuration,plus:!!o.querySelector('[data-qd-toggle]')}})()""")
+    check('#334 替代 #318 确认框从 dock 长出的同一帧 dock 就交接：dockpop 时 #tabbar 与 ＋ 玻璃珠 opacity 0、无过渡',
+          d3['pop'] and d3['top'] == '0' and d3['ttr'] in ('0s', '0s, 0s') and d3['plus'] and d3['oop'] == '0' and d3['otr'].startswith('0s'), d3)
+    p.keyboard.press('Escape'); p.wait_for_timeout(500)
     css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
     check('#318 收回时 dock 与 ＋ 仍按 .18s 淡回', '#tabbar, #dockOrb { transition: opacity .18s var(--ease); }' in css, '')
     p.wait_for_timeout(6500)
@@ -5971,7 +5993,7 @@ def test_r319(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#319 SW 版本 v281+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v294';" in sw)
+    check('#319 SW 版本 v281+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v295';" in sw)
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=3)
     ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
     p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
@@ -6188,7 +6210,7 @@ def test_r320(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#320 SW 版本 v282+（第 329 次（续）升 v291）、dock-fuse.js 进预缓存、index.html 引入', "var CACHE = 'baoma-static-v294';" in sw and "'js/dock-fuse.js'" in sw
+    check('#320 SW 版本 v282+（第 329 次（续）升 v291）、dock-fuse.js 进预缓存、index.html 引入', "var CACHE = 'baoma-static-v295';" in sw and "'js/dock-fuse.js'" in sw
           and '<script src="js/dock-fuse.js" defer></script>' in (ROOT / 'index.html').read_text(encoding='utf-8'))
     # —— 1. 简洁模式移除 + 旧值迁移 ——
     src = {n: (ROOT / n).read_text(encoding='utf-8') for n in ('js/app.js', 'js/modules/settings.js', 'js/liquid-dock.js', 'js/dock-live.js', 'js/dock-refract.js', 'js/util.js', 'js/dock-fuse.js', 'css/styles.css')}
@@ -6249,6 +6271,9 @@ def test_r320(b):
     ec = [f['cta'] for f in fp if f['tw'] == 'push' and f['cta']]
     check('#320 推入：记录条从 dock 中间冒出（第一帧小于最终宽 30%，最后与最终形状一致）', ec and ec[0][2] < G['cta']['pe'][0]['w'] * 0.3 + 1 and abs(fp[-1]['cta'][2] - G['cta']['pe'][0]['w']) < 1, [ec[:1], fp[-1]['cta']])
     sh = ev("(()=>{const r=e=>{const b=e.getBoundingClientRect();return [Math.round(b.left),Math.round(b.top),Math.round(b.width),Math.round(b.height)]};return {back:r(document.getElementById('backBtn')),plus:r(document.querySelector('#tabbar [data-qd-toggle]')),cta:r(document.querySelector('#view .mod-cta').firstElementChild),W:innerWidth}})()")
+    check('#334 替代 #320 落定：返回 / ＋ 两颗 62 圆钮一左一右、离屏 21（= 一级栏），记录条与圆钮外缘对齐、在圆钮上方 10',
+          sh['back'][2:] == [62, 62] and sh['plus'][2:] == [62, 62] and sh['back'][0] == 21 and sh['plus'][0] + 62 == sh['W'] - 21
+          and abs(sh['cta'][0] - 21) <= 1 and abs(sh['cta'][0] + sh['cta'][2] - (sh['W'] - 21)) <= 1 and 9 <= sh['back'][1] - (sh['cta'][1] + sh['cta'][3]) <= 11, sh)
     check('#320 落定：返回 / ＋ 两颗 52pt 圆钮一左一右（与记录条左右对齐）、记录条在圆钮上方 ~10pt',
           sh['back'][2:] == [52, 52] and sh['plus'][2:] == [52, 52] and sh['back'][0] == 16 and sh['plus'][0] + 52 == sh['W'] - 16
           and abs(sh['cta'][0] - 16) <= 1 and abs(sh['cta'][0] + sh['cta'][2] - (sh['W'] - 16)) <= 1 and 6 <= sh['back'][1] - (sh['cta'][1] + sh['cta'][3]) <= 14, sh)
@@ -6289,6 +6314,7 @@ def test_r320(b):
         ev(f"scrollTo(0,{y})"); p.wait_for_timeout(40)
     _poll(p, "Math.abs(DockFuse._state().c-1)<0.01", 2500, 50); p.wait_for_timeout(100)
     c1 = ev("(()=>{const s=DockFuse._state();const q=s.list.find(x=>x.id==='cta0');const c=document.querySelector('#view .mod-cta');return {c:s.c,ok:s.collapseOk,cy:s.G.cy,qy:q.y+q.h/2,qx:q.x,qr:q.x+q.w,pl:c.style.paddingLeft,min:c.classList.contains('fz-min')}})()")
+    check('#334 替代 #320 下滑：记录条并进两颗 62 圆钮中间那一行（中线 = 圆钮中线，左右离圆钮 10）', abs(c1['c'] - 1) < 0.01 and abs(c1['qy'] - c1['cy']) < 1.5 and abs(c1['qx'] - (21 + 62 + 10)) < 1.5 and abs(c1['qr'] - (390 - 21 - 62 - 10)) < 1.5 and c1['min'], c1)
     check('#320 下滑：记录条并进两颗圆钮中间那一行（中线 = 圆钮中线，左右离圆钮 10pt）', abs(c1['c'] - 1) < 0.01 and abs(c1['qy'] - c1['cy']) < 1.5 and abs(c1['qx'] - (16 + 52 + 10)) < 1.5 and abs(c1['qr'] - (390 - 16 - 52 - 10)) < 1.5 and c1['min'], c1)
     for y in range(400, -1, -50):
         ev(f"scrollTo(0,{y})"); p.wait_for_timeout(40)
@@ -6367,6 +6393,8 @@ def test_r320(b):
         ev(f"scrollTo(0,{y})"); p.wait_for_timeout(40)
     p.wait_for_timeout(500)
     lc = ev("DockFuse._state().c"); ev("scrollTo(0,0)"); p.wait_for_timeout(300)
+    check('#334 替代 #320 正在进行胶囊在场：在两颗 62 圆钮那一行中间（中线 = 圆钮中线、左右离圆钮 10，融合形状里有 live 一块）、记录条不下落（collapseOk false，下滑 c 仍 0）',
+          lv['has'] and lv['G'] and lv['q'] and abs(lv['ly'] - lv['cy']) < 1.5 and abs(lv['ll'] - (21 + 62 + 10)) < 1.5 and abs(lv['lr'] - (390 - 21 - 62 - 10)) < 1.5 and not lv['ok'] and lc < 0.01, [lv, lc])
     check('#320 正在进行胶囊在场：并进圆钮那一行中间（中线 = 圆钮中线、左右离圆钮 10pt，融合形状里有 live 一块）、记录条不下落（collapseOk false，下滑 c 仍 0）',
           lv['has'] and lv['G'] and lv['q'] and abs(lv['ly'] - lv['cy']) < 1.5 and abs(lv['ll'] - (16 + 62)) < 1.5 and abs(lv['lr'] - (390 - 16 - 62)) < 1.5 and not lv['ok'] and lc < 0.01, [lv, lc])
     ev("(()=>{const d=Storage.get();d.openSleep=null;Storage.save();DockLive.render()})()"); p.wait_for_timeout(300)
@@ -6384,6 +6412,9 @@ def test_r320(b):
     cg = ev("""(()=>{const b=document.getElementById('backBtn'),pl=document.querySelector('#tabbar [data-qd-toggle]'),m=document.querySelector('#view .mod-cta .mc-main,#view .mod-cta .ft-split');const bf=e=>getComputedStyle(e).backdropFilter||getComputedStyle(e).webkitBackdropFilter||'';
       return {fzgl:document.documentElement.classList.contains('fz-gl'),sub:document.body.classList.contains('fz-sub'),gl:DockFuse._state().gl,bk:bf(b),pk:bf(pl),mk:bf(m),mbg:getComputedStyle(m).backgroundColor,w:b.getBoundingClientRect().width}})()""")
     pc = [f for f in fc if f['tw'] == 'push' and f['back']]
+    check('#334 替代 #320 Chromium 退化（不强开 GL）：不挂 fz-gl、返回 / ＋ / 记录条各自是 CSS 磨砂玻璃（backdrop-filter + 半透明模块色）、返回钮 62，推入时形状照样逐帧走（叠放、无黏连）',
+          not cg['fzgl'] and not cg['gl'] and cg['sub'] and 'blur' in cg['bk'] and 'blur' in cg['pk'] and 'blur' in cg['mk'] and cg['mbg'].startswith('rgba') and cg['w'] == 62 and len(pc) >= 2 and not any(f['drawn'] for f in pc),
+          [cg, len(pc)])
     check('#320 Chromium 退化（不强开 GL）：不挂 fz-gl、返回 / ＋ / 记录条各自是 CSS 磨砂玻璃（backdrop-filter + 半透明模块色），推入时形状照样逐帧走（叠放、无黏连）',
           not cg['fzgl'] and not cg['gl'] and cg['sub'] and 'blur' in cg['bk'] and 'blur' in cg['pk'] and 'blur' in cg['mk'] and cg['mbg'].startswith('rgba') and cg['w'] == 52 and len(pc) >= 2 and not any(f['drawn'] for f in pc),
           [cg, len(pc)])
@@ -6433,7 +6464,7 @@ def test_r321(b):
     整条缩放从当前值接着按）；A2 长按 / 拖动速度形变 sx = 1 + min(0.15, |v|/2400)、sy ≈ 0.92/√sx（满形变），停手 120ms 内恢复、点击不做；
     A4 拖动中只换颜色不切页、抬手才切；17 帧点击节奏 / 0.97× / 点击透镜在栏内不变；SW v283。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#321 SW 版本 v283+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v294';" in sw)
+    check('#321 SW 版本 v283+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v295';" in sw)
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2)
     ctx.add_init_script("try{Object.defineProperty(navigator,'standalone',{value:true,configurable:true})}catch(e){}")
     p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
@@ -6543,7 +6574,7 @@ def test_r321(b):
 
 ALL_TESTS = ('test_data', 'test_flows', 'test_format', 'test_home_edit', 'test_family', 'test_dash', 'test_diaper_sheet',
              'test_diaper_stock', 'test_diaper_photos', 'test_feeding_sheet', 'test_pump', 'test_solid', 'test_css_rules',
-             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321', 'test_r322', 'test_r323', 'test_r324', 'test_r325', 'test_r326', 'test_r327', 'test_r329', 'test_r330', 'test_r332', 'test_r333', 'test_r333b')
+             'test_layout_and_toast', 'test_r270', 'test_r271', 'test_r272', 'test_r273', 'test_r274', 'test_r275_boot', 'test_r275_glass', 'test_r276', 'test_r277', 'test_r278', 'test_r279', 'test_r280', 'test_r281', 'test_r282', 'test_r283', 'test_r284', 'test_r285', 'test_r286', 'test_r287', 'test_r288', 'test_r289', 'test_r290', 'test_r290b', 'test_r291', 'test_r291b', 'test_r292', 'test_r293', 'test_r294', 'test_r295', 'test_r296', 'test_r297', 'test_r298', 'test_r299', 'test_r300', 'test_r301', 'test_r302', 'test_r309', 'test_r312', 'test_r313', 'test_r314', 'test_r315', 'test_r316', 'test_r317', 'test_r318', 'test_r319', 'test_r320', 'test_r321', 'test_r322', 'test_r323', 'test_r324', 'test_r325', 'test_r326', 'test_r327', 'test_r329', 'test_r330', 'test_r332', 'test_r333', 'test_r333b', 'test_r334')
 # 第 270 次：整套跑到 ~110 秒，逼近 115 秒上限。拆成两组（按实测耗时配平，各约 55 秒）并行跑两个子进程，
 # 每组各起一个 Chromium、一个本地服务；输出顺序、断言内容不变。`--serial` 仍可单进程顺序跑。
 # 第 272 次：再拆一组（第 272 次断言 + 从前两组挪过来的两项），三个子进程并行
@@ -6586,7 +6617,7 @@ GROUPS = (('test_feeding_sheet', 'test_layout_and_toast', 'test_data', 'test_dia
           ('test_r301',),
           ('test_r302',),
           ('test_r309',),
-          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',), ('test_r322',), ('test_r323',), ('test_r324',), ('test_r325',), ('test_r326',), ('test_r327',), ('test_r329',), ('test_r330',), ('test_r332',), ('test_r333',), ('test_r333b',))  # 第 333 次：导入只按 uuid + 我的快记一组、设置页重做一组。 第 332 次：家庭共享一组（起本地中转服务）。 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
+          ('test_r312',), ('test_r313',), ('test_r314',), ('test_r315',), ('test_r316',), ('test_r317',), ('test_r318',), ('test_r319',), ('test_r320',), ('test_r321',), ('test_r322',), ('test_r323',), ('test_r324',), ('test_r325',), ('test_r326',), ('test_r327',), ('test_r329',), ('test_r330',), ('test_r332',), ('test_r333',), ('test_r333b',), ('test_r334',))  # 第 334 次：UI 统一批（dock 二级对齐 / 提示全在顶部 / 按压与转场 / 审查自动化）一组。 第 333 次：导入只按 uuid + 我的快记一组、设置页重做一组。 第 332 次：家庭共享一组（起本地中转服务）。 第 316 次：点击滑行 / 收回节奏、胶囊比例、dock 单轮廓一组。 第 315 次：dock 去闪烁 / 点击滑动 / 紧凑 / 新图标一组。 第 314 次：液态透镜一组。 第 313 次：真机录屏修透镜一组。第 312 次：dock 真液态玻璃一组。第 309 次：dock 拖动透镜一组。 第 302 次：咿呀提示 / dock 卡片一组。 第 296 次：沉浸式宫缩 / 胎动一组。第 295 次：待产包一组。第 294 次：用品重做与联动一组。第 293 次：多宝宝 / 孕期分类一组。第 292 次：下拉关闭物理 / 动效 token 一组。 第 291 次：首页单向滑 / 前进栈 / 快捷记录文案一组，正在进行胶囊逐页巡检一组。第 290 次：菜单面板两组（WebKit 下一组要跑两分钟多，拆开）。第 289 次：疫苗本一组。 第 288 次：侧拉页重写 / 咿呀岛连点一组。第 286 次：日期页分页 / 新记录 / 快捷条 / 宝宝切换 / 数据管理 / 侧拉页 / ＋ 动画一组。第 285 次：日期页做减法一组。 第 278 次：第四轮审计 #30–#41 一组。第 277 次：咿呀岛 / 玻璃深化一组。第 276 次：新断言一组，并从第二组挪来两项配平（`--times` 打印各项耗时）
 assert sorted(sum(GROUPS, ())) == sorted(ALL_TESTS)
 
 
@@ -6597,7 +6628,7 @@ def test_r322(b):
     A3 长按顶过端点页签时栏端被拉出：外凸 = 0.6 × 越界量、上限 7pt，GL 里「透镜 × 一级 dock」单独 k_end = 10 的 smooth-min；Chromium SVG 退化为不外凸、不出错。
     不变：17 帧点击节奏、0.97×、图标 0.24s；SW v284。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#322 SW 版本 v284+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v294';" in sw)
+    check('#322 SW 版本 v284+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v295';" in sw)
     drs = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     css = '\n'.join(pp.read_text(encoding='utf-8') for pp in (ROOT / 'css').glob('*.css'))
     check('#322 不变：透镜内 0.97×、选中图标 dk-pop .24s、A3 只在主程序 dk()（二级融合程序 FSF 里不用 uEP）',
@@ -6724,7 +6755,7 @@ def test_r323(b):
     不带倍率的 px 字号全部改为跟随字号档（等值替换：标准档零视觉差），只留 dock 标签 10px 与装饰字形；字号 lint。SW v285。"""
     import re
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#323 SW 版本 v285+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v294';" in sw)
+    check('#323 SW 版本 v285+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v295';" in sw)
     css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
     nc = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
     root = nc[nc.index(':root'):nc.index('}', nc.index(':root'))]
@@ -6779,7 +6810,7 @@ def test_r324(b):
     """第 324 次（设计审查分批 · 第二批）：对比度——12 个模块页面主按钮白字用加深后的模块色 --tile-fill（≥4.5:1）、时间轴辅助文字统一 --muted（不叠透明度）、
     新增 --placeholder 并全站 ::placeholder 一个颜色；P0——再点当前一级页签只滚回顶部，不清空重画、不闪白。SW v286。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#324 SW 版本 v286+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v294';" in sw)
+    check('#324 SW 版本 v286+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v295';" in sw)
     p, errs = fresh(b)
     ev = p.evaluate
     p.wait_for_timeout(600)
@@ -6841,7 +6872,7 @@ def test_r325(b):
     「点一下就保存」、没有保存条的面板（生长设置、营养品提醒 / 管理）照旧只有顶栏 ✓；保存条主按钮一种规格（54 / pill / 17/700 / 不带 ✓ 图标）；
     面板输入控件一套（文本 / 数字 / 日期 / 下拉 = --ctl-h 48、--surface-2、无描边，分段外框 48）。逐个打开面板核对，并实际点保存条存几条记录。SW v287。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#325 SW 版本 v287+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v294';" in sw)
+    check('#325 SW 版本 v287+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v295';" in sw)
     p, errs = fresh(b)
     ev = p.evaluate
     p.wait_for_timeout(500)
@@ -6951,7 +6982,7 @@ def test_r326(b):
     字段按 SCHEMA（show 条件不变）、校验与写回走同一个 commit（没动的时间保留秒、未来时间拦下、亲喂至少一侧、瓶喂奶量合计、
     醒来晚于入睡、最长连续重算）、保存后「已保存修改 · 撤销」；面板里「删除这条记录」与时间轴删除同一条路（可撤销）。SW v288。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#326 SW 版本 v288+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v294';" in sw)
+    check('#326 SW 版本 v288+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v295';" in sw)
     p, errs = fresh(b)
     ev = p.evaluate
     p.wait_for_timeout(500)
@@ -7493,7 +7524,7 @@ def test_r316(b):
     p.reload(); p.wait_for_timeout(1800)
     _poll(p, "window.DockRefract&&DockRefract._stats().ready", 5000)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#316 SW 版本 v278+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v294';" in sw)
+    check('#316 SW 版本 v278+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v295';" in sw)
     ph = ev("LiquidDock.PHYS")
     check('#316 弹簧参数：点击滑行 tap 临界阻尼 k≈600、点击速度形变 ×0.45、收回 k≥1500（~4 帧）、松手吸附 k 560、提前收回阈值',
           ph['tap']['k'] == 600 and ph['tap']['z'] >= 1 and abs(ph['tapV'] - 0.45) < 1e-6 and ph['shrink']['k'] >= 1500 and ph['snap']['k'] == 560
@@ -7602,7 +7633,7 @@ def test_r327(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#327 SW 版本 v289+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v294';" in sw)
+    check('#327 SW 版本 v289+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v295';" in sw)
     js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     fu = (ROOT / 'js' / 'dock-fuse.js').read_text(encoding='utf-8')
     css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
@@ -7853,7 +7884,7 @@ def test_r329(b):
     import numpy as np
     from PIL import Image as _Im
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
-    check('#329 SW 版本 v290+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v294';" in sw)
+    check('#329 SW 版本 v290+（第 329 次（续）升 v291）', "var CACHE = 'baoma-static-v295';" in sw)
     ld = (ROOT / 'js' / 'liquid-dock.js').read_text(encoding='utf-8')
     js = (ROOT / 'js' / 'dock-refract.js').read_text(encoding='utf-8')
     go = (ROOT / 'js' / 'glass-optics.js').read_text(encoding='utf-8')
@@ -8054,7 +8085,7 @@ def test_r332(b):
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
     idx = (ROOT / 'index.html').read_text(encoding='utf-8')
     check('#332 SW v293、famcrypto / famsync / famui / 两个 vendor 预缓存，SW importScripts famcrypto 并处理 push',
-          "var CACHE = 'baoma-static-v294';" in sw and all(("'js/%s'" % f) in sw for f in ('famcrypto.js', 'famsync.js', 'famui.js', 'vendor/qrcode.js', 'vendor/jsqr.min.js'))
+          "var CACHE = 'baoma-static-v295';" in sw and all(("'js/%s'" % f) in sw for f in ('famcrypto.js', 'famsync.js', 'famui.js', 'vendor/qrcode.js', 'vendor/jsqr.min.js'))
           and "importScripts('js/famcrypto.js')" in sw and "addEventListener('push'" in sw and "addEventListener('notificationclick'" in sw)
     check('#332 index.html 引入三个脚本、CSP connect-src 加上 api.yiya.help',
           all(('src="js/%s"' % f) in idx for f in ('famcrypto.js', 'famsync.js', 'famui.js')) and 'https://api.yiya.help' in idx.split('connect-src')[1].split(';')[0])
@@ -8434,7 +8465,7 @@ def test_r330(b):
     夜里喂完「去睡吧」；白天、关灯、设置关闭都不出；不联网。SW v292。"""
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
     idx = (ROOT / 'index.html').read_text(encoding='utf-8')
-    check('#330 SW v292（第 332 次升 v293）、nightwin.js 预缓存并引入', "var CACHE = 'baoma-static-v294';" in sw and "'js/nightwin.js'" in sw and 'src="js/nightwin.js"' in idx)
+    check('#330 SW v292（第 332 次升 v293）、nightwin.js 预缓存并引入', "var CACHE = 'baoma-static-v295';" in sw and "'js/nightwin.js'" in sw and 'src="js/nightwin.js"' in idx)
     nw = (ROOT / 'js' / 'nightwin.js').read_text(encoding='utf-8')
     check('#330 不联网：nightwin.js 没有 fetch / XMLHttpRequest / geolocation', not any(k in nw for k in ('fetch(', 'XMLHttpRequest', 'geolocation')))
     ctx = b.new_context(viewport={'width': 393, 'height': 852}, timezone_id='Asia/Shanghai')
@@ -8520,7 +8551,7 @@ def test_r333(b):
     OUT.mkdir(exist_ok=True)
     sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
     idx = (ROOT / 'index.html').read_text(encoding='utf-8')
-    check('#333 SW v294、quickrec.js 预缓存并引入', "var CACHE = 'baoma-static-v294';" in sw and "'js/quickrec.js'" in sw and 'src="js/quickrec.js"' in idx)
+    check('#333 SW v294、quickrec.js 预缓存并引入', "var CACHE = 'baoma-static-v295';" in sw and "'js/quickrec.js'" in sw and 'src="js/quickrec.js"' in idx)
     p, errs = fresh(b)
     ev = p.evaluate
 
@@ -8816,6 +8847,318 @@ def test_r333b(b):
     check('#333C 深浅色 × 390 与 320 宽 + 1.33 倍字号：设置一级、11 个三级页、首页快记卡都不出界、不截断、不出省略号', not bad, bad[:4])
     check('#333C 深浅色 × 两种宽度：设置页和快记卡上的文字对比度 ≥ 4.5', not low, low[:6])
     check('#333C 无页面错误', not errs, errs)
+
+
+# ======================= 第 334 次：UI 统一批 =======================
+R334_DOCK = r"""()=>{const q=s=>{const e=document.querySelector(s);if(!e)return null;const r=e.getBoundingClientRect();return r.width?[r.left,r.top,r.width,r.height]:null};
+  const cs=getComputedStyle(document.documentElement);
+  const ic=s=>{const e=document.querySelector(s);if(!e)return null;const r=e.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2,r.width,r.height,getComputedStyle(e).strokeWidth]};
+  const pl=document.querySelector('#tabbar.is-sub > .tab-plus');
+  return {bar:q('#tabbar'),orb:q('#dockOrb'),orbCore:q('#dockOrb .tab-plus'),orbIco:ic('#dockOrb .tab-plus .ico'),tabIco:ic('#tabbar .tab.dk-tab .dk-ic'),
+    back:q('#tabbar.is-sub > #backBtn'),plus:q('#tabbar.is-sub > .tab-plus'),backIco:ic('#tabbar.is-sub > #backBtn .ico'),plusIco:ic('#tabbar.is-sub > .tab-plus .ico'),
+    plusPad:pl?parseFloat(getComputedStyle(pl).paddingTop):null,cta:q('#view .mod-cta > *'),ctaRow:q('#view .mod-cta'),
+    dkh:parseFloat(cs.getPropertyValue('--dk-h')),dkm:parseFloat(cs.getPropertyValue('--dk-m')),K:window.DockFuse?[DockFuse.K.CIR,DockFuse.K.DKM]:null,H:innerHeight}}"""
+
+R334_TOASTWATCH = r"""()=>{window.__tw=[];const H=innerHeight;const sel='#toastRoot .toast, [class*="toast"]:not(#toastRoot), [class*="snack"], [class*="undo-bar"], [role="alert"]';
+  const look=()=>{document.querySelectorAll(sel).forEach(e=>{if(e.closest('#toastRoot')&&!e.classList.contains('toast'))return;const r=e.getBoundingClientRect();if(!r.width||!r.height)return;const c=getComputedStyle(e);if(c.visibility==='hidden'||+c.opacity<0.05)return;
+    window.__tw.push([(e.className||e.tagName).toString().slice(0,40),Math.round(r.top),Math.round(r.bottom),e.classList.contains('toast-dock')||document.getElementById('toastRoot')?.classList.contains('at-dock')])})};
+  const loop=()=>{look();if(window.__twOn)requestAnimationFrame(loop)};window.__twOn=true;requestAnimationFrame(loop);
+  window.__twIv=setInterval(look,40)}"""
+
+R334_HIT = r"""(scope)=>{const out=[];const H=innerHeight,W=innerWidth;
+  document.querySelectorAll(scope).forEach(root=>root.querySelectorAll('button, a[href], [role="button"], summary, [data-go], select, input:not([type=hidden])').forEach(e=>{
+    if(e.disabled||e.closest('[aria-hidden="true"], .hap-layer, .tl-del, .dk-tab'))return;
+    const r=e.getBoundingClientRect();if(!r.width||!r.height)return;const cs=getComputedStyle(e);if(cs.visibility==='hidden')return;
+    for(let p=e;p;p=p.parentElement){if(+getComputedStyle(p).opacity<0.05||p.hidden)return}
+    let h=r.height,w=r.width;const a=getComputedStyle(e,'::after');
+    if(a.content&&a.content!=='none'&&a.position==='absolute'){const t=parseFloat(a.top),b=parseFloat(a.bottom),l=parseFloat(a.left),rr=parseFloat(a.right);if(t<0||b<0)h=Math.max(h,r.height-Math.min(0,t)-Math.min(0,b));if(l<0||rr<0)w=Math.max(w,r.width-Math.min(0,l)-Math.min(0,rr))}
+    const lb=e.closest('label');if(lb){const q=lb.getBoundingClientRect();h=Math.max(h,q.height);w=Math.max(w,q.width)}
+    if(e.matches('input[type=checkbox], input[type=radio]')){const row=e.closest('.row-switch, .st-row');if(row){const q=row.getBoundingClientRect();h=Math.max(h,q.height);w=Math.max(w,q.width)}}
+    if(h<43.5||w<43.5)out.push([(e.className||e.tagName).toString().split(' ')[0].slice(0,24),(e.getAttribute('aria-label')||e.textContent||'').trim().slice(0,10),Math.round(w),Math.round(h)])}));return out}"""
+
+R334_TEXT = r"""(scope)=>{const out={trunc:[],tiny:[],sticky:[],over:[]};const W=innerWidth;
+  document.querySelectorAll(scope).forEach(root=>[root,...root.querySelectorAll('*')].forEach(e=>{
+    if(e.closest('[aria-hidden="true"], canvas, .hap-layer, .wp-bg, .vb-pages, .cal-pager, .ws-pager'))return;
+    const r=e.getBoundingClientRect();if(!r.width||!r.height)return;const cs=getComputedStyle(e);if(cs.visibility==='hidden'||cs.display==='none')return;
+    if((cs.position==='sticky'||cs.position==='fixed')&&!e.closest('.mod-cta, .modal-mask, .ftf'))out.sticky.push((e.className||e.tagName).toString().slice(0,30)+':'+cs.position);
+    if(r.right>W+0.5||r.left<-0.5)out.over.push([(e.className||e.tagName).toString().slice(0,30),Math.round(r.left),Math.round(r.right)]);
+    const txt=[...e.childNodes].some(n=>n.nodeType===3&&n.textContent.trim());if(!txt)return;
+    if(e.closest('#toastRoot'))return;
+    if((['hidden','clip'].includes(cs.overflowX)&&e.scrollWidth>e.clientWidth+1)||(cs.textOverflow==='ellipsis'&&e.scrollWidth>e.clientWidth+1))out.trunc.push([(e.className||e.tagName).toString().slice(0,30),e.textContent.trim().slice(0,10)]);
+    const fs=parseFloat(cs.fontSize);if(fs<10.95&&!e.closest('.dk-t, .fd-mode'))out.tiny.push([(e.className||e.tagName).toString().slice(0,30),e.textContent.trim().slice(0,8),fs])}));
+  for(const k in out)out[k]=out[k].slice(0,8);return out}"""
+
+
+def test_r334(b):
+    """第 334 次：UI 统一批——① 二级页 dock（返回 + ＋）按一级 dock 的原生尺寸：同高 62、同左右边距 21、同底边、＋ 与一级 ＋ 珠同位同芯同图标，推入 / 返回逐帧位置连续；
+    ② 所有提示（含带「撤销」的）都在顶部咿呀岛，屏幕下半部不出现任何提示；③ 按压态一套（三档缩放 + 列表行底色，token 化，touchfx 读 CSS 变量）、
+    三级页横推、展开收起、模块内切换、数字变化的过渡，减少动态效果时只淡入淡出；④ 设计规范审查里能自动化的条目（点按区 ≥44、不截断、字号 ≥11、
+    页头不 sticky、空状态一页一幅插画、三级页同一套页头、面板里没有裸露的原生日期框）。SW v295。"""
+    import re as _re
+    sw = (ROOT / 'sw.js').read_text(encoding='utf-8-sig')
+    css = (ROOT / 'css' / 'styles.css').read_text(encoding='utf-8')
+    utl = (ROOT / 'js' / 'util.js').read_text(encoding='utf-8')
+    tfx = (ROOT / 'js' / 'touchfx.js').read_text(encoding='utf-8')
+    check('#334 SW 版本 v295', "var CACHE = 'baoma-static-v295';" in sw)
+
+    def theme(p, dark, xl):
+        p.evaluate("([d,x])=>{const s=Storage.get();s.settings.themeAuto=false;s.settings.themeMode=d?'dark':'light';s.settings.theme=d?'dark':'light';s.settings.fontScale=x?'xl':'normal';Storage.save()}", [dark, xl])
+        p.reload(); p.wait_for_timeout(900)
+
+    # —— ① dock 二级对齐 ——
+    bad = []
+    for w, h, xl, dark in ((390, 844, False, False), (320, 568, True, True), (430, 932, False, True)):
+        p, errs = fresh(b, w, h); ev = p.evaluate
+        theme(p, dark, xl)
+        ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(500)
+        A = ev(R334_DOCK)
+        ev("App.showTab('diaper',{noVT:true})"); p.wait_for_timeout(900)
+        B = ev(R334_DOCK)
+        tag = f'{w}{"xl" if xl else ""}{"d" if dark else "l"}'
+        close = lambda a, c, t=0.6: a is not None and c is not None and abs(a - c) <= t
+        bar, orb, back, plus = A['bar'], A['orb'], B['back'], B['plus']
+        conds = {
+            'back 左缘 = 一级栏左缘': close(back[0], bar[0]),
+            'back 底边 = 一级栏底边': close(back[1] + back[3], bar[1] + bar[3]),
+            'back 直径 = 栏高 62': close(back[3], bar[3]) and close(back[2], back[3]) and close(back[3], 62),
+            '＋ 与一级 ＋ 珠同位同大': all(close(plus[i], orb[i]) for i in range(4)),
+            '＋ 粉芯 40 = 一级珠芯（且一级珠芯是圆，不再 40×44）': close(62 - 2 * B['plusPad'], A['orbCore'][2]) and close(A['orbCore'][2], A['orbCore'][3]) and close(A['orbCore'][2], 40),
+            '＋ 图标同中心同大小同线宽': close(B['plusIco'][0], A['orbIco'][0]) and close(B['plusIco'][1], A['orbIco'][1]) and close(B['plusIco'][2], A['orbIco'][2]) and B['plusIco'][4] == A['orbIco'][4],
+            '返回图标 = 页签图标 24 / 线宽 2，和 ＋ 图标同一条中线': close(B['backIco'][2], A['tabIco'][2]) and B['backIco'][4] == '2px' and close(B['backIco'][1], B['plusIco'][1]),
+            '记录条左右 = 两颗圆钮外缘、离圆钮顶 10': close(B['cta'][0], back[0]) and close(B['cta'][0] + B['cta'][2], plus[0] + plus[2], 1) and close(back[1] - (B['cta'][1] + B['cta'][3]), 10, 1),
+            'dock-fuse 几何读 CSS（CIR 62 / DKM 21）': B['K'] == [B['dkh'], B['dkm']] == [62, 21],
+        }
+        miss = [k for k, v in conds.items() if not v]
+        if miss: bad.append([tag, miss, A, B])
+        if errs: bad.append([tag, 'pageerror', errs[:2]])
+        p.close()
+    check('#334 二级页 dock 与一级 dock 原生尺寸对齐（390 浅 / 320 + 1.33 倍字号深 / 430 深）：返回钮左缘 / 底边 / 直径 = 一级栏，＋ = 一级 ＋ 珠（同位、粉芯 40、图标同中心同线宽），返回图标 = 页签图标，记录条与圆钮左右对齐、离 10',
+          not bad, bad[:2])
+
+    # 推入 / 返回逐帧：＋ 一直在一级 ＋ 珠的位置、返回钮左缘和底边一直不动（不跳）
+    p, errs = fresh(b); ev = p.evaluate
+    theme(p, False, False)
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(600)
+    A = ev(R334_DOCK)
+    ev("window.__T=performance.now();DockFuse._clock(()=>window.__T)")
+    ev("App.showTab('diaper')")
+    fp = [ev(R320_STEP) for _ in range(30)]
+    ev("DockFuse._clock(null)")
+    p.wait_for_timeout(700)
+    ev("window.__T=performance.now();DockFuse._clock(()=>window.__T)")
+    ev("history.back()")
+    p.wait_for_timeout(30)
+    fq = [ev(R320_STEP) for _ in range(30)]
+    ev("DockFuse._clock(null)")
+    p.wait_for_timeout(600)
+
+    def cont(frames):
+        out = []
+        n = 0
+        for f in frames:
+            if not (f['back'] and f['plus']): continue
+            n += 1
+            pb, bb = f['plus'], f['back']
+            if max(abs(pb[i] - A['orb'][i]) for i in range(4)) > 0.75: out.append(['plus', f['m'], pb[:4]])
+            if abs(bb[0] - A['bar'][0]) > 0.75 or abs(bb[1] + bb[3] - (A['bar'][1] + A['bar'][3])) > 0.75: out.append(['back', f['m'], bb[:4]])
+        return n, out[:4]
+    n1, j1 = cont(fp)
+    n2, j2 = cont(fq)
+    check('#334 推入（一级 → 二级）逐帧：＋ 始终在一级 ＋ 珠的位置、返回钮左缘和底边始终 = 一级栏（位置连续不跳）', n1 >= 8 and not j1, [n1, j1])
+    check('#334 返回（二级 → 一级）逐帧同样连续', n2 >= 5 and not j2, [n2, j2])
+    check('#334 dock 推入 / 返回无页面错误', not errs, errs[:2])
+    # 一级 ＋ 珠：整颗 62 都能点（原来外圈 11px 点了没反应，只有 40 粉芯能点；二级 ＋ 圆钮本来整颗可点）
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(500)
+    ob = ev("(()=>{const r=document.getElementById('dockOrb').getBoundingClientRect();return [r.left,r.top,r.width,r.height]})()")
+    hits = [ev(f"(()=>{{const e=document.elementFromPoint({x},{y});return !!(e&&e.closest('[data-qd-toggle]'))}})()") for x, y in
+            ((ob[0] + 4, ob[1] + ob[3] / 2), (ob[0] + ob[2] - 4, ob[1] + ob[3] / 2), (ob[0] + ob[2] / 2, ob[1] + 4), (ob[0] + ob[2] / 2, ob[1] + ob[3] - 4))]
+    p.mouse.click(ob[0] + 4, ob[1] + ob[3] / 2); p.wait_for_timeout(600)
+    op = ev("document.body.classList.contains('qd-open')")
+    check('#334 一级 ＋ 珠外圈也能点（点按区 = 整颗 62 珠，和二级 ＋ 圆钮一致）：四边内 4px 都命中 ＋，点外圈打开快速记录', all(hits) and op, [ob, hits, op])
+    p.keyboard.press('Escape'); p.wait_for_timeout(500)
+    p.close()
+
+    # 窄屏大字号：记录条并进圆钮那一行放不下就不并入（不截字）
+    p, errs = fresh(b, 320, 568); ev = p.evaluate
+    theme(p, False, True)
+    ev("App.showTab('feeding',{noVT:true})"); p.wait_for_timeout(900)
+    p.mouse.move(160, 300); p.mouse.wheel(0, 600); p.wait_for_timeout(900)
+    cl = ev("(()=>{const s=DockFuse._state();const ov=[...document.querySelectorAll('#view .mod-cta > *, #view .mod-cta span')].some(e=>e.scrollWidth>e.clientWidth+1&&e.clientWidth>0);return [s.c, s.collapseOk, ov]})()")
+    check('#334 320 宽 + 1.33 倍字号：中间那一行放不下记录条时不并入（c=0），记录条文字不溢出', cl[0] == 0 and cl[2] is False, cl)
+    p.close()
+
+    # —— ② 提示全部在顶部 ——
+    left_js = [k for k in ('toast-dock', 'dockPlace', 'dockScaleVars', "'toast-bar'", 'at-dock', 'el._dock') if k in utl]
+    left_css = [k for k in ('.toast-dock', '#toastRoot.at-dock', '.toast-bar', 'dock-grow', 'dock-shrink') if k in css]
+    check('#334 底部那套提示删干净：util.js 无 toast-dock / dockPlace / dockScaleVars / toast-bar / at-dock / el._dock；CSS 无 .toast-dock / #toastRoot.at-dock / .toast-bar / dock-grow / dock-shrink 死样式',
+          not left_js and not left_css, [left_js, left_css])
+    p, errs = fresh(b); ev = p.evaluate
+    theme(p, False, False)
+    ev(R334_TOASTWATCH)
+    ev("App.showTab('home',{noVT:true})"); p.wait_for_timeout(500)
+    ev("Util.toast('已保存','ok')"); p.wait_for_timeout(600)
+    ev("Util.toast('已记录：测试 · 今天第 1 次','ok',{label:'撤销',onClick(){}})"); p.wait_for_timeout(700)
+    p.click('.qk[data-qk="pee"]'); p.wait_for_timeout(900)
+    ev("document.querySelector('[data-qd-toggle]').click()"); p.wait_for_timeout(700)
+    ev("(()=>{const a=[...document.querySelectorAll('#qdActions .qd-action')].find(x=>/尿/.test(x.textContent));(a||document.querySelector('#qdActions .qd-action')).click()})()"); p.wait_for_timeout(1100)
+    ev("App.showTab('diaper',{noVT:true})"); p.wait_for_timeout(700)
+    ev("Util.toast('已删除一条尿布记录','ok',{label:'撤销',onClick(){}})"); p.wait_for_timeout(700)
+    ev("document.querySelector('#view .mod-cta .mc-main').click()"); p.wait_for_timeout(800)
+    ev("Util.toast('已记录：换尿布','ok',{label:'撤销',onClick(){}})"); p.wait_for_timeout(500)
+    sv = ev("(()=>{const t=document.querySelector('#toastRoot .toast:not(.leaving)'),s=[...document.querySelectorAll('#modalRoot .rs-save')].pop();if(!t||!s)return null;return [Math.round(t.getBoundingClientRect().bottom),Math.round(s.getBoundingClientRect().top)]})()")
+    p.keyboard.press('Escape'); p.wait_for_timeout(600)
+    ev("App.showTab('settings',{noVT:true})"); p.wait_for_timeout(500)
+    ev("Util.toast('设置已保存','ok')"); p.wait_for_timeout(700)
+    ev("window.__twOn=false;clearInterval(window.__twIv)")
+    tw = ev("window.__tw")
+    H = ev("innerHeight")
+    low = [t for t in tw if t[2] > H / 2 or t[3]]
+    kinds = sorted(set(t[0].split(' ')[0] for t in tw))
+    check('#334 任何提示出现时都在屏幕上半部（只看的、带撤销的、首页快记、＋ 面板快记、删记录撤销、面板开着时、设置页），没有 dock 卡片 / at-dock',
+          len(tw) >= 20 and not low, [len(tw), low[:4], kinds])
+    check('#334 面板开着时带撤销的提示在顶部、不压面板保存条', sv is not None and sv[0] < sv[1], sv)
+    check('#334 提示场景无页面错误', not errs, errs[:2])
+    p.close()
+
+    # —— ③ 按压态 token + 转场 ——
+    acts = _re.findall(r'([^{}\n]*:active[^{}]*)\{([^}]*)\}', css)
+    lit = [a[0].strip()[:50] for a in acts if _re.search(r'scale\(\s*\.?\d|scale:\s*\.?\d', a[1])]
+    tok_ok = all(k in css for k in ('--press-btn: .96', '--press-card: .985', '--press-ico: .92', '--press-row:', '--dur-release:', '--pa-btn: var(--press-btn)'))
+    check('#334 按压缩放 token 化：:root 定义 --press-btn / --press-card / --press-ico / --press-row / --dur-release，全站 :active 缩放都写 var(--pa-*) / var(--press-*)，不再有字面量 scale(.9x)',
+          tok_ok and not lit and len(acts) >= 50, [tok_ok, lit[:6], len(acts)])
+    check('#334 touchfx.js 读 CSS 变量（--press-* / --dur-press / --dur-release / --ease-out / --spring），三档 + 行底色', all(k in tfx for k in ("'--press-btn'", "'--press-card'", "'--press-ico'", "'--dur-release'", 'var(--press-row)', 'ROW_SEL')))
+    p, errs = fresh(b); ev = p.evaluate
+    theme(p, False, False)
+    ev("App.showTab('diaper',{noVT:true})"); p.wait_for_timeout(700)
+    pr = ev("""(async()=>{const T=TouchFX._tok();const card=document.querySelector('#view .tl-card'),btn=document.querySelector('#view .mod-cta .mc-main');
+      const tiers=[TouchFX._tier(card),TouchFX._tier(btn),TouchFX._tier(document.querySelector('[data-qd-toggle]'))];
+      TouchFX._down(card);await new Promise(r=>setTimeout(r,220));const s1=getComputedStyle(card).scale;TouchFX._up(card);await new Promise(r=>setTimeout(r,700));const s2=getComputedStyle(card).scale;
+      TouchFX._down(btn);await new Promise(r=>setTimeout(r,220));const s3=getComputedStyle(btn).scale;TouchFX._up(btn);await new Promise(r=>setTimeout(r,700));
+      return {T:[T.btn,T.card,T.ico,T.inMs,T.outMs],tiers,s1,s2,s3,s4:getComputedStyle(btn).scale}})()""")
+    check('#334 touchfx 按压：卡片 .985、按钮 .96（读 token：按下 120ms、松手 420ms 弹簧），松手回 1', pr['T'] == ['.96', '.985', '.92', 120, 420] and pr['tiers'][:2] == ['card', 'btn']
+          and abs(float(pr['s1']) - 0.985) < 0.004 and abs(float(pr['s3']) - 0.96) < 0.004 and pr['s2'] in ('none', '1') and pr['s4'] in ('none', '1'), pr)
+    ev("App.showTab('settings',{noVT:true})"); p.wait_for_timeout(600)
+    rw = ev("""(async()=>{const r=document.querySelector('#view .set-group > summary');const b0=getComputedStyle(r).backgroundColor;const t=TouchFX._tier(r);TouchFX._down(r);await new Promise(x=>setTimeout(x,200));
+      const b1=getComputedStyle(r).backgroundColor,s1=getComputedStyle(r).scale;TouchFX._up(r);await new Promise(x=>setTimeout(x,400));return [t,b0,b1,s1,getComputedStyle(r).backgroundColor]})()""")
+    check('#334 分组列表行按下：整行变灰（--press-row）不缩放，松手恢复', rw[0] == 'row' and rw[2] != rw[1] and rw[3] in ('none', '1') and rw[4] == rw[1], rw)
+    # 三级页横推：进 = vtInRight、出 = vtInLeft，同一条 --ease-ios / --dur-page
+    ev("document.querySelectorAll('#view .set-group > summary')[2].click()"); p.wait_for_timeout(60)
+    s_in = ev("(()=>{const v=document.getElementById('view');const k=[...v.children].find(x=>getComputedStyle(x).display!=='none'&&getComputedStyle(x).animationName!=='none');return [v.classList.contains('sub-push'),k?getComputedStyle(k).animationName:null,k?getComputedStyle(k).animationDuration:null,k?getComputedStyle(k).animationTimingFunction:null]})()")
+    p.wait_for_timeout(600)
+    ev("history.back()"); p.wait_for_timeout(80)
+    s_out = ev("(()=>{const v=document.getElementById('view');const k=[...v.children].find(x=>getComputedStyle(x).display!=='none'&&getComputedStyle(x).animationName!=='none');return [v.classList.contains('sub-pop'),k?getComputedStyle(k).animationName:null]})()")
+    p.wait_for_timeout(600)
+    check('#334 设置三级页进 / 出横推：进 vtInRight、出 vtInLeft，.32s × cubic-bezier(.32,.72,0,1)（和二级页同一组关键帧）', s_in[:2] == [True, 'vtInRight'] and s_in[2] == '0.32s' and '0.32, 0.72, 0, 1' in (s_in[3] or '') and s_out == [True, 'vtInLeft'], [s_in, s_out])
+    ev("App.showTab('settings',{noVT:true})"); p.wait_for_timeout(400)
+    ev("App.openSettingsGroup('外观')"); p.wait_for_timeout(500)
+    ev("(()=>{const i=document.querySelector('#view .set-group.sg-cur input[type=checkbox]');if(i)i.click()})()"); p.wait_for_timeout(60)
+    rr = ev("[...document.querySelectorAll('#view .set-group.sg-cur > *')].filter(x=>getComputedStyle(x).animationName!=='none').length")
+    ev("(()=>{const i=document.querySelector('#view .set-group.sg-cur input[type=checkbox]');if(i)i.click()})()"); p.wait_for_timeout(200)
+    check('#334 三级页里改一个开关（原地重画）内容不再重新横滑一遍（原 sgIn 每次重播）', rr == 0, rr)
+    # 生长趋势（页内三级页，带底部主按钮）：横推期间主按钮的祖先没有 transform
+    ev("history.back()"); p.wait_for_timeout(500)
+    ev("App.showTab('growth',{noVT:true})"); p.wait_for_timeout(700)
+    ev("document.querySelector('[data-gsub=trend]').click()"); p.wait_for_timeout(600)
+    hd = ev("(()=>{const h=document.querySelector('#view .mod-head-sub h1');const r=h.getBoundingClientRect();return [getComputedStyle(h).fontSize,getComputedStyle(h).fontWeight,Math.round(r.left),document.querySelector('#view .gr-filt-k').textContent]})()")
+    ev("history.back()")
+    anc = []
+    for _ in range(8):
+        anc.append(ev("(()=>{const c=document.querySelector('#view .mod-cta');if(!c)return 'nocta';let p=c.parentElement,o=[];while(p&&p!==document.body){const t=getComputedStyle(p).transform;if(t&&t!=='none')o.push(p.className||p.id);p=p.parentElement}return [document.getElementById('view').classList.contains('sub-pop'),o]})()"))
+        p.wait_for_timeout(40)
+    ok_anc = all(a == 'nocta' or not a[1] for a in anc) and any(a != 'nocta' and a[0] for a in anc)
+    check('#334 页内三级页（生长趋势）横推返回生长页期间，底部主按钮的祖先没有 transform（第 282 次；趋势页本身没有主按钮，测返回那一程）', ok_anc, anc)
+    p.wait_for_timeout(500)
+    ev("App.showTab('settings',{noVT:true})"); p.wait_for_timeout(400)
+    ev("App.openSettingsGroup('外观')"); p.wait_for_timeout(500)
+    sh = ev("(()=>{const h=document.querySelector('#view .page-head h1');const r=h.getBoundingClientRect();return [getComputedStyle(h).fontSize,getComputedStyle(h).fontWeight,Math.round(r.left)]})()")
+    check('#334 三级页同一套页头：生长趋势与设置三级页都是左对齐 28/800 大标题，筛选行不再重复写标题', hd[:3] == sh and hd[0] == '28px' and hd[3] == '', [hd, sh])
+    # 展开收起 / 数字变化 / 模块内切换
+    ev("App.openSettingsGroup('家庭共享')"); p.wait_for_timeout(500)
+    dc = ev("(()=>{const d=document.querySelector('#view details.fam-adv');if(!d)return null;d.open=true;const k=[...d.children].find(x=>x.tagName!=='SUMMARY');return k?getComputedStyle(k).animationName:null})()")
+    check('#334 展开收起：<details> 打开时内容淡入（discIn，只动 transform / opacity）', dc == 'discIn', dc)
+    ev("history.back()"); p.wait_for_timeout(400)
+    ev("App.showTab('diaper',{noVT:true})"); p.wait_for_timeout(600)
+    ev("(()=>{const d=Storage.get();d.diapers.push({id:'r334x',time:Util.nowLocal(),type:'pee'});Storage.save();App.rerender()})()"); p.wait_for_timeout(60)
+    nt = ev("[...document.querySelectorAll('#view .num-tick')].map(e=>[e.textContent.trim(),getComputedStyle(e).animationName])")
+    check('#334 数字变化：原地重画后变了的看板数字跳一下（.num-tick / numTick）', len(nt) >= 1 and all(a[1] == 'numTick' for a in nt), nt)
+    ev("App.showTab('supplies',{noVT:true})"); p.wait_for_timeout(700)
+    ev("(()=>{const t=document.querySelectorAll('#view .su-tab');if(t[1])t[1].click()})()"); p.wait_for_timeout(60)
+    sw_ = ev("[...document.querySelectorAll('#view .swap-in')].map(e=>getComputedStyle(e).animationName)")
+    check('#334 模块内切换（用品「待补货」标签）：标签下面的内容块淡入上移（.swap-in / calSwap），装主按钮的块不动', len(sw_) >= 1 and all(a == 'calSwap' for a in sw_), sw_)
+    check('#334 动效段无页面错误', not errs, errs[:3])
+    p.close()
+    # 减少动态效果：只淡入淡出
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, reduced_motion='reduce')
+    p = ctx.new_page(); errs = []; p.on('pageerror', lambda e: errs.append(str(e)[:160])); ev = p.evaluate
+    p.goto(URL); p.wait_for_timeout(600); ev('t=>Storage.importJSON(t)', SEED_V3); p.reload(); p.wait_for_timeout(800)
+    theme(p, False, False)
+    ev("App.showTab('settings',{noVT:true})"); p.wait_for_timeout(500)
+    ev("document.querySelectorAll('#view .set-group > summary')[2].click()"); p.wait_for_timeout(50)
+    r1 = ev("(()=>{const v=document.getElementById('view');const k=[...v.children].find(x=>getComputedStyle(x).display!=='none'&&getComputedStyle(x).animationName!=='none');return k?getComputedStyle(k).animationName:null})()")
+    p.wait_for_timeout(500)
+    rp = ev("""(async()=>{const r=document.querySelector('#view .st-act')||document.querySelector('#view .set-group.sg-cur summary')||document.querySelector('#view button');
+      const btn=document.querySelector('#view .btn')||r;TouchFX._down(btn);await new Promise(x=>setTimeout(x,200));const s=getComputedStyle(btn).scale;TouchFX._up(btn);return [TouchFX._tier(btn),s]})()""")
+    ev("history.back()"); p.wait_for_timeout(400)
+    ev("App.showTab('diaper',{noVT:true})"); p.wait_for_timeout(500)
+    ev("document.querySelector('#view .mod-cta .mc-main').click()"); p.wait_for_timeout(100)
+    r2 = ev("(()=>{const s=[...document.querySelectorAll('#modalRoot .is-sheet')].pop();return s?getComputedStyle(s).animationName:null})()")
+    check('#334 减少动态效果：三级页只淡入（vtFadeIn）、半屏面板只淡入（原来直接出现）、按压不缩放', r1 == 'vtFadeIn' and r2 == 'vtFadeIn' and (rp[0] == 'row' or rp[1] in ('none', '1')), [r1, r2, rp])
+    check('#334 减少动态效果段无页面错误', not errs, errs[:2])
+    ctx.close()
+    # 触屏：:active 缩放交给 touchfx（--pa-* = 1），鼠标照旧
+    ctx = b.new_context(viewport={'width': 390, 'height': 844}, has_touch=True, is_mobile=True)
+    p = ctx.new_page(); p.goto(URL); p.wait_for_timeout(600)
+    pa = p.evaluate("[getComputedStyle(document.documentElement).getPropertyValue('--pa-btn').trim(),matchMedia('(hover: none) and (pointer: coarse)').matches]")
+    ctx.close()
+    p, errs = fresh(b); pa2 = p.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--pa-btn').trim()"); p.close()
+    check('#334 触屏上 :active 不再叠一次缩放（--pa-btn = 1，只由 touchfx 做）；鼠标设备 --pa-btn = --press-btn', (pa[0] == '1' or not pa[1]) and pa2 in ('var(--press-btn)', '.96', '0.96'), [pa, pa2])
+
+    # —— ④ 审查自动化：各级页面（390 浅 / 320 + 1.33 倍字号深）——
+    MODS = ['feeding', 'breast', 'bottle', 'pump', 'solid', 'diaper', 'sleep', 'whitenoise', 'growth', 'vaccine', 'meds', 'milestone', 'temp', 'sick', 'jaundice', 'bath', 'swim', 'sun', 'water', 'supplement',
+            'pregnancy', 'fetal', 'contraction', 'prenatal', 'packing', 'momweight', 'mood', 'period', 'finance', 'supplies']
+    HIT_ALLOW = ('ws-d', 'ws-nav', 'cal-d', 'dp-day', 'mtl-', 'gr-ctl', 'vb-dot', 'sp-day')  # 七等分日期条 / 周条箭头（外扩会压到隔壁日期格）
+    small, text, empty2 = [], [], []
+    for w, h, xl, dark in ((390, 844, False, False), (320, 568, True, True)):
+        p, errs = fresh(b, w, h); ev = p.evaluate
+        theme(p, dark, xl)
+        tag = f'{w}{"xl" if xl else ""}{"d" if dark else "l"}'
+        pages = [(t, None) for t in ['baby', 'home', 'calendar'] + MODS + ['search', 'alltools', 'settings']]
+        pages += [('settings', g) for g in ('宝宝与我', '家庭共享', '我的快记', '首页卡片', '外观', '天气与农历', '记录与提醒', '导入与导出', '给家人和医生', '数据与隐私', '知识来源')]
+        for t, g in pages:
+            ev(f"App.showTab('{t}',{{noVT:true}})"); p.wait_for_timeout(350)
+            if g: ev(f"App.openSettingsGroup({json.dumps(g)})"); p.wait_for_timeout(350)
+            _poll(p, "getComputedStyle(document.getElementById('view')).transform==='none'&&![...document.getElementById('view').children].some(k=>getComputedStyle(k).transform!=='none'&&getComputedStyle(k).animationName!=='none')", 2000, 60)  # 等进页横推落定再量（负载高时 350ms 还在最后 1–2px）
+            nm = t + ('·' + g if g else '')
+            hs = [x for x in ev(R334_HIT, '.app-header, #view') if not x[0].startswith(HIT_ALLOW)]
+            if hs: small.append([tag, nm, hs[:4]])
+            tx = ev(R334_TEXT, '.app-header, #view')
+            if any(tx.values()): text.append([tag, nm, {k: v for k, v in tx.items() if v}])
+            e2 = ev("(()=>{if(!document.querySelector('#view .sk-empty'))return null;const a=document.querySelector('#view .mod-head .hero-art');return a?getComputedStyle(a).display:'none'})()")
+            if e2 not in (None, 'none'): empty2.append([tag, nm])
+            if g: ev("history.back()"); p.wait_for_timeout(300)
+        if errs: text.append([tag, 'pageerror', errs[:2]])
+        p.close()
+    check('#334 审查：一 / 二 / 三级页（34 个页面 + 11 个设置三级页 × 390 浅 / 320 + 1.33 倍字号深）可点元素点按区 ≥ 44（小胶囊 / 图标钮用透明 ::after 外扩）', not small, small[:6])
+    check('#334 审查：同上所有页面文字不截断 / 不出省略号、不出屏、字号 ≥ 11、页面里没有 sticky / fixed 页头（底部主按钮除外）', not text, text[:6])
+    check('#334 审查：空状态一页一幅插画（有 .sk-empty 大插画时页头小插画藏起）', not empty2, empty2[:6])
+    # 面板：没有裸露的原生日期框（日期一律走日期磁贴）；面板里的点按区
+    p, errs = fresh(b); ev = p.evaluate
+    theme(p, False, False)
+    nat, sh_small = [], []
+    for t in ('prenatal', 'diaper', 'sleep', 'growth', 'finance', 'milestone', 'sick', 'temp', 'momweight', 'period', 'vaccine', 'supplement'):
+        ev(f"App.showTab('{t}',{{noVT:true}})"); p.wait_for_timeout(450)
+        ok = ev("(()=>{const b=document.querySelector('#view .mod-cta .mc-main')||document.querySelector('#view .mod-cta .ft-split-add')||document.querySelector('#view .mod-cta button');if(!b)return false;b.click();return true})()")
+        p.wait_for_timeout(700)
+        if not ok: continue
+        n = ev("[...document.querySelectorAll('#modalRoot input[type=date], #modalRoot input[type=time]')].filter(i=>{const r=i.getBoundingClientRect();return r.width>0&&!i.classList.contains('ft-hid')&&getComputedStyle(i).opacity>0.05}).map(i=>i.id||i.className)")
+        if n: nat.append([t, n])
+        hs = [x for x in ev(R334_HIT, '#modalRoot') if not x[0].startswith(HIT_ALLOW)]
+        if hs: sh_small.append([t, hs[:4]])
+        p.keyboard.press('Escape'); p.wait_for_timeout(500)
+    check('#334 审查：记录面板里没有裸露的原生日期 / 时间框（产检日期改成日期磁贴，和其他面板同一种）', not nat, nat)
+    check('#334 审查：记录面板里可点元素点按区 ≥ 44（✕ / 分段 / 开关外扩）', not sh_small, sh_small[:6])
+    check('#334 审查段无页面错误', not errs, errs[:2])
+    p.close()
 
 
 if __name__ == '__main__':

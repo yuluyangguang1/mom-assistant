@@ -562,7 +562,7 @@
           if (Util.daysBetween(today, iso) > 0) {
             h += '<span class="ws-cell is-future"><span class="ws-dow">' + lbl + '</span><span class="ws-day">' + wd.getDate() + '</span></span>';
           } else {
-            h += '<button type="button" data-ws="' + iso + '" class="' + (iso === state.sel ? 'is-sel' : '') + (iso === today ? ' is-today' : '') + '"'
+            h += '<button type="button" data-ws="' + iso + '" class="ws-d' + (iso === state.sel ? ' is-sel' : '') + (iso === today ? ' is-today' : '') + '"'
               + (iso === state.sel ? ' aria-current="date"' : '') + ' aria-label="' + titleOf(iso) + '">'
               + '<span class="ws-dow">' + lbl + '</span><span class="ws-day">' + wd.getDate() + '</span>' + has + '</button>';
           }

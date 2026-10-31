@@ -617,7 +617,7 @@
     var k = G._metric, m = MET[k];
     var win = windowOf(d, rg, all);
     var stdT = labelOf(STDS, std), rgT = labelOf(RANGES, rg);
-    var h = '<div class="gr-filt"><span class="gr-filt-k">生长趋势</span>'
+    var h = '<div class="gr-filt"><span class="gr-filt-k" aria-hidden="true"></span>' /* 第 334 次审查：和页头大标题重复，去掉文字（留作把筛选推到右边的占位） */
       + '<button type="button" class="gr-pill" data-gf="std" aria-haspopup="menu" aria-expanded="false">' + trendIco() + '<span>' + esc(stdT) + '</span>' + (SV().down || '') + '</button>'
       + '<button type="button" class="gr-pill" data-gf="sex" aria-label="性别：' + (sex ? (sex === 'girl' ? '女宝' : '男宝') : '未设置') + '，点按修改宝宝资料">' + icon('baby') + '<span>' + (sex ? (sex === 'girl' ? '女宝' : '男宝') : '未设置') + '</span></button>'
       + '<button type="button" class="gr-pill" data-gf="range" aria-haspopup="menu" aria-expanded="false">' + (SV().cal || '') + '<span>' + esc(rgT) + '</span>' + (SV().down || '') + '</button></div>';
@@ -762,7 +762,7 @@
     var wpts = all.filter(function (r) { var t = tOf(r); return valOf(r, MET.weight) != null && t >= win.t0 && t <= win.t1 + 864e5; })
       .map(function (r) { return { t: tOf(r), v: valOf(r, MET.weight), r: r }; }).sort(function (a, b) { return a.t - b.t; });
 
-    var h = '<div class="gr-filt"><span class="gr-filt-k">喂养与体重</span>'
+    var h = '<div class="gr-filt"><span class="gr-filt-k" aria-hidden="true"></span>' /* 第 334 次审查：和页头大标题重复，去掉文字（留作把筛选推到右边的占位） */
       + '<button type="button" class="gr-pill" data-gf="frange" aria-haspopup="menu" aria-expanded="false">' + (SV().cal || '') + '<span>' + esc(rgT) + '</span>' + (SV().down || '') + '</button></div>';
     h += '<div class="card gr-tcard gr-fcard"><div class="gr-th"><div><h2>喂养与体重</h2><p>' + (rg === 'all' ? '全部' : '近 ' + esc(rgT)) + ' · '
       + (useMl ? (weekly ? '每周平均每天瓶喂奶量（ml）' : '每天瓶喂奶量（ml）') : (weekly ? '每周平均每天喂奶次数' : '每天喂奶次数')) + ' · 体重（kg）</p></div></div>';

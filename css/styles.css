@@ -28,6 +28,8 @@
   --dk-pill-in: 5px;                                                     /* 选中胶囊上下内缩（liquid-dock.js THUMB_INSET） */
   --dk-pill-px: 8px;                                                     /* 选中胶囊比页签宽（THUMB_PX） */
   --dk-top: calc(var(--dk-b) + var(--dk-h));                             /* 栏顶离屏幕底：上方所有浮层按它排 */
+  --dk-core: 40px;                                                       /* 第 334 次：＋ 粉芯直径（一级珠 / 二级圆钮同一个） */
+  --dk-core-in: calc((var(--dk-orb) - var(--dk-core)) / 2);              /* 圆钮边 → 粉芯 */
   /* —— 奶油底色 ——
      第 118 次（对标 Cali 裁定 · 页底加深）：末两档由 #FBF5EF / #F8F2EC 加深到
      #F6F0E5 / #F2EBDF，让「白卡 vs 页底」的 CIE L* 明度差从 4.2 提到 6.7
@@ -174,6 +176,15 @@
   /* 动效时长：按压 120 / 控件 200（--dur-page 320、--dur-in 420、--dur-out 300 已有）；控件曲线 --ease-out */
   --dur-press: 120ms; --dur-ctl: 200ms;
   --ease-out: cubic-bezier(.2, .8, .2, 1);
+  /* 第 334 次：按压态一套（列表行 / 卡片 / 格子 / 按钮 / 标签）——三档缩放 + 行底色，按下 --dur-press × --ease-out，松手 --dur-release × --spring 回弹。
+     手指（touch）由 js/touchfx.js 用 Web Animations 统一做（读这几个变量）；鼠标走各元素的 :active，写 var(--pa-*)。
+     --pa-* 在触屏上是 1（让 touchfx 一家做，不和 :active 叠成两次缩放）；dock / 透镜 / 子元素缩放这类 touchfx 不管的直接写 var(--press-*)。 */
+  --press-btn: .96;    /* 按钮、胶囊、标签、格子、小卡 */
+  --press-card: .985;  /* 大卡片、整块磁贴、时间轴卡 */
+  --press-ico: .92;    /* 只有图标的小圆钮 */
+  --press-row: color-mix(in srgb, var(--text) 7%, transparent); /* 分组列表行：iOS 式按下变灰，不缩放 */
+  --dur-release: 420ms;
+  --pa-btn: var(--press-btn); --pa-card: var(--press-card); --pa-ico: var(--press-ico);
   /* 第 324 次：占位符颜色。tokens.md：--muted 70% 不透明度，≥4.5:1 时才用——实测 70% 叠在白 / --surface-2 上只有 3.2~3.4:1，所以取 --muted 实色（白底 6.3:1、--surface-2 5.7:1）。
      原来 6 个输入框用浏览器默认 #a9a9a9（2.1~2.4:1），另有几处 --muted 叠 .45~.75 透明度 */
   --placeholder: var(--muted);
@@ -315,7 +326,7 @@ button, input, select, textarea { font-family: inherit; }
   transition: transform .2s var(--spring), box-shadow .2s var(--ease);
 }
 .home-avatar:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
-.home-avatar:active { transform: scale(.93); }
+.home-avatar:active { transform: scale(var(--pa-ico)); }
 .home-avatar:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .home-avatar .illo { width: 38px; height: 38px; margin: 0; opacity: 1; color: var(--primary-text); }
 /* 第 80 次：头像位显示当前宝宝照片（上传后 dataURL，圆裁铺满） */
@@ -335,7 +346,7 @@ button, input, select, textarea { font-family: inherit; }
 }
 .header-gear .ico { width: 21px; height: 21px; }
 .header-gear:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); background: var(--primary-weak); }
-.header-gear:active { transform: scale(.93); }
+.header-gear:active { transform: scale(var(--pa-ico)); }
 .header-gear:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 body.in-module .header-gear { display: none; }
 
@@ -412,7 +423,7 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 }
 .btn .ico { width: 18px; height: 18px; }
 .btn:hover { background: var(--surface-2); transform: translateY(-1px); box-shadow: var(--shadow-hover); }
-.btn:active { transform: scale(.97); }
+.btn:active { transform: scale(var(--pa-btn)); }
 .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-color: var(--primary); }
 .btn-primary {
   background: linear-gradient(180deg, var(--primary-fill) 0%, var(--primary-strong) 100%);
@@ -443,7 +454,7 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 }
 .btn-mini .ico { width: 15px; height: 15px; }
 .btn-mini:hover { background: var(--primary-weak); color: var(--primary-text); }
-.btn-mini:active { transform: scale(.92); } /* 第 44 次：± 微调按钮按压反馈（滑杆旁高频控件） */
+.btn-mini:active { transform: scale(var(--pa-ico)); } /* 第 44 次：± 微调按钮按压反馈（滑杆旁高频控件） */
 .btn-mini:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* 疫苗时间表行：状态色（已种=柔和、将到期=高亮、逾期=警示） */
@@ -465,7 +476,7 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 }
 .icon-btn .ico { width: 18px; height: 18px; }
 .icon-btn:hover { background: var(--danger-weak); color: var(--danger); }
-.icon-btn:active { transform: scale(.9); }
+.icon-btn:active { transform: scale(var(--pa-ico)); }
 .icon-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .list li > .icon-btn { align-self: center; }
 .mod-item {
@@ -478,7 +489,7 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
   transition: background .2s var(--ease), transform .15s var(--spring), box-shadow .2s var(--ease), border-color .2s var(--ease);
 }
 .mod-item:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.mod-item:active { transform: scale(.96); }
+.mod-item:active { transform: scale(var(--pa-btn)); }
 .mod-item:hover { background: var(--surface-2); border-color: var(--primary-weak); transform: translateY(-2px); box-shadow: var(--shadow-hover); }
 .mod-item .ico { width: 22px; height: 22px; padding: 9px; background: var(--primary-weak); border-radius: var(--radius-pill); color: var(--primary); box-sizing: content-box; }
 
@@ -501,7 +512,7 @@ input.is-invalid:focus, select.is-invalid:focus { border-color: var(--danger); b
 .seg-btn:hover { border-color: var(--primary); }
 /* 按压反馈（第 44 次）：触屏 hover 已被 @media(hover:none) 禁用，:active 是仅剩的
    触控反馈通道——没有它，点药丸看不出「点到了」（MicroKit click-feedback 模式） */
-.seg-btn:active { transform: scale(.95); }
+.seg-btn:active { transform: scale(var(--pa-btn)); }
 .seg-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .seg-btn.active { background: var(--primary-weak); color: var(--primary-text); border-color: var(--primary); font-weight: 600; }
 /* 分段切换确认感：激活时图标轻微弹跳（spring），契合奶油风的 Q 弹 */
@@ -637,7 +648,7 @@ input[type="range"] { width: 100%; margin-left: 0; margin-right: 0; box-sizing: 
    scale 是按钮/卡片的语言，行位移会牵动分隔线与相邻行（transform: none
    同时压掉下方通用 [data-go]:active 的 scale，行选择器特异性更高必胜）。 */
 .list li[data-go]:active { background: var(--primary-weak); transform: none; opacity: 1; }
-[data-go]:active { transform: scale(.97); }
+[data-go]:active { transform: scale(var(--pa-btn)); }
 .list li small { color: var(--muted); font-size: var(--fs-sm); }
 .list li > .ico { flex: none; color: var(--muted); align-self: flex-start; margin: 2px 10px 0 0; }
 .list li > .ico + span { flex: 1 1 auto; min-width: 0; }
@@ -810,7 +821,7 @@ body.dark .tabbar {
 
 .tab .ico { width: 20px; height: 20px; color: var(--muted); margin: 0; }
 .tab:hover { color: var(--text); }
-.tab:active { transform: scale(.9); } /* 第 44 次：底栏按压反馈 */
+.tab:active { transform: scale(var(--press-ico)); } /* 第 44 次：底栏按压反馈 */
 .tab:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .tab.active { color: var(--primary-text); font-weight: 700; background: var(--primary-weak); }
 .tab.active::after {
@@ -950,7 +961,7 @@ body.dark .tabbar {
   transition: background .2s var(--ease), color .2s var(--ease), transform .15s var(--spring), filter .2s var(--ease);
 }
 .toast-action:hover { filter: brightness(.96); }
-.toast-action:active { transform: scale(.94); } /* 第 72 次：补按压反馈（此前 toast 内唯一没有 active 态的按钮） */
+.toast-action:active { transform: scale(var(--pa-btn)); } /* 第 72 次：补按压反馈（此前 toast 内唯一没有 active 态的按钮） */
 .toast-action:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 
@@ -1066,7 +1077,7 @@ body.in-home .mod-date { visibility: hidden; }
 .header-back .ico { width: 22px; height: 22px; }
 .header-back[hidden] { display: none; }
 .header-back:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); background: var(--primary-weak); }
-.header-back:active { transform: scale(.93); }
+.header-back:active { transform: scale(var(--pa-ico)); }
 .header-back:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* 喂养模块的多根滑杆容器（第 43 次）：相邻滑杆之间留出呼吸空间。
@@ -1146,9 +1157,7 @@ body.in-home .mod-date { visibility: hidden; }
 #view.sg-in .sg-sec:not(:has(.sg-cur)) { display: none; }
 #view.sg-in .set-group.sg-cur { border: 0; background: none; box-shadow: none; border-radius: 0; overflow: visible; margin: 0; }
 #view.sg-in .set-group.sg-cur > summary { display: none; }
-#view.sg-in .set-group.sg-cur > * { animation: sgIn .28s var(--ease) both; }
-@keyframes sgIn { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { #view.sg-in .set-group.sg-cur > * { animation: none; } }
+/* 第 334 次：分组进 / 出的横推改由通用的 #view.sub-push / .sub-pop（见文件末尾「动效统一」）做；原 sgIn 每次原地重画（改一个开关）都会再滑一次，删掉 */
 .set-group > .st-cap:first-of-type { margin-top: 4px; }
 .st-card { padding: 4px 16px; margin: 0 0 8px; }
 .st-card + .st-cap, .st-foot + .st-cap { margin-top: 20px; }
@@ -1253,7 +1262,7 @@ body.in-home .mod-date { visibility: hidden; }
    第 53 次：按压光晕——按下去的瞬间从磁贴泛开一圈本模块色的柔光；
    color-mix 直接取现有 --tile 分色 token，不支持的老浏览器安静降级为无光晕 */
 .record-tile:active {
-  transform: scale(.96) translateY(1px);
+  transform: scale(var(--pa-btn)) translateY(1px);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--tile, #fff) 20%, transparent),
               0 8px 22px color-mix(in srgb, var(--tile, #fff) 28%, transparent);
 }
@@ -1447,7 +1456,7 @@ body.dark .mtl-dot.lv2 { background: #D6A5BA; }
 body.dark .mtl-dot.lv3 { background: #E2C27E; }
 body.dark .mtl-dot.lv4 { background: #7BC4BC; }
 body.dark .mtl-dot.lv5 { background: #93C9A4; }
-.mtl-num { font-size: calc(10px * var(--fs-mul)); color: var(--muted); font-variant-numeric: tabular-nums; }
+.mtl-num { font-size: var(--t-xs); /* 第 334 次审查：图表刻度最小 11（--t-xs），原 10 */ color: var(--muted); font-variant-numeric: tabular-nums; }
 .mtl-num.now { color: var(--text); font-weight: 600; }
 /* 紧急指引卡：常驻页尾、温和描边但不做红字恐吓——文字保持中性，可达性优先 */
 .mood-urgent { border-color: var(--warn-border, var(--warn-text, #B0576B)); }
@@ -1468,7 +1477,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 .spark polyline { fill: none; stroke: var(--primary); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .spark circle { fill: var(--primary); }
 
-#quickDock .qd-fab:active { transform: scale(.92); }
+#quickDock .qd-fab:active { transform: scale(var(--press-ico)); }
 #quickDock .qd-fab:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 #quickDock.open .qd-fab { transform: rotate(45deg); }
 #quickDock .qd-action {
@@ -1495,7 +1504,7 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 }
 #quickDock .qd-action .qd-ico { width: 18px; height: 18px; flex: none; }
 #quickDock .qd-action:hover { background: var(--surface-2); }
-#quickDock .qd-action:active { transform: scale(.95); }
+#quickDock .qd-action:active { transform: scale(var(--pa-btn)); }
 #quickDock .qd-action:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 /* 展开时的半透明遮罩（第 43 次：由 ::before 伪元素改为真实元素 #qdMask）。
    伪元素撑满全屏时事件 target 是宿主元素本身，无法与「点 dock 自身」区分，
@@ -1828,6 +1837,8 @@ body.dark .mtl-dot.lv5 { background: #93C9A4; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+/* 第 334 次：触屏上按压缩放只由 touchfx.js 做（见 :root 的 --press-*） */
+@media (hover: none) and (pointer: coarse) { :root { --pa-btn: 1; --pa-card: 1; --pa-ico: 1; } }
 
 
 
@@ -2065,7 +2076,7 @@ body.fs-xl {
 /* .ico 自带 color:var(--primary)，要落到 svg 本体才能压成 ink 灰 */
 .home-search .si-ico .ico { width: 20px; height: 20px; color: var(--muted); }
 .home-search:hover { background: var(--surface-2); border-color: var(--primary-weak); box-shadow: var(--shadow-hover); }
-.home-search:active { transform: scale(.99); }
+.home-search:active { transform: scale(var(--pa-card)); }
 .home-search:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 
@@ -2083,7 +2094,7 @@ body.fs-xl {
   transition: transform .15s var(--spring), background .2s var(--ease), box-shadow .2s var(--ease);
 }
 .tool-item:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
-.tool-item:active { transform: scale(.96); }
+.tool-item:active { transform: scale(var(--pa-btn)); }
 .tool-item:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* 本体：只放字号/颜色/字重 */
@@ -2096,7 +2107,7 @@ body.fs-xl {
 .tools-grid .ti-ico .ico { width: 28px; height: 28px; /* 第 188 次：24→28，磁贴 96px 高里图标太小、层级发虚 */ color: var(--tile, var(--primary)); }
 .tools-grid .ti-name {
   display: block; max-width: 100%; line-height: 1.3;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  white-space: normal; text-wrap: balance; /* 第 334 次审查：原 nowrap + 省略号，「哄睡白噪音」在 320 宽 + 1.33 倍字号被截断；改为可折两行 */
 }
 
 /* 首页底部「全部功能」整行入口：图标 + 名称 + 计数 + 右箭头（一节） */
@@ -2123,7 +2134,7 @@ body.fs-xl {
 .alltools-entry .rt-arrow .ico { width: 15px; height: 15px; color: var(--muted); }
 .alltools-entry:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
 .alltools-entry:hover .rt-arrow { transform: translateX(2px); opacity: .8; }
-.alltools-entry:active { transform: scale(.98); }
+.alltools-entry:active { transform: scale(var(--pa-card)); }
 .alltools-entry:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* ------------------------------------------------------------
@@ -2170,7 +2181,7 @@ body.fs-xl {
 }
 .sb-clear[hidden] { display: none; }
 .sb-clear:hover { background: var(--primary-weak); color: var(--primary-text); }
-.sb-clear:active { transform: scale(.9); }
+.sb-clear:active { transform: scale(var(--pa-ico)); }
 .sb-clear:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 .search-hint { margin: 12px 2px 0; color: var(--muted); font-size: var(--fs-sm); line-height: 1.6; }
@@ -2225,7 +2236,7 @@ body.fs-xl {
     box-shadow .2s var(--ease), transform .15s var(--spring);
 }
 .theme-card:hover { border-color: var(--primary-weak); }
-.theme-card:active { transform: scale(.97); }
+.theme-card:active { transform: scale(var(--pa-btn)); }
 .theme-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 /* 当前选中态：主色描边 + 弱主色底 + 一圈主色内描（双重可辨，不靠颜色单通道） */
 .theme-card.active {
@@ -2313,7 +2324,7 @@ body.fs-xl {
   font-family: inherit; white-space: nowrap;
 }
 .home-edit-btn .ico { width: 14px; height: 14px; }
-.home-edit-btn:active { transform: scale(.96); }
+.home-edit-btn:active { transform: scale(var(--pa-btn)); }
 .home-edit-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* 手动布局：两列网格；整排卡跨双列，半宽卡隐藏摘要/角标/箭头（半宽只留名字） */
@@ -2349,7 +2360,7 @@ body.fs-xl {
   animation: tdIn .32s cubic-bezier(.34, 1.56, .64, 1) both;
   transition: scale .12s, background-color .12s;
 }
-.tile-del:active { scale: .86; background-color: var(--danger); }
+.tile-del:active { scale: var(--pa-ico); background-color: var(--danger); }
 body.dark .tile-del { background: rgba(150, 144, 138, .55); }
 .td-minus { display: block; width: 11px; height: 2.4px; border-radius: 2px; background: currentColor; position: relative; }
 .tile-del > .hap-layer { inset: -9px; border-radius: 50%; }
@@ -2447,7 +2458,7 @@ body.dark .tile-size { background: rgba(255,255,255,.08); }
   text-align: left; font-family: inherit; cursor: pointer;
   transition: transform .2s var(--spring), box-shadow .2s var(--ease);
 }
-.hl2:active { transform: scale(.975); }
+.hl2:active { transform: scale(var(--pa-card)); }
 .hl2:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .hl2-head {
   display: flex; align-items: center; gap: 6px;
@@ -2484,7 +2495,7 @@ body .tabbar .dock-btn {
   transition: background .2s var(--ease), color .2s var(--ease), transform .2s var(--spring);
 }
 body .tabbar .dock-btn:hover { color: var(--text); background: var(--surface-2); transform: none; }
-body .tabbar .dock-btn:active { transform: scale(.92); }
+body .tabbar .dock-btn:active { transform: scale(var(--press-ico)); }
 body .tabbar .dock-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 body .tabbar .dock-btn .ico { width: 22px; height: 22px; color: inherit; margin: 0; }
 /* 头像原为 46px 白底方块，进胶囊后退成纯图标 */
@@ -2508,7 +2519,7 @@ body .tabbar .tab-plus {
 }
 body .tabbar .tab-plus .ico { width: 22px; height: 22px; color: var(--on-primary); stroke-width: 2.3; transition: transform .32s cubic-bezier(.34, 1.56, .64, 1); /* 第 286 次：开合弹簧旋转 */ }
 body .tabbar .tab-plus > span { display: none; }   /* 圆钮里只放图标，不放文字 */
-body .tabbar .tab-plus:active { transform: scale(.9); }
+body .tabbar .tab-plus:active { transform: scale(var(--press-ico)); }
 
 /* 独立的悬浮 FAB 退休：＋ 已在胶囊里。它仍留在 DOM（隐藏），转发点击照旧可用 */
 #quickDock .qd-fab {
@@ -2605,7 +2616,7 @@ body .tabbar .dock-btn[hidden] { display: none; }
   transition: background .18s var(--ease), transform .15s var(--spring), color .18s var(--ease);
 }
 .qk-btn .ico { width: 18px; height: 18px; color: var(--tile, var(--primary)); margin: 0; }
-.qk-btn:active { transform: scale(.94); }
+.qk-btn:active { transform: scale(var(--pa-btn)); }
 .qk-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 /* 选中态用模块弱底 + 模块深字（AA 安全组合），不用白字压彩色底 */
 .qk-btn.is-on { background: var(--tile-weak, var(--primary-weak)); color: var(--tile-text, var(--primary-text)); border-color: var(--tile, var(--primary)); }
@@ -2654,7 +2665,7 @@ body .tabbar .dock-btn[hidden] { display: none; }
   font-family: inherit; font-size: calc(13.5px * var(--fs-mul)); font-weight: 600; cursor: pointer;
   transition: transform .15s var(--spring), border-color .15s var(--ease);
 }
-.dp-pill:active { transform: scale(.95); }
+.dp-pill:active { transform: scale(var(--pa-btn)); }
 .dp-pill:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .dp-pill.active { border-color: var(--primary); background: var(--primary-weak); color: var(--primary-text); box-shadow: inset 0 0 0 1px var(--primary); }
 
@@ -2900,7 +2911,7 @@ body.ob-open .tabbar, body.ob-open #quickDock { visibility: hidden; }
   box-shadow: 0 1px 2px rgba(60, 40, 20, .05), 0 4px 16px rgba(60, 40, 20, .05);
   transition: border-color .2s var(--ease), background .2s var(--ease), transform .15s var(--ease);
 }
-.ob-card:active { transform: scale(.98); }
+.ob-card:active { transform: scale(var(--pa-card)); }
 .ob-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .ob-card-ico {
   flex: none; width: 44px; height: 44px; border-radius: var(--radius-sm);
@@ -3062,7 +3073,7 @@ body.dark .sheet-grab i { background: rgba(235, 235, 245, .3); }
    缩小 #view 会让天空两侧露出生硬的竖边，而顶栏、底部胶囊在 #view 外不跟着缩，整体不协调。
    改成只靠遮罩加深来压暗背景，让面板成为视觉焦点。 */
 @media (prefers-reduced-motion: reduce) {
-  .modal-mask.as-sheet > .is-sheet { animation: none; }
+  .modal-mask.as-sheet > .is-sheet { animation: vtFadeIn .2s linear both !important; } /* 第 334 次：原来直接出现，改为只淡入（和「动效统一」一节同一条） */
 }
 
 /* —— 页面转场（View Transitions；app.js 在 <html data-nav="push|pop|fade"> 下启动）—— */
@@ -3133,7 +3144,7 @@ html[data-nav="push"]::view-transition-new(page), html[data-nav="pop"]::view-tra
   /* ↑ 第 171 次：同名选择器合并到此处 */
   display: block; margin-top: auto; padding: 0 2px 2px;
   background: none; border: 0; box-shadow: none; border-radius: 0;
-  --hg-ink: #2B2A33; --hg-ink-2: rgba(43, 42, 51, .76); /* 第 180 次：.62→.76，浅色天空上日期/副标对比 3.4→4.6 */
+  --hg-ink: #2B2A33; --hg-ink-2: rgba(43, 42, 51, .86); /* 第 180 次：.62→.76，浅色天空上日期/副标对比 3.4→4.6；第 334 次审查：阴天 / 雪天的灰天空上「10月」「丙午年 · 马」只有 3.1，再加深到 .86 */
   color: var(--hg-ink);
 }
 html[data-sky-ink="light"] .home-greet, body.dark .home-greet {
@@ -3611,7 +3622,7 @@ body.dark .wn-lib { background: linear-gradient(180deg, rgba(169, 174, 216, .08)
   box-shadow: 0 18px 30px -20px rgba(62, 70, 120, .55), 0 2px 6px -2px rgba(62, 70, 120, .18), inset 0 0 0 1px rgba(255, 255, 255, .14);
   transition: transform .25s cubic-bezier(.2, .8, .2, 1), box-shadow .25s ease;
 }
-.wn-art:active .wn-art-img { transform: scale(.95); }
+.wn-art:active .wn-art-img { transform: scale(var(--press-btn)); }
 .wn-art.on .wn-art-img { box-shadow: 0 0 0 3px var(--bg-end), 0 0 0 5px var(--wn-glow), 0 20px 34px -18px rgba(62, 70, 120, .6); }
 .wn-art:focus-visible { outline: none; }
 .wn-art:focus-visible .wn-art-img { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5.5px var(--tile); }
@@ -3673,7 +3684,7 @@ html.wp-lock, html.wp-lock body { overflow: hidden; }
   background: radial-gradient(circle at 35% 30%, #FFFFFF 0%, #FFF4EC 70%, #FBE3D3 100%); color: #3A4270;
   box-shadow: 0 0 0 10px rgba(255, 255, 255, .08), 0 16px 40px -12px rgba(244, 198, 165, .65); transition: transform .15s ease;
 }
-.wp-play:active { transform: scale(.94); }
+.wp-play:active { transform: scale(var(--pa-btn)); }
 .wp-play svg { width: 36px; height: 36px; }
 .wp-play svg path { transform: translateX(1.5px); }
 .wp-round:focus-visible, .wp-play:focus-visible, .wp-pill:focus-visible { outline: 2px solid #FFE7D3; outline-offset: 3px; }
@@ -3807,7 +3818,7 @@ body.dark .hw-ico { background: color-mix(in srgb, var(--tile) 22%, transparent)
   box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--tile) 70%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--tile) 10%, transparent);
   transition: transform .2s var(--spring);
 }
-.gs-card .gs-cell:active { transform: scale(.975); }
+.gs-card .gs-cell:active { transform: scale(var(--pa-card)); }
 .gs-card .gs-cell:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .gs-card .gs-lbl { display: flex; align-items: center; gap: 6px; color: var(--tile-text); font-size: calc(13px * var(--fs-mul)); }
 .gs-card .gs-lbl .ico { width: 16px; height: 16px; color: var(--tile); }
@@ -4009,7 +4020,7 @@ html[data-sky-ink="light"] .hg-lunar b, body.dark .hg-lunar b { text-shadow: 0 1
   transition: transform .18s var(--ease), opacity .22s var(--ease), box-shadow .18s var(--ease);
 }
 .sheet-card.is-s { flex: 1 1 calc(50% - 5px); max-width: calc(50% - 5px); }
-.sheet-card:active { transform: scale(.97); }
+.sheet-card:active { transform: scale(var(--pa-btn)); }
 .sheet-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .sc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 2px 8px; }
 .sc-name { font-weight: 700; font-size: calc(13.5px * var(--fs-mul)); color: var(--text); min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -4101,7 +4112,7 @@ body.dark .lc-card, body.dark .fn-card {
 .fn-left.is-over { color: var(--muted); }
 .fn-prog { display: block; height: 6px; margin: 10px 0 8px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--tile, var(--primary)) 12%, transparent); overflow: hidden; }
 .fn-prog i { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--tile, var(--primary)); }
-.lc-card:active { transform: scale(.985); }
+.lc-card:active { transform: scale(var(--pa-card)); }
 
 /* ===== 第 223 次：喂养/睡眠页「今日看板」（与首页彩色磁贴同一套 --tile 变量） ===== */
 .dash-card { background: var(--tile-weak); border: none; }
@@ -4166,7 +4177,7 @@ body.dark .dc-dot { box-shadow: 0 0 0 2px rgba(0,0,0,.4); }
 .tl-card { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; margin: 4px 0; padding: 10px 12px; min-height: 52px;
   border: none; border-radius: var(--radius, 14px); background: var(--surface); color: var(--text); text-align: left; font: inherit; cursor: pointer;
   box-shadow: 0 1px 0 rgba(0,0,0,.03), 0 6px 16px -12px rgba(51,48,43,.35); transition: transform .15s var(--spring, ease); }
-.tl-card:active { transform: scale(.98); }
+.tl-card:active { transform: scale(var(--pa-card)); }
 .tl-ico { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex-shrink: 0; border-radius: var(--radius-xs); background: var(--tile-weak); }
 .tl-ico .tl-img { width: 30px; height: 30px; object-fit: contain; }
 .tl-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -4187,7 +4198,7 @@ body.dark .dc-dot { box-shadow: 0 0 0 2px rgba(0,0,0,.4); }
    浅色下和面板保存按钮（第 273 次）一样走加深后的 --tile-fill（同色相压深到白字 ≥4.6:1）；没有 --tile-fill 的模块白字本来就够，回落 --tile。
    深色是深字压浅色模块色（body.dark [data-accent] 把 --tile-fill 设回 --tile），不受影响 */
 body:not(.dark) .mc-main, body:not(.dark) .ft-split { background: var(--tile-fill, var(--tile)); }
-.mc-main:active { transform: scale(.97); }
+.mc-main:active { transform: scale(var(--pa-btn)); }
 .mc-main:focus-visible { outline: 3px solid var(--tile-text); outline-offset: 3px; }
 
 /* ---------- 半屏记录面板 ---------- */
@@ -4211,7 +4222,7 @@ body:not(.dark) .mc-main, body:not(.dark) .ft-split { background: var(--tile-fil
 @keyframes rsShake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
 .dp-type { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px 10px; min-height: 112px;
   border: 2px solid transparent; border-radius: var(--radius-md); background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; transition: transform .15s var(--spring, ease), border-color .15s; }
-.dp-type:active { transform: scale(.96); }
+.dp-type:active { transform: scale(var(--pa-btn)); }
 .dp-type.on { border-color: var(--tile); background: var(--tile-weak); }
 .dpt-art { position: relative; display: block; width: 78px; }
 .dpt-art img { display: block; width: 100%; height: auto; }
@@ -4408,7 +4419,7 @@ body.dark [data-accent="bottle"] { --tile: #EBD866; --tile-text: #EBD866; --tile
 .ftf-rb { width: 64px; height: 64px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 50%; background: rgba(48,38,44,.9); color: #fff; cursor: pointer; }
 .ftf-rb svg { width: 26px; height: 26px; }
 .ftf-main-btn { min-height: 64px; border: none; border-radius: var(--radius-pill); background: #F09CC6; color: #2A1520; font: inherit; font-size: calc(22px * var(--fs-mul)); font-weight: 800; letter-spacing: 2px; cursor: pointer; }
-.ftf button:active { transform: scale(.96); }
+.ftf button:active { transform: scale(var(--pa-btn)); }
 body.ftf-open #tabbar { visibility: hidden; }
 
 /* 面板里的共用件 */
@@ -4651,7 +4662,7 @@ body.qd-open .dock-live { opacity: 0; visibility: hidden; }
 .dl-val { font-size: calc(17px * var(--fs-mul)); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.01em; white-space: nowrap; }
 .dl-act { flex: none; width: 44px; height: 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
 .dl-act .ico { width: 20px; height: 20px; margin: 0; color: var(--text); }
-.dl-act:active, .dl-main:active, .dl-cycle:active { transform: scale(.94); }
+.dl-act:active, .dl-main:active, .dl-cycle:active { transform: scale(var(--press-btn)); }
 .dl-act-txt { width: auto; padding: 0 16px; border-radius: var(--radius-pill); font-weight: 700; font-size: calc(14px * var(--fs-mul));
   background: var(--tile, var(--primary)) !important; color: #FFF !important; height: 38px; }
 .dl-go .ico { color: var(--muted); }
@@ -4704,7 +4715,7 @@ body .tabbar:not(.is-sub) .tab-plus { margin-left: 8px; }
 #dockOrb .home-avatar { width: 44px; height: 44px; }
 #dockOrb .home-avatar .illo { width: 30px; height: 30px; }
 #dockOrb .home-avatar .ha-photo { width: 34px; height: 34px; }
-#dockOrb:active { scale: .94; }
+#dockOrb:active { scale: var(--press-btn); }
 /* 折射位移图是按主胶囊尺寸生成的，圆钮只用普通玻璃 */
 html.lg-refract body #dockOrb.lg { -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.04); backdrop-filter: blur(14px) saturate(190%) brightness(1.04); }
 /* 第 240 次：右移改用 left，不再写进 transform。iOS 按下时 dock 的 scale 回弹走合成层，
@@ -4924,7 +4935,7 @@ body.qd-open .touch-glow { display: none; }
 .fd-mode { pointer-events: auto; flex: 0 0 auto; width: 64px; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: none; border-radius: var(--radius-pill); background: var(--surface, #fff); color: var(--text); font: inherit; cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,.08), inset 0 0 0 1.5px color-mix(in srgb, var(--tile) 45%, transparent); }
 .fd-mode img { width: 28px; height: 28px; object-fit: contain; }
 .fd-mode small { font-size: var(--t-xs); color: var(--muted); line-height: 1.1; }
-.fd-mode:active { transform: scale(.95); }
+.fd-mode:active { transform: scale(var(--pa-btn)); }
 
 /* 第 256 次：泵奶独立模块（奶油黄，对照 Cali） */
 [data-accent="pump"] { --tile: #F2DE6B; --tile-text: #6E5A00; --tile-weak: #FBF6DA; --tile-on: #332900; }
@@ -5075,7 +5086,7 @@ body.dark [data-accent="solid"] .mc-main, body.dark .ft-sheet[data-accent="solid
 .sd-tex.on, .sd-cat.on { border-color: var(--tile); background: var(--tile-weak); box-shadow: none; }
 .sd-tex.on .sd-tn, .sd-cat.on span { color: var(--tile-text); }
 .sd-tex.on .sd-ck, .sd-cat.on .sd-ck { display: inline-flex; }
-.sd-tex:active, .sd-cat:active { transform: scale(.97); }
+.sd-tex:active, .sd-cat:active { transform: scale(var(--pa-btn)); }
 body.dark .sd-tex img, body.dark .sd-cat img { filter: brightness(.94); }
 /* 进食量 / 进食情况分段：未选绿字，选中白底深字（参考图） */
 .sd-seg button { color: var(--tile-text); min-height: 44px; }
@@ -5393,7 +5404,7 @@ body.dark [data-accent="supplement"] .mc-main, body.dark [data-accent="supplemen
 .sp-day b { font-size: calc(20px * var(--fs-mul, 1)); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
 .sp-day.on { background: var(--tile-fill, var(--tile)); color: #fff; }
 body.dark .sp-day.on { color: var(--tile-on); }
-.sp-day:active { transform: scale(.94); }
+.sp-day:active { transform: scale(var(--pa-btn)); }
 /* 小节 */
 .sp-sec { margin: 16px 0 0; }
 .sp-h { margin: 0 0 10px; font-size: calc(13.5px * var(--fs-mul, 1)); font-weight: 500; color: var(--tile-text); }
@@ -5405,7 +5416,7 @@ body.dark .sp-day.on { color: var(--tile-on); }
 .sp-cards { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
 .sp-card { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 96px; padding: 14px 18px 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-card); color: var(--text); font: inherit; text-align: left; cursor: pointer; box-sizing: border-box; transition: transform .15s var(--spring, ease), opacity .2s; }
 body.dark .sp-card { background: rgba(255,255,255,.07); box-shadow: none; }
-.sp-card:active { transform: scale(.98); }
+.sp-card:active { transform: scale(var(--pa-card)); }
 .sp-ico { flex: none; width: 56px; height: 56px; }
 .sp-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .sp-t { font-size: calc(15.5px * var(--fs-mul, 1)); font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -5459,7 +5470,7 @@ body.dark .sp-dose.is-done .sp-ck { color: var(--tile-on); }
 .spw-form.on > span { color: var(--tile-text); }
 .spw-tick { display: inline-flex; color: var(--tile-text); }
 .spw-tick .ico { width: 18px; height: 18px; color: inherit; }
-.spw-form:active { transform: scale(.97); }
+.spw-form:active { transform: scale(var(--pa-btn)); }
 .spw-forms.shake { animation: rsShake .36s ease; }
 .spw-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; font-size: calc(16px * var(--fs-mul, 1)); color: var(--text); }
 .spw-row > span:first-child { min-width: 0; }
@@ -5565,7 +5576,7 @@ body.dark .spw-wd.on { color: var(--tile-on); }
 body.has-live { --cta-b: calc(var(--dk-top) + 84px); }
 #view .mod-cta {
   position: fixed; z-index: 5; left: 0; right: 0; bottom: var(--cta-b); top: auto;
-  max-width: 640px; margin: 0 auto; padding: 0 16px; box-sizing: border-box;
+  max-width: 640px; margin: 0 auto; padding: 0 var(--dk-m); box-sizing: border-box; /* 第 334 次：左右 = dock 边距（与返回 / ＋ 圆钮外缘对齐） */
 }
 /* 第 320 次：记录条下方铺到屏幕底的不透明底衬（原 #view .mod-cta::before）删除——记录条本身是玻璃，内容照常滚到它和 dock 后面被折射 */
 body.has-cta .view { padding-bottom: calc(var(--cta-b) + var(--cta-h) + 20px); }
@@ -5616,9 +5627,14 @@ body.dark .gr-gear { background: rgba(255,255,255,.08); color: var(--text); box-
 .gr-ins .ft-chip .ico { width: 20px; height: 20px; }
 .gr-tl .tl-time { display: flex; flex-direction: column; gap: 1px; }
 .gr-more { display: inline-flex; align-items: center; justify-content: center; align-self: stretch; min-width: 32px; margin: -10px -6px -10px 0; }
-.mod-head.mod-head-sub { justify-content: center; margin: 2px 0 var(--space-md); }
-.mod-head.mod-head-sub h1 { font-size: calc(19px * var(--fs-mul, 1)); font-weight: 800; }
+/* 第 334 次审查：页内三级页（生长趋势 / 喂养与体重）和设置三级页同一套页头——左对齐 28/800 大标题（原来居中 19px，和设置三级页两套） */
+.mod-head.mod-head-sub { justify-content: flex-start; margin: 0 0 var(--space-md); }
 .mod-head.has-hero:has(~ .gr-page .sk-empty) .hero-status { display: none; }
+/* 第 334 次审查（做减法：一页一幅插画）：空状态已经有一幅 200px 的大插画（同一个物件），页头那幅小插画和状态行一起藏起，只留标题。
+   通用写法：页头后面任何兄弟块里有 .sk-empty 就生效（原来逐页列 skel / sd / fin / gr，宫缩 / 胎动 / 经期 / 产检 / 泵奶 / 里程碑漏了，空页上下两幅一样的图） */
+.mod-head.has-hero.hh-empty .hero-art, .mod-head.has-hero.hh-empty .hero-status { display: none; }
+.mod-head.has-hero.hh-empty { padding-top: 8px; }
+/* ↑ 收尾时由 :has(~ * .sk-empty) 改成 App 渲染时打的 .hh-empty：兄弟 + 后代的 :has() 让 #view 里任何改动都要重算，二级页返回帧耗时多 ~25%（回归 #320 帧耗时） */
 
 /* —— 记录面板（全屏） —— */
 .modal.rec-sheet.gr-sheet { display: flex; flex-direction: column; }
@@ -5718,7 +5734,7 @@ body.dark .gr-pill { background: rgba(255,255,255,.08); box-shadow: none; }
 .gr-mets button.is-on span { color: var(--text); }
 .gr-chbox { border-radius: var(--radius-sm); background: var(--surface-2); padding: 6px 4px 0; }
 .gr-ch { display: block; height: auto; overflow: visible; }
-.gr-ch text { font-size: calc(10px * var(--fs-mul, 1)); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.gr-ch text { font-size: var(--t-xs); /* 第 334 次审查：原 10 */ fill: var(--muted); font-variant-numeric: tabular-nums; }
 .gc-grid { stroke: var(--border); stroke-width: 1; }
 .gc-band { fill: color-mix(in srgb, var(--tile) 16%, transparent); }
 .gc-band2 { fill: color-mix(in srgb, var(--tile) 18%, transparent); }
@@ -6043,7 +6059,7 @@ body.dark .vac-page, body.dark .vb-book, body.dark .vac-toc { --vb-cover: #7C413
   background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.035) 0 1px, transparent 1px 3px), repeating-linear-gradient(90deg, rgba(0,0,0,.04) 0 1px, transparent 1px 3px), linear-gradient(160deg, rgba(255,255,255,.12), rgba(0,0,0,.10));
   box-shadow: 0 18px 34px -18px rgba(90,40,20,.55), inset 12px 0 0 rgba(0,0,0,.10); transition: transform .28s var(--spring); -webkit-tap-highlight-color: transparent; }
 .vb-cover::before { content: ''; position: absolute; inset: 10px 10px 10px 20px; border: 1.5px dashed rgba(255,244,232,.42); border-radius: var(--radius-xs) var(--radius) var(--radius) var(--radius-xs); pointer-events: none; }
-.vb-cover:active { transform: scale(.975); }
+.vb-cover:active { transform: scale(var(--pa-card)); }
 .vb-cover .vbc-own { font-size: calc(14px * var(--fs-mul, 1)); opacity: .92; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .vb-cover .vbc-title { margin-top: 4px; font-size: calc(32px * var(--fs-mul, 1)); font-weight: 800; letter-spacing: .18em; text-indent: .18em; white-space: nowrap; }
 .vb-cover .vbc-stk { width: 80%; height: auto; margin: auto 0; transform: rotate(-7deg); filter: drop-shadow(0 8px 10px rgba(60,20,10,.28)); }
@@ -6207,7 +6223,7 @@ body #quickDock.qd-menu .qd-actions:focus { outline: none; }
 .qm-swap { flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 12px 0 9px; border: 0; border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text); font-family: inherit; font-size: calc(14px * var(--fs-mul, 1)); font-weight: 700; white-space: nowrap; cursor: pointer; }
 .qm-swap .ico { width: 18px; height: 18px; }
-.qm-swap:active { transform: scale(.95); }
+.qm-swap:active { transform: scale(var(--pa-btn)); }
 /* 搜索：一整条药丸 */
 .qm-search { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin: 0 0 12px; padding: 0 14px; border: 0; border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--muted); font-family: inherit; font-size: calc(15px * var(--fs-mul, 1)); text-align: left; white-space: nowrap; cursor: pointer; }
@@ -6249,7 +6265,7 @@ body.dark #quickDock .qm-it.qm-mono .qd-badge { background: rgba(255, 255, 255, 
   font: inherit; font-size: var(--fs-sm); max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
   transition: background-color var(--dur-out, .3s) var(--ease-ios, ease), border-color var(--dur-out, .3s) var(--ease-ios, ease); }
 .rt-b.on { background: var(--primary-weak); border-color: var(--primary); color: var(--primary-text); font-weight: 700; }
-.rt-b:active { transform: scale(.96); }
+.rt-b:active { transform: scale(var(--pa-btn)); }
 .qd-tgt { margin: -2px 6px 10px; }
 
 /* 菜单分组副标题（「跟着当前宝宝」「全家一份」） */
@@ -6298,7 +6314,7 @@ body.dark .bs-preg-ico { background: rgba(228,185,130,.16); color: #E4B982; }
 .su-row { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; align-items: end; padding: 14px 4px 0; margin-bottom: 18px; min-height: 150px; }
 .su-row::before { content: ''; position: absolute; left: -6px; right: -6px; top: 96px; height: 14px; border-radius: 3px; background: linear-gradient(180deg, color-mix(in srgb, var(--tile) 22%, var(--surface)) 0 40%, color-mix(in srgb, var(--tile) 34%, var(--surface)) 100%); box-shadow: 0 10px 18px -12px rgba(51,48,43,.45); }
 .su-item { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 0; padding: 0 2px; border: none; background: transparent; color: var(--text); font: inherit; text-align: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.su-item:active .su-art { transform: scale(.95); }
+.su-item:active .su-art { transform: scale(var(--press-btn)); }
 .su-item .su-art { margin-bottom: 26px; }
 .su-n { display: block; width: 100%; font-size: calc(13.5px * var(--fs-mul, 1)); font-weight: 700; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .su-a { display: block; margin-top: 2px; font-size: calc(12.5px * var(--fs-mul, 1)); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
@@ -6338,7 +6354,7 @@ body.dark .su-art.su-ico[data-g="feed"] { color: #F2C282; } body.dark .su-art.su
 .su-pk-it { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; padding: 4px 0; border: none; background: transparent; color: var(--text); font: inherit; font-size: calc(13px * var(--fs-mul, 1)); cursor: pointer; }
 .su-pk-it span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .su-pk-it .su-art { width: 76px; height: 76px; border-radius: var(--radius-lg); }
-.su-pk-it:active .su-art { transform: scale(.94); }
+.su-pk-it:active .su-art { transform: scale(var(--press-btn)); }
 /* 用品面板 */
 .su-ed-hero { position: relative; display: flex; flex-direction: column; align-items: center; padding: 2px 0 10px; }
 .su-ed-art { position: relative; padding: 0; border: none; background: transparent; cursor: pointer; }
@@ -6416,13 +6432,13 @@ body.dark .su-art.su-ico[data-g="feed"] { color: #F2C282; } body.dark .su-art.su
 .pk-sum b { font-weight: 800; }
 .pk-grp { margin: 0 0 16px; }
 .pk-gh { display: flex; align-items: baseline; justify-content: space-between; margin: 0 4px 8px; font-size: calc(13px * var(--fs-mul, 1)); font-weight: 700; color: var(--muted); }
-.pk-gh small { font-weight: 600; font-variant-numeric: tabular-nums; }
+.pk-gh small { font-size: var(--t-sm); /* 第 334 次审查：原继承 small 的 .83em ≈ 10.8 */ font-weight: 600; font-variant-numeric: tabular-nums; }
 .pk-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .pk-row { display: flex; align-items: center; min-height: 56px; border-radius: var(--radius-md); background: var(--surface); box-shadow: 0 6px 16px -14px rgba(51,48,43,.4); }
 .pk-chk { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 4px 0 14px; border: none; background: transparent; color: var(--text); font: inherit; font-size: calc(16px * var(--fs-mul, 1)); text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .pk-ring { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border: 2px solid color-mix(in srgb, var(--text) 30%, transparent); border-radius: 50%; color: transparent; box-sizing: border-box; transition: background-color .2s, border-color .2s, transform .15s var(--spring, ease); }
 .pk-ring svg { width: 16px; height: 16px; }
-.pk-chk:active .pk-ring { transform: scale(.86); }
+.pk-chk:active .pk-ring { transform: scale(var(--press-ico)); }
 .pk-nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-tag { flex: none; padding: 1px 8px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--muted); font-size: calc(12px * var(--fs-mul)); }
 .pk-row.is-done .pk-ring { border-color: var(--tile); background: var(--tile-fill, var(--tile)); color: #fff; }
@@ -6523,9 +6539,6 @@ body.dark .mw-presave { color: var(--tile-on); }
 .mw-page .mc-main > svg { width: 20px; height: 20px; flex: 0 0 auto; }
 
 /* ===================== 第 298 次：产检（产检本 + 超声测量 + 估重参考 + 报告图片） ===================== */
-.pv-dateRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; }
-.pv-dateRow > span { font-size: calc(16px * var(--fs-mul)); font-weight: 700; }
-.pv-date input { margin: 0; min-height: 40px; padding: 6px 14px; border: none; border-radius: var(--radius-pill); background: var(--surface-2); font: inherit; font-size: var(--t-body); font-weight: 700; color: var(--text); }
 .pv-ga { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface-2); margin-bottom: 14px; }
 .pv-ga p { margin: 0; display: flex; flex-direction: column; gap: 2px; }
 .pv-ga small { font-size: calc(12px * var(--fs-mul)); color: var(--muted); }
@@ -6623,45 +6636,10 @@ body.dark .sk2-page .mc-main, body.dark .ft-sheet[data-accent="sick"] .rs-ok { c
    第 302 次：提示与通知统一成「咿呀」
    · 只看不点 → 顶部咿呀岛（上面第 277 次一节，不变）；表情随场景换（data-face，assets/yiya/*.webp）。
    · 要点的（撤销 / 确认 / 以后的到点提醒、家庭共享请求）→ 从 dock 长出来的卡片，点完或倒计时结束缩回 dock。
+     第 334 次（用户：提示全部挪到上方）：撤销类提示改回顶部咿呀岛（撤销按钮在岛里）；从 dock 长出的只剩确认框（模态对话框）。
    · 页面里的说明 / 留意 / 行动卡 → 咿呀说一句话（左上角小咿呀）；免责与出处 → 页尾一行小字，不配咿呀。
    ============================================================ */
-/* —— dock 卡片：撤销类提示 —— */
-#toastRoot.at-dock { top: auto; transition: none; z-index: 1210; }
-body .toast.toast-island.toast-dock {
-  width: min(360px, calc(100vw - 24px)); min-height: 64px; padding: 10px 10px 12px 10px; gap: 12px;
-  border-radius: var(--radius-lg); transform-origin: 50% 100%;
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  box-shadow: 0 1px 1px rgba(90, 74, 62, .06), 0 -4px 28px -10px rgba(90, 74, 62, .4), 0 10px 24px -12px rgba(90, 74, 62, .4);
-}
-body.dark .toast.toast-island.toast-dock { background: color-mix(in srgb, var(--surface) 92%, transparent); }
-.toast-island.toast-dock .toast-yiya { width: 44px; height: 44px; }
-/* dock 卡片地方宽：文字最多两行（不截省略号），高度由 44px 咿呀撑着、一行两行一样高 */
-.toast-island.toast-dock .toast-msg { flex: 1 1 auto; font-size: calc(15px * var(--fs-mul)); line-height: 1.35; white-space: normal; overflow-wrap: anywhere;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
-body .toast-island.toast-dock .toast-action { min-height: 40px; padding: 8px 18px; margin-left: auto; }
-.toast.toast-island.toast-dock.show { animation: dock-grow .5s cubic-bezier(.3, 1.28, .5, 1) both; }
-.toast.toast-island.toast-dock.show:not(.swap) > :not(canvas):not(.toast-bar) { animation: island-content .26s .16s var(--ease) both; }
-.toast.toast-island.toast-dock.leaving, .toast.toast-island.toast-dock.leaving-up { animation: dock-shrink .24s var(--ease) both; }
-@keyframes dock-grow {
-  0% { opacity: .6; transform: scale(var(--dk-sx, .6), var(--dk-sy, .8)); border-radius: var(--radius-pill); }
-  30% { opacity: 1; }
-  100% { opacity: 1; transform: none; }
-}
-@keyframes dock-shrink {
-  from { opacity: 1; transform: none; }
-  70% { opacity: 1; }
-  to { opacity: 0; transform: scale(var(--dk-sx, .6), var(--dk-sy, .8)); border-radius: var(--radius-pill); }
-}
-.toast-island.toast-dock .toast-bar {
-  position: absolute; left: 20px; right: 20px; bottom: 5px; height: 3px; border-radius: 2px; z-index: 1;
-  background: var(--tile-fill, var(--ty-c, var(--primary))); opacity: .75; transform-origin: 0 50%;
-  animation: toast-bar 5200ms linear both;
-}
-.toast-island.toast-dock[data-accent="feeding"] .toast-bar { background: var(--feeding, var(--primary)); }
-.toast-island.toast-dock[data-accent="sleep"] .toast-bar { background: var(--sleep, var(--primary)); }
-.toast-island.toast-dock[data-accent="diaper"] .toast-bar { background: var(--diaper, var(--primary)); }
-.toast-island.toast-dock.dragging .toast-bar { animation-play-state: paused; }
-@keyframes toast-bar { from { transform: scaleX(var(--bar-from, 1)); } to { transform: scaleX(0); } }
+/* 第 334 次：撤销类提示的 dock 卡片（原 toast 的 dock 形态、根节点 dock 态、底部提示条）删除——所有提示都在顶部咿呀岛。下面 dockpop 只剩确认框用。 */
 /* dock 让位：卡片长出来时 dock 淡出，缩回时淡回 */
 #tabbar, #dockOrb { transition: opacity .18s var(--ease); }
 /* 第 318 次（逐帧审查 #8 / #9）：卡片从 dock 长出来的第一帧 dock 就交接——不再 .18s 慢淡（第 60–63 帧 dock 胶囊和正在长大的卡片两道轮廓）；
@@ -6757,9 +6735,6 @@ p.backfill-note::before { top: 10px; }
 .med-note { margin: 16px 4px 0; padding-left: 0; border-left: 0; font-size: calc(12px * var(--fs-mul)); line-height: 1.6; color: var(--muted); }   /* 第 324 次：.med-note 不叠 opacity .85（4.3:1） */
 
 @media (prefers-reduced-motion: reduce) {
-  .toast.toast-island.toast-dock.show { animation: island-fade .22s linear both !important; }
-  .toast.toast-island.toast-dock.leaving, .toast.toast-island.toast-dock.leaving-up { animation: island-fade-out .16s linear both !important; }
-  .toast-island.toast-dock .toast-bar { animation: none !important; display: none; }
   .modal.cfm-card, .cfm-from-dock .modal.cfm-card { animation: island-fade .2s linear both !important; }
   .cfm-from-dock .modal.cfm-card > *, .cfm-yiya img { animation: none !important; }
   .toast-island.show[data-face] .toast-yiya img { animation: none !important; }
@@ -6806,7 +6781,8 @@ body .tabbar .tab.dk-tab.dk-pop .dk-cal .dk-c { animation: dkCal .24s cubic-bezi
 body.hc .dk-ic .dk-c { filter: none; }
 
 /* ＋ 玻璃珠：在胶囊右边（原宝宝圆钮的位置换到右侧），两者合起来居中 */
-#dockOrb .tab-plus { margin: 0 !important; width: 40px; height: 40px; min-width: 40px; } /* 第 315 次：珠子随栏 74 → 60，＋ 44 → 40 */
+#dockOrb .tab-plus::after { content: ''; position: absolute; inset: calc((40px - var(--dk-orb, 62px)) / 2); border-radius: 50%; } /* 第 334 次审查：一级 ＋ 珠外圈 11px 原来点了没反应（只有 40 粉芯能点），外扩到整颗 62 珠——和二级页 ＋ 圆钮整颗可点一致 */
+#dockOrb .tab-plus { margin: 0 !important; width: 40px; height: 40px; min-width: 40px; min-height: 40px; } /* 第 334 次：补 min-height（.tab 的 44 把粉芯撑成 40×44 椭圆） */ /* 第 315 次：珠子随栏 74 → 60，＋ 44 → 40 */
 @media (max-width: 360px) {
   body .tabbar .tab.dk-tab { width: 58px; min-width: 58px; max-width: 58px; } /* 第 310 次的 64px，第 312 次合并到这里；第 315 次随栏收紧到 58 */
 }
@@ -6819,7 +6795,7 @@ body.dark .bp-card, body.dark .bp-hero { box-shadow: none; border: 1px solid var
 .bp-gear { position: absolute; right: 12px; top: 12px; width: 40px; height: 40px; border: 0; border-radius: 50%; display: grid; place-items: center;
   background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); cursor: pointer; }
 .bp-gear .ico { width: 20px; height: 20px; opacity: .75; }
-.bp-gear:active { transform: scale(.92); }
+.bp-gear:active { transform: scale(var(--pa-ico)); }
 .bp-hrow { display: flex; align-items: center; gap: 14px; padding-right: 40px; }
 .bp-ava { flex: none; width: 68px; height: 68px; padding: 0; border: 0; border-radius: var(--radius-lg); overflow: hidden; display: grid; place-items: center; cursor: pointer;
   background: linear-gradient(#fbe4e2, #f5cfd0); }
@@ -6827,12 +6803,12 @@ body.dark .bp-card, body.dark .bp-hero { box-shadow: none; border: 1px solid var
 .bp-ava img.bp-yiya { width: 58px; height: 58px; object-fit: contain; }
 body.dark .bp-ava { background: linear-gradient(#5a4448, #4a3a40); }
 .bp-hn { min-width: 0; }
-.bp-nm { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.bp-nm { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; } /* 第 334 次审查：名字 +「切换」放不下时「切换」换到下一行，名字不再被截成「豆..」 */
 .bp-nmb { min-width: 0; padding: 0; border: 0; background: none; color: var(--text); font-family: inherit; font-size: calc(24px * var(--fs-mul, 1)); font-weight: 800; line-height: 1.2;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; text-align: left; }
 .bp-sw { flex: none; min-height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--primary-text);
   font-family: inherit; font-size: calc(12.5px * var(--fs-mul, 1)); font-weight: 700; white-space: nowrap; cursor: pointer; }
-.bp-sw:active { transform: scale(.95); }
+.bp-sw:active { transform: scale(var(--pa-btn)); }
 .bp-meta { margin-top: 3px; font-size: calc(13px * var(--fs-mul, 1)); font-weight: 600; color: var(--muted); }
 .bp-stats { display: flex; margin-top: 14px; padding: 10px 4px; border-radius: var(--radius-md); background: color-mix(in srgb, var(--text) 4%, transparent); }
 .bp-stats div { flex: 1; text-align: center; font-size: calc(11.5px * var(--fs-mul, 1)); font-weight: 600; color: var(--muted); }
@@ -6842,7 +6818,7 @@ body.dark .bp-ava { background: linear-gradient(#5a4448, #4a3a40); }
   color: var(--muted); font-family: inherit; font-size: calc(15px * var(--fs-mul, 1)); text-align: left; cursor: pointer; }
 .bp-search .si-ico { display: inline-flex; }
 .bp-search .ico { width: 18px; height: 18px; }
-.bp-search:active { transform: scale(.985); }
+.bp-search:active { transform: scale(var(--pa-card)); }
 .bp-common { padding: 14px 12px 10px; }
 .bp-ch { display: flex; align-items: center; justify-content: space-between; padding: 0 6px 10px; font-size: calc(15px * var(--fs-mul, 1)); font-weight: 800; color: var(--text); }
 .bp-edit { min-height: 32px; padding: 0 4px; border: 0; background: none; color: var(--muted); font-family: inherit; font-size: calc(12.5px * var(--fs-mul, 1)); font-weight: 700; cursor: pointer; }
@@ -6853,15 +6829,15 @@ body.dark .bp-ava { background: linear-gradient(#5a4448, #4a3a40); }
 .bp-ti { width: 50px; height: 50px; border-radius: var(--radius-md); display: grid; place-items: center; background: var(--tile-weak, color-mix(in srgb, var(--text) 6%, transparent)); color: var(--tile, var(--text)); }
 .bp-ti .ico { width: 27px; height: 27px; }
 .bp-tn { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bp-t:active .bp-ti { transform: scale(.92); }
+.bp-t:active .bp-ti { transform: scale(var(--press-ico)); }
 .bp-more { display: block; width: 100%; margin-top: 10px; padding: 9px 0 2px; border: 0; border-top: 1px solid color-mix(in srgb, var(--text) 7%, transparent); background: none;
   color: var(--primary-text); font-family: inherit; font-size: calc(12.5px * var(--fs-mul, 1)); font-weight: 700; cursor: pointer; }
 .bp-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 62px; padding: 0 16px; border: 0; background: none; color: var(--text); font-family: inherit; text-align: left; cursor: pointer; }
 .bp-ri { flex: none; width: 38px; height: 38px; border-radius: var(--radius-sm); display: grid; place-items: center; background: var(--tile-weak, color-mix(in srgb, var(--text) 6%, transparent)); color: var(--tile, var(--text)); }
 .bp-ri .ico { width: 20px; height: 20px; }
 .bp-rt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.bp-rt b { font-size: calc(15px * var(--fs-mul, 1)); }
-.bp-rt small { font-size: calc(12px * var(--fs-mul, 1)); font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bp-rt b { font-size: var(--t-body); }
+.bp-rt small { font-size: var(--t-sm); font-weight: 600; color: var(--muted); } /* 第 334 次审查：行现状 13（原 12）、不省略号（原 nowrap 截成「待…」），放不下折行 */
 .bp-chv { flex: none; display: inline-flex; color: var(--muted); opacity: .6; transition: transform .24s var(--ease); }
 .bp-chv .ico { width: 16px; height: 16px; }
 .bp-fold.open .bp-chv { transform: rotate(90deg); }
@@ -7177,7 +7153,7 @@ html[data-navx="pop"] .nav-ghost { z-index: 4; box-shadow: -8px 0 24px rgba(0, 0
 .nav-ghost-view { box-sizing: border-box; }
 .nav-ghost-view.has-psky, .nav-ghost-view.has-hsky { isolation: isolate; }
 .nav-ghost-view.has-psky .bp-search { background: color-mix(in srgb, var(--surface) 70%, transparent); }
-.nav-ghost-view .mod-cta { position: absolute; z-index: 5; left: 0; right: 0; max-width: 640px; margin: 0 auto; padding: 0 16px; box-sizing: border-box; }
+.nav-ghost-view .mod-cta { position: absolute; z-index: 5; left: 0; right: 0; max-width: 640px; margin: 0 auto; padding: 0 var(--dk-m); box-sizing: border-box; }
 .nav-ghost-hdr .header-gear { display: flex; }
 .nav-ghost-hdr.ng-mod .header-gear { display: none; }
 .nav-dim { position: fixed; inset: 0; z-index: 3; pointer-events: none; opacity: 0; background: rgba(40, 30, 22, .12); }
@@ -7213,25 +7189,25 @@ body .tabbar.lg.lg-lensing.lg-shrink .tab.dk-tab.active.dk-pop .dk-cal .dk-c { a
      GL 不在（Chromium、没快照、减少透明度）：DOM 自己是 CSS 玻璃，形状照样动、只是叠放没有黏连。
    · 正在进行胶囊：并进圆钮那一行（中间）；这时记录条不下落（不遮挡优先）。
    ============================================================ */
-body.fz-sub { --cta-b: calc(var(--dk-b) + 66px); }
+body.fz-sub { --cta-b: calc(var(--dk-top) + 10px); } /* 第 334 次：记录条离圆钮顶 10（原 dk-b + 66 = 52 圆钮顶 + 10） */
 html body #tabbar.lg.is-sub {
-  left: max(16px, calc(50% - 304px)); right: max(16px, calc(50% - 304px)); width: auto; max-width: none; min-width: 0;
-  height: 60px; padding: 0; gap: 0; transform: none; translate: none; scale: none;
+  left: var(--dk-m); right: var(--dk-m); width: auto; max-width: none; min-width: 0; /* 第 334 次：与一级栏同左右边距（原 max(16px, 50% − 304px)） */
+  bottom: var(--dk-b); height: var(--dk-h); padding: 0; gap: 0; transform: none; translate: none; scale: none;
   background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-color: transparent;
   border-width: 0; /* 第 320 次：1px 透明边框让圆钮的 DOM 盒子比 GL 形状偏 1px（圆钮 absolute 以内边距盒为参照） */
   pointer-events: none; overflow: visible; transition: none;
 }
 html body #tabbar.lg.is-sub::before, html body #tabbar.lg.is-sub::after { display: none; }
 html body #tabbar.lg.is-sub > #backBtn, html body #tabbar.lg.is-sub > .tab-plus {
-  position: absolute; top: 4px; width: 52px; height: 52px; min-width: 0; max-width: none; min-height: 0; margin: 0;
+  position: absolute; top: 0; width: var(--dk-orb); height: var(--dk-orb); min-width: 0; max-width: none; min-height: 0; margin: 0; /* 第 334 次：圆钮 = 一级 ＋ 珠（62，原 52） */
   border-radius: var(--radius-pill); pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; flex: none;
   transform-origin: 0 0; box-sizing: border-box;
 }
 html body #tabbar.lg.is-sub > #backBtn { left: 0; padding: 0; background: transparent; color: #6E5547; }
-html body #tabbar.lg.is-sub > .tab-plus { left: calc(100% - 52px); padding: 9px; background-clip: content-box; }
+html body #tabbar.lg.is-sub > .tab-plus { left: calc(100% - var(--dk-orb)); padding: var(--dk-core-in); background-clip: content-box; } /* 第 334 次：粉芯 40 = 一级珠芯 */
 html body #tabbar.lg.is-sub > #backBtn > *, html body #tabbar.lg.is-sub > .tab-plus > * { opacity: var(--fz-io, 1); }
-html body #tabbar.lg.is-sub > #backBtn .ico { width: 24px; height: 24px; stroke-width: 1.8; color: inherit; }
-html body #tabbar.lg.is-sub > .tab-plus .ico { width: 22px; height: 22px; stroke-width: 1.8; }
+html body #tabbar.lg.is-sub > #backBtn .ico { width: var(--dk-ico); height: var(--dk-ico); stroke-width: 2; color: inherit; } /* 第 334 次：= 一级页签图标 24 / 线宽 2 */
+html body #tabbar.lg.is-sub > .tab-plus .ico { width: 22px; height: 22px; stroke-width: 1.85; } /* 第 334 次：= 一级 ＋ 珠实际线宽（22 / 1.85，一级 .tab .ico 规则生效） */
 body.dark #tabbar.lg.is-sub > #backBtn { color: #D9C6B5; }
 html body #tabbar.lg.is-sub > #backBtn:active, html body #tabbar.lg.is-sub > .tab-plus:active { transform: none; }
 /* CSS 玻璃（GL 不在时）：与一级 dock 同一组磨砂 / 底色 / 高光描边 */
@@ -7254,7 +7230,7 @@ html:not(.fz-gl) body.dark.fz-sub .dock-live {
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, .22), inset 0 0 0 1px rgba(255, 255, 255, .10), 0 10px 26px -12px rgba(0, 0, 0, .6);
 }
 html.fz-gl body #tabbar.lg.is-sub > .tab-plus { box-shadow: none; }
-html body #tabbar.lg.is-sub > .tab-plus::before { inset: 9px; }
+html body #tabbar.lg.is-sub > .tab-plus::before { inset: var(--dk-core-in); }
 /* 记录条：模块色调玻璃（无实色块），高 52，与圆钮同高 */
 html body.fz-sub #view .mod-cta, html body.fz-sub #ctaFloat .mod-cta { z-index: 11; }
 html body.fz-sub #view .mod-cta > *, html body.fz-sub #ctaFloat .mod-cta > * { opacity: var(--fz-co, 1); }
@@ -7286,17 +7262,17 @@ html.fz-gl body.fz-sub .dock-live > .dl-glass, html.fz-gl body.fz-sub .dock-live
 html body.fz-sub .mod-cta > .ft-mini { border: 0; }
 /* 正在进行胶囊并进圆钮那一行 */
 html body.fz-sub .dock-live {
-  left: calc(max(16px, 50% - 304px) + 62px); right: calc(max(16px, 50% - 304px) + 62px); width: auto; min-width: 0; max-width: none;
-  transform: none; translate: none; bottom: calc(var(--dk-b) + 4px); height: 52px; min-height: 0; animation: none;
+  left: calc(var(--dk-m) + var(--dk-orb) + 10px); right: calc(var(--dk-m) + var(--dk-orb) + 10px); width: auto; min-width: 0; max-width: none; /* 第 334 次：圆钮 62 + 间距 10 */
+  transform: none; translate: none; bottom: calc(var(--dk-b) + (var(--dk-h) - 52px) / 2); height: 52px; min-height: 0; animation: none;
   opacity: var(--fz-lo, 1);
 }
-body.fz-sub.has-live .view { padding-bottom: calc(var(--dk-b) + 88px); }
+body.fz-sub.has-live .view { padding-bottom: calc(var(--dk-top) + 28px); }
 body.fz-sub.has-live.has-cta .view { padding-bottom: calc(var(--cta-b) + var(--cta-h) + 20px); }
 /* 横推里浮起来的记录条（#ctaFloat：dock 之上、不跟页面走） */
 #ctaFloat { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 11; pointer-events: none; }
 #ctaFloat > .fz-fl { position: fixed !important; inset: 0 !important; margin: 0 !important; padding: 0 !important; min-height: 0 !important; height: auto !important;
   background: none !important; box-shadow: none !important; animation: none !important; transform: none !important; pointer-events: none !important; overflow: visible !important; display: block !important; }
-#ctaFloat .mod-cta { position: fixed; z-index: 11; left: 0; right: 0; bottom: var(--cta-b); top: auto; max-width: 640px; margin: 0 auto; padding: 0 16px; box-sizing: border-box; display: flex; justify-content: center; pointer-events: none; animation: none; }
+#ctaFloat .mod-cta { position: fixed; z-index: 11; left: 0; right: 0; bottom: var(--cta-b); top: auto; max-width: 640px; margin: 0 auto; padding: 0 var(--dk-m); box-sizing: border-box; display: flex; justify-content: center; pointer-events: none; animation: none; }
 body.fz-swap #view .mod-cta, #view .mod-cta.fz-hide, .nav-ghost .mod-cta.fz-hide { visibility: hidden !important; }
 /* 推入 / 返回的形变中：一级 dock 的 CSS 玻璃让给 GL（GL 不在时不藏，DOM 自己就是形状） */
 html.fz-gl body.fz-morph #tabbar.lg, html.fz-gl body.fz-morph #dockOrb.lg { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
@@ -7310,7 +7286,7 @@ body.fz-morph #tabbar.lg, body.fz-morph #dockOrb { transition: none; }
   transform-origin: 50% 50%; transition: none !important; animation: none !important; }
 .fz-ghost::before, .fz-ghost::after { display: none !important; }
 .fz-ghost-back { display: inline-flex; align-items: center; justify-content: center; color: #6E5547; border: 0; padding: 0; }
-.fz-ghost-back .ico { width: 24px; height: 24px; stroke-width: 1.8; }
+.fz-ghost-back .ico { width: var(--dk-ico); height: var(--dk-ico); stroke-width: 2; }
 body.dark .fz-ghost-back { color: #D9C6B5; }
 @media (prefers-reduced-transparency: reduce) {
   html body #tabbar.lg.is-sub > #backBtn, html body.fz-sub .mod-cta > .fd-mode, html body.fz-sub .mod-cta > .ft-mini { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -7475,7 +7451,7 @@ body.fam-scanning { overflow: hidden; }
   background: rgba(255, 255, 255, .62); color: var(--text); font-size: var(--t-sm); font-weight: 600; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   box-shadow: 0 1px 2px rgba(90, 74, 62, .08); flex: 0 0 auto; }
 .fam-come img { width: 30px; height: 30px; }
-.fam-come:active { transform: scale(.95); }
+.fam-come:active { transform: scale(var(--pa-btn)); }
 body.dark .fam-come { background: rgba(40, 36, 34, .55); }
 /* 记录由别人记的：时间轴卡片里一行小字 */
 .tl-txt .fam-by { display: block; font-size: calc(11px * var(--fs-mul, 1)); color: var(--muted); font-weight: 500; margin-top: 1px; }
@@ -7506,7 +7482,7 @@ body.fs-xl .qk-grid.qk-n5, body.fs-xl .qk-grid.qk-n7, body.fs-xl .qk-grid.qk-n8,
   transition: transform var(--dur-press, 120ms) var(--ease-out, ease);
 }
 body.dark .qk-grid .qk { background: color-mix(in srgb, var(--tile) 18%, var(--surface)); }
-.qk-grid .qk:active { transform: scale(.95); }
+.qk-grid .qk:active { transform: scale(var(--pa-btn)); }
 .qk-grid .qk:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .qk-grid .qk[disabled] { opacity: .55; cursor: default; }
 .qk-ico { position: relative; width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--surface); flex: none; }
@@ -7535,7 +7511,7 @@ body #quickDock .qd-action.qd-edit .qd-ico { color: var(--muted); }
 .qs-chip { min-height: 44px; padding: 0 16px; border: 0; border-radius: var(--radius-pill, 999px); background: var(--surface-2); color: var(--text);
   font: inherit; font-size: var(--t-body); font-weight: 600; cursor: pointer; transition: transform var(--dur-press, 120ms) var(--ease-out, ease); }
 body.dark .qs-chip { background: rgba(255, 255, 255, .08); }
-.qs-chip:active { transform: scale(.96); }
+.qs-chip:active { transform: scale(var(--pa-btn)); }
 .qs-chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .qs-chip.on { background: var(--tile-weak); color: var(--tile-text); box-shadow: inset 0 0 0 1.5px var(--tile); }
 .qs-go .qs-chip { flex: 1 1 calc(33% - 8px); min-width: calc(76px * var(--fs-mul)); }
@@ -7602,3 +7578,44 @@ body.fs-xl .kv-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .st-list.baby-list .baby-ops { flex: 1 0 100%; margin-left: 0; padding-left: 52px; box-sizing: border-box; flex-wrap: wrap; }
 /* 第 333 次：设置三级页里的分段按钮按字宽自适应换行（320 宽 + 1.33 倍字号下「宝宝已出生」「妈妈情绪」不被 25% 定宽挤压） */
 .st-card .seg .seg-btn, .st-card .seg-wrap2 .seg-btn { flex: 1 0 auto; min-width: max-content; white-space: nowrap; padding-left: 14px; padding-right: 14px; }
+
+
+/* ============================================================
+   第 334 次：动效统一（用户：「更多界面的过渡动画、点击动画」）
+   · 按压态一套：三档缩放 --press-btn / --press-card / --press-ico + 列表行底色 --press-row（:root）。
+     触屏由 js/touchfx.js 统一做（Web Animations：按下 --dur-press × --ease-out，松手 --dur-release × --spring）；
+     鼠标走各元素 :active（写 var(--pa-*)，触屏上 --pa-* = 1，不叠两次）。
+   · 三级页横推：#view.sub-push / .sub-pop（app.js subAnim，进 / 出 App.enterSub），和二级页同一组关键帧、同一条 --ease-ios。
+   · 展开收起：<details> 打开时内容淡入下移 4px（--dur-ctl × --ease-out）。
+   · 数字变化：原地重画后变了的看板数字 .num-tick 跳一下（和咿呀岛 .toast-num 同一个动作）。
+   · 只动 transform / opacity；装着底部主按钮的容器不动（第 282 次）。减少动态效果：只淡入淡出。
+   ============================================================ */
+@media (hover: hover) {
+  :is(.set-group > summary, .st-act, .st-link, .vt-row, .sr-row, .su-row, .wt-row):active { background-color: var(--press-row); }
+}
+#view.sub-push > :not(:has(.mod-cta)):not(.mod-cta),
+#view.sub-push > :has(.mod-cta) > :not(.mod-cta):not(:has(.mod-cta)) { animation: vtInRight var(--dur-page) var(--ease-ios) both; }
+#view.sub-pop > :not(:has(.mod-cta)):not(.mod-cta),
+#view.sub-pop > :has(.mod-cta) > :not(.mod-cta):not(:has(.mod-cta)) { animation: vtInLeft var(--dur-page) var(--ease-ios) both; }
+/* 审查（第 334 次）：视觉 28–40 高的小控件（胶囊 / 图标钮 / 分段里的按钮 / 文字钮），点按区用透明 ::after 外扩到 ≥44（--tap-min），外观不变。
+   分段按钮之间只隔 4px，只往上下扩（扩进分段外框 4px 的内边距里），不压到隔壁。:where 零优先级：元素自己写了 position 的照旧。 */
+:where(.ft-chip, .gr-pill, .rs-x, .tb-today, .bp-gear, .bp-sw, .bp-edit, .bp-nmb, .toast-action, .wp-pill, .qe-mode button, .rs-switch, .rs-seg > button, .ft-seg > button, .bp-more, .sp-today, .sp-manage) { position: relative; }
+:is(.ft-chip, .gr-pill, .rs-x, .tb-today, .bp-gear, .bp-sw, .bp-edit, .bp-nmb, .toast-action, .wp-pill, .rs-switch, .bp-more, .sp-today, .sp-manage)::after {
+  content: ''; position: absolute; top: min(0px, calc(50% - var(--tap-min) / 2)); bottom: min(0px, calc(50% - var(--tap-min) / 2));
+  left: min(0px, calc(50% - var(--tap-min) / 2)); right: min(0px, calc(50% - var(--tap-min) / 2)); }
+:is(.qe-mode button, .rs-seg > button, .ft-seg > button)::after { content: ''; position: absolute; left: 0; right: 0; top: min(0px, calc(50% - var(--tap-min) / 2)); bottom: min(0px, calc(50% - var(--tap-min) / 2)); }
+/* 家庭共享「高级：中转服务器」地址框原来只有 21 高（没走面板控件一套） */
+.fam-adv input { min-height: var(--ctl-h); }
+details:not(.set-group)[open] > :not(summary) { animation: discIn var(--dur-ctl) var(--ease-out) both; }
+@keyframes discIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.num-tick { display: inline-block; animation: numTick .34s var(--spring) both; }
+.swap-in { animation: calSwap .26s var(--ease-out) both; }
+@keyframes numTick { 0% { opacity: 0; transform: translateY(45%) scale(.85); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  #view.sub-push > :not(:has(.mod-cta)):not(.mod-cta), #view.sub-push > :has(.mod-cta) > :not(.mod-cta):not(:has(.mod-cta)),
+  #view.sub-pop > :not(:has(.mod-cta)):not(.mod-cta), #view.sub-pop > :has(.mod-cta) > :not(.mod-cta):not(:has(.mod-cta)) { animation: vtFadeIn .2s linear both !important; }
+  details:not(.set-group)[open] > :not(summary) { animation: vtFadeIn .16s linear both !important; }
+  .num-tick { animation: none !important; }
+  .swap-in { animation: vtFadeIn .18s linear both !important; }
+  /* 半屏面板只淡入：写在「背后页面」那一节的同名规则里（避免重复选择器） */
+}
