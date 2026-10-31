@@ -12,7 +12,11 @@
  *    消息 AAD = 'yiya/v1|<familyId>|<发送设备 ID>|<kind>'；推送 AAD = 'yiya/v1/push|<familyId>|<发送设备 ID>|<kind>'。
  *    AAD 里的 familyId / from / kind 都取「服务器告诉我的」那一份：服务器或中间人换了任何一项，GCM 校验直接失败。
  * 四、FamPush.text()：推送解密后生成通知文字的唯一出口（SW 与回归测试共用）。只认白名单动作，
- *    文字只有「称呼 + 动作」（如「爸爸 叫你过来一下」），绝不带任何记录 / 健康数据；任何一步不对就回通用文案。
+ *    文字只有「称呼 + 动作」（如「爸爸 叫你过来一下」「爸爸 记了一次瓶喂」），绝不带量、备注等记录内容；任何一步不对就回通用文案。
+ * 五、第 335 次：本机提醒密钥（FamRemind）。和家庭无关、每台手机各一把：32 字节随机数，只存 IndexedDB（yiya-family / kv / 'rcred'），
+ *    永远不发服务器。HKDF(salt='yiya/v1/hkdf', info='yiya/v1/remind') → AES-256-GCM；AAD = 'yiya/v1/remind|<提醒设备 ID>|<提醒 ID>'。
+ *    服务器只存「到点时间 + 这份密文 + 推送订阅」，到点原样推给 SW，SW 用同一把密钥解开再 showNotification；解不开 → 「咿呀记有一条提醒」。
+ *    FamRemind.text() 是提醒通知文字的唯一出口：类型白名单、纯文本清洗（去控制字符 / 双向覆盖符、限长）、「锁屏不显示详情」时只给通用文案。
  */
 (function (G) {
   'use strict';
@@ -128,14 +132,19 @@
   };
 
   /* ---------- 推送通知文字（SW 唯一出口） ---------- */
-  var PUSH_ACTS = { come: '叫你过来一下' };
+  var PUSH_ACTS = { come: '叫你过来一下', rec: '记了一条记录' };
+  /* 第 335 次：家人记录的类型白名单（只有类型，没有量 / 备注）→ [文案, 点开去的页] */
+  var REC_LABELS = { feed: ['一次喂奶', 'feeding'], breast: ['一次亲喂', 'breast'], bottle: ['一次瓶喂', 'bottle'], solid: ['一次辅食', 'solid'],
+    sleep: ['一次睡眠', 'sleep'], diaper: ['一次换尿布', 'diaper'], meds: ['一次用药', 'meds'], temp: ['一次体温', 'temp'],
+    sup: ['一次营养品', 'supplement'], bath: ['一次洗澡', 'bath'], growth: ['一次生长', 'growth'], other: ['一条记录', 'home'] };
   var GENERIC = { title: '咿呀', body: '家里有新消息' };
   function cleanName(s) {
     if (typeof s !== 'string') return '';
     return s.replace(/[\u0000-\u001f\u007f-\u009f<>&"'`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 8);
   }
-  /** data = 服务器转来的推送负载 {t, f, from, ct, at}；cred = 本机 IndexedDB 里的家庭凭据；names = {deviceId: 称呼} */
-  function pushText(data, cred, names) {
+  /** data = 服务器转来的推送负载 {t, f, from, ct, at}；cred = 本机 IndexedDB 里的家庭凭据；names = {deviceId: 称呼}；
+   *  prefs = 本机通知偏好（第 335 次：hide = 锁屏不显示详情） */
+  function pushText(data, cred, names, prefs) {
     return Promise.resolve().then(function () {
       if (!data || typeof data !== 'object' || !cred || typeof cred !== 'object') throw new Error('no');
       if (typeof data.f !== 'string' || data.f !== cred.familyId) throw new Error('family');
@@ -149,9 +158,69 @@
         if (p.v !== 1 || p.a !== data.t || typeof p.at !== 'number') throw new Error('payload');
         if (Math.abs(Date.now() - p.at) > 864e5) throw new Error('stale');
         var nm = cleanName(p.n) || cleanName(names && names[data.from]) || '家人';
-        return { title: '咿呀', body: nm + ' ' + PUSH_ACTS[data.t], ok: true };
+        if (data.t === 'rec') {
+          var lb = (typeof p.k === 'string' && REC_LABELS.hasOwnProperty(p.k)) ? REC_LABELS[p.k] : REC_LABELS.other;
+          var c = (typeof p.c === 'number' && p.c >= 1 && p.c <= 999) ? Math.floor(p.c) : 1;
+          if (prefs && prefs.hide) return { title: '咿呀', body: '家里有新记录', ok: true, go: 'home', tag: 'yiya-fam-rec' };
+          return { title: '咿呀', body: nm + ' 记了' + (c > 1 ? ' ' + c + ' 条记录' : lb[0]), ok: true, go: c > 1 ? 'home' : lb[1], tag: 'yiya-fam-rec' };
+        }
+        return { title: '咿呀', body: nm + ' ' + PUSH_ACTS[data.t], ok: true, go: 'home', tag: 'yiya-come' };
       });
-    }).catch(function () { return { title: GENERIC.title, body: GENERIC.body, ok: false }; });
+    }).catch(function () { return { title: GENERIC.title, body: GENERIC.body, ok: false, go: 'home', tag: 'yiya-family' }; });
+  }
+
+  /* ---------- 第 335 次：本机提醒（与家庭无关） ---------- */
+  var rkCache = { raw: null, p: null };
+  function remindKey(raw) {
+    if (!(raw instanceof Uint8Array) || raw.length !== 32) return Promise.reject(new Error('bad_key'));
+    var tag = b64u(raw);
+    if (rkCache.raw === tag && rkCache.p) return rkCache.p;
+    var p = subtle.importKey('raw', raw, 'HKDF', false, ['deriveKey']).then(function (base) {
+      return subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: SALT, info: te.encode('yiya/v1/remind') }, base,
+        { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    });
+    rkCache = { raw: tag, p: p };
+    p.catch(function () { if (rkCache.p === p) rkCache = { raw: null, p: null }; });
+    return p;
+  }
+  function remindAad(rdevId, rid) { return 'yiya/v1/remind|' + rdevId + '|' + rid; }
+  var REM_KINDS = { feed: '喂奶提醒', sup: '补剂与吃药', vac: '疫苗提醒', chk: '儿保提醒', pre: '产检提醒', timer: '计时提醒', supply: '用品提醒' };
+  var REM_GENERIC = { title: '咿呀记', body: '咿呀记有一条提醒' };
+  var RID_RE = /^[A-Za-z0-9_-]{1,32}$/, RDEV_RE = /^r_[A-Za-z0-9_-]{16}$/, GO_RE = /^[a-z]{2,16}$/, UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  /** 通知文字一律当纯文本：去控制字符、零宽 / 双向覆盖符，压空白，限长。系统通知本来就不解析 HTML，App 内咿呀岛再 escape 一次 */
+  function cleanText(s, max) {
+    if (typeof s !== 'string') return '';
+    return s.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, '').replace(/\s+/g, ' ').trim().slice(0, max || 60);
+  }
+  /** 把一条提醒加密成服务器要的不透明密文（明文按 192 字节补齐，服务器从长度看不出写了什么） */
+  function remindSeal(rcred, item) {
+    var raw = unb64u(rcred && rcred.k);
+    if (!raw || raw.length !== 32 || !RDEV_RE.test(rcred.deviceId || '') || !RID_RE.test(item.id || '')) return Promise.reject(new Error('bad'));
+    var o = { v: 1, id: item.id, k: item.k, ti: cleanText(item.title, 24), b: cleanText(item.body, 80), go: GO_RE.test(item.go || '') ? item.go : 'home' };
+    if (item.bid && UUID_RE.test(item.bid)) o.bid = item.bid;
+    o.p = '';
+    var len = te.encode(JSON.stringify(o)).length;   /* 按 UTF-8 字节补齐：中文 3 字节，按字符数补齐会漏长度 */
+    o.p = new Array((192 - (len % 192)) % 192 + 1).join(' ');
+    return remindKey(raw).then(function (key) { return encrypt(key, remindAad(rcred.deviceId, item.id), o); });
+  }
+  /** data = 服务器推来的 {t:'rem', r, id, ct, at}；rcred = 本机提醒凭据；prefs = 本机通知偏好 */
+  function remindText(data, rcred, prefs) {
+    var gen = { title: REM_GENERIC.title, body: REM_GENERIC.body, ok: false, go: 'home', tag: 'yiya-rem' };
+    return Promise.resolve().then(function () {
+      if (!data || typeof data !== 'object' || data.t !== 'rem' || !rcred || typeof rcred !== 'object') throw new Error('no');
+      if (typeof data.r !== 'string' || data.r !== rcred.deviceId || typeof data.id !== 'string' || !RID_RE.test(data.id)) throw new Error('who');
+      gen.tag = 'yiya-rem-' + data.id;
+      var raw = unb64u(rcred.k);
+      if (!raw || raw.length !== 32) throw new Error('key');
+      return remindKey(raw).then(function (key) { return decrypt(key, remindAad(data.r, data.id), data.ct, 2048); }).then(function (p) {
+        if (p.v !== 1 || p.id !== data.id || typeof p.k !== 'string' || !REM_KINDS.hasOwnProperty(p.k)) throw new Error('payload');
+        var go = GO_RE.test(p.go || '') ? p.go : 'home';
+        var bid = (typeof p.bid === 'string' && UUID_RE.test(p.bid)) ? p.bid : null;
+        if (prefs && prefs.hide) return { title: REM_GENERIC.title, body: REM_GENERIC.body, ok: true, go: go, bid: bid, tag: gen.tag, k: p.k };
+        var ti = cleanText(p.ti, 24) || REM_KINDS[p.k], b = cleanText(p.b, 80) || REM_GENERIC.body;
+        return { title: ti, body: b, ok: true, go: go, bid: bid, tag: gen.tag, k: p.k };
+      });
+    }).catch(function () { return gen; });
   }
 
   G.FamCrypto = {
@@ -159,5 +228,6 @@
     aad: aad, pushAad: pushAad, encrypt: encrypt, decrypt: decrypt, cleanName: cleanName
   };
   G.FamDB = FamDB;
-  G.FamPush = { text: pushText, ACTS: PUSH_ACTS, GENERIC: GENERIC };
+  G.FamPush = { text: pushText, ACTS: PUSH_ACTS, GENERIC: GENERIC, REC_LABELS: REC_LABELS };
+  G.FamRemind = { key: remindKey, aad: remindAad, seal: remindSeal, text: remindText, clean: cleanText, KINDS: REM_KINDS, GENERIC: REM_GENERIC };
 })(typeof self !== 'undefined' ? self : this);
